@@ -42,15 +42,8 @@ extension XcodeGraph.ResourceFileElement {
                 files = []
             }
 
-            if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
-                    Logger.current
-                        .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else if !path.isGlobPath {
-                    // FIXME: This should be done in a linter.
-                    Logger.current.warning("No files found at: \(path.pathString)")
-                }
-            }
+            // File validation is now handled by ManifestMapperLinter
+            // Empty files array is valid and will be checked during linting phase
 
             return files
                 .compactMap { $0.opaqueParentDirectory() ?? $0 }
@@ -58,16 +51,13 @@ extension XcodeGraph.ResourceFileElement {
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            // Validation is now handled by ManifestMapperLinter
+            // Return empty array if path doesn't exist or is not a folder
             guard try await fileSystem.exists(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current.warning("\(path.pathString) does not exist")
                 return []
             }
 
             guard FileHandler.shared.isFolder(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current
-                    .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 

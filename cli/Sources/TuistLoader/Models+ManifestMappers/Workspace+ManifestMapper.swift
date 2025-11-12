@@ -32,12 +32,8 @@ extension XcodeGraph.Workspace {
             .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
             .uniqued()
 
-            if projects.isEmpty {
-                // FIXME: This should be done in a linter.
-                // Before we can do that we have to change the linters to run with the TuistCore models and not the
-                // ProjectDescription ones.
-                Logger.current.warning("No projects found at: \(path.pathString)")
-            }
+            // Project validation is now handled by ManifestMapperLinter
+            // Empty projects array is valid and will be checked during linting phase
 
             return Array(projects)
         }
