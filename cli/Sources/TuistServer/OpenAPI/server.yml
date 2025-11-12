@@ -881,6 +881,9 @@ components:
                       - remap
                       - localization-strings
                       - clang-header
+                      - swiftsourceinfo
+                      - assembly
+                      - unknown
                     type: string
                     x-struct:
                     x-validate:
@@ -2001,6 +2004,9 @@ components:
                   - remap
                   - localization-strings
                   - clang-header
+                  - swiftsourceinfo
+                  - assembly
+                  - unknown
                 type: string
                 x-struct:
                 x-validate:
@@ -6407,6 +6413,9 @@ paths:
                               - remap
                               - localization-strings
                               - clang-header
+                              - swiftsourceinfo
+                              - assembly
+                              - unknown
                             type: string
                             x-struct:
                             x-validate:

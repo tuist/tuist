@@ -579,8 +579,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
             guard let notes = step.notes else { continue }
 
             for note in notes {
-                // Check for "local cache found for key:" or "Local cache miss for key:"
-                let pattern = "(?:local cache found for key:|Local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+                // Check for "local cache found for key:" or "local cache miss for key:"
+                let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
                 guard let regex = try? NSRegularExpression(pattern: pattern),
                       let match = regex.firstMatch(in: note.title, range: NSRange(location: 0, length: note.title.count)),
                       let keyRange = Range(match.range(at: 1), in: note.title)

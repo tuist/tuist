@@ -339,9 +339,9 @@ import OpenAPIURLSession
             case .swiftInterface: .swiftinterface
             case .privateSwiftInterface: .private_hyphen_swiftinterface
             case .packageSwiftInterface: .package_hyphen_swiftinterface
-            case .swiftSourceInfoFile: nil
+            case .swiftSourceInfoFile: .swiftsourceinfo
             case .swiftConstValues: .const_hyphen_values
-            case .assembly: nil
+            case .assembly: .assembly
             case .rawSil: .raw_hyphen_sil
             case .rawSib: .raw_hyphen_sib
             case .rawLlvmIr: .raw_hyphen_llvm_hyphen_ir

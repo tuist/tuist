@@ -2576,6 +2576,9 @@ public enum Components {
                         case remap = "remap"
                         case localization_hyphen_strings = "localization-strings"
                         case clang_hyphen_header = "clang-header"
+                        case swiftsourceinfo = "swiftsourceinfo"
+                        case assembly = "assembly"
+                        case unknown = "unknown"
                     }
                     /// The type of the CAS output file.
                     ///
@@ -4240,6 +4243,9 @@ public enum Components {
                     case remap = "remap"
                     case localization_hyphen_strings = "localization-strings"
                     case clang_hyphen_header = "clang-header"
+                    case swiftsourceinfo = "swiftsourceinfo"
+                    case assembly = "assembly"
+                    case unknown = "unknown"
                 }
                 /// The type of the CAS output file.
                 ///
@@ -22126,6 +22132,9 @@ public enum Operations {
                                 case remap = "remap"
                                 case localization_hyphen_strings = "localization-strings"
                                 case clang_hyphen_header = "clang-header"
+                                case swiftsourceinfo = "swiftsourceinfo"
+                                case assembly = "assembly"
+                                case unknown = "unknown"
                             }
                             /// The type of the CAS output file.
                             ///
