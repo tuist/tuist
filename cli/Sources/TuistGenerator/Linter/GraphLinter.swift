@@ -16,6 +16,7 @@ public class GraphLinter: GraphLinting {
 
     private let projectLinter: ProjectLinting
     private let staticProductsLinter: StaticProductsGraphLinting
+    private let manifestMapperLinter: ManifestMapperLinting
     private let fileSystem: FileSysteming
 
     // MARK: - Init
@@ -23,19 +24,23 @@ public class GraphLinter: GraphLinting {
     public convenience init() {
         let projectLinter = ProjectLinter()
         let staticProductsLinter = StaticProductsGraphLinter()
+        let manifestMapperLinter = ManifestMapperLinter()
         self.init(
             projectLinter: projectLinter,
-            staticProductsLinter: staticProductsLinter
+            staticProductsLinter: staticProductsLinter,
+            manifestMapperLinter: manifestMapperLinter
         )
     }
 
     init(
         projectLinter: ProjectLinting,
         staticProductsLinter: StaticProductsGraphLinting,
+        manifestMapperLinter: ManifestMapperLinting = ManifestMapperLinter(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.projectLinter = projectLinter
         self.staticProductsLinter = staticProductsLinter
+        self.manifestMapperLinter = manifestMapperLinter
         self.fileSystem = fileSystem
     }
 
@@ -46,6 +51,24 @@ public class GraphLinter: GraphLinting {
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
+
+        // Lint workspace with ManifestMapperLinter
+        try await issues.append(
+            contentsOf: manifestMapperLinter.lint(
+                workspace: graphTraverser.workspace,
+                fileSystem: fileSystem
+            )
+        )
+
+        // Lint projects with ManifestMapperLinter
+        try await issues.append(
+            contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
+                try await self.manifestMapperLinter.lint(project: project, fileSystem: self.fileSystem)
+            }
+            .flatMap { $0 }
+        )
+
+        // Existing project linting
         try await issues.append(
             contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
                 try await self.projectLinter.lint(project)

@@ -35,30 +35,17 @@ extension XcodeGraph.CopyFileElement {
                 files = []
             }
 
-            if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
-                    Logger.current
-                        .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else {
-                    // FIXME: This should be done in a linter.
-                    Logger.current.warning("No files found at: \(path.pathString)")
-                }
-            }
-
+            // File validation moved to ManifestMapperLinter
             return files
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            // Validation moved to ManifestMapperLinter
             guard try await fileSystem.exists(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current.warning("\(path.pathString) does not exist")
                 return []
             }
 
             guard FileHandler.shared.isFolder(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current
-                    .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 
