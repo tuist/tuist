@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 13:22+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 13:37+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -1430,7 +1430,7 @@ msgstr "받은 편지함으로 확인 이메일을 보냈습니다. 스팸이나
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "What happens if I exceed my plan limits?"
-msgstr "요금제를 초과하면 어떻게 되나요?"
+msgstr "요금제 제한을 초과하면 어떻게 되나요?"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:430
 #, elixir-autogen, elixir-format
@@ -1470,12 +1470,12 @@ msgstr "오픈소스 활동"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
-msgstr "네, 우리는 합니다. 여러분의 팀의 요구사항에 대해 의논하고 우리가 요금제를 계획에 맞게 수정할 수 있게 contact@tuist.dev로 연락하세요."
+msgstr "네, 제공 합니다. 요구사항에 대해 의논하고 요금제를 계획에 맞게 수정할 수 있게 contact@tuist.dev로 연락하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
-msgstr "네, 가능합니다. 더 자세한 정보를 원하시면 contact@tuist.dev로 연락 주세요."
+msgstr "네, 제공합니다. 더 자세한 정보를 원하시면 contact@tuist.dev로 연락 주세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:387
 #, elixir-autogen, elixir-format
@@ -1490,7 +1490,7 @@ msgstr "네, 연간 할인을 제공합니다. 할인이 더 필요하시면 con
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "Yes, you can manage your plan at any time through our management interface."
-msgstr "네, 언제든 우리의 관리 페이지를 통해서 요금제를 관리하실 수 있습니다."
+msgstr "네, 언제든 관리 페이지를 통해서 요금제를 관리하실 수 있습니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:606
 #, elixir-autogen, elixir-format
