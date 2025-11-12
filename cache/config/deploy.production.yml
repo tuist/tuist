@@ -1,0 +1,9 @@
+servers:
+  web:
+    hosts:
+      - 91.98.153.89
+      - 5.161.104.150
+env:
+  clear:
+    SERVER_URL: https://tuist.dev
+    APPSIGNAL_ENV: prod

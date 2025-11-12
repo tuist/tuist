@@ -3,9 +3,6 @@ image: tuist/cache
 
 servers:
   web:
-    hosts:
-      - 91.98.153.89
-      - 5.161.104.150
     proxy: false
     options:
       network-alias: cache-app
@@ -21,9 +18,7 @@ builder:
 
 env:
   clear:
-    SERVER_URL: https://tuist.dev
     CAS_STORAGE_DIR: /cas
-    APPSIGNAL_ENV: prod
     PHX_SOCKET_PATH: /run/cache/cache.sock
     PHX_SOCKET_LINK: /run/cache/current.sock
 
