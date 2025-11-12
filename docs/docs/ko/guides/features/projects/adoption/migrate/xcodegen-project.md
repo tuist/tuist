@@ -36,6 +36,7 @@ projects from XcodeGen to Tuist.
 Both Tuist and XcodeGen provide a `generate` command that turns your project
 declaration into Xcode projects and workspaces.
 
+::: code-group
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -60,6 +61,7 @@ workspaces. You can also have a project `Project.swift` with targets that
 reference targets from other projects. In those cases, Tuist will generate an
 Xcode Workspace including all the projects.
 
+::: code-group
 
 ```bash [XcodeGen directory structure]
 /
@@ -94,6 +96,7 @@ the language itself, Swift, and through a Swift module named
 helpers</LocalizedLink>, which allow reusing code across all your manifest
 files.
 
+::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 
