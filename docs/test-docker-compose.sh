@@ -33,7 +33,7 @@ echo -e "${GREEN}✓${NC} Using: $DOCKER_CMD"
 echo ""
 
 # Change to project root
-PROJECT_ROOT="$(dirname "$0")/.."
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Cleanup function
