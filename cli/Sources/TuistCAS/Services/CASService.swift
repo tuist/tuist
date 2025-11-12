@@ -10,6 +10,7 @@ import TuistServer
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
+    private let cacheURLStore: CacheURLStoring
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
@@ -18,10 +19,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
     public init(
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        cacheURLStore: CacheURLStoring
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
+        self.cacheURLStore = cacheURLStore
         saveCacheCASService = SaveCacheCASService()
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
@@ -32,6 +35,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     init(
         fullHandle: String,
         serverURL: URL,
+        cacheURLStore: CacheURLStoring,
         saveCacheCASService: SaveCacheCASServicing,
         loadCacheCASService: LoadCacheCASServicing,
         fileSystem: FileSysteming,
@@ -40,6 +44,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
+        self.cacheURLStore = cacheURLStore
         self.saveCacheCASService = saveCacheCASService
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
@@ -67,10 +72,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         Logger.current.debug("CAS.load starting - casID: \(casID)")
 
         do {
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
             let compressedData = try await loadCacheCASService.loadCacheCAS(
                 casId: casID,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: cacheURL,
+                authenticationURL: serverURL
             )
 
             let decompressedData: Data
@@ -180,11 +187,13 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             )
 
         do {
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
             try await saveCacheCASService.saveCacheCAS(
                 compressedData,
                 casId: fingerprint,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: cacheURL,
+                authenticationURL: serverURL
             )
             response.casID = message
             response.contents = .casID(message)

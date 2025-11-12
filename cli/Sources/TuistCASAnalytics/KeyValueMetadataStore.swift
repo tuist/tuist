@@ -39,6 +39,10 @@ public struct KeyValueMetadataStore: KeyValueMetadataStoring {
         let sanitizedKey = sanitizeCacheKey(cacheKey)
         let metadataFilePath = keyValueDirectory.appending(component: "\(sanitizedKey).json")
 
+        if try await fileSystem.exists(metadataFilePath) {
+            try await fileSystem.remove(metadataFilePath)
+        }
+
         try await fileSystem.writeAsJSON(metadata, at: metadataFilePath)
     }
 

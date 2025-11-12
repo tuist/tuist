@@ -13,12 +13,15 @@ import TuistSupport
 struct CacheStartCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fileSystem: FileSysteming
+    private let cacheURLStore: CacheURLStoring
 
     init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        fileSystem: FileSysteming = FileSystem()
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        fileSystem: FileSysteming = FileSystem(),
     ) {
         self.serverEnvironmentService = serverEnvironmentService
+        self.cacheURLStore = cacheURLStore
         self.fileSystem = fileSystem
     }
 
@@ -41,6 +44,9 @@ struct CacheStartCommandService {
                 .map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
                 .url()
 
+            Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
+            _ = try await cacheURLStore.getCacheURL(for: serverURL)
+
             let server = GRPCServer(
                 transport: .http2NIOPosix(
                     address: .unixDomainSocket(path: socketPath.pathString),
@@ -49,11 +55,13 @@ struct CacheStartCommandService {
                 services: [
                     KeyValueService(
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        cacheURLStore: cacheURLStore
                     ),
                     CASService(
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        cacheURLStore: cacheURLStore
                     ),
                 ]
             )

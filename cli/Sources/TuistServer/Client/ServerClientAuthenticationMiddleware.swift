@@ -21,17 +21,21 @@ public enum ServerClientAuthenticationError: LocalizedError, Equatable {
 /// Injects an authorization header to every request.
 struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let authenticationURL: URL?
 
-    init() {
+    init(authenticationURL: URL? = nil) {
         self.init(
             serverAuthenticationController: ServerAuthenticationController(),
+            authenticationURL: authenticationURL
         )
     }
 
     init(
         serverAuthenticationController: ServerAuthenticationControlling,
+        authenticationURL: URL? = nil
     ) {
         self.serverAuthenticationController = serverAuthenticationController
+        self.authenticationURL = authenticationURL
     }
 
     func intercept(
@@ -43,8 +47,9 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
 
+        let urlForAuthentication = authenticationURL ?? baseURL
         guard let token = try await serverAuthenticationController.authenticationToken(
-            serverURL: baseURL
+            serverURL: urlForAuthentication
         )
         else {
             throw ServerClientAuthenticationError.notAuthenticated
