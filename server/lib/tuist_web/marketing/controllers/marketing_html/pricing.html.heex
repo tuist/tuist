@@ -116,7 +116,7 @@ features = [
     hint_text:
       dgettext(
         "marketing",
-        "A Tuist command execution that interacts with the server to push or pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+        "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
       ),
     values: [
       "200",
@@ -368,7 +368,7 @@ features = [
               >
                 <:trigger :let={attrs}>
                   <span {attrs}>
-                    <.hint_text :if={feature.hint} label={feature.hint} />
+                    <.hint_text label={feature.hint} />
                   </span>
                 </:trigger>
               </.tooltip>
