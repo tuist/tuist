@@ -12,7 +12,6 @@ services:
       POSTGRES_USER: tuist
       POSTGRES_PASSWORD: tuist_dev_password
       POSTGRES_DB: tuist_dev
-      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - '5432:5432'
     volumes:
