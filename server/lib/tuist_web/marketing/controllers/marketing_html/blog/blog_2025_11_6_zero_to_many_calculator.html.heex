@@ -395,7 +395,11 @@
       </div>
 
       <div class="winner-summary">
-        <div class="winner-title">Tuist delivers <span id="comparison-multiplier">17×</span> better ROI than faster hardware</div>
+        <div class="winner-title">
+          Tuist ROI: <span id="tuist-roi-summary" class="positive">20×</span> |
+          Hardware ROI: <span id="hardware-roi-summary">1.5×</span> |
+          Hiring ROI: <span id="hiring-roi-summary" class="negative">-0.5×</span>
+        </div>
         <div class="winner-text">Optimize workflows before hardware. Eliminate waste instead of making it happen faster.</div>
       </div>
     </div>
@@ -440,7 +444,10 @@
       const hardwareBenefitEl = document.getElementById('hardware-benefit');
       const hardwareRoiEl = document.getElementById('hardware-roi');
 
-      const comparisonMultiplierEl = document.getElementById('comparison-multiplier');
+      // Summary elements
+      const tuistRoiSummaryEl = document.getElementById('tuist-roi-summary');
+      const hardwareRoiSummaryEl = document.getElementById('hardware-roi-summary');
+      const hiringRoiSummaryEl = document.getElementById('hiring-roi-summary');
 
       function formatMoney(value) {
         if (value >= 1000000) {
@@ -548,9 +555,10 @@
         hardwareBenefitEl.textContent = formatMoney(hardwareNetBenefit);
         hardwareRoiEl.textContent = hardwareROI.toFixed(1) + '×';
 
-        // Update comparison multiplier
-        const comparisonMultiplier = (tuistROI / Math.max(hardwareROI, 0.1)).toFixed(0);
-        comparisonMultiplierEl.textContent = comparisonMultiplier + '×';
+        // Update ROI summary comparison
+        tuistRoiSummaryEl.textContent = tuistROI.toFixed(0) + '×';
+        hardwareRoiSummaryEl.textContent = hardwareROI.toFixed(1) + '×';
+        hiringRoiSummaryEl.textContent = hireROI.toFixed(1) + '×';
       }
 
       // Add event listeners
