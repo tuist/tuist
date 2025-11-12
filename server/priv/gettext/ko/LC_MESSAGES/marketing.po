@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 11:43+0000\nLast-Translator: Anonymous <noreply@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 12:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -1027,7 +1027,7 @@ msgstr "캐싱 가능한 타겟과 Swift 작업에 대한 바이너리 캐싱으
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
-msgstr ""
+msgstr "변경 사항에 영향 받지 않은 테스트는 제외해서 테스트 속도를 향상 시키세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:272
 #, elixir-autogen, elixir-format
