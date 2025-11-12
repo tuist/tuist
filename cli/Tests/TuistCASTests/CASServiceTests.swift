@@ -13,23 +13,30 @@ import TuistSupport
 
 struct CASServiceTests {
     private let subject: CASService
+    private let cacheURLStore: MockCacheURLStoring
     private let saveCacheCASService: MockSaveCacheCASServicing
     private let loadCacheCASService: MockLoadCacheCASServicing
     private let dataCompressingService: MockDataCompressingServicing
     private let metadataStore: MockCASOutputMetadataStoring
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
+    private let cacheURL = URL(string: "https://cache.example.com")!
 
     init() {
+        cacheURLStore = .init()
         saveCacheCASService = .init()
         loadCacheCASService = .init()
         dataCompressingService = .init()
         metadataStore = .init()
 
+        given(cacheURLStore)
+            .getCacheURL(for: .any)
+            .willReturn(URL(string: "https://cache.example.com")!)
+
         subject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            cacheURLStore: MockCacheURLStoring(),
+            cacheURLStore: cacheURLStore,
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
