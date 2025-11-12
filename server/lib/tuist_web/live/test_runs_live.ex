@@ -92,8 +92,8 @@ defmodule TuistWeb.TestRunsLive do
 
   def handle_params(params, _uri, socket) do
     params =
-      if not Map.has_key?(socket.assigns, :current_params) and has_cursor?(params) do
-        Map.drop(params, ["before", "after"])
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
       else
         params
       end
@@ -111,8 +111,7 @@ defmodule TuistWeb.TestRunsLive do
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -128,8 +127,7 @@ defmodule TuistWeb.TestRunsLive do
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -382,9 +380,5 @@ defmodule TuistWeb.TestRunsLive do
       end)
 
     flop_filters ++ ran_by_flop_filters
-  end
-
-  defp has_cursor?(params) do
-    Map.has_key?(params, "after") or Map.has_key?(params, "before")
   end
 end

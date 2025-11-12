@@ -41,13 +41,13 @@ defmodule TuistWeb.BuildRunsLive do
     params =
       cond do
         # If sort params changed from previous socket state
-        sort_changed?(socket, build_runs_sort_by, build_runs_sort_order) ->
-          Map.drop(params, ["before", "after"])
+        Query.sort_changed?(socket, build_runs_sort_by, build_runs_sort_order, :build_runs) ->
+          Query.clear_cursors(params)
 
         # If explicit sort params are present with cursors (e.g., bookmarked URL)
         # Default sort is "ran-at"/"desc", so explicit params indicate potential cursor mismatch
-        has_cursor?(params) and has_explicit_sort_params?(params) ->
-          Map.drop(params, ["before", "after"])
+        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :"build-runs") ->
+          Query.clear_cursors(params)
 
         true ->
           params
@@ -78,20 +78,6 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_info(_event, socket) do
     {:noreply, socket}
-  end
-
-  defp sort_changed?(socket, new_sort_by, new_sort_order) do
-    Map.has_key?(socket.assigns, :build_runs_sort_by) and
-      (socket.assigns.build_runs_sort_by != new_sort_by or
-         socket.assigns.build_runs_sort_order != new_sort_order)
-  end
-
-  defp has_cursor?(params) do
-    Map.has_key?(params, "after") or Map.has_key?(params, "before")
-  end
-
-  defp has_explicit_sort_params?(params) do
-    Map.has_key?(params, "build-runs-sort-by") or Map.has_key?(params, "build-runs-sort-order")
   end
 
   defp assign_build_runs(
@@ -181,8 +167,7 @@ defmodule TuistWeb.BuildRunsLive do
       |> URI.decode_query()
       |> Map.put("build-runs-sort-by", column_value)
       |> Map.put("build-runs-sort-order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
@@ -191,8 +176,7 @@ defmodule TuistWeb.BuildRunsLive do
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -208,8 +192,7 @@ defmodule TuistWeb.BuildRunsLive do
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
