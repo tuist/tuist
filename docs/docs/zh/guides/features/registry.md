@@ -12,6 +12,7 @@
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
   project</LocalizedLink>
 <!-- -->
+:::
 
 As the number of dependencies grows, so does the time to resolve them. While
 other package managers like [CocoaPods](https://cocoapods.org/) or
@@ -77,3 +78,4 @@ a dot, it's replaced with an underscore. For example, the
 `https://github.com/groue/GRDB.swift` package would have the registry identifier
 `groue.GRDB_swift`.
 <!-- -->
+:::
