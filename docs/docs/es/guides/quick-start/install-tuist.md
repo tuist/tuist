@@ -20,7 +20,6 @@ Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a
 team or organization that needs to ensure deterministic versions of tools across
 different environments.
 <!-- -->
-:::
 
 You can install Tuist through any of the following commands:
 
@@ -62,4 +61,3 @@ running the following command, which checks if the certificate's team is
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 ```
 <!-- -->
-:::
