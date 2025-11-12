@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 14:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 15:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -359,7 +359,7 @@ msgstr "바이너리 캐싱과 재사용으로 빌드 시간을 줄여줍니다"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr "상황판"
+msgstr "서비스 현황"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:42
 #, elixir-autogen, elixir-format
@@ -522,7 +522,7 @@ msgstr "시작하기"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
-msgstr "무료로 Tuist를 시작하고 더 높은 제한이나 개인적인 지원이  필요할 때 투자하세요."
+msgstr "무료로 Tuist를 시작하고 더 높은 제한이나 개인적인 지원이 필요할 때 투자하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:5
 #, elixir-autogen, elixir-format
@@ -565,7 +565,7 @@ msgstr "완벽한 제어와 데이터 소유를 위해 자체 인프라에 Tuist
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:595
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost for my project?"
-msgstr "프로젝트에 부과되는 비용을  미리 계산해볼 수 있나요?"
+msgstr "프로젝트에 부과되는 비용을 미리 계산해볼 수 있나요?"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:376
 #, elixir-autogen, elixir-format
@@ -705,7 +705,7 @@ msgstr "선언문"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Make Xcode projects easier to manage and scale"
-msgstr "Xcode 프로젝트들을 더 쉽게 관리하고 확장할 수 있게 해보세요."
+msgstr "Xcode 프로젝트들을 더 쉽게 관리하고 확장할 수 있게 해보세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
 #, elixir-autogen, elixir-format
@@ -715,7 +715,7 @@ msgstr "모바일로 만들기"
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Make modular Xcode projects more manageable"
-msgstr "더 관리가 용이하게 모듈화된 Xcode 프로젝트들을 만드세요."
+msgstr "더 관리가 용이하게 모듈화된 Xcode 프로젝트들을 만드세요"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:248
 #, elixir-autogen, elixir-format
@@ -1266,7 +1266,7 @@ msgstr "Tuist는 우리의 기존 mono 기반 소스를 모듈화 할 수 있게
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
-msgstr "Tuist는 여러 개발자들이 동시에 협업 하는 대규모 소스에 대한 시장의 판도를 바꿀 기술이 되어왔습니다.  저는 버전 1부터 사용해서, 단순히 새로운 기능을 넘어서 어떻게 혁신 되고 확장되었는 지를 봐왔습니다."
+msgstr "Tuist는 여러 개발자들이 동시에 협업 하는 대규모 소스에 대한 시장의 판도를 바꿀 기술이 되어왔습니다. 저는 버전 1부터 사용해서, 단순히 새로운 기능을 넘어서 어떻게 혁신 되고 확장되었는 지를 봐왔습니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:667
 #, elixir-autogen, elixir-format
@@ -1555,12 +1555,12 @@ msgstr "더 보기"
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "review every step the agent took with visual context"
-msgstr "시각 정보로 에이전트가 수행한 모든 단계를 검사하세요."
+msgstr "시각 정보로 에이전트가 수행한 모든 단계를 검사하세요"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "see what was tested, issues found, and results at a glance"
-msgstr "어떤 것이 테스트 되었는지, 발견된 문제와 결과를 한번에 보세요."
+msgstr "어떤 것이 테스트 되었는지, 발견된 문제와 결과를 한번에 보세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:211
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:215
