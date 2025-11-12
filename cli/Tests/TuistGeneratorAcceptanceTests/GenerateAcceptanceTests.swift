@@ -1209,7 +1209,8 @@ final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: Tu
 
         let workspacePackageResolved = try workspacePath
             .appending(RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
-        let fixturePackageResolved = try fixturePath.appending(RelativePath(validating: ".package.resolved"))
+        let fixturePackageResolved = try fixturePath
+            .appending(RelativePath(validating: packageResolvedFilename()))
         let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
         let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
         XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
