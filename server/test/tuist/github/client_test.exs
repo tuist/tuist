@@ -330,8 +330,7 @@ defmodule Tuist.GitHub.ClientTest do
 
       # Then
       assert got ==
-               {:error,
-                "Unexpected status code: 404 when getting tags at https://api.github.com/repos/tuist/tuist/tags?page_size=100."}
+               {:error, {:http_error, 404}}
     end
   end
 

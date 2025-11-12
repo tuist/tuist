@@ -303,7 +303,7 @@ defmodule Tuist.GitHub.Client do
         end
 
       {:ok, %Req.Response{status: status}} ->
-        {:error, "Unexpected status code: #{status} when getting tags at #{url}."}
+        {:error, {:http_error, status}}
 
       {:error, _reason} = error ->
         error
