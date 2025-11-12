@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 13:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 13:22+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -107,7 +107,7 @@ msgstr "전체"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr "모든 기능 사용 가능하며, 신용카드는 필요하지 않음"
+msgstr "모든 기능 사용 가능, 신용카드는 필요하지 않음"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:22
 #, elixir-autogen, elixir-format
@@ -795,7 +795,7 @@ msgstr "우리의 캐시 기능은 Xcode 26의 빌드 시스템 캐시 기능과
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr "무료 요금제에서는 아무것도 지불하지 마세요"
+msgstr "무료 사용량 이하에서는, 아무것도 지불하지 마세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:34
 #, elixir-autogen, elixir-format
@@ -1062,7 +1062,7 @@ msgstr "Github로 시작"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Start free,"
-msgstr "무료로 시작,"
+msgstr "무료로 시작하고,"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:673
 #, elixir-autogen, elixir-format
@@ -1520,7 +1520,7 @@ msgstr "여러분이 사용한 기능과 사용량에 기반해서 무료 요금
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Your platform team, as a service"
-msgstr "당신의 플랫폼 팀을 위한 서비스"
+msgstr "여러분을 위한 플랫폼 팀이 서비스로 제공됩니다"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:424
 #, elixir-autogen, elixir-format
@@ -1540,7 +1540,7 @@ msgstr "오픈소스"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "pay as you go"
-msgstr "사용한 만큼 지불"
+msgstr "필요할 때 지불하세요"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:78
 #, elixir-autogen, elixir-format
