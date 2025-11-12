@@ -51,7 +51,7 @@ import TuistSupport
             .called(1)
         verify(latencyService)
             .measureLatency(for: .any)
-            .called(2)
+            .called(1)
     }
 
     @Test(.withMockedEnvironment())

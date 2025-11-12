@@ -5459,7 +5459,7 @@ paths:
       tags:
         - Cache
   /api/cache/keyvalue/{cas_id}:
-    put:
+    get:
       callbacks: {}
       operationId: getCacheValue
       parameters:

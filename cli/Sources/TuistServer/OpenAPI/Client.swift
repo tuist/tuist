@@ -5606,8 +5606,8 @@ public struct Client: APIProtocol {
     }
     /// Get cache value.
     ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
     public func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output {
         try await client.send(
             input: input,
@@ -5621,7 +5621,7 @@ public struct Client: APIProtocol {
                 )
                 var request: HTTPTypes.HTTPRequest = .init(
                     soar_path: path,
-                    method: .put
+                    method: .get
                 )
                 suppressMutabilityWarning(&request)
                 try converter.setQueryItemAsURI(

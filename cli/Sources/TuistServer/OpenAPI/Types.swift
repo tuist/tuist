@@ -269,8 +269,8 @@ public protocol APIProtocol: Sendable {
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
     /// Get cache value.
     ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
     func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
     /// Get cache endpoints.
     ///
@@ -1019,8 +1019,8 @@ extension APIProtocol {
     }
     /// Get cache value.
     ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
     public func getCacheValue(
         path: Operations.getCacheValue.Input.Path,
         query: Operations.getCacheValue.Input.Query,
@@ -18219,16 +18219,16 @@ public enum Operations {
     }
     /// Get cache value.
     ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
     public enum getCacheValue {
         public static let id: Swift.String = "getCacheValue"
         public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/path`.
+            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/path`.
             public struct Path: Sendable, Hashable {
                 /// The CAS identifier.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/path/cas_id`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/path/cas_id`.
                 public var cas_id: Swift.String
                 /// Creates a new `Path`.
                 ///
@@ -18239,15 +18239,15 @@ public enum Operations {
                 }
             }
             public var path: Operations.getCacheValue.Input.Path
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/query`.
+            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query`.
             public struct Query: Sendable, Hashable {
                 /// The handle of the project's account.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/query/account_handle`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query/account_handle`.
                 public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/query/project_handle`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query/project_handle`.
                 public var project_handle: Swift.String
                 /// Creates a new `Query`.
                 ///
@@ -18263,7 +18263,7 @@ public enum Operations {
                 }
             }
             public var query: Operations.getCacheValue.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/header`.
+            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheValue.AcceptableContentType>]
                 /// Creates a new `Headers`.
@@ -18293,15 +18293,15 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entriesPayload`.
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entriesPayload`.
                         public struct entriesPayloadPayload: Codable, Hashable, Sendable {
                             /// The value of the entry
                             ///
-                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entriesPayload/value`.
+                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entriesPayload/value`.
                             public var value: Swift.String
                             /// Creates a new `entriesPayloadPayload`.
                             ///
@@ -18314,9 +18314,9 @@ public enum Operations {
                                 case value
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entries`.
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entries`.
                         public typealias entriesPayload = [Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entries`.
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entries`.
                         public var entries: Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayload
                         /// Creates a new `jsonPayload`.
                         ///
@@ -18329,7 +18329,7 @@ public enum Operations {
                             case entries
                         }
                     }
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/application\/json`.
                     case json(Operations.getCacheValue.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -18356,7 +18356,7 @@ public enum Operations {
             }
             /// Cache value retrieved successfully
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.getCacheValue.Output.Ok)
@@ -18378,9 +18378,9 @@ public enum Operations {
                 }
             }
             public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/400/content`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/400/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/400/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -18407,7 +18407,7 @@ public enum Operations {
             }
             /// The request is invalid
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/400`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/400`.
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.getCacheValue.Output.BadRequest)
@@ -18429,9 +18429,9 @@ public enum Operations {
                 }
             }
             public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/401/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -18458,7 +18458,7 @@ public enum Operations {
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.getCacheValue.Output.Unauthorized)
@@ -18480,9 +18480,9 @@ public enum Operations {
                 }
             }
             public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -18509,7 +18509,7 @@ public enum Operations {
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.getCacheValue.Output.Forbidden)
@@ -18531,9 +18531,9 @@ public enum Operations {
                 }
             }
             public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/404/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/404/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -18560,7 +18560,7 @@ public enum Operations {
             }
             /// No entries found for the given CAS ID
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.getCacheValue.Output.NotFound)

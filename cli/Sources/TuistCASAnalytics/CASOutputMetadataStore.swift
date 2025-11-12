@@ -32,6 +32,10 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
         let jsonData = try encoder.encode(metadata)
         let jsonString = String(data: jsonData, encoding: .utf8)!
 
+        if try await fileSystem.exists(metadataFilePath) {
+            try await fileSystem.remove(metadataFilePath)
+        }
+
         try await fileSystem.writeText(jsonString, at: metadataFilePath)
     }
 
