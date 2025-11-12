@@ -291,7 +291,9 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 - pgweb for database administration
 
 ::: danger LICENSE REQUIRED
+<!-- -->
 A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+<!-- -->
 :::
 
 **Quick Start:**
