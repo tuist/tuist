@@ -80,6 +80,11 @@ features = [
         "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
       ),
     hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+      ),
     values: [
       "200",
       %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
@@ -108,6 +113,11 @@ features = [
         "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
       ),
     hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server to push or pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+      ),
     values: [
       "200",
       %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
@@ -350,7 +360,7 @@ features = [
               </div>
 
               <.tooltip
-                id="tooltip-single-large"
+                id={"#{feature.name}-hint"}
                 size="large"
                 description={
                   dgettext(
