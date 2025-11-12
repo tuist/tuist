@@ -5,7 +5,7 @@
 services:
   # PostgreSQL with TimescaleDB extension
   postgres:
-    image: timescale/timescaledb-ha:pg15-ts2.16
+    image: timescale/timescaledb-ha:pg16
     container_name: tuist-postgres
     restart: unless-stopped
     environment:

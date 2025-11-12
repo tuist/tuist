@@ -82,6 +82,12 @@ if $DOCKER_CMD up -d; then
     echo -e "${GREEN}✓${NC} Services started"
 else
     echo -e "${RED}✗${NC} Failed to start services"
+    echo ""
+    echo "Service status:"
+    $DOCKER_CMD ps -a
+    echo ""
+    echo "Recent logs:"
+    $DOCKER_CMD logs --tail=100
     exit 1
 fi
 echo ""
@@ -137,10 +143,17 @@ while [ $ELAPSED -lt $MAX_WAIT_TIME ]; do
         echo -e "${RED}✗${NC} Timeout waiting for services to be healthy"
         echo ""
         echo "Service status:"
-        $DOCKER_CMD ps
+        $DOCKER_CMD ps -a
         echo ""
-        echo "Logs:"
-        $DOCKER_CMD logs --tail=50
+        echo "Logs from unhealthy services:"
+        for service in "${SERVICES[@]}"; do
+            health=$(check_service_health "$service")
+            if [ "$health" != "healthy" ] && [ "$health" != "running" ]; then
+                echo ""
+                echo "=== Logs for $service ==="
+                $DOCKER_CMD logs --tail=50 "$service" 2>&1 || echo "No logs available"
+            fi
+        done
         exit 1
     fi
     
