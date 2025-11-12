@@ -16,6 +16,8 @@ defmodule Tuist.Registry.Swift.Packages do
   alias Tuist.VCS
   alias Tuist.VCS.Repositories.Content
 
+  require Logger
+
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
   def paginated_packages(attrs, opts \\ []) do
@@ -94,25 +96,32 @@ defmodule Tuist.Registry.Swift.Packages do
         package: %Package{repository_full_handle: repository_full_handle, scope: scope, name: name} = package,
         token: token
       }) do
-    %{
-      repository_full_handle: repository_full_handle,
-      provider: :github,
-      token: token
-    }
-    |> VCS.get_tags()
-    |> Enum.map(& &1.name)
-    |> Enum.filter(fn version ->
-      # Matches semantic version as per: https://semver.org/
-      # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
-      # Skip dev versions like 0.9.3-dev1985
-      Regex.match?(~r/^v?\d+\.\d+(\.\d+)?[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
-        not Regex.match?(~r/-dev/, version) and
-        not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
-    end)
-    |> Enum.uniq_by(&semantic_version(&1))
-    |> Enum.map(fn version ->
-      %{scope: scope, name: name, version: version}
-    end)
+    case VCS.get_tags(%{
+           repository_full_handle: repository_full_handle,
+           provider: :github,
+           token: token
+         }) do
+      {:error, {:http_error, 404}} ->
+        Logger.debug("Skipping #{scope}/#{name} (#{repository_full_handle}): repository not found or not accessible")
+
+        []
+
+      tags ->
+        tags
+        |> Enum.map(& &1.name)
+        |> Enum.filter(fn version ->
+          # Matches semantic version as per: https://semver.org/
+          # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
+          # Skip dev versions like 0.9.3-dev1985
+          Regex.match?(~r/^v?\d+\.\d+(\.\d+)?[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
+            not Regex.match?(~r/-dev/, version) and
+            not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
+        end)
+        |> Enum.uniq_by(&semantic_version(&1))
+        |> Enum.map(fn version ->
+          %{scope: scope, name: name, version: version}
+        end)
+    end
   end
 
   def semantic_version(version) do
