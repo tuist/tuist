@@ -431,6 +431,7 @@ defmodule TuistWeb.Router do
 
       get("/", CacheController, :download)
       get("/exists", CacheController, :exists)
+      get("/endpoints", CacheController, :endpoints)
 
       scope "/multipart" do
         post("/start", CacheController, :multipart_start)
