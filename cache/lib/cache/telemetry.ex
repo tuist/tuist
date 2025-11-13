@@ -43,7 +43,7 @@ defmodule Cache.Telemetry do
         project_handle: project_handle
       }
 
-      Cache.AnalyticsPipeline.async_push(event)
+      Cache.CasEventsPipeline.async_push(event)
     else
       :error ->
         Logger.debug(

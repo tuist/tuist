@@ -40,17 +40,10 @@ config :cache, Oban,
 config :cache, :cas,
   storage_dir: "tmp/cas",
   disk_usage_high_watermark_percent: 85.0,
-  disk_usage_target_percent: 70.0
-
-config :cache,
-  analytics_enabled: true,
-  analytics_batch_size: 100,
-  analytics_batch_timeout: 5_000,
-  cache_api_key: System.get_env("TUIST_CACHE_API_KEY"),
-  analytics_pipeline_producer_module: OffBroadwayMemory.Producer,
-  analytics_pipeline_producer_options: [
-    buffer: :analytics_buffer
-  ]
+  disk_usage_target_percent: 70.0,
+  events_batch_size: 100,
+  events_batch_timeout: 5_000,
+  api_key: System.get_env("TUIST_CACHE_API_KEY")
 
 config :cache, ecto_repos: [Cache.Repo]
 

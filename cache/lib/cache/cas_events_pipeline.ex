@@ -1,6 +1,6 @@
-defmodule Cache.AnalyticsPipeline do
+defmodule Cache.CasEventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending CAS analytics events to the server.
+  Broadway pipeline for batching and sending CAS events to the server.
 
   Events are batched by project (account_handle/project_handle pair) and sent
   to the appropriate endpoint.
@@ -12,13 +12,14 @@ defmodule Cache.AnalyticsPipeline do
   require Logger
 
   def start_link(_opts) do
-    batch_size = Application.get_env(:cache, :analytics_batch_size, 100)
-    batch_timeout = Application.get_env(:cache, :analytics_batch_timeout, 5_000)
+    cas_config = Application.get_env(:cache, :cas, [])
+    batch_size = Keyword.get(cas_config, :events_batch_size, 100)
+    batch_timeout = Keyword.get(cas_config, :events_batch_timeout, 5_000)
 
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {producer_module(), producer_options()},
+        module: {OffBroadwayMemory.Producer, buffer: :cas_events_buffer},
         concurrency: 1
       ],
       processors: [
@@ -34,22 +35,11 @@ defmodule Cache.AnalyticsPipeline do
     )
   end
 
-  defp producer_module do
-    Application.get_env(:cache, :analytics_pipeline_producer_module, OffBroadwayMemory.Producer)
-  end
-
-  defp producer_options do
-    Application.get_env(:cache, :analytics_pipeline_producer_options,
-      buffer: :analytics_buffer
-    )
-  end
-
   @doc """
-  Pushes an analytics event to the pipeline asynchronously.
+  Pushes a CAS event to the pipeline asynchronously.
   """
   def async_push(event) do
-    buffer = Keyword.fetch!(producer_options(), :buffer)
-    OffBroadwayMemory.Buffer.async_push(buffer, event)
+    OffBroadwayMemory.Buffer.async_push(:cas_events_buffer, event)
   end
 
   @impl true
@@ -70,28 +60,9 @@ defmodule Cache.AnalyticsPipeline do
   end
 
   defp send_batch(account_handle, project_handle, events) do
-    cond do
-      not analytics_enabled?() ->
-        Logger.debug("CAS analytics disabled, skipping batch of #{length(events)} events")
-        :ok
-
-      is_nil(Cache.Authentication.server_url()) ->
-        Logger.warning("No server URL configured for CAS analytics")
-        :ok
-
-      true ->
-        do_send_batch(account_handle, project_handle, events)
-    end
-  end
-
-  defp do_send_batch(account_handle, project_handle, events) do
     server_url = Cache.Authentication.server_url()
-    secret = Application.get_env(:cache, :cache_api_key)
-
-    if is_nil(secret) or secret == "" do
-      Logger.warning("No cache API key configured, skipping batch")
-      :ok
-    else
+    cas_config = Application.get_env(:cache, :cas, [])
+    secret = Keyword.fetch!(cas_config, :api_key)
     url = "#{server_url}/api/projects/#{account_handle}/#{project_handle}/cache/cas/events"
 
     # Transform events to the format expected by the API
@@ -106,16 +77,10 @@ defmodule Cache.AnalyticsPipeline do
 
     body = Jason.encode!(%{events: api_events})
 
-    Logger.debug("Cache analytics - Secret: #{secret}")
-    Logger.debug("Cache analytics - Body length: #{byte_size(body)}")
-    Logger.debug("Cache analytics - Body: #{body}")
-
-    # Generate HMAC signature: HMAC-SHA256(secret, body)
     signature =
-      :crypto.mac(:hmac, :sha256, secret, body)
+      :hmac
+      |> :crypto.mac(:sha256, secret, body)
       |> Base.encode16(case: :lower)
-
-    Logger.debug("Cache analytics - Signature: #{signature}")
 
     headers = [
       {"x-signature", signature},
@@ -140,27 +105,16 @@ defmodule Cache.AnalyticsPipeline do
 
     case Req.request(options) do
       {:ok, %{status: status}} when status in 200..299 ->
-        Logger.debug(
-          "Successfully sent #{length(events)} CAS analytics events for #{account_handle}/#{project_handle}"
-        )
-
         :ok
 
       {:ok, %{status: status, body: body}} ->
-        Logger.warning(
-          "Failed to send CAS analytics (status #{status}): #{inspect(body)}"
-        )
+        Logger.error("Failed to send CAS analytics (status #{status}): #{inspect(body)}")
 
         :ok
 
       {:error, reason} ->
-        Logger.warning("Failed to send CAS analytics: #{inspect(reason)}")
+        Logger.error("Failed to send CAS analytics: #{inspect(reason)}")
         :ok
     end
-    end
-  end
-
-  defp analytics_enabled?() do
-    Application.get_env(:cache, :analytics_enabled, true)
   end
 end
