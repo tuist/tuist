@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.104.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* respect xcframework status by [@fortmarek](https://github.com/fortmarek) in [#8651](https://github.com/tuist/tuist/pull/8651)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.3...4.104.4
+
 ## What's Changed in 4.104.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
