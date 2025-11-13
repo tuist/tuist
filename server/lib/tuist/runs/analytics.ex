@@ -806,10 +806,10 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  defp normalize_result(nil), do: 0
+  defp normalize_result(nil), do: 0.0
   defp normalize_result(%Decimal{} = decimal), do: Decimal.to_float(decimal)
   defp normalize_result(float) when is_float(float), do: float
-  defp normalize_result(int) when is_integer(int), do: int / 1
+  defp normalize_result(int) when is_integer(int), do: int * 1.0
 
   @doc """
   Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
@@ -1329,11 +1329,10 @@ defmodule Tuist.Runs.Analytics do
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
             hit_rate:
               fragment(
-                "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC) FILTER (WHERE ? > 0)",
+                "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC)",
                 ^percentile,
                 b.cacheable_task_local_hits_count,
                 b.cacheable_task_remote_hits_count,
-                b.cacheable_tasks_count,
                 b.cacheable_tasks_count
               )
           },
@@ -1368,11 +1367,10 @@ defmodule Tuist.Runs.Analytics do
             b.cacheable_tasks_count > 0,
         select:
           fragment(
-            "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC) FILTER (WHERE ? > 0)",
+            "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC)",
             ^percentile,
             b.cacheable_task_local_hits_count,
             b.cacheable_task_remote_hits_count,
-            b.cacheable_tasks_count,
             b.cacheable_tasks_count
           )
       )
