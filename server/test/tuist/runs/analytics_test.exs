@@ -700,6 +700,115 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0, 0.5, 0.5]
       assert got.cache_hit_rate == 0.5
     end
+
+    test "combines Module cache and Xcode cache metrics" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create command event with Module cache metrics
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      # Create build with Xcode cache metrics
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote},
+          %{key: "task3_key", type: :swift, status: :miss},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      # When
+      got =
+        Analytics.cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      # Module cache: 4 cacheable targets, 2 hits (A local, C remote) = 2/4 = 0.5
+      # Xcode cache: 4 cacheable tasks, 2 hits (Task1 local, Task2 remote) = 2/4 = 0.5
+      # Combined: (2+2)/(4+4) = 4/8 = 0.5
+      assert got.cache_hit_rate == 0.5
+      # The last day should have combined metrics: 0.5
+      assert List.last(got.values) == 0.5
+    end
+
+    test "combines Module cache and Xcode cache metrics with is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create CI command event with Module cache metrics
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: true
+      )
+
+      # Create local (non-CI) command event that should be excluded
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C", "D"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: false
+      )
+
+      # Create CI build with Xcode cache metrics
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      # Create local (non-CI) build that should be excluded
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :clang, status: :hit_remote}
+        ]
+      )
+
+      # When
+      got =
+        Analytics.cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now()),
+          is_ci: true
+        )
+
+      # Then
+      # CI Module cache: 2 cacheable targets, 1 hit (A local) = 1/2 = 0.5
+      # CI Xcode cache: 2 cacheable tasks, 1 hit (Task1 local) = 1/2 = 0.5
+      # Combined CI only: (1+1)/(2+2) = 2/4 = 0.5
+      assert got.cache_hit_rate == 0.5
+    end
   end
 
   describe "selective_testing_analytics/4" do
