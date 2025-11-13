@@ -120,6 +120,8 @@ defmodule TuistWeb.Widget do
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
 
+  attr(:empty_label, :string, default: nil, doc: "Custom label to display when widget is empty")
+
   attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
 
   attr(:phx_value_widget, :string, default: nil, doc: "Widget ID value to pass with phx-click event")
@@ -137,7 +139,7 @@ defmodule TuistWeb.Widget do
           <span data-part="title">{@title}</span>
         </div>
         <span data-part="empty-label">
-          {gettext("No data yet")}
+          {if @empty_label, do: @empty_label, else: gettext("No data yet")}
         </span>
       </.card_section>
     <% else %>
