@@ -55,13 +55,8 @@ defmodule Cache.S3DownloadWorker do
          |> ExAws.S3.download_file(key, local_path)
          |> ExAws.request() do
       {:ok, %{headers: headers}} ->
-        size =
-          headers
-          |> Enum.find(fn {k, _v} -> String.downcase(k) == "content-length" end)
-          |> case do
-            {_key, value} -> String.to_integer(value)
-            nil -> 0
-          end
+        {_key, value} = Enum.find(headers, fn {k, _v} -> String.downcase(k) == "content-length" end)
+        size = String.to_integer(value)
 
         {:ok, %{size: size}}
 
