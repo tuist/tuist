@@ -980,6 +980,7 @@
                       size="small"
                       icon_only
                       phx-hook="Clipboard"
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
                       data-clipboard-value={task.key}
                     >
                       <.copy />
@@ -1259,7 +1260,7 @@
                     sort_icon(@cas_outputs_sort_order)
                 }
               >
-                <.text_cell label={output.node_id} />
+                <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
               </:col>
               <:col :let={output} label={gettext("Status")}>
                 <%= case output.operation do %>
