@@ -35,12 +35,6 @@ services:
     volumes:
       - clickhouse_keeper_data:/var/lib/clickhouse-keeper
       - ./clickhouse-keeper-config.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
-    healthcheck:
-      test: ["CMD", "sh", "-c", "echo ruok | nc localhost 9181 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 20s
     networks:
       - tuist-network
 
@@ -51,7 +45,7 @@ services:
     restart: unless-stopped
     depends_on:
       clickhouse-keeper:
-        condition: service_healthy
+        condition: service_started
     environment:
       CLICKHOUSE_DB: tuist_dev
       CLICKHOUSE_USER: default
