@@ -86,8 +86,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 infoPlist: infoPlist,
                 linking: linking,
                 mergeable: false,
-                status: .required,
-                macroPath: nil
+                status: .required
             )
         )
     }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "483aeb91ccf9b1a183cf25552e8b6052f8e22615ab4c3d0a7b8080290eeebc02",
+  "originHash" : "4d6d9de6d1f8669dfb9aab4fae18113040d7d5d008072a98013fdd074e39df10",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "b711a027147aa6df8cdda789268c48d1595cc585",
-        "version" : "0.13.17"
+        "revision" : "9b721b9ce9066476bd02770bd3bb448f85a1ea79",
+        "version" : "0.13.28"
       }
     },
     {
@@ -121,7 +121,7 @@
     {
       "identity" : "grpc-swift-2",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/grpc/grpc-swift-2.git",
+      "location" : "https://github.com/grpc/grpc-swift-2",
       "state" : {
         "revision" : "0e52abf7ea0fca7ffe876953aa41feff84cc6e29",
         "version" : "2.1.0"
@@ -130,7 +130,7 @@
     {
       "identity" : "grpc-swift-nio-transport",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/grpc/grpc-swift-nio-transport.git",
+      "location" : "https://github.com/grpc/grpc-swift-nio-transport",
       "state" : {
         "revision" : "0393731de32c472e3bcdb7f339ecf55cc607a6b4",
         "version" : "2.2.0"
@@ -139,7 +139,7 @@
     {
       "identity" : "grpc-swift-protobuf",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/grpc/grpc-swift-protobuf.git",
+      "location" : "https://github.com/grpc/grpc-swift-protobuf",
       "state" : {
         "revision" : "c008d356d9e9c2255602711888bf25b542a30919",
         "version" : "2.1.1"
@@ -186,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
-        "version" : "0.39.0"
+        "revision" : "faf03e82dd158807540bafd49cdf78f5354d5dcc",
+        "version" : "0.40.0"
       }
     },
     {
@@ -465,8 +465,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "a24771a4c228ff116df343c85fcf3dcfae31a06c",
-        "version" : "2.88.0"
+        "revision" : "56724a2b6d8e2aed1b2c5f23865b9ea5c43f9977",
+        "version" : "2.89.0"
       }
     },
     {
@@ -662,8 +662,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "a8bd3c932ce91341a8646fa781216e5aff36b815",
-        "version" : "1.28.0"
+        "revision" : "d0eeddef757f251aecfa197156c600aca7e65bb7"
       }
     },
     {
