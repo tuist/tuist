@@ -9,7 +9,6 @@ defmodule Cache.Application do
       migrate()
     end
 
-    # Attach telemetry handlers
     Cache.Telemetry.attach()
 
     children = [
