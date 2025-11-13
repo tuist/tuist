@@ -221,8 +221,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        true
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -253,8 +253,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -291,8 +291,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -328,8 +328,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -342,13 +342,10 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
       end)
 
-      expect(Oban, :insert, fn changeset ->
-        assert changeset.changes.worker == "Cache.S3DownloadWorker"
+      test_pid = self()
 
-        assert changeset.changes.args == %{
-                 key: "#{account_handle}/#{project_handle}/cas/#{id}"
-               }
-
+      stub(Oban, :insert, fn changeset ->
+        send(test_pid, {:oban_insert, changeset})
         {:ok, changeset}
       end)
 
@@ -366,6 +363,15 @@ defmodule CacheWeb.CASControllerTest do
 
         assert conn.resp_body == ""
       end)
+
+      assert_receive {:oban_insert, changeset}, 500
+      assert changeset.changes.worker == "Cache.S3DownloadWorker"
+
+      assert changeset.changes.args == %{
+               account_handle: account_handle,
+               project_handle: project_handle,
+               id: id
+             }
     end
 
     test "continues normally even if download worker enqueue fails", %{conn: conn} do
@@ -377,8 +383,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
