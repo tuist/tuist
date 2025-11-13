@@ -1166,7 +1166,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "get_cas_outputs_by_node_ids/2" do
+  describe "get_cas_outputs_by_node_ids/3" do
     test "returns CAS outputs matching the given node_ids" do
       # Given
       {:ok, build} =
@@ -1235,6 +1235,43 @@ defmodule Tuist.RunsTest do
 
       # Then
       assert outputs == []
+    end
+
+    test "returns all CAS outputs" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
+      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
+      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"])
+
+      # Then
+      assert length(outputs) == 3
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert Enum.count(node_ids, &(&1 == "node1")) == 2
+      assert Enum.count(node_ids, &(&1 == "node2")) == 1
+    end
+
+    test "returns only distinct CAS outputs by node_id when distinct is true" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
+      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
+      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
+      {:ok, _output4} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :upload)
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"], distinct: true)
+
+      # Then
+      assert length(outputs) == 2
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert "node1" in node_ids
+      assert "node2" in node_ids
     end
   end
 end
