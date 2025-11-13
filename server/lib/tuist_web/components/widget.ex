@@ -170,10 +170,19 @@ defmodule TuistWeb.Widget do
           data-part="legend"
         >
         </div>
-        <div data-part="title">
-          <span data-part="label">{@title}</span>
-          {render_slot(@select)}
-        </div>
+        <%= if @select != [] do %>
+          <.dropdown
+            id={"#{@id}-dropdown"}
+            label={@title}
+            phx-click={Phoenix.LiveView.JS.exec("event.stopPropagation()", to: "window")}
+          >
+            {render_slot(@select)}
+          </.dropdown>
+        <% else %>
+          <div data-part="title">
+            <span data-part="label">{@title}</span>
+          </div>
+        <% end %>
         <.tooltip
           :if={@description}
           id={@id <> "-tooltip"}
