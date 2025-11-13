@@ -364,6 +364,10 @@
         }
 
         & #cacheable-tasks-table {
+          & td:nth-child(1) {
+            max-width: 500px;
+          }
+
           & td:nth-child(2),
           & td:nth-child(3) {
             width: 12%;

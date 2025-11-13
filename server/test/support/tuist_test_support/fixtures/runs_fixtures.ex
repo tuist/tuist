@@ -43,4 +43,26 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       cas_outputs: Keyword.get(attrs, :cas_outputs, [])
     })
   end
+
+  def cas_output_fixture(attrs \\ []) do
+    build_run_id =
+      Keyword.get_lazy(attrs, :build_run_id, fn ->
+        {:ok, build} = build_fixture()
+        build.id
+      end)
+
+    cas_output = %{
+      node_id: Keyword.get(attrs, :node_id, "node1"),
+      checksum: Keyword.get(attrs, :checksum, "abc123"),
+      size: Keyword.get(attrs, :size, 1000),
+      duration: Keyword.get(attrs, :duration, 100),
+      compressed_size: Keyword.get(attrs, :compressed_size, 800),
+      operation: Keyword.get(attrs, :operation, :download),
+      type: Keyword.get(attrs, :type, :swift)
+    }
+
+    changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
+
+    Tuist.IngestRepo.insert(changeset)
+  end
 end
