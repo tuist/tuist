@@ -105,6 +105,10 @@
         }
       }
 
+      & > [data-state="open"] + [data-part="positioner"] {
+        width: unset;
+      }
+
       & [data-part="trigger"] {
         align-items: center;
         gap: var(--noora-spacing-3);
