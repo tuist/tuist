@@ -68,19 +68,11 @@ defmodule TuistWeb.XcodeCacheLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     date_range = date_range(params)
-    analytics_environment = analytics_environment(params)
 
     opts = [
       project_id: project.id,
       start_date: start_date(date_range)
     ]
-
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -126,14 +118,6 @@ defmodule TuistWeb.XcodeCacheLive do
       analytics_trend_label(date_range)
     )
     |> assign(
-      :analytics_environment,
-      analytics_environment
-    )
-    |> assign(
-      :analytics_environment_label,
-      analytics_environment_label(analytics_environment)
-    )
-    |> assign(
       :analytics_selected_widget,
       analytics_selected_widget
     )
@@ -167,18 +151,6 @@ defmodule TuistWeb.XcodeCacheLive do
   defp analytics_trend_label("last_12_months"), do: gettext("since last year")
   defp analytics_trend_label(_), do: gettext("since last month")
 
-  defp analytics_environment_label("any") do
-    gettext("Any")
-  end
-
-  defp analytics_environment_label("local") do
-    gettext("Local")
-  end
-
-  defp analytics_environment_label("ci") do
-    gettext("CI")
-  end
-
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]
 
@@ -186,16 +158,6 @@ defmodule TuistWeb.XcodeCacheLive do
       "last_30_days"
     else
       analytics_date_range
-    end
-  end
-
-  defp analytics_environment(params) do
-    analytics_environment = params["analytics_environment"]
-
-    if is_nil(analytics_environment) do
-      "any"
-    else
-      analytics_environment
     end
   end
 

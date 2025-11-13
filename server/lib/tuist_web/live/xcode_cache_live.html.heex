@@ -1,36 +1,6 @@
 <div id="xcode-cache">
   <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
     <:actions>
-      <.dropdown
-        id="xcode-cache-analytics-environment-dropdown"
-        label={@analytics_environment_label}
-        secondary_text={gettext("Environment:")}
-      >
-        <.dropdown_item
-          value="any"
-          label="Any"
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
-          data-selected={@analytics_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label="Local"
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label="CI"
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
-          data-selected={@analytics_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
@@ -52,6 +22,7 @@
     <div data-part="widgets">
       <.widget
         title={gettext("Cache hit rate")}
+        legend_color="primary"
         description={
           gettext(
             "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
@@ -75,6 +46,7 @@
       />
       <.widget
         title={gettext("Cache downloads")}
+        legend_color="secondary"
         description={
           gettext(
             "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
@@ -91,6 +63,7 @@
       />
       <.widget
         title={gettext("Cache uploads")}
+        legend_color="p99"
         description={
           gettext(
             "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
