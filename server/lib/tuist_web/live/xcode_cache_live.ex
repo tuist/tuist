@@ -5,6 +5,7 @@ defmodule TuistWeb.XcodeCacheLive do
 
   import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Runs.Analytics
@@ -50,6 +51,22 @@ defmodule TuistWeb.XcodeCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "select_hit_rate_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{Query.put(uri.query, "hit-rate-type", type)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
   def handle_info({:build_created, _build}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
@@ -76,7 +93,7 @@ defmodule TuistWeb.XcodeCacheLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [uploads_analytics, downloads_analytics, hit_rate_analytics] =
+    [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
       Analytics.combined_cache_analytics(project.id, opts)
 
     analytics_selected_widget = analytics_selected_widget(params)
@@ -132,6 +149,22 @@ defmodule TuistWeb.XcodeCacheLive do
     |> assign(
       :hit_rate_analytics,
       hit_rate_analytics
+    )
+    |> assign(
+      :hit_rate_p99,
+      hit_rate_p99
+    )
+    |> assign(
+      :hit_rate_p90,
+      hit_rate_p90
+    )
+    |> assign(
+      :hit_rate_p50,
+      hit_rate_p50
+    )
+    |> assign(
+      :selected_hit_rate_type,
+      params["hit-rate-type"] || "avg"
     )
     |> assign(
       :analytics_chart_data,

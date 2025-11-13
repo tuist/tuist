@@ -1264,6 +1264,125 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
+  @doc """
+  Gets percentile cache hit rate analytics for a project over a time period.
+
+  Note: For cache hit rate, higher values are better, so percentiles are calculated
+  in descending order. For example, p90 = 60% means that 90% of builds achieved
+  a hit rate of 60% or better (not 60% or worse).
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `percentile` - The percentile to calculate (e.g., 0.5, 0.9, 0.99)
+    * `opts` - Options including:
+      * `:start_date` - Start date for the analytics period
+      * `:end_date` - End date for the analytics period
+      * `:is_ci` - Filter by CI builds (true/false/nil for all)
+
+  ## Returns
+    A map with:
+    * `:trend` - Percentage change from previous period
+    * `:total_percentile_hit_rate` - The percentile hit rate for the current period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of percentile hit rate values
+  """
+  def build_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    current_period_percentile =
+      cache_hit_rate_period_percentile(project_id, percentile, start_date, end_date, opts)
+
+    previous_period_percentile =
+      cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        Date.add(start_date, -days_delta),
+        start_date,
+        opts
+      )
+
+    time_bucket = time_bucket_for_date_period(date_period)
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    # Calculate hit rate for each build first, then get percentile
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0
+      )
+
+    query = query_with_is_ci_filter(query, opts)
+
+    hit_rate_data =
+      Repo.all(
+        from(b in query,
+          group_by: selected_as(:date_bucket),
+          select: %{
+            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
+            hit_rate:
+              fragment(
+                "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC) FILTER (WHERE ? > 0)",
+                ^percentile,
+                b.cacheable_task_local_hits_count,
+                b.cacheable_task_remote_hits_count,
+                b.cacheable_tasks_count,
+                b.cacheable_tasks_count
+              )
+          },
+          order_by: [asc: selected_as(:date_bucket)]
+        )
+      )
+
+    processed_data = process_hit_rate_data(hit_rate_data, start_date, end_date, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
+      total_percentile_hit_rate: current_period_percentile,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.hit_rate)
+    }
+  end
+
+  defp cache_hit_rate_period_percentile(project_id, percentile, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0,
+        select:
+          fragment(
+            "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC) FILTER (WHERE ? > 0)",
+            ^percentile,
+            b.cacheable_task_local_hits_count,
+            b.cacheable_task_remote_hits_count,
+            b.cacheable_tasks_count,
+            b.cacheable_tasks_count
+          )
+      )
+
+    query = query_with_is_ci_filter(query, opts)
+
+    result = Repo.one(query)
+    normalize_result(result)
+  end
+
   defp avg_cache_hit_rate(project_id, start_date, end_date, opts) do
     start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
@@ -1325,13 +1444,17 @@ defmodule Tuist.Runs.Analytics do
   @doc """
   Runs all cache analytics queries in parallel for a project.
 
-  Returns a tuple of {uploads_analytics, downloads_analytics, hit_rate_analytics}
+  Returns a list of analytics maps:
+  [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50]
   """
   def combined_cache_analytics(project_id, opts \\ []) do
     queries = [
       fn -> cas_uploads_analytics(project_id, opts) end,
       fn -> cas_downloads_analytics(project_id, opts) end,
-      fn -> build_cache_hit_rate_analytics(project_id, opts) end
+      fn -> build_cache_hit_rate_analytics(project_id, opts) end,
+      fn -> build_cache_hit_rate_percentile(project_id, 0.99, opts) end,
+      fn -> build_cache_hit_rate_percentile(project_id, 0.9, opts) end,
+      fn -> build_cache_hit_rate_percentile(project_id, 0.5, opts) end
     ]
 
     Tasks.parallel_tasks(queries)

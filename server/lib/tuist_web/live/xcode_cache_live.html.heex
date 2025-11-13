@@ -20,9 +20,24 @@
       </.button_group>
     </:actions>
     <div data-part="widgets">
-      <.widget
-        title={gettext("Cache hit rate")}
-        legend_color="primary"
+      <.percentile_dropdown_widget
+        id="widget-cache-hit-rate"
+        title={
+          case @selected_hit_rate_type do
+            "p99" -> gettext("p99 cache hit rate")
+            "p90" -> gettext("p90 cache hit rate")
+            "p50" -> gettext("p50 cache hit rate")
+            _ -> gettext("Avg. cache hit rate")
+          end
+        }
+        legend_color={
+          case @selected_hit_rate_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "primary"
+          end
+        }
         description={
           gettext(
             "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
@@ -31,17 +46,62 @@
         value={
           gettext("%{hit_rate}%",
             hit_rate:
-              @hit_rate_analytics.avg_hit_rate
+              case @selected_hit_rate_type do
+                "p99" -> @hit_rate_p99.total_percentile_hit_rate
+                "p90" -> @hit_rate_p90.total_percentile_hit_rate
+                "p50" -> @hit_rate_p50.total_percentile_hit_rate
+                _ -> @hit_rate_analytics.avg_hit_rate
+              end
               |> Decimal.from_float()
               |> Decimal.round(1)
           )
         }
-        id="widget-cache-hit-rate"
-        trend_value={@hit_rate_analytics.trend}
-        trend_label={@analytics_trend_label}
+        metrics={
+          %{
+            avg:
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_analytics.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p99:
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p99.total_percentile_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p90:
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p90.total_percentile_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p50:
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p50.total_percentile_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+          }
+        }
+        selected_type={@selected_hit_rate_type}
+        event_name="select_hit_rate_type"
         phx_click="select_widget"
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
+        trend_value={
+          case @selected_hit_rate_type do
+            "p99" -> @hit_rate_p99.trend
+            "p90" -> @hit_rate_p90.trend
+            "p50" -> @hit_rate_p50.trend
+            _ -> @hit_rate_analytics.trend
+          end
+        }
+        trend_label={@analytics_trend_label}
         empty={@hit_rate_analytics.avg_hit_rate == 0}
       />
       <.widget
@@ -85,6 +145,122 @@
     }>
       <div data-part="analytics-chart">
         <.chart
+          :if={@analytics_selected_widget == "cache_hit_rate"}
+          id="xcode-cache-hit-rate-chart"
+          type="line"
+          extra_options={
+            %{
+              legend: %{
+                left: "left",
+                top: "bottom",
+                orient: "horizontal",
+                textStyle: %{
+                  color: "var:noora-surface-label-secondary",
+                  fontFamily: "monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  lineHeight: 12
+                },
+                icon:
+                  "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                itemWidth: 8,
+                itemHeight: 4
+              },
+              grid: %{
+                width: "97%",
+                left: "0.4%",
+                height: "60%",
+                top: "10%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @hit_rate_analytics.dates |> List.first(),
+                    @hit_rate_analytics.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "{value}%"
+                }
+              },
+              tooltip: %{
+                valueFormat: "{value}%"
+              }
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-primary",
+              data:
+                Enum.zip(
+                  @hit_rate_analytics.dates,
+                  @hit_rate_analytics.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("Average"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p99",
+              data:
+                Enum.zip(
+                  @hit_rate_p99.dates,
+                  @hit_rate_p99.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p99"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p90",
+              data:
+                Enum.zip(
+                  @hit_rate_p90.dates,
+                  @hit_rate_p90.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p90"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p50",
+              data:
+                Enum.zip(
+                  @hit_rate_p50.dates,
+                  @hit_rate_p50.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p50"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+          y_axis_max={100}
+        />
+        <.chart
+          :if={@analytics_selected_widget != "cache_hit_rate"}
           id="xcode-cache-analytics-chart"
           type="line"
           extra_options={
