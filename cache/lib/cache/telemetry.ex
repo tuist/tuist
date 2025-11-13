@@ -31,24 +31,14 @@ defmodule Cache.Telemetry do
   end
 
   defp push_analytics_event(action, measurements, metadata) do
-    with {:ok, size} <- Map.fetch(measurements, :size),
-         {:ok, cas_id} <- Map.fetch(metadata, :cas_id),
-         {:ok, account_handle} <- Map.fetch(metadata, :account_handle),
-         {:ok, project_handle} <- Map.fetch(metadata, :project_handle) do
-      event = %{
-        action: action,
-        size: size,
-        cas_id: cas_id,
-        account_handle: account_handle,
-        project_handle: project_handle
-      }
+    event = %{
+      action: action,
+      size: measurements.size,
+      cas_id: metadata.cas_id,
+      account_handle: metadata.account_handle,
+      project_handle: metadata.project_handle
+    }
 
-      Cache.CasEventsPipeline.async_push(event)
-    else
-      :error ->
-        Logger.debug(
-          "Missing required metadata for CAS analytics: action=#{action}, measurements=#{inspect(measurements)}, metadata=#{inspect(metadata)}"
-        )
-    end
+    Cache.CasEventsPipeline.async_push(event)
   end
 end
