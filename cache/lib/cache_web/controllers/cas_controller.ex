@@ -98,6 +98,10 @@ defmodule CacheWeb.CASController do
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :timeout})
         send_error(conn_after, :request_timeout, "Request body read timed out")
 
+      {:error, :cancelled, conn_after} ->
+        :telemetry.execute([:cache, :cas, :upload, :cancelled], %{count: 1}, %{})
+        send_resp(conn_after, :no_content, "")
+
       {:error, _reason, conn_after} ->
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :read_error})
         send_error(conn_after, :internal_server_error, "Failed to persist artifact")

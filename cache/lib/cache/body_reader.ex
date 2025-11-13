@@ -6,6 +6,8 @@ defmodule Cache.BodyReader do
   to avoid memory pressure.
   """
 
+  require Logger
+
   @max_upload_bytes 25 * 1024 * 1024
   @default_opts [length: @max_upload_bytes, read_length: 262_144, read_timeout: 60_000]
 
@@ -38,7 +40,17 @@ defmodule Cache.BodyReader do
   end
 
   defp do_read(conn, opts, mode) do
-    case Plug.Conn.read_body(conn, opts) do
+    conn
+    |> Plug.Conn.read_body(opts)
+    |> handle_read_result(conn, opts, mode)
+  rescue
+    e in Bandit.TransportError ->
+      Logger.info("Client cancelled upload during #{mode}: #{e.message}")
+      {:error, :cancelled, conn}
+  end
+
+  defp handle_read_result(result, conn, opts, mode) do
+    case result do
       {:ok, body, conn_after} ->
         {:ok, body, conn_after}
 
@@ -92,7 +104,17 @@ defmodule Cache.BodyReader do
   end
 
   defp read_loop(conn, opts, device, bytes_read, writer) do
-    case Plug.Conn.read_body(conn, opts) do
+    conn
+    |> Plug.Conn.read_body(opts)
+    |> handle_loop_result(conn, opts, device, bytes_read, writer)
+  rescue
+    e in Bandit.TransportError ->
+      Logger.info("Client cancelled upload during chunked read: #{e.message}")
+      {:error, :cancelled, conn}
+  end
+
+  defp handle_loop_result(result, conn, opts, device, bytes_read, writer) do
+    case result do
       {:ok, "", conn_after} ->
         {:ok, conn_after, bytes_read}
 

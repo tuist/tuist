@@ -93,6 +93,52 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
+
+    & .noora-dropdown {
+      flex-grow: 1;
+      & [data-part="trigger"]:hover {
+        & [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+        }
+        & [data-part="indicator"] > div {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+
+      & > [data-state="open"] + [data-part="positioner"] {
+        width: unset;
+      }
+
+      & [data-part="trigger"] {
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        box-shadow: unset;
+        background: unset;
+        padding: unset;
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+        & [data-part="label-wrapper"] {
+          flex-grow: 0;
+        }
+
+        & [data-part="indicator"] {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & [data-part="indicator-up"] {
+          display: none;
+        }
+
+        & [data-part="indicator-down"] {
+          display: block;
+        }
+
+        & [data-part="indicator"] > div {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
   }
 
   & .noora-tooltip {

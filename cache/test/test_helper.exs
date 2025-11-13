@@ -9,5 +9,6 @@ Mimic.copy(ExAws.Config)
 Mimic.copy(Cache.S3)
 Mimic.copy(Oban)
 Mimic.copy(Req)
+Mimic.copy(Plug.Conn)
 
 ExUnit.start()

@@ -1,6 +1,30 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.104.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* respect xcframework status by [@fortmarek](https://github.com/fortmarek) in [#8651](https://github.com/tuist/tuist/pull/8651)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.3...4.104.4
+
+## What's Changed in 4.104.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duplicate CAS outputs by [@fortmarek](https://github.com/fortmarek) in [#8646](https://github.com/tuist/tuist/pull/8646)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.2...4.104.3
+
+## What's Changed in 4.104.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip hashing lockfiles by [@fortmarek](https://github.com/fortmarek) in [#8650](https://github.com/tuist/tuist/pull/8650)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.1...4.104.2
+
 ## What's Changed in 4.104.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

@@ -898,7 +898,7 @@ defmodule TuistWeb.BuildRunLive do
       |> Enum.flat_map(& &1.cas_output_node_ids)
       |> Enum.uniq()
 
-    cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids)
+    cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
 
     # Create a map from task key to its CAS outputs
     task_cas_outputs_map =

@@ -198,11 +198,22 @@ defmodule Tuist.Runs do
     Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
-  def get_cas_outputs_by_node_ids(build_run_id, node_ids) when is_list(node_ids) do
+  def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
+    distinct = Keyword.get(opts, :distinct, false)
+
     if Enum.empty?(node_ids) do
       []
     else
-      IngestRepo.all(from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids))
+      query = from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids)
+
+      query =
+        if distinct do
+          from(c in query, distinct: c.node_id)
+        else
+          query
+        end
+
+      IngestRepo.all(query)
     end
   end
 

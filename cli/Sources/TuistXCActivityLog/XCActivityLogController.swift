@@ -481,7 +481,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
         let downloadNodeMetadata = extractDownloadNodeMetadata(from: buildSteps)
+            .uniqued()
         let uploadNodeMetadata = extractUploadNodeMetadata(from: buildSteps)
+            .uniqued()
 
         async let downloadOutputs = createCASOutputDownloads(nodeMetadata: downloadNodeMetadata)
         async let uploadOutputs = createCASOutputUploads(nodeMetadata: uploadNodeMetadata)
@@ -674,7 +676,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func extractNodeIDAndTypeFromNote(from noteTitle: String) -> CASNodeMetadata? {
-        let pattern = "CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
+        let pattern = "(?i)using CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: noteTitle, range: NSRange(location: 0, length: noteTitle.count)),
               let typeRange = Range(match.range(at: 1), in: noteTitle),
