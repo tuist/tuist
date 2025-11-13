@@ -130,6 +130,21 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Returns file stat information for an artifact.
+
+  ## Examples
+
+      iex> Cache.Disk.stat("account", "project", "abc123")
+      {:ok, %File.Stat{size: 1024, ...}}
+  """
+  def stat(account_handle, project_handle, id) do
+    account_handle
+    |> cas_key(project_handle, id)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
   Lists all artifact paths on disk.
   """
   def list_artifact_paths(dir \\ storage_dir()) do

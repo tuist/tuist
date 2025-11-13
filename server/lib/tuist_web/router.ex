@@ -364,6 +364,10 @@ defmodule TuistWeb.Router do
             post "/", CacheController, :upload_cache_action_item
             get "/:hash", CacheController, :get_cache_action_item
           end
+
+          scope "/cas" do
+            post "/events", CASEventsController, :create
+          end
         end
       end
     end
