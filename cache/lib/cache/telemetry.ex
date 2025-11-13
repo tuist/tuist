@@ -3,8 +3,6 @@ defmodule Cache.Telemetry do
   Telemetry handlers for CAS analytics events.
   """
 
-  require Logger
-
   @doc """
   Attaches telemetry handlers for CAS events.
   """
