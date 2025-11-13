@@ -68,59 +68,38 @@ defmodule TuistWeb.PercentileDropdownWidget do
       phx_value_widget={@phx_value_widget}
     >
       <:select>
-        <div phx-click={JS.exec("event.stopPropagation()", to: "window")}>
-          <.dropdown
-            id={"#{@id}-dropdown"}
-            icon_only
-            label={percentile_label(@selected_type)}
-          >
-            <:icon><.chevron_down /></:icon>
-            <.dropdown_item
-              value="avg"
-              phx-click={@event_name}
-              phx-value-type="avg"
-              data-selected={@selected_type == "avg"}
-            >
-              <.percentile_dropdown_item
-                type="avg"
-                metrics={@metrics}
-              />
-            </.dropdown_item>
-            <.dropdown_item
-              value="p99"
-              phx-click={@event_name}
-              phx-value-type="p99"
-              data-selected={@selected_type == "p99"}
-            >
-              <.percentile_dropdown_item
-                type="p99"
-                metrics={@metrics}
-              />
-            </.dropdown_item>
-            <.dropdown_item
-              value="p90"
-              phx-click={@event_name}
-              phx-value-type="p90"
-              data-selected={@selected_type == "p90"}
-            >
-              <.percentile_dropdown_item
-                type="p90"
-                metrics={@metrics}
-              />
-            </.dropdown_item>
-            <.dropdown_item
-              value="p50"
-              phx-click={@event_name}
-              phx-value-type="p50"
-              data-selected={@selected_type == "p50"}
-            >
-              <.percentile_dropdown_item
-                type="p50"
-                metrics={@metrics}
-              />
-            </.dropdown_item>
-          </.dropdown>
-        </div>
+        <.dropdown_item
+          value="avg"
+          phx-click={@event_name}
+          phx-value-type="avg"
+          data-selected={@selected_type == "avg"}
+        >
+          <.percentile_dropdown_item type="avg" metrics={@metrics} />
+        </.dropdown_item>
+        <.dropdown_item
+          value="p99"
+          phx-click={@event_name}
+          phx-value-type="p99"
+          data-selected={@selected_type == "p99"}
+        >
+          <.percentile_dropdown_item type="p99" metrics={@metrics} />
+        </.dropdown_item>
+        <.dropdown_item
+          value="p90"
+          phx-click={@event_name}
+          phx-value-type="p90"
+          data-selected={@selected_type == "p90"}
+        >
+          <.percentile_dropdown_item type="p90" metrics={@metrics} />
+        </.dropdown_item>
+        <.dropdown_item
+          value="p50"
+          phx-click={@event_name}
+          phx-value-type="p50"
+          data-selected={@selected_type == "p50"}
+        >
+          <.percentile_dropdown_item type="p50" metrics={@metrics} />
+        </.dropdown_item>
       </:select>
     </.widget>
     """

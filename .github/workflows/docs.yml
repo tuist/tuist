@@ -37,6 +37,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-docker-compose:
+    name: Test Docker Compose
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test docker-compose configuration
+        run: ./docs/test-docker-compose.sh
+
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26

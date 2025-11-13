@@ -154,6 +154,12 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
+  ignoreDeadLinks: [
+    // Ignore localhost URLs in self-hosting documentation
+    /^http:\/\/localhost/,
+    // Ignore .env.example download link (static file served from public/)
+    /\/server\/self-host\/\.env\.example$/,
+  ],
   experimental: {
     metaChunk: true,
   },
