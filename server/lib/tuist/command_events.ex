@@ -26,6 +26,7 @@ defmodule Tuist.CommandEvents do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Runs.Build
   alias Tuist.Storage
   alias Tuist.Time
   alias Tuist.Xcode.XcodeGraph
@@ -989,7 +990,7 @@ defmodule Tuist.CommandEvents do
 
     # Get Xcode cache metrics from Builds (PostgreSQL)
     build_query =
-      from(b in Tuist.Runs.Build,
+      from(b in Build,
         where:
           b.project_id == ^project_id and
             b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
@@ -1009,13 +1010,15 @@ defmodule Tuist.CommandEvents do
         false -> where(build_query, [b], b.is_ci == false)
       end
 
-    build_result = Tuist.Repo.one(build_query)
+    build_result = Repo.one(build_query)
 
     # Combine both Module cache and Xcode cache metrics
     %{
       cacheable_targets_count: (event_result.cacheable_targets_count || 0) + (build_result.cacheable_tasks_count || 0),
-      local_cache_hits_count: (event_result.local_cache_hits_count || 0) + (build_result.cacheable_task_local_hits_count || 0),
-      remote_cache_hits_count: (event_result.remote_cache_hits_count || 0) + (build_result.cacheable_task_remote_hits_count || 0)
+      local_cache_hits_count:
+        (event_result.local_cache_hits_count || 0) + (build_result.cacheable_task_local_hits_count || 0),
+      remote_cache_hits_count:
+        (event_result.remote_cache_hits_count || 0) + (build_result.cacheable_task_remote_hits_count || 0)
     }
   end
 
@@ -1049,7 +1052,7 @@ defmodule Tuist.CommandEvents do
     pg_time_bucket = clickhouse_interval_to_postgrex_interval(time_bucket)
 
     build_query =
-      from(b in Tuist.Runs.Build,
+      from(b in Build,
         group_by: selected_as(:date_bucket),
         where:
           b.project_id == ^project_id and
@@ -1071,20 +1074,17 @@ defmodule Tuist.CommandEvents do
         false -> where(build_query, [b], b.is_ci == false)
       end
 
-    build_results = Tuist.Repo.all(build_query)
+    build_results = Repo.all(build_query)
 
     # Normalize and merge both results
     # Convert both to maps indexed by normalized date strings
     event_map =
-      event_results
-      |> Enum.map(fn result ->
+      Map.new(event_results, fn result ->
         {result.date, result}
       end)
-      |> Map.new()
 
     build_map =
-      build_results
-      |> Enum.map(fn result ->
+      Map.new(build_results, fn result ->
         # Format the date from PostgreSQL to match ClickHouse format
         date_str =
           case result.date do
@@ -1094,7 +1094,6 @@ defmodule Tuist.CommandEvents do
 
         {date_str, result}
       end)
-      |> Map.new()
 
     # Combine all unique dates
     all_dates = MapSet.union(MapSet.new(Map.keys(event_map)), MapSet.new(Map.keys(build_map)))
@@ -1107,9 +1106,14 @@ defmodule Tuist.CommandEvents do
 
       %{
         date: date,
-        cacheable_targets: (event_data && event_data.cacheable_targets || 0) + (build_data && build_data.cacheable_tasks || 0),
-        local_cache_target_hits: (event_data && event_data.local_cache_target_hits || 0) + (build_data && build_data.cacheable_task_local_hits || 0),
-        remote_cache_target_hits: (event_data && event_data.remote_cache_target_hits || 0) + (build_data && build_data.cacheable_task_remote_hits || 0)
+        cacheable_targets:
+          ((event_data && event_data.cacheable_targets) || 0) + ((build_data && build_data.cacheable_tasks) || 0),
+        local_cache_target_hits:
+          ((event_data && event_data.local_cache_target_hits) || 0) +
+            ((build_data && build_data.cacheable_task_local_hits) || 0),
+        remote_cache_target_hits:
+          ((event_data && event_data.remote_cache_target_hits) || 0) +
+            ((build_data && build_data.cacheable_task_remote_hits) || 0)
       }
     end)
     |> Enum.sort_by(& &1.date)
@@ -1117,7 +1121,10 @@ defmodule Tuist.CommandEvents do
 
   # Helper function to format dates to match ClickHouse format
   defp format_datetime_for_date_format(datetime, "%Y-%m-%d"), do: Date.to_string(DateTime.to_date(datetime))
-  defp format_datetime_for_date_format(datetime, "%Y-%m"), do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m"),
+    do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
+
   defp format_datetime_for_date_format(datetime, _), do: Date.to_string(DateTime.to_date(datetime))
 
   # Helper function to convert ClickHouse interval string to Postgrex.Interval

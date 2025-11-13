@@ -79,7 +79,10 @@
         empty={@uploads_analytics.total_size == 0}
       />
     </div>
-    <.card_section :if={@hit_rate_analytics.avg_hit_rate != 0 or @downloads_analytics.total_size != 0 or @uploads_analytics.total_size != 0}>
+    <.card_section :if={
+      @hit_rate_analytics.avg_hit_rate != 0 or @downloads_analytics.total_size != 0 or
+        @uploads_analytics.total_size != 0
+    }>
       <div data-part="analytics-chart">
         <.chart
           id="xcode-cache-analytics-chart"
@@ -143,7 +146,13 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@hit_rate_analytics.avg_hit_rate == 0 and @downloads_analytics.total_size == 0 and @uploads_analytics.total_size == 0} title={gettext("No data yet")}>
+    <.empty_card_section
+      :if={
+        @hit_rate_analytics.avg_hit_rate == 0 and @downloads_analytics.total_size == 0 and
+          @uploads_analytics.total_size == 0
+      }
+      title={gettext("No data yet")}
+    >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -244,7 +253,10 @@
             } />
           </:col>
           <:col :let={build} label={gettext("Ran by")}>
-            <.run_ran_by_badge_cell run={build} ran_by_name={if build.ran_by_account, do: build.ran_by_account.name} />
+            <.run_ran_by_badge_cell
+              run={build}
+              ran_by_name={if build.ran_by_account, do: build.ran_by_account.name}
+            />
           </:col>
           <:col :let={build} label={gettext("Duration")}>
             <.text_cell

@@ -5,7 +5,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateCasAnalyticsTable do
     create table(:cas_events,
              primary_key: false,
              engine: "MergeTree",
-             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, action, inserted_at)"
+             options:
+               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, action, inserted_at)"
            ) do
       add :id, :uuid, null: false
       add :action, :"Enum8('upload' = 0, 'download' = 1)", null: false

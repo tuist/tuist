@@ -7,8 +7,8 @@ defmodule TuistWeb.Plugs.CacheAuthPlug do
 
   @behaviour Plug
 
-  import Plug.Conn
   import Phoenix.Controller
+  import Plug.Conn
 
   require Logger
 
@@ -72,7 +72,8 @@ defmodule TuistWeb.Plugs.CacheAuthPlug do
 
         # Compute expected signature: HMAC-SHA256(secret, body)
         expected_signature =
-          :crypto.mac(:hmac, :sha256, secret, raw_body)
+          :hmac
+          |> :crypto.mac(:sha256, secret, raw_body)
           |> Base.encode16(case: :lower)
 
         Logger.debug("Cache auth - Expected signature: #{expected_signature}")

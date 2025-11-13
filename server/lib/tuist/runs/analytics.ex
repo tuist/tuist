@@ -1223,22 +1223,23 @@ defmodule Tuist.Runs.Analytics do
     time_bucket = time_bucket_for_date_period(date_period)
 
     current_data =
-      from(b in query,
-        group_by: selected_as(:date_bucket),
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
-          hit_rate:
-            fragment(
-              "CASE WHEN SUM(?) = 0 THEN 0.0 ELSE (SUM(?) + SUM(?))::float / SUM(?) * 100.0 END",
-              b.cacheable_tasks_count,
-              b.cacheable_task_local_hits_count,
-              b.cacheable_task_remote_hits_count,
-              b.cacheable_tasks_count
-            )
-        },
-        order_by: [asc: selected_as(:date_bucket)]
+      Repo.all(
+        from(b in query,
+          group_by: selected_as(:date_bucket),
+          select: %{
+            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
+            hit_rate:
+              fragment(
+                "CASE WHEN SUM(?) = 0 THEN 0.0 ELSE (SUM(?) + SUM(?))::float / SUM(?) * 100.0 END",
+                b.cacheable_tasks_count,
+                b.cacheable_task_local_hits_count,
+                b.cacheable_task_remote_hits_count,
+                b.cacheable_tasks_count
+              )
+          },
+          order_by: [asc: selected_as(:date_bucket)]
+        )
       )
-      |> Repo.all()
 
     # Calculate current average hit rate
     current_avg_hit_rate = avg_cache_hit_rate(project_id, start_date, end_date, opts)
