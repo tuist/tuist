@@ -15,8 +15,6 @@ defmodule CacheWeb.CASController do
     key = Disk.cas_key(account_handle, project_handle, id)
     :ok = CASArtifacts.track_artifact_access(key)
 
-    auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
-
     case Disk.stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
         local_path = Disk.local_accel_path(account_handle, project_handle, id)
@@ -24,8 +22,7 @@ defmodule CacheWeb.CASController do
         :telemetry.execute([:cache, :cas, :download, :disk_hit], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
-          project_handle: project_handle,
-          auth_header: auth_header
+          project_handle: project_handle
         })
 
         conn
@@ -59,12 +56,10 @@ defmodule CacheWeb.CASController do
   end
 
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
-    auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
-
     if Disk.exists?(account_handle, project_handle, id) do
-      handle_existing_artifact(conn) |> dbg
+      handle_existing_artifact(conn)
     else
-      save_new_artifact(conn, account_handle, project_handle, id, auth_header)
+      save_new_artifact(conn, account_handle, project_handle, id)
     end
   end
 
@@ -77,7 +72,7 @@ defmodule CacheWeb.CASController do
     end
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, id, auth_header) do
+  defp save_new_artifact(conn, account_handle, project_handle, id) do
     case BodyReader.read(conn) do
       {:ok, data, conn_after} ->
         size =
@@ -93,7 +88,7 @@ defmodule CacheWeb.CASController do
           end
 
         :telemetry.execute([:cache, :cas, :upload, :attempt], %{size: size}, %{})
-        persist_artifact(conn_after, account_handle, project_handle, id, data, size, auth_header)
+        persist_artifact(conn_after, account_handle, project_handle, id, data, size)
 
       {:error, :too_large, conn_after} ->
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :too_large})
@@ -109,14 +104,13 @@ defmodule CacheWeb.CASController do
     end
   end
 
-  defp persist_artifact(conn, account_handle, project_handle, id, data, size, auth_header) do
+  defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
     case Disk.put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :cas, :upload, :success], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
-          project_handle: project_handle,
-          auth_header: auth_header
+          project_handle: project_handle
         })
 
         :ok = CASArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))

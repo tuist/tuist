@@ -62,6 +62,9 @@ defmodule TuistWeb.Endpoint do
     handler: GitHubController,
     secret: {Tuist.Environment, :github_app_webhook_secret, []}
 
+  plug TuistWeb.Plugs.CacheAuthPlug,
+    at: "/api/projects/"
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],

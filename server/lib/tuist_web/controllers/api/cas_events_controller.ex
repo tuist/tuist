@@ -8,8 +8,7 @@ defmodule TuistWeb.API.CASEventsController do
 
   plug LoaderPlug
 
-  def create(%{assigns: %{selected_project: project}} = conn, %{"events" => events})
-      when is_list(events) do
+  def create(%{assigns: %{selected_project: project}} = conn, %{"events" => events}) do
     # Map events to analytics entries with the project_id from the route
     analytics_events =
       Enum.map(events, fn event ->
@@ -26,11 +25,5 @@ defmodule TuistWeb.API.CASEventsController do
     conn
     |> put_status(:accepted)
     |> json(%{status: "accepted", count: count})
-  end
-
-  def create(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Invalid request: events array required"})
   end
 end

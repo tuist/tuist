@@ -34,15 +34,13 @@ defmodule Cache.Telemetry do
     with {:ok, size} <- Map.fetch(measurements, :size),
          {:ok, cas_id} <- Map.fetch(metadata, :cas_id),
          {:ok, account_handle} <- Map.fetch(metadata, :account_handle),
-         {:ok, project_handle} <- Map.fetch(metadata, :project_handle),
-         {:ok, auth_header} <- Map.fetch(metadata, :auth_header) do
+         {:ok, project_handle} <- Map.fetch(metadata, :project_handle) do
       event = %{
         action: action,
         size: size,
         cas_id: cas_id,
         account_handle: account_handle,
-        project_handle: project_handle,
-        auth_header: auth_header
+        project_handle: project_handle
       }
 
       Cache.AnalyticsPipeline.async_push(event)

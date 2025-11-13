@@ -86,11 +86,13 @@ defmodule Cache.AnalyticsPipeline do
 
   defp do_send_batch(account_handle, project_handle, events) do
     server_url = Cache.Authentication.server_url()
+    secret = Application.get_env(:cache, :cache_api_key)
 
+    if is_nil(secret) or secret == "" do
+      Logger.warning("No cache API key configured, skipping batch")
+      :ok
+    else
     url = "#{server_url}/api/projects/#{account_handle}/#{project_handle}/cache/cas/events"
-
-    # Get auth header from first event (all events in batch have same auth)
-    auth_header = List.first(events).auth_header || ""
 
     # Transform events to the format expected by the API
     api_events =
@@ -104,8 +106,19 @@ defmodule Cache.AnalyticsPipeline do
 
     body = Jason.encode!(%{events: api_events})
 
+    Logger.debug("Cache analytics - Secret: #{secret}")
+    Logger.debug("Cache analytics - Body length: #{byte_size(body)}")
+    Logger.debug("Cache analytics - Body: #{body}")
+
+    # Generate HMAC signature: HMAC-SHA256(secret, body)
+    signature =
+      :crypto.mac(:hmac, :sha256, secret, body)
+      |> Base.encode16(case: :lower)
+
+    Logger.debug("Cache analytics - Signature: #{signature}")
+
     headers = [
-      {"authorization", auth_header},
+      {"x-signature", signature},
       {"content-type", "application/json"}
     ]
 
@@ -143,6 +156,7 @@ defmodule Cache.AnalyticsPipeline do
       {:error, reason} ->
         Logger.warning("Failed to send CAS analytics: #{inspect(reason)}")
         :ok
+    end
     end
   end
 

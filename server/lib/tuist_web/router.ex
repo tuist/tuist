@@ -364,10 +364,6 @@ defmodule TuistWeb.Router do
             post "/", CacheController, :upload_cache_action_item
             get "/:hash", CacheController, :get_cache_action_item
           end
-
-          scope "/cas" do
-            post "/events", CASEventsController, :create
-          end
         end
       end
     end
@@ -411,6 +407,13 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+  end
+
+  scope path: "/api",
+        alias: TuistWeb.API do
+    scope "/projects/:account_handle/:project_handle/cache/cas" do
+      post "/events", CASEventsController, :create
+    end
   end
 
   scope "/api", TuistWeb.API do

@@ -84,6 +84,6 @@ defmodule Tuist.Cache do
         }
       end)
 
-    IngestRepo.insert_all(CASEvent, entries) |> dbg
+    IngestRepo.insert_all(CASEvent, entries)
   end
 end
