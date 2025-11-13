@@ -46,7 +46,7 @@ config :cache,
   analytics_enabled: true,
   analytics_batch_size: 100,
   analytics_batch_timeout: 5_000,
-  cache_api_key: System.get_env("CACHE_API_KEY"),
+  cache_api_key: System.get_env("TUIST_CACHE_API_KEY"),
   analytics_pipeline_producer_module: OffBroadwayMemory.Producer,
   analytics_pipeline_producer_options: [
     buffer: :analytics_buffer
