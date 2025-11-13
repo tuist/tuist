@@ -42,21 +42,6 @@
       gap: var(--noora-spacing-8);
       padding: var(--noora-spacing-9);
 
-      & [data-part="filters"] {
-        display: flex;
-        flex-direction: row;
-        gap: var(--noora-spacing-4);
-        align-items: center;
-        flex-wrap: wrap;
-
-        & [data-part="active-filters"] {
-          display: flex;
-          flex-direction: row;
-          gap: var(--noora-spacing-2);
-          flex-wrap: wrap;
-        }
-      }
-
       & [data-part="builds-section"] {
         display: flex;
         flex-direction: column;

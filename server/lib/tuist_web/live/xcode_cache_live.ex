@@ -4,12 +4,9 @@ defmodule TuistWeb.XcodeCacheLive do
   use Noora
 
   import Ecto.Query
-  import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
 
-  alias Noora.Filter
-  alias Tuist.Accounts
   alias Tuist.Runs.Analytics
   alias Tuist.Runs.Build
   alias Tuist.Utilities.ByteFormatter
@@ -18,77 +15,13 @@ defmodule TuistWeb.XcodeCacheLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    socket =
-      socket
-      |> assign(:head_title, "#{gettext("Xcode Cache")} · #{slug} · Tuist")
-      |> assign(:available_filters, define_filters(project))
+    socket = assign(socket, :head_title, "#{gettext("Xcode Cache")} · #{slug} · Tuist")
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
     end
 
     {:ok, socket}
-  end
-
-  defp define_filters(project) do
-    base = [
-      %Filter.Filter{
-        id: "scheme",
-        field: :scheme,
-        display_name: gettext("Scheme"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "status",
-        field: :status,
-        display_name: gettext("Status"),
-        type: :option,
-        options: [:success, :failure],
-        options_display_names: %{
-          success: gettext("Passed"),
-          failure: gettext("Failed")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
-        id: "git_branch",
-        field: :git_branch,
-        display_name: gettext("Branch"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      }
-    ]
-
-    organization =
-      if Accounts.organization?(project.account) do
-        {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
-        users = Accounts.get_organization_members(organization)
-
-        [
-          %Filter.Filter{
-            id: "ran_by",
-            field: :ran_by,
-            display_name: gettext("Ran by"),
-            type: :option,
-            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
-            options_display_names:
-              Map.merge(
-                %{ci: "CI"},
-                Map.new(users, fn user -> {user.account.id, user.account.name} end)
-              ),
-            operator: :==,
-            value: nil
-          }
-        ]
-      else
-        []
-      end
-
-    base ++ organization
   end
 
   def handle_params(params, _uri, socket) do
@@ -99,33 +32,6 @@ defmodule TuistWeb.XcodeCacheLive do
       |> assign_analytics(params)
       |> assign_recent_builds(params)
     }
-  end
-
-  def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
-
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/xcode-cache?#{updated_params}"
-     )
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
-  end
-
-  def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
-
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/xcode-cache?#{updated_query_params}"
-     )
-     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
-     |> push_event("close-dropdown", %{all: true})
-     |> push_event("close-popover", %{all: true})}
   end
 
   def handle_event(
@@ -303,53 +209,32 @@ defmodule TuistWeb.XcodeCacheLive do
     end
   end
 
-  defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, params) do
-    filters =
-      Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
-
-    flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
-      | build_flop_filters(filters)
-    ]
-
-    options = %{
-      filters: flop_filters,
-      order_by: [:inserted_at],
-      order_directions: [:desc],
-      for: Build
-    }
-
-    options =
-      cond do
-        not is_nil(Map.get(params, "before")) ->
-          options
-          |> Map.put(:last, 20)
-          |> Map.put(:before, Map.get(params, "before"))
-
-        not is_nil(Map.get(params, "after")) ->
-          options
-          |> Map.put(:first, 20)
-          |> Map.put(:after, Map.get(params, "after"))
-
-        true ->
-          Map.put(options, :first, 20)
-      end
-
+  defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
     # Use custom query to filter by cacheable_tasks_count since it's not a Flop filterable field
     base_query =
       from(b in Build,
         where: b.cacheable_tasks_count > 0
       )
 
-    {builds, builds_meta} =
+    options = %{
+      filters: [
+        %{field: :project_id, op: :==, value: project.id}
+      ],
+      order_by: [:inserted_at],
+      order_directions: [:desc],
+      first: 40,
+      for: Build
+    }
+
+    # Fetch builds for the chart and table
+    {builds, _} =
       base_query
       |> preload(:ran_by_account)
       |> Flop.validate_and_run!(options, for: Build)
 
-    # Prepare chart data for recent builds
+    # Prepare chart data for recent builds (use all 40 builds)
     recent_builds_chart_data =
       builds
-      |> Enum.take(20)
       |> Enum.reverse()
       |> Enum.map(fn build ->
         hit_rate = cache_hit_rate(build)
@@ -386,30 +271,9 @@ defmodule TuistWeb.XcodeCacheLive do
       end
 
     socket
-    |> assign(:active_filters, filters)
     |> assign(:builds, builds)
-    |> assign(:builds_meta, builds_meta)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
-  end
-
-  defp build_flop_filters(filters) do
-    {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
-    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
-
-    ran_by_flop_filters =
-      Enum.flat_map(ran_by, fn
-        %{value: :ci, operator: op} ->
-          [%{field: :is_ci, op: op, value: true}]
-
-        %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
-
-        _ ->
-          []
-      end)
-
-    flop_filters ++ ran_by_flop_filters
   end
 
   def cache_hit_rate(build) do

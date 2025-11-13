@@ -179,23 +179,11 @@
   </.card>
   <.card title={gettext("Recent Builds")} icon="dashboard" data-part="recent-builds">
     <.card_section data-part="recent-builds-section">
-      <div data-part="filters">
-        <.filter_dropdown
-          id="filter-dropdown"
-          label={gettext("Filter")}
-          available_filters={@available_filters}
-          active_filters={@active_filters}
-        />
-        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
-        </div>
-      </div>
-
       <div :if={not Enum.empty?(@builds)} data-part="builds-section">
         <div data-part="builds-chart">
           <div data-part="legends">
             <.legend
-              title={gettext("Average cache hit rate")}
+              title={gettext("Cache hit rate")}
               value={
                 gettext("%{hit_rate}%",
                   hit_rate:
@@ -247,7 +235,8 @@
               %{
                 data: @recent_builds_chart_data,
                 name: "Cache Hit Rate",
-                type: "bar"
+                type: "bar",
+                barMinHeight: 3
               }
             ]}
             y_axis_min={0}
@@ -259,7 +248,7 @@
         </div>
         <.table
           id="builds-table"
-          rows={@builds}
+          rows={@builds |> Enum.take(7)}
           row_navigate={
             fn build ->
               url(
@@ -285,26 +274,22 @@
             <.run_ran_by_badge_cell run={build} ran_by_name={if build.ran_by_account, do: build.ran_by_account.name} />
           </:col>
           <:col :let={build} label={gettext("Duration")}>
-            <.text_cell label={
-              gettext("%{duration}s",
-                duration:
-                  (build.duration / 1000)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-            } />
+            <.text_cell
+              label={
+                gettext("%{duration}s",
+                  duration:
+                    (build.duration / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+              }
+              icon="history"
+            />
           </:col>
           <:col :let={build} label={gettext("Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
           </:col>
         </.table>
-        <.pagination
-          uri={@uri}
-          has_previous_page={@builds_meta.has_previous_page?}
-          has_next_page={@builds_meta.has_next_page?}
-          start_cursor={@builds_meta.start_cursor}
-          end_cursor={@builds_meta.end_cursor}
-        />
       </div>
 
       <div :if={Enum.empty?(@builds)} data-part="empty-builds">
