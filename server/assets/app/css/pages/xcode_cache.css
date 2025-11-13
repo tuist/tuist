@@ -1,0 +1,86 @@
+#xcode-cache {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+  & .noora-chart {
+    padding: var(--noora-spacing-3);
+  }
+  & > [data-part="analytics"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    & .noora-chart {
+      height: 200px;
+    }
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+    & [data-part="analytics-chart"] {
+      & .noora-chart {
+        height: 200px;
+      }
+    }
+  }
+
+  & > [data-part="recent-builds"] {
+    & > [data-part="recent-builds-section"] {
+      gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-9);
+
+      & [data-part="filters"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+        align-items: center;
+        flex-wrap: wrap;
+
+        & [data-part="active-filters"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-2);
+          flex-wrap: wrap;
+        }
+      }
+
+      & [data-part="builds-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+
+        & [data-part="builds-chart"] {
+          & .noora-chart {
+            height: 148px;
+          }
+
+          & [data-part="legends"] {
+            display: flex;
+            flex-direction: row;
+            gap: var(--noora-spacing-5);
+            & > * {
+              flex-grow: 1;
+            }
+          }
+        }
+      }
+
+      & [data-part="empty-builds"] {
+        padding: var(--noora-spacing-4) 0;
+      }
+    }
+  }
+}

@@ -1,0 +1,324 @@
+<div id="xcode-cache">
+  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+    <:actions>
+      <.dropdown
+        id="xcode-cache-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={gettext("Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label="Any"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label="Local"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label="CI"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.button_group size="large">
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
+          label={gettext("7 days")}
+          data-selected={@analytics_date_range == "last_7_days"}
+        />
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
+          label={gettext("30 days")}
+          data-selected={@analytics_date_range == "last_30_days"}
+        />
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
+          label={gettext("12 months")}
+          data-selected={@analytics_date_range == "last_12_months"}
+        />
+      </.button_group>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        title={gettext("Cache hit rate")}
+        description={
+          gettext(
+            "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
+          )
+        }
+        value={
+          gettext("%{hit_rate}%",
+            hit_rate:
+              @hit_rate_analytics.avg_hit_rate
+              |> Decimal.from_float()
+              |> Decimal.round(1)
+          )
+        }
+        id="widget-cache-hit-rate"
+        trend_value={@hit_rate_analytics.trend}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_hit_rate"
+        selected={@analytics_selected_widget == "cache_hit_rate"}
+        empty={@hit_rate_analytics.avg_hit_rate == 0}
+      />
+      <.widget
+        title={gettext("Cache downloads")}
+        description={
+          gettext(
+            "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
+          )
+        }
+        value={ByteFormatter.format_bytes(@downloads_analytics.total_size)}
+        id="widget-cache-downloads"
+        trend_value={@downloads_analytics.trend}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_downloads"
+        selected={@analytics_selected_widget == "cache_downloads"}
+        empty={@downloads_analytics.total_size == 0}
+      />
+      <.widget
+        title={gettext("Cache uploads")}
+        description={
+          gettext(
+            "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
+          )
+        }
+        value={ByteFormatter.format_bytes(@uploads_analytics.total_size)}
+        id="widget-cache-uploads"
+        trend_value={@uploads_analytics.trend}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_uploads"
+        selected={@analytics_selected_widget == "cache_uploads"}
+        empty={@uploads_analytics.total_size == 0}
+      />
+    </div>
+    <.card_section :if={@hit_rate_analytics.avg_hit_rate != 0 or @downloads_analytics.total_size != 0 or @uploads_analytics.total_size != 0}>
+      <div data-part="analytics-chart">
+        <.chart
+          id="xcode-cache-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @analytics_chart_data.dates |> List.first(),
+                    @analytics_chart_data.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: @analytics_chart_data.value_formatter
+                }
+              },
+              tooltip: %{
+                valueFormat: @analytics_chart_data.value_formatter
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @analytics_chart_data.dates,
+                  @analytics_chart_data.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: @analytics_chart_data.name,
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section :if={@hit_rate_analytics.avg_hit_rate == 0 and @downloads_analytics.total_size == 0 and @uploads_analytics.total_size == 0} title={gettext("No data yet")}>
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card title={gettext("Recent Builds")} icon="dashboard" data-part="recent-builds">
+    <.card_section data-part="recent-builds-section">
+      <div data-part="filters">
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={gettext("Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+      </div>
+
+      <div :if={not Enum.empty?(@builds)} data-part="builds-section">
+        <div data-part="builds-chart">
+          <div data-part="legends">
+            <.legend
+              title={gettext("Average cache hit rate")}
+              value={
+                gettext("%{hit_rate}%",
+                  hit_rate:
+                    @avg_recent_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+              }
+              style="primary"
+            />
+          </div>
+          <.chart
+            id="recent-builds-hit-rate-chart"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{
+                  width: "98%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                tooltip: %{
+                  valueFormat: "{value}%",
+                  dateFormat: "minute"
+                },
+                xAxis: %{
+                  axisLabel: %{show: false},
+                  data: @recent_builds_chart_data |> Enum.map(& &1.date)
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}%"
+                  }
+                },
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data: @recent_builds_chart_data,
+                name: "Cache Hit Rate",
+                type: "bar"
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+        </div>
+        <.table
+          id="builds-table"
+          rows={@builds}
+          row_navigate={
+            fn build ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
+              )
+            end
+          }
+        >
+          <:col :let={build} label={gettext("Scheme")}>
+            <.text_and_description_cell label={build.scheme || "None"} />
+          </:col>
+          <:col :let={build} label={gettext("Hit Rate")}>
+            <.text_cell label={
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  cache_hit_rate(build)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            } />
+          </:col>
+          <:col :let={build} label={gettext("Ran by")}>
+            <.run_ran_by_badge_cell run={build} ran_by_name={if build.ran_by_account, do: build.ran_by_account.name} />
+          </:col>
+          <:col :let={build} label={gettext("Duration")}>
+            <.text_cell label={
+              gettext("%{duration}s",
+                duration:
+                  (build.duration / 1000)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            } />
+          </:col>
+          <:col :let={build} label={gettext("Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@builds_meta.has_previous_page?}
+          has_next_page={@builds_meta.has_next_page?}
+          start_cursor={@builds_meta.start_cursor}
+          end_cursor={@builds_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@builds)} data-part="empty-builds">
+        <.empty_card_section
+          title={gettext("No data yet")}
+          get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
+          data-part="empty-builds-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

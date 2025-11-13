@@ -8,6 +8,7 @@ defmodule Tuist.Runs.Analytics do
   alias Postgrex.Interval
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Tasks
@@ -1056,6 +1057,280 @@ defmodule Tuist.Runs.Analytics do
       fn -> runs_analytics(project_id, "test", opts) end,
       fn -> runs_analytics(project_id, "test", Keyword.put(opts, :status, :failure)) end,
       fn -> runs_duration_analytics("test", opts) end
+    ]
+
+    Tasks.parallel_tasks(queries)
+  end
+
+  @doc """
+  Gets CAS upload analytics for a project over a time period.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  """
+  def cas_uploads_analytics(project_id, opts \\ []) do
+    cas_action_analytics(project_id, "upload", opts)
+  end
+
+  @doc """
+  Gets CAS download analytics for a project over a time period.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  """
+  def cas_downloads_analytics(project_id, opts \\ []) do
+    cas_action_analytics(project_id, "download", opts)
+  end
+
+  defp cas_action_analytics(project_id, action, opts) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    interval_str = time_bucket_to_clickhouse_interval(time_bucket)
+
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    # Query current period data
+    current_data =
+      IngestRepo.query!(
+        """
+        SELECT
+          toStartOfInterval(inserted_at, INTERVAL #{interval_str}) as date,
+          SUM(size) as total_size
+        FROM cas_events
+        WHERE project_id = {project_id:Int64}
+          AND action = {action:String}
+          AND inserted_at >= {start_dt:DateTime}
+          AND inserted_at <= {end_dt:DateTime}
+        GROUP BY date
+        ORDER BY date
+        """,
+        %{
+          project_id: project_id,
+          action: action,
+          start_dt: start_dt,
+          end_dt: end_dt
+        }
+      )
+
+    current_total = total_cas_size(project_id, action, start_date, end_date)
+
+    # Query previous period total for trend
+    previous_start_date = Date.add(start_date, -days_delta)
+    previous_total = total_cas_size(project_id, action, previous_start_date, start_date)
+
+    # Process the data to fill missing dates
+    processed_data =
+      current_data.rows
+      |> Enum.map(fn [date, size] -> %{date: date, size: size} end)
+      |> process_cas_data(start_date, end_date, date_period)
+
+    %{
+      trend: trend(previous_value: previous_total, current_value: current_total),
+      total_size: current_total,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.size)
+    }
+  end
+
+  defp total_cas_size(project_id, action, start_date, end_date) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    result =
+      IngestRepo.query!(
+        """
+        SELECT SUM(size) as total_size
+        FROM cas_events
+        WHERE project_id = {project_id:Int64}
+          AND action = {action:String}
+          AND inserted_at >= {start_dt:DateTime}
+          AND inserted_at <= {end_dt:DateTime}
+        """,
+        %{
+          project_id: project_id,
+          action: action,
+          start_dt: start_dt,
+          end_dt: end_dt
+        }
+      )
+
+    case result.rows do
+      [[nil]] -> 0
+      [[size]] -> size
+      _ -> 0
+    end
+  end
+
+  defp process_cas_data(cas_data, start_date, end_date, date_period) do
+    cas_map =
+      case cas_data do
+        data when is_list(data) ->
+          Map.new(data, &{normalise_date(&1.date, date_period), &1.size})
+
+        _ ->
+          %{}
+      end
+
+    date_period
+    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      size = Map.get(cas_map, date, 0)
+      %{date: date, size: size}
+    end)
+  end
+
+  @doc """
+  Gets build cache hit rate analytics for a project over a time period.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  """
+  def build_cache_hit_rate_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    # Build base query
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0
+      )
+
+    # Add is_ci filter if specified
+    query = query_with_is_ci_filter(query, opts)
+
+    # Query current period data with time bucketing
+    time_bucket = time_bucket_for_date_period(date_period)
+
+    current_data =
+      from(b in query,
+        group_by: selected_as(:date_bucket),
+        select: %{
+          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
+          hit_rate:
+            fragment(
+              "CASE WHEN SUM(?) = 0 THEN 0.0 ELSE (SUM(?) + SUM(?))::float / SUM(?) * 100.0 END",
+              b.cacheable_tasks_count,
+              b.cacheable_task_local_hits_count,
+              b.cacheable_task_remote_hits_count,
+              b.cacheable_tasks_count
+            )
+        },
+        order_by: [asc: selected_as(:date_bucket)]
+      )
+      |> Repo.all()
+
+    # Calculate current average hit rate
+    current_avg_hit_rate = avg_cache_hit_rate(project_id, start_date, end_date, opts)
+
+    # Calculate previous period average hit rate for trend
+    previous_start_date = Date.add(start_date, -days_delta)
+    previous_avg_hit_rate = avg_cache_hit_rate(project_id, previous_start_date, start_date, opts)
+
+    # Process the data to fill missing dates
+    processed_data =
+      process_hit_rate_data(current_data, start_date, end_date, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_avg_hit_rate,
+          current_value: current_avg_hit_rate
+        ),
+      avg_hit_rate: current_avg_hit_rate,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.hit_rate)
+    }
+  end
+
+  defp avg_cache_hit_rate(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0,
+        select: %{
+          total_cacheable: sum(b.cacheable_tasks_count),
+          total_local_hits: sum(b.cacheable_task_local_hits_count),
+          total_remote_hits: sum(b.cacheable_task_remote_hits_count)
+        }
+      )
+
+    query = query_with_is_ci_filter(query, opts)
+
+    result = Repo.one(query)
+
+    case result do
+      nil ->
+        0.0
+
+      %{total_cacheable: total} when is_nil(total) or total == 0 ->
+        0.0
+
+      %{total_cacheable: total, total_local_hits: local, total_remote_hits: remote} ->
+        local = local || 0
+        remote = remote || 0
+        Float.round((local + remote) / total * 100.0, 1)
+    end
+  end
+
+  defp process_hit_rate_data(hit_rate_data, start_date, end_date, date_period) do
+    hit_rate_map =
+      case hit_rate_data do
+        data when is_list(data) ->
+          Map.new(data, fn item ->
+            date = normalise_date(item.date, date_period)
+            hit_rate = if is_nil(item.hit_rate), do: 0.0, else: Float.round(item.hit_rate, 1)
+            {date, hit_rate}
+          end)
+
+        _ ->
+          %{}
+      end
+
+    date_period
+    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      hit_rate = Map.get(hit_rate_map, date, 0.0)
+      %{date: date, hit_rate: hit_rate}
+    end)
+  end
+
+  @doc """
+  Runs all cache analytics queries in parallel for a project.
+
+  Returns a tuple of {uploads_analytics, downloads_analytics, hit_rate_analytics}
+  """
+  def combined_cache_analytics(project_id, opts \\ []) do
+    queries = [
+      fn -> cas_uploads_analytics(project_id, opts) end,
+      fn -> cas_downloads_analytics(project_id, opts) end,
+      fn -> build_cache_hit_rate_analytics(project_id, opts) end
     ]
 
     Tasks.parallel_tasks(queries)
