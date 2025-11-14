@@ -4,8 +4,6 @@ defmodule TuistWeb.API.CASEventsController do
   alias Tuist.Cache
   alias TuistWeb.Plugs.LoaderPlug
 
-  require Logger
-
   plug LoaderPlug
 
   def create(%{assigns: %{selected_project: project}} = conn, %{"events" => events}) do
