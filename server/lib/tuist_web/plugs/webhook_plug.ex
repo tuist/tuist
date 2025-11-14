@@ -41,40 +41,50 @@ defmodule TuistWeb.Plugs.WebhookPlug do
 
     case conn.request_path do
       ^path ->
-        secret = parse_secret!(get_config(options, :secret))
-        module = get_config(options, :handler)
-        signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
-        signature_prefix = get_config(options, :signature_prefix)
-
-        conn = Plug.Parsers.call(conn, @plug_parser)
-
-        signature = conn |> get_req_header(signature_header) |> List.first()
-
-        if is_nil(signature) do
-          conn
-          |> send_resp(401, "Missing #{signature_header} header")
-          |> halt()
-        else
-          raw_body = conn.assigns.raw_body |> List.flatten() |> IO.iodata_to_binary()
-
-          if verify_signature(raw_body, secret, signature, signature_prefix) do
-            result_conn = module.handle(conn, conn.body_params)
-
-            # If handler already sent a response, use it. Otherwise send default 200 OK
-            if result_conn.status do
-              result_conn
-            else
-              result_conn |> send_resp(200, "OK") |> halt()
-            end
-          else
-            conn
-            |> send_resp(403, "Invalid signature")
-            |> halt()
-          end
-        end
+        handle_webhook(conn, options)
 
       _ ->
         conn
+    end
+  end
+
+  defp handle_webhook(conn, options) do
+    secret = parse_secret!(get_config(options, :secret))
+    module = get_config(options, :handler)
+    signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
+    signature_prefix = get_config(options, :signature_prefix)
+
+    conn = Plug.Parsers.call(conn, @plug_parser)
+    signature = conn |> get_req_header(signature_header) |> List.first()
+
+    cond do
+      is_nil(signature) ->
+        conn
+        |> send_resp(401, "Missing #{signature_header} header")
+        |> halt()
+
+      verify_signature(
+        conn.assigns.raw_body |> List.flatten() |> IO.iodata_to_binary(),
+        secret,
+        signature,
+        signature_prefix
+      ) ->
+        handle_verified_webhook(conn, module)
+
+      true ->
+        conn
+        |> send_resp(403, "Invalid signature")
+        |> halt()
+    end
+  end
+
+  defp handle_verified_webhook(conn, module) do
+    result_conn = module.handle(conn, conn.body_params)
+
+    if result_conn.status do
+      result_conn
+    else
+      result_conn |> send_resp(200, "OK") |> halt()
     end
   end
 
