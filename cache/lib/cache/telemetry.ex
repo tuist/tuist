@@ -16,20 +16,20 @@ defmodule Cache.Telemetry do
     :telemetry.attach_many(
       "cache-analytics-handler",
       events,
-      &handle_event/4,
+      &Cache.Telemetry.handle_event/4,
       nil
     )
   end
 
-  defp handle_event([:cache, :cas, :download, :disk_hit], measurements, metadata, _config) do
+  def handle_event([:cache, :cas, :download, :disk_hit], measurements, metadata, _config) do
     push_analytics_event("download", measurements, metadata)
   end
 
-  defp handle_event([:cache, :cas, :download, :success], measurements, metadata, _config) do
+  def handle_event([:cache, :cas, :download, :success], measurements, metadata, _config) do
     push_analytics_event("download", measurements, metadata)
   end
 
-  defp handle_event([:cache, :cas, :upload, :success], measurements, metadata, _config) do
+  def handle_event([:cache, :cas, :upload, :success], measurements, metadata, _config) do
     push_analytics_event("upload", measurements, metadata)
   end
 
