@@ -5,15 +5,10 @@ permissions:
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/cache-analytics
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       commit_sha:
-#         description: Sha of the commit to be deployed
-#         required: true
+    inputs:
+      commit_sha:
+        description: Sha of the commit to be deployed
+        required: true
 
 defaults:
   run:
