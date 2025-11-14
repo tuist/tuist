@@ -1850,27 +1850,4 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  @doc """
-  Runs all module cache analytics queries in parallel for a project.
-
-  Returns a list of analytics maps:
-  [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50]
-
-  ## Options
-    * `:project_id` - The project ID
-    * `:start_date` - Start date for the analytics period
-    * `:end_date` - End date for the analytics period
-  """
-  def combined_module_cache_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> module_cache_hit_rate_analytics(opts) end,
-      fn -> module_cache_hits_analytics(opts) end,
-      fn -> module_cache_misses_analytics(opts) end,
-      fn -> module_cache_hit_rate_percentile(project_id, 0.99, opts) end,
-      fn -> module_cache_hit_rate_percentile(project_id, 0.9, opts) end,
-      fn -> module_cache_hit_rate_percentile(project_id, 0.5, opts) end
-    ]
-
-    Tasks.parallel_tasks(queries)
-  end
 end

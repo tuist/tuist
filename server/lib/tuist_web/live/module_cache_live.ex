@@ -97,7 +97,7 @@ defmodule TuistWeb.ModuleCacheLive do
 
     # Get analytics from Analytics module (runs queries in parallel)
     [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-      Analytics.combined_module_cache_analytics(project.id, opts)
+      combined_module_cache_analytics(project.id, opts)
 
     analytics_selected_widget = analytics_selected_widget(params)
 
@@ -234,5 +234,18 @@ defmodule TuistWeb.ModuleCacheLive do
     else
       analytics_selected_widget
     end
+  end
+
+  defp combined_module_cache_analytics(project_id, opts) do
+    queries = [
+      fn -> Analytics.module_cache_hit_rate_analytics(opts) end,
+      fn -> Analytics.module_cache_hits_analytics(opts) end,
+      fn -> Analytics.module_cache_misses_analytics(opts) end,
+      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.99, opts) end,
+      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.9, opts) end,
+      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.5, opts) end
+    ]
+
+    Tuist.Tasks.parallel_tasks(queries)
   end
 end
