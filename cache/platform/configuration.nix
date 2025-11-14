@@ -75,6 +75,8 @@
   environment.systemPackages = map lib.lowPrio [
     pkgs.curl
     pkgs.gitMinimal
+    pkgs.parted
+    pkgs.gptfdisk
   ];
 
   systemd.tmpfiles.rules = [
