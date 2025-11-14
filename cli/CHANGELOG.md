@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.104.6<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.6
+
 ## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

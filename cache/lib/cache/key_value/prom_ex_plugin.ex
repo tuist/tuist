@@ -18,6 +18,7 @@ defmodule Cache.KeyValue.PromExPlugin do
       ),
       counter([:cache, :kv, :get, :hit, :total],
         event_name: [:cache, :kv, :get, :hit],
+        measurement: :count,
         description: "KeyValue GET hits."
       ),
       counter([:cache, :kv, :get, :miss, :total],
