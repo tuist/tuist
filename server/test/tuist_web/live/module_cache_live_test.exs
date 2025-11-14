@@ -6,7 +6,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.CommandEvents
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "module cache page" do
     test "displays analytics widgets", %{
@@ -14,19 +14,16 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       organization: organization,
       project: project
     } do
-      stub(CommandEvents, :cache_hit_rate, fn _, _, _, _ ->
-        %{
-          cacheable_targets_count: 100,
-          local_cache_hits_count: 50,
-          remote_cache_hits_count: 30
-        }
-      end)
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-01 10:20:30Z] end)
 
-      stub(CommandEvents, :cache_hit_rates, fn _, _, _, _, _, _ ->
-        [
-          %{date: "2024-01-01", cacheable_targets: 100, local_cache_target_hits: 50, remote_cache_target_hits: 30}
-        ]
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-01-01 03:00:00]
+      )
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
