@@ -41,7 +41,7 @@ Another issue we saw was how difficult it was to find information or understand 
 We decided to rebuild the site structure with clarity in mind, making it easy for developers to discover what Tuist does, explore its features, and understand how it can help their teams. Now the navigation is divided into three main parts: Features, Developers, and Resources, each designed to provide clarity on a specific aspect of Tuist.
 
 * **Features** highlights what Tuist offers, showcasing key capabilities and how they help teams build and scale iOS projects efficiently.
-* **Developers** focuses on the community side, open-source contributions, documentation, and ways to get involved.
+* **Developers** puts the focus on the community, open-source contributions, documentation, and ways to get involved.
 * **Resources** brings together learning materials, blog posts, and guides to help both new and experienced users make the most out of Tuist. 
 
 ![Navigation menus](/marketing/images/blog/2025/11/03/website-redesign/navigation.png)
