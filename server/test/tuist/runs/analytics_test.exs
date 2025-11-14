@@ -331,7 +331,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         inserted_at: ~U[2024-04-27 03:00:00Z]
       )
 
-      # Current period (2024-04-28 to 2024-04-30): builds with p50 of 2000
+      # Current period (2024-04-28 to 2024-04-30)
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
@@ -1702,7 +1702,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      # Current period (2024-04-01 to 2024-04-30): 100 total, 40 local hits, 20 remote hits = 60% hit rate
+      # Current period (2024-04-01 to 2024-04-30)
       # Create events spread across the period
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
