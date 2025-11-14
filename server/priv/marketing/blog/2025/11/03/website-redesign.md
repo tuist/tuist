@@ -37,7 +37,7 @@ To do this, we reworked the content and page flow to focus on the bigger picture
 
 ### Stage 2: Improving the Structure and Navigation
 
-Another issue we saw was how difficult it was to find information or understand what Tuist offered at a glance. The navigation felt fragmented and didn’t guide new visitors through the story.
+Another issue we saw was how difficult it was to understand what Tuist offered at a glance. The navigation felt fragmented and didn’t guide new visitors through the story.
 We decided to rebuild the site structure with clarity in mind, making it easy for developers to discover what Tuist does, explore its features, and understand how it can help their teams. Now the navigation is divided into three main parts: Features, Developers, and Resources, each designed to provide clarity on a specific aspect of Tuist.
 
 * **Features** highlights what Tuist offers, showcasing key capabilities and how they help teams build and scale Xcode projects efficiently.
