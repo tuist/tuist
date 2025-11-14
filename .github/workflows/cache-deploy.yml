@@ -21,7 +21,7 @@ jobs:
     runs-on: namespace-profile-default
     strategy:
       matrix:
-        environment: [canary, staging, production]
+        environment: [canary, production]
     environment: cache-${{ matrix.environment }}
     steps:
       - uses: actions/checkout@v4
