@@ -19,17 +19,19 @@ defmodule Tuist.Cache.Analytics do
     event_result = CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
     build_result = Analytics.build_cache_hit_rate(project_id, start_date, end_date, opts)
 
-    module_hit_rate = calculate_hit_rate(
-      event_result.local_cache_hits_count,
-      event_result.remote_cache_hits_count,
-      event_result.cacheable_targets_count
-    )
+    module_hit_rate =
+      calculate_hit_rate(
+        event_result.local_cache_hits_count,
+        event_result.remote_cache_hits_count,
+        event_result.cacheable_targets_count
+      )
 
-    xcode_hit_rate = calculate_hit_rate(
-      build_result.cacheable_task_local_hits_count,
-      build_result.cacheable_task_remote_hits_count,
-      build_result.cacheable_tasks_count
-    )
+    xcode_hit_rate =
+      calculate_hit_rate(
+        build_result.cacheable_task_local_hits_count,
+        build_result.cacheable_task_remote_hits_count,
+        build_result.cacheable_tasks_count
+      )
 
     average_hit_rates(module_hit_rate, xcode_hit_rate)
   end
@@ -62,8 +64,6 @@ defmodule Tuist.Cache.Analytics do
             event_data.remote_cache_target_hits,
             event_data.cacheable_targets
           )
-        else
-          nil
         end
 
       xcode_hit_rate =
@@ -73,8 +73,6 @@ defmodule Tuist.Cache.Analytics do
             build_data.cacheable_task_remote_hits,
             build_data.cacheable_tasks
           )
-        else
-          nil
         end
 
       %{

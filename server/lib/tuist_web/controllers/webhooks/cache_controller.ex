@@ -42,9 +42,7 @@ defmodule TuistWeb.Webhooks.CacheController do
             }
 
           nil ->
-            Logger.warning(
-              "Project not found for cache event: #{full_handle}"
-            )
+            Logger.warning("Project not found for cache event: #{full_handle}")
 
             nil
         end

@@ -56,8 +56,7 @@ defmodule TuistWeb.Plugs.CacheWebhookPlugTest do
       assert result.status == 202
       assert result.halted == true
 
-      assert_receive {:handled, _conn,
-                      %{"events" => [%{"action" => "upload", "size" => 1024, "cas_id" => "abc123"}]}}
+      assert_receive {:handled, _conn, %{"events" => [%{"action" => "upload", "size" => 1024, "cas_id" => "abc123"}]}}
     end
 
     test "returns 403 for invalid signature" do

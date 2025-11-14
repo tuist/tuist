@@ -1491,8 +1491,7 @@ defmodule Tuist.Runs.Analytics do
 
     date_format = get_clickhouse_date_format(time_bucket)
 
-    results
-    |> Enum.map(fn result ->
+    Enum.map(results, fn result ->
       date_str =
         case result.date do
           %DateTime{} = dt -> format_datetime_for_date_format(dt, date_format)
@@ -1508,8 +1507,7 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  defp format_datetime_for_date_format(datetime, "%Y-%m-%d"),
-    do: Date.to_string(DateTime.to_date(datetime))
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d"), do: Date.to_string(DateTime.to_date(datetime))
 
   defp format_datetime_for_date_format(datetime, "%Y-%m"),
     do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
@@ -1520,8 +1518,8 @@ defmodule Tuist.Runs.Analytics do
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
-  defp clickhouse_interval_to_postgrex_interval("1 day"), do: %Postgrex.Interval{days: 1}
-  defp clickhouse_interval_to_postgrex_interval("1 month"), do: %Postgrex.Interval{months: 1}
+  defp clickhouse_interval_to_postgrex_interval("1 day"), do: %Interval{days: 1}
+  defp clickhouse_interval_to_postgrex_interval("1 month"), do: %Interval{months: 1}
 
   @doc """
   Runs all cache analytics queries in parallel for a project.
