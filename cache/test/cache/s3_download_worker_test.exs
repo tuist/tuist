@@ -67,7 +67,11 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
         File.write!(local_path, "test downloaded content")
-        {:ok, %{status_code: 200, headers: [{"content-length", "24"}]}}
+        {:ok, :done}
+      end)
+
+      expect(Cache.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %{size: 24}}
       end)
 
       job = %Oban.Job{

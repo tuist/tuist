@@ -18,7 +18,9 @@ defmodule Cache.S3DownloadWorker do
       local_path = Cache.Disk.artifact_path(key)
 
       case download_from_s3(key, local_path) do
-        {:ok, %{size: size}} ->
+        :ok ->
+          {:ok, %{size: size}} = Cache.Disk.stat(account_handle, project_handle, id)
+
           :telemetry.execute([:cache, :cas, :download, :success], %{size: size}, %{
             cas_id: id,
             account_handle: account_handle,
@@ -54,11 +56,8 @@ defmodule Cache.S3DownloadWorker do
     case bucket
          |> ExAws.S3.download_file(key, local_path)
          |> ExAws.request() do
-      {:ok, %{headers: headers}} ->
-        {_key, value} = Enum.find(headers, fn {k, _v} -> String.downcase(k) == "content-length" end)
-        size = String.to_integer(value)
-
-        {:ok, %{size: size}}
+      {:ok, :done} ->
+        :ok
 
       {:error, reason} ->
         {:error, reason}
