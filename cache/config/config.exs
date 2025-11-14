@@ -43,7 +43,6 @@ config :cache, :cas,
   disk_usage_target_percent: 70.0,
   events_batch_size: 100,
   events_batch_timeout: 5_000,
-  api_key: System.get_env("TUIST_CACHE_API_KEY")
 
 config :cache, ecto_repos: [Cache.Repo]
 
