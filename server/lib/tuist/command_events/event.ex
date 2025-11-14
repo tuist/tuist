@@ -16,7 +16,8 @@ defmodule Tuist.CommandEvents.Event do
       :status,
       :is_ci,
       :user_id,
-      :hit_rate
+      :hit_rate,
+      :cacheable_targets_count
     ],
     sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }

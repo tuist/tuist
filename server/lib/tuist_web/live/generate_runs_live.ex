@@ -59,7 +59,7 @@ defmodule TuistWeb.GenerateRunsLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/binary-cache/generate-runs?#{updated_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/module-cache/generate-runs?#{updated_params}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -72,7 +72,7 @@ defmodule TuistWeb.GenerateRunsLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/binary-cache/generate-runs?#{updated_query_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/module-cache/generate-runs?#{updated_query_params}"
      )
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})

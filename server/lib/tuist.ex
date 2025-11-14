@@ -29,6 +29,7 @@ defmodule Tuist do
       Cache.Analytics,
       CacheActionItems,
       CommandEvents,
+      CommandEvents.Event,
       Registry.Swift.Packages,
       Registry.Swift.Packages.Package,
       Registry.Swift.Packages.PackageManifest,
@@ -90,6 +91,7 @@ defmodule Tuist do
       PubSub,
       KeyValueStore,
       ClickHouseRepo,
+      ClickHouseFlop,
       Markdown,
       # We should not be exposing this one
       Repo,

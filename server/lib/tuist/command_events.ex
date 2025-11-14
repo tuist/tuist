@@ -1009,6 +1009,68 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
+  def cache_hit_rate_percentiles(project_id, start_date, end_date, _date_period, time_bucket, percentile, opts) do
+    date_format = get_date_format(time_bucket)
+
+    # For hit rate (higher is better), flip the percentile to get descending order
+    # p99 means 99% of runs achieved this hit rate or better
+    flipped_percentile = 1 - percentile
+
+    query =
+      from(e in Event,
+        as: :event,
+        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        where:
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.project_id == ^project_id and
+            e.cacheable_targets_count > 0,
+        select: %{
+          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          percentile_hit_rate:
+            fragment(
+              "quantile(?)((? + ?) / ? * 100.0)",
+              ^flipped_percentile,
+              e.local_cache_hits_count,
+              e.remote_cache_hits_count,
+              e.cacheable_targets_count
+            )
+        }
+      )
+
+    query
+    |> add_filters(opts)
+    |> ClickHouseRepo.all()
+  end
+
+  def cache_hit_rate_period_percentile(project_id, start_date, end_date, percentile, opts) do
+    # For hit rate (higher is better), flip the percentile to get descending order
+    # p99 means 99% of runs achieved this hit rate or better
+    flipped_percentile = 1 - percentile
+
+    query =
+      from(e in Event,
+        as: :event,
+        where:
+          e.project_id == ^project_id and
+            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.cacheable_targets_count > 0,
+        select:
+          fragment(
+            "quantile(?)((? + ?) / ? * 100.0)",
+            ^flipped_percentile,
+            e.local_cache_hits_count,
+            e.remote_cache_hits_count,
+            e.cacheable_targets_count
+          )
+      )
+
+    query
+    |> add_filters(opts)
+    |> ClickHouseRepo.one()
+  end
+
   def selective_testing_hit_rate(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
