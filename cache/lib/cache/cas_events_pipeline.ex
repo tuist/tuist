@@ -76,6 +76,8 @@ defmodule Cache.CasEventsPipeline do
       end)
 
     body = Jason.encode!(%{events: api_events})
+    Logger.info("Secret nil or not: #{is_nil(secret)}")
+    Logger.info("The secret length: #{byte_size(secret)}")
 
     signature =
       :hmac
