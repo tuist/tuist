@@ -1,8 +1,8 @@
-defmodule TuistWeb.Plugs.CacheWebhookPlug do
+defmodule TuistWeb.Plugs.WebhookPlug do
   @moduledoc """
-  Handles incoming cache node webhook requests with HMAC signature verification.
+  Generic webhook handler with HMAC signature verification.
 
-  This plug must run in the endpoint BEFORE Plug.Parsers to access the raw body.
+  Supports different signature formats and headers through configuration.
   """
 
   @behaviour Plug
@@ -43,20 +43,23 @@ defmodule TuistWeb.Plugs.CacheWebhookPlug do
       ^path ->
         secret = parse_secret!(get_config(options, :secret))
         module = get_config(options, :handler)
+        signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
+        signature_prefix = get_config(options, :signature_prefix)
 
         conn = Plug.Parsers.call(conn, @plug_parser)
 
-        signature = conn |> get_req_header("x-cache-signature") |> List.first()
+        signature = conn |> get_req_header(signature_header) |> List.first()
 
         if is_nil(signature) do
           conn
-          |> send_resp(401, "Missing x-cache-signature header")
+          |> send_resp(401, "Missing #{signature_header} header")
           |> halt()
         else
           raw_body = conn.assigns.raw_body |> List.flatten() |> IO.iodata_to_binary()
 
-          if verify_signature(raw_body, secret, signature) do
+          if verify_signature(raw_body, secret, signature, signature_prefix) do
             module.handle(conn, conn.body_params)
+            conn |> send_resp(200, "OK") |> halt()
           else
             conn
             |> send_resp(403, "Invalid signature")
@@ -69,13 +72,20 @@ defmodule TuistWeb.Plugs.CacheWebhookPlug do
     end
   end
 
-  defp verify_signature(payload, secret, signature_in_header) do
+  defp verify_signature(payload, secret, signature_in_header, signature_prefix) do
     expected_signature =
       :hmac
       |> :crypto.mac(:sha256, secret, payload)
       |> Base.encode16(case: :lower)
 
-    Plug.Crypto.secure_compare(signature_in_header, expected_signature)
+    expected_signature_with_prefix =
+      if signature_prefix do
+        signature_prefix <> expected_signature
+      else
+        expected_signature
+      end
+
+    Plug.Crypto.secure_compare(signature_in_header, expected_signature_with_prefix)
   end
 
   defp parse_secret!({m, f, a}), do: apply(m, f, a)
@@ -84,31 +94,22 @@ defmodule TuistWeb.Plugs.CacheWebhookPlug do
 
   defp parse_secret!(secret) do
     raise """
-    The cache webhook secret is invalid. Expected a string, tuple, or function.
+    The webhook secret is invalid. Expected a string, tuple, or function.
     Got: #{inspect(secret)}
 
     If you're setting the secret at runtime, you need to pass a tuple or function.
     For example:
 
-    plug TuistWeb.Plugs.CacheWebhookPlug,
-      at: "/webhooks/cache",
-      handler: TuistWeb.Webhooks.CacheController,
-      secret: {Tuist.Environment, :cache_api_key, []}
+    plug TuistWeb.Plugs.WebhookPlug,
+      at: "/webhook/example",
+      handler: MyHandler,
+      secret: {Application, :get_env, [:myapp, :webhook_secret]},
+      signature_header: "x-signature",
+      signature_prefix: "sha256="
     """
   end
 
   defp get_config(options, key) do
-    options[key] || get_config(key)
-  end
-
-  defp get_config(key) do
-    case Application.fetch_env(:tuist, key) do
-      :error ->
-        Logger.warning("CacheWebhookPlug config key #{inspect(key)} is not configured.")
-        ""
-
-      {:ok, val} ->
-        val
-    end
+    options[key]
   end
 end
