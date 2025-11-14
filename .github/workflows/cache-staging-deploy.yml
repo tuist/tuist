@@ -1,13 +1,14 @@
-name: Cache Deploy
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+name: Cache Staging Deploy
 
 permissions:
   contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Sha of the commit to be deployed
+        required: true
 
 defaults:
   run:
@@ -19,10 +20,7 @@ env:
 jobs:
   deploy:
     runs-on: namespace-profile-default
-    strategy:
-      matrix:
-        environment: [canary, production]
-    environment: cache-${{ matrix.environment }}
+    environment: cache-staging
     steps:
       - uses: actions/checkout@v4
       - uses: 1password/install-cli-action@v2
@@ -39,4 +37,4 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
           SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
         run: |
-          mise run deploy "${{ matrix.environment }}"
+          mise run deploy "staging"
