@@ -621,17 +621,16 @@ defmodule Tuist.Runs.Analytics do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = DateTime.to_date(DateTime.utc_now())
 
-    result =
-      CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
+    result = build_cache_hit_rate(project_id, start_date, end_date, opts)
 
-    local_cache_hits_count = result.local_cache_hits_count || 0
-    remote_cache_hits_count = result.remote_cache_hits_count || 0
-    cacheable_targets_count = result.cacheable_targets_count || 0
+    local_cache_hits_count = result.cacheable_task_local_hits_count || 0
+    remote_cache_hits_count = result.cacheable_task_remote_hits_count || 0
+    cacheable_tasks_count = result.cacheable_tasks_count || 0
 
-    if cacheable_targets_count == 0 do
+    if cacheable_tasks_count == 0 do
       0.0
     else
-      (local_cache_hits_count + remote_cache_hits_count) / cacheable_targets_count
+      (local_cache_hits_count + remote_cache_hits_count) / cacheable_tasks_count
     end
   end
 
@@ -645,19 +644,18 @@ defmodule Tuist.Runs.Analytics do
 
     cache_hit_rate_metadata_map =
       project_id
-      |> CommandEvents.cache_hit_rates(
+      |> build_cache_hit_rates(
         start_date,
         end_date,
-        date_period,
         clickhouse_time_bucket,
         opts
       )
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
-           cacheable_targets: &1.cacheable_targets,
-           local_cache_target_hits: &1.local_cache_target_hits,
-           remote_cache_target_hits: &1.remote_cache_target_hits
+           cacheable_tasks: &1.cacheable_tasks,
+           cacheable_task_local_hits: &1.cacheable_task_local_hits,
+           cacheable_task_remote_hits: &1.cacheable_task_remote_hits
          }}
       )
 
@@ -666,19 +664,19 @@ defmodule Tuist.Runs.Analytics do
     |> Enum.map(fn date ->
       cache_hit_rate_metadata = Map.get(cache_hit_rate_metadata_map, date)
 
-      if is_nil(cache_hit_rate_metadata) or (cache_hit_rate_metadata.cacheable_targets || 0) == 0 do
+      if is_nil(cache_hit_rate_metadata) or (cache_hit_rate_metadata.cacheable_tasks || 0) == 0 do
         %{
           date: date,
           cache_hit_rate: 0.0
         }
       else
-        cacheable_targets = cache_hit_rate_metadata.cacheable_targets
-        local_cache_target_hits = cache_hit_rate_metadata.local_cache_target_hits || 0
-        remote_cache_target_hits = cache_hit_rate_metadata.remote_cache_target_hits || 0
+        cacheable_tasks = cache_hit_rate_metadata.cacheable_tasks
+        cacheable_task_local_hits = cache_hit_rate_metadata.cacheable_task_local_hits || 0
+        cacheable_task_remote_hits = cache_hit_rate_metadata.cacheable_task_remote_hits || 0
 
         %{
           date: date,
-          cache_hit_rate: (local_cache_target_hits + remote_cache_target_hits) / cacheable_targets
+          cache_hit_rate: (cacheable_task_local_hits + cacheable_task_remote_hits) / cacheable_tasks
         }
       end
     end)
@@ -1025,17 +1023,6 @@ defmodule Tuist.Runs.Analytics do
       value when is_integer(value) -> value
       value when is_float(value) -> round(value)
     end
-  end
-
-  def combined_overview_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> cache_hit_rate_analytics(opts) end,
-      fn -> selective_testing_analytics(opts) end,
-      fn -> build_duration_analytics(project_id, opts) end,
-      fn -> runs_duration_analytics("test", opts) end
-    ]
-
-    Tasks.parallel_tasks(queries)
   end
 
   def combined_builds_analytics(project_id, opts \\ []) do
@@ -1438,6 +1425,113 @@ defmodule Tuist.Runs.Analytics do
       %{date: date, hit_rate: hit_rate}
     end)
   end
+
+  @doc """
+  Gets Xcode build cache metrics from the Builds table.
+
+  Returns a map with:
+  - cacheable_tasks_count: Total number of cacheable tasks
+  - cacheable_task_local_hits_count: Total number of local cache hits
+  - cacheable_task_remote_hits_count: Total number of remote cache hits
+  """
+  def build_cache_hit_rate(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0,
+        select: %{
+          cacheable_tasks_count: sum(b.cacheable_tasks_count),
+          cacheable_task_local_hits_count: sum(b.cacheable_task_local_hits_count),
+          cacheable_task_remote_hits_count: sum(b.cacheable_task_remote_hits_count)
+        }
+      )
+
+    query = query_with_is_ci_filter(query, opts)
+
+    result = Repo.one(query)
+
+    %{
+      cacheable_tasks_count: result.cacheable_tasks_count || 0,
+      cacheable_task_local_hits_count: result.cacheable_task_local_hits_count || 0,
+      cacheable_task_remote_hits_count: result.cacheable_task_remote_hits_count || 0
+    }
+  end
+
+  @doc """
+  Gets Xcode build cache metrics over time from the Builds table.
+
+  Returns a list of maps, one for each time period, with:
+  - date: The date string for the period
+  - cacheable_tasks: Total number of cacheable tasks in this period
+  - cacheable_task_local_hits: Total number of local cache hits in this period
+  - cacheable_task_remote_hits: Total number of remote cache hits in this period
+  """
+  def build_cache_hit_rates(project_id, start_date, end_date, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    pg_time_bucket = clickhouse_interval_to_postgrex_interval(time_bucket)
+
+    query =
+      from(b in Build,
+        group_by: selected_as(:date_bucket),
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^start_dt and
+            b.inserted_at <= ^end_dt and
+            b.cacheable_tasks_count > 0,
+        select: %{
+          date: selected_as(time_bucket(b.inserted_at, ^pg_time_bucket), :date_bucket),
+          cacheable_tasks: sum(b.cacheable_tasks_count),
+          cacheable_task_local_hits: sum(b.cacheable_task_local_hits_count),
+          cacheable_task_remote_hits: sum(b.cacheable_task_remote_hits_count)
+        },
+        order_by: [asc: selected_as(:date_bucket)]
+      )
+
+    query = query_with_is_ci_filter(query, opts)
+
+    results = Repo.all(query)
+
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    results
+    |> Enum.map(fn result ->
+      date_str =
+        case result.date do
+          %DateTime{} = dt -> format_datetime_for_date_format(dt, date_format)
+          %NaiveDateTime{} = dt -> format_datetime_for_date_format(dt, date_format)
+        end
+
+      %{
+        date: date_str,
+        cacheable_tasks: result.cacheable_tasks || 0,
+        cacheable_task_local_hits: result.cacheable_task_local_hits || 0,
+        cacheable_task_remote_hits: result.cacheable_task_remote_hits || 0
+      }
+    end)
+  end
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d"),
+    do: Date.to_string(DateTime.to_date(datetime))
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m"),
+    do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
+
+  defp format_datetime_for_date_format(datetime, _), do: Date.to_string(DateTime.to_date(datetime))
+
+  defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
+  defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
+  defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
+
+  defp clickhouse_interval_to_postgrex_interval("1 day"), do: %Postgrex.Interval{days: 1}
+  defp clickhouse_interval_to_postgrex_interval("1 month"), do: %Postgrex.Interval{months: 1}
 
   @doc """
   Runs all cache analytics queries in parallel for a project.
