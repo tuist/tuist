@@ -29,7 +29,7 @@ The main issues we identified were:
 
 ### Stage 1: Clarifying the Message
 
-The first thing we noticed was that our story wasn’t being told the way we wanted. Tuist had grown far beyond being just a CLI tool, yet our website still gave that impression. We wanted to communicate what Tuist truly is today, a platform that helps teams build, collaborate, and ship iOS apps faster.
+The first thing we noticed was that our story wasn’t being told the way we wanted. Tuist had grown far beyond being just a CLI tool, yet our website still gave that impression. We wanted to communicate what Tuist truly is today, a platform that helps teams build, collaborate, and ship mobile apps.
 
 To do this, we reworked the content and page flow to focus on the bigger picture of Tuist’s ecosystem. We looked at developer tools like [Vercel](https://vercel.com/home), [Supabase](https://supabase.com/), and [Linear](https://linear.app/homepage), understanding how they convey complex ideas in a clear, simple way. More on this section below.
 
