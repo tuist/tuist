@@ -22,7 +22,7 @@ Before redesigning the website, we spent time researching what could be improved
 
 The main issues we identified were:
 * The old website didn’t clearly communicate that Tuist had grown beyond the CLI.
-* The previous site layout made it hard to find information or understand Tuist’s offering.
+* The previous site layout made it hard to find information or understand Tuist’s features.
 * It was difficult to showcase new features and updates effectively.
 * We weren’t effectively showing how Tuist helps real teams or encouraging new contributors.
 * The website visuals didn’t align with the newly redesigned dashboard.
