@@ -7,7 +7,6 @@ defmodule TuistWeb.ModuleCacheLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
   alias TuistWeb.Utilities.Query
@@ -97,14 +96,23 @@ defmodule TuistWeb.ModuleCacheLive do
 
     # Get hit rate data
     hit_rate_result = CommandEvents.cache_hit_rate(project.id, start_date, end_date, opts)
-    hit_rate_time_series = CommandEvents.cache_hit_rates(project.id, start_date, end_date, date_period(date_range), time_bucket(date_range), opts)
+
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project.id,
+        start_date,
+        end_date,
+        date_period(date_range),
+        time_bucket(date_range),
+        opts
+      )
 
     # Calculate current hit rate
     cacheable = hit_rate_result.cacheable_targets_count || 0
     local_hits = hit_rate_result.local_cache_hits_count || 0
     remote_hits = hit_rate_result.remote_cache_hits_count || 0
     total_hits = local_hits + remote_hits
-    avg_hit_rate = if cacheable == 0, do: 0.0, else: Float.round((total_hits / cacheable) * 100.0, 1)
+    avg_hit_rate = if cacheable == 0, do: 0.0, else: Float.round(total_hits / cacheable * 100.0, 1)
 
     # Calculate trend (compare with previous period)
     days_delta = Date.diff(end_date, start_date)
@@ -112,44 +120,65 @@ defmodule TuistWeb.ModuleCacheLive do
     previous_result = CommandEvents.cache_hit_rate(project.id, previous_start, start_date, opts)
     previous_cacheable = previous_result.cacheable_targets_count || 0
     previous_hits = (previous_result.local_cache_hits_count || 0) + (previous_result.remote_cache_hits_count || 0)
-    previous_hit_rate = if previous_cacheable == 0, do: 0.0, else: Float.round((previous_hits / previous_cacheable) * 100.0, 1)
+
+    previous_hit_rate =
+      if previous_cacheable == 0, do: 0.0, else: Float.round(previous_hits / previous_cacheable * 100.0, 1)
 
     hit_rate_trend = calculate_trend(previous_hit_rate, avg_hit_rate)
 
     # Process hit rate time series
     hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
-    hit_rate_values = Enum.map(hit_rate_time_series, fn item ->
-      cacheable = item.cacheable_targets || 0
-      local = item.local_cache_target_hits || 0
-      remote = item.remote_cache_target_hits || 0
-      if cacheable == 0, do: 0.0, else: Float.round(((local + remote) / cacheable) * 100.0, 1)
-    end)
+
+    hit_rate_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        local = item.local_cache_target_hits || 0
+        remote = item.remote_cache_target_hits || 0
+        if cacheable == 0, do: 0.0, else: Float.round((local + remote) / cacheable * 100.0, 1)
+      end)
 
     # Calculate hits analytics
-    hits_values = Enum.map(hit_rate_time_series, fn item ->
-      (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-    end)
+    hits_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+      end)
+
     total_hits_count = Enum.sum(hits_values)
 
-    previous_hits_series = CommandEvents.cache_hit_rates(project.id, previous_start, start_date, date_period(date_range), time_bucket(date_range), opts)
-    previous_total_hits = Enum.reduce(previous_hits_series, 0, fn item, acc ->
-      acc + (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-    end)
+    previous_hits_series =
+      CommandEvents.cache_hit_rates(
+        project.id,
+        previous_start,
+        start_date,
+        date_period(date_range),
+        time_bucket(date_range),
+        opts
+      )
+
+    previous_total_hits =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        acc + (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+      end)
+
     hits_trend = calculate_trend(previous_total_hits, total_hits_count)
 
     # Calculate misses analytics
-    misses_values = Enum.map(hit_rate_time_series, fn item ->
-      cacheable = item.cacheable_targets || 0
-      hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-      max(0, cacheable - hits)
-    end)
+    misses_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        max(0, cacheable - hits)
+      end)
+
     total_misses_count = Enum.sum(misses_values)
 
-    previous_total_misses = Enum.reduce(previous_hits_series, 0, fn item, acc ->
-      cacheable = item.cacheable_targets || 0
-      hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-      acc + max(0, cacheable - hits)
-    end)
+    previous_total_misses =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        acc + max(0, cacheable - hits)
+      end)
+
     misses_trend = calculate_trend(previous_total_misses, total_misses_count)
 
     # Get percentile data (p99, p90, p50)
@@ -221,14 +250,20 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    events =
-      from(e in Event,
-        where: e.project_id == ^project.id and e.cacheable_targets_count > 0,
-        order_by: [desc: e.ran_at],
-        limit: 40
-      )
-      |> Tuist.ClickHouseRepo.all()
-      |> Enum.map(&Event.normalize_enums/1)
+    options = %{
+      filters: [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :cacheable_targets_count, op: :>, value: 0}
+      ],
+      order_by: [:ran_at],
+      order_directions: [:desc],
+      first: 40,
+      for: Event
+    }
+
+    {events, _} = Tuist.ClickHouseFlop.validate_and_run!(Event, options, for: Event)
+
+    events = Enum.map(events, &Event.normalize_enums/1)
 
     user_map = CommandEvents.get_user_account_names_for_runs(events)
 
