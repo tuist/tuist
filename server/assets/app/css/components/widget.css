@@ -37,6 +37,16 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-large);
   }
 
+  &[data-empty="true"] {
+    align-items: unset;
+    padding-top: unset;
+    padding: var(--noora-spacing-7);
+  }
+
+  &[data-empty="true"] > [data-part="header"] > [data-part="title"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;

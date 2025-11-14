@@ -5,7 +5,9 @@ defmodule Tuist.Cache do
 
   import Ecto.Query
 
+  alias Tuist.Cache.CASEvent
   alias Tuist.Cache.Entry
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
 
   @doc """
@@ -44,7 +46,7 @@ defmodule Tuist.Cache do
 
   """
   def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
-    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
+    ClickHouseRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
   end
 
   @doc """
@@ -58,5 +60,31 @@ defmodule Tuist.Cache do
   """
   def delete_entries_by_project_id(project_id) do
     IngestRepo.delete_all(from(e in Entry, where: e.project_id == ^project_id))
+  end
+
+  @doc """
+  Creates multiple CAS analytics events in a batch.
+
+  ## Examples
+
+      iex> create_cas_events([%{action: "upload", size: 1024, cas_id: "abc123", project_id: 1}, ...])
+      {:ok, 2}
+  """
+  def create_cas_events(events) when is_list(events) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(events, fn event ->
+        %{
+          id: Ecto.UUID.generate(),
+          action: event.action,
+          size: event.size,
+          cas_id: event.cas_id,
+          project_id: event.project_id,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(CASEvent, entries)
   end
 end

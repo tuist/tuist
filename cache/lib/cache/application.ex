@@ -9,6 +9,8 @@ defmodule Cache.Application do
       migrate()
     end
 
+    Cache.Telemetry.attach()
+
     children = [
       Cache.PromEx,
       Cache.Repo,
@@ -18,7 +20,8 @@ defmodule Cache.Application do
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},
-      {Oban, Application.get_env(:cache, Oban)}
+      {Oban, Application.get_env(:cache, Oban)},
+      Cache.CASEventsPipeline
     ]
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]

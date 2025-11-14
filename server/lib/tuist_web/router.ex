@@ -695,6 +695,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs", TestRunsLive
       live "/binary-cache/cache-runs", CacheRunsLive
       live "/binary-cache/generate-runs", GenerateRunsLive
+      live "/xcode-cache", XcodeCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive

@@ -7,6 +7,7 @@ defmodule TuistWeb.OverviewLive do
   import TuistWeb.Previews.AppPreview
 
   alias Tuist.Bundles
+  alias Tuist.Cache
   alias Tuist.CommandEvents
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
@@ -255,7 +256,7 @@ defmodule TuistWeb.OverviewLive do
         selective_testing_analytics,
         build_analytics,
         test_analytics
-      ] = Analytics.combined_overview_analytics(project.id, opts)
+      ] = combined_overview_analytics(project.id, opts)
 
       socket
       |> assign(
@@ -313,4 +314,15 @@ defmodule TuistWeb.OverviewLive do
   defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
   defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
+
+  defp combined_overview_analytics(project_id, opts) do
+    queries = [
+      fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
+      fn -> Analytics.selective_testing_analytics(opts) end,
+      fn -> Analytics.build_duration_analytics(project_id, opts) end,
+      fn -> Analytics.runs_duration_analytics("test", opts) end
+    ]
+
+    Tuist.Tasks.parallel_tasks(queries)
+  end
 end

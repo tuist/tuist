@@ -96,6 +96,47 @@ defmodule Tuist.Projects do
     end
   end
 
+  @doc """
+  Gets projects by their full handles (account_handle/project_handle) in a single query.
+  Returns a map of full_handle => project.
+  """
+  def projects_by_full_handles(full_handles) when is_list(full_handles) do
+    handle_pairs =
+      full_handles
+      |> Enum.map(fn full_handle ->
+        case String.split(full_handle, "/") do
+          [account_handle, project_handle] -> {account_handle, project_handle}
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    account_handles = handle_pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    project_handles = handle_pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    projects =
+      from(p in Project,
+        join: a in Account,
+        on: p.account_id == a.id,
+        where: a.name in ^account_handles,
+        where: p.name in ^project_handles,
+        select: %{project: p, account_name: a.name}
+      )
+      |> Repo.all()
+      |> Map.new(fn %{project: project, account_name: account_name} ->
+        full_handle = "#{account_name}/#{project.name}"
+        {full_handle, project}
+      end)
+
+    handle_pairs
+    |> Enum.map(fn {account_handle, project_handle} ->
+      full_handle = "#{account_handle}/#{project_handle}"
+      {full_handle, Map.get(projects, full_handle)}
+    end)
+    |> Enum.reject(fn {_full_handle, project} -> is_nil(project) end)
+    |> Map.new()
+  end
+
   def get_project_by_slug(slug, opts \\ []) do
     components = String.split(slug, "/")
 

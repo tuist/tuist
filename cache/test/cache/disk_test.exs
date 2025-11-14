@@ -48,6 +48,11 @@ defmodule Cache.DiskTest do
         {:error, :not_found}
       end
     end)
+    |> stub(:stat, fn account_handle, project_handle, id ->
+      key = "#{account_handle}/#{project_handle}/cas/#{id}"
+      path = Path.join(test_storage_dir, key)
+      File.stat(path)
+    end)
 
     stub(CASArtifacts, :track_artifact_access, fn _key -> :ok end)
     {:ok, test_storage_dir: test_storage_dir}
@@ -136,6 +141,22 @@ defmodule Cache.DiskTest do
     test "returns error when file doesn't exist" do
       result = Disk.get_local_path("nonexistent", "project", "id")
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "stat/3" do
+    test "returns file stat for existing artifact" do
+      data = "test content for stat"
+      assert Disk.put(@test_account, @test_project, @test_id, data) == :ok
+
+      assert {:ok, stat} = Disk.stat(@test_account, @test_project, @test_id)
+      assert %File.Stat{} = stat
+      assert stat.size == byte_size(data)
+      assert stat.type == :regular
+    end
+
+    test "returns error for non-existent artifact" do
+      assert {:error, :enoent} = Disk.stat("nonexistent", "project", "id")
     end
   end
 
