@@ -54,7 +54,7 @@ Our previous design made it hard to showcase Tuist’s features, especially as w
 
 ### Stage 4: Showcasing Customer Stories and Community Impact
 
-Being an open-source company, we’ve always valued transparency and community involvement. But the old site didn’t really show how Tuist was helping teams or how contributors were shaping the project. 
+Being an open-source first company, we’ve always valued transparency and community involvement. But the old site didn’t really show how Tuist was helping teams or how contributors were shaping the project. 
 
 We added customer case studies with custom illustrations to tell real stories, how teams reduced build times, improved collaboration, and scaled their development workflows using Tuist. 
 
