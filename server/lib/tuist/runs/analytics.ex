@@ -6,9 +6,9 @@ defmodule Tuist.Runs.Analytics do
   import Timescale.Hyperfunctions
 
   alias Postgrex.Interval
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Tasks
@@ -1086,7 +1086,7 @@ defmodule Tuist.Runs.Analytics do
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
     current_data =
-      IngestRepo.query!(
+      ClickHouseRepo.query!(
         """
         SELECT
           toStartOfInterval(inserted_at, INTERVAL #{interval_str}) as date,
@@ -1130,7 +1130,7 @@ defmodule Tuist.Runs.Analytics do
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
     result =
-      IngestRepo.query!(
+      ClickHouseRepo.query!(
         """
         SELECT SUM(size) as total_size
         FROM cas_events

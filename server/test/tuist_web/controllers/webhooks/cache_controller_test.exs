@@ -5,7 +5,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
   import Ecto.Query
 
   alias Tuist.Cache.CASEvent
-  alias Tuist.IngestRepo
+  alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -74,7 +74,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
 
       # Verify all events were created in database
       events =
-        IngestRepo.all(from e in CASEvent, where: e.project_id == ^project.id, order_by: e.size)
+        ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id, order_by: e.size)
 
       assert length(events) == 3
 
@@ -125,7 +125,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert conn.resp_body == "Invalid signature"
 
       # Verify no events were created
-      events = IngestRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
+      events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
       assert events == []
     end
   end

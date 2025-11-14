@@ -7,6 +7,7 @@ defmodule Tuist.Cache do
 
   alias Tuist.Cache.CASEvent
   alias Tuist.Cache.Entry
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
 
   @doc """
@@ -45,7 +46,7 @@ defmodule Tuist.Cache do
 
   """
   def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
-    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
+    ClickHouseRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
   end
 
   @doc """
