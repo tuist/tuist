@@ -115,7 +115,7 @@ defmodule Tuist.Environment do
 
       _ ->
         cond do
-          prod?() -> ["https://cache-eu-central.tuist.dev", "https://cache-us-east.tuist.dev"]
+          prod?() -> ["https://cache-eu-central.tuist.dev", "https://cache-us-east.tuist.dev", "https://cache-us-west.tuist.dev", "https://cache-ap-southeast.tuist.dev"]
           stag?() -> ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
           can?() -> ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
           dev?() -> ["http://localhost:8087"]
