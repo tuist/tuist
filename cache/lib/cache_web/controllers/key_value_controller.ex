@@ -10,7 +10,7 @@ defmodule CacheWeb.KeyValueController do
 
     case KeyValueStore.get_key_value(cas_id, account_handle, project_handle) do
       {:ok, payload} ->
-        :telemetry.execute([:cache, :kv, :get, :hit], %{bytes: byte_size(payload)}, %{})
+        :telemetry.execute([:cache, :kv, :get, :hit], %{count: 1, bytes: byte_size(payload)}, %{})
 
         conn
         |> put_resp_content_type("application/json")
