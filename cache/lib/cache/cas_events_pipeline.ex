@@ -2,8 +2,7 @@ defmodule Cache.CasEventsPipeline do
   @moduledoc """
   Broadway pipeline for batching and sending CAS events to the server.
 
-  Events are batched by project (account_handle/project_handle pair) and sent
-  to the appropriate endpoint.
+  Events are sent to the cache webhook endpoint.
   """
   use Broadway
 
@@ -44,31 +43,30 @@ defmodule Cache.CasEventsPipeline do
 
   @impl true
   def handle_message(_processor, message, _context) do
-    # Batch by project (account_handle/project_handle pair)
-    %{account_handle: account_handle, project_handle: project_handle} = message.data
-
     message
-    |> Message.put_batch_key({account_handle, project_handle})
+    |> Message.put_batch_key(:default)
     |> Message.put_batcher(:http)
   end
 
   @impl true
-  def handle_batch(:http, messages, %{batch_key: {account_handle, project_handle}}, _context) do
+  def handle_batch(:http, messages, _batch_info, _context) do
     events = Enum.map(messages, & &1.data)
-    send_batch(account_handle, project_handle, events)
+    send_batch(events)
     messages
   end
 
-  defp send_batch(account_handle, project_handle, events) do
+  defp send_batch(events) do
     server_url = Cache.Authentication.server_url()
     cas_config = Application.get_env(:cache, :cas, [])
     secret = Keyword.fetch!(cas_config, :api_key)
-    url = "#{server_url}/api/projects/#{account_handle}/#{project_handle}/cache/cas/events"
+    url = "#{server_url}/webhooks/cache"
 
-    # Transform events to the format expected by the API
+    # Transform events to the format expected by the webhook API
     api_events =
       Enum.map(events, fn event ->
         %{
+          account_handle: event.account_handle,
+          project_handle: event.project_handle,
           action: event.action,
           size: event.size,
           cas_id: event.cas_id
@@ -83,7 +81,7 @@ defmodule Cache.CasEventsPipeline do
       |> Base.encode16(case: :lower)
 
     headers = [
-      {"x-signature", signature},
+      {"x-cache-signature", signature},
       {"content-type", "application/json"}
     ]
 

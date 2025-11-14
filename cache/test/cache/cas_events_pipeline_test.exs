@@ -10,7 +10,7 @@ defmodule Cache.CasEventsPipelineTest do
   end
 
   describe "handle_message/3" do
-    test "batches events by account_handle and project_handle" do
+    test "sends events to http batcher with default batch key" do
       event = %{
         action: "upload",
         size: 1024,
@@ -26,14 +26,14 @@ defmodule Cache.CasEventsPipelineTest do
 
       result = CasEventsPipeline.handle_message(:default, message, %{})
 
-      assert result.batch_key == {"test-account", "test-project"}
+      assert result.batch_key == :default
       assert result.batcher == :http
       assert result.data == event
     end
   end
 
   describe "handle_batch/4" do
-    test "sends batch of events to the server successfully" do
+    test "sends batch of events to the cache webhook successfully" do
       account_handle = "test-account"
       project_handle = "test-project"
 
@@ -63,33 +63,39 @@ defmodule Cache.CasEventsPipelineTest do
         end)
 
       expect(Req, :request, fn options ->
-        assert options[:url] ==
-                 "http://localhost:4000/api/projects/#{account_handle}/#{project_handle}/cache/cas/events"
-
+        assert options[:url] == "http://localhost:4000/webhooks/cache"
         assert options[:method] == :post
 
         body = options[:body]
         decoded_body = Jason.decode!(body)
         assert length(decoded_body["events"]) == 2
+
+        # Verify first event includes handles
+        assert Enum.at(decoded_body["events"], 0)["account_handle"] == account_handle
+        assert Enum.at(decoded_body["events"], 0)["project_handle"] == project_handle
         assert Enum.at(decoded_body["events"], 0)["action"] == "upload"
         assert Enum.at(decoded_body["events"], 0)["size"] == 1024
         assert Enum.at(decoded_body["events"], 0)["cas_id"] == "abc123"
+
+        # Verify second event includes handles
+        assert Enum.at(decoded_body["events"], 1)["account_handle"] == account_handle
+        assert Enum.at(decoded_body["events"], 1)["project_handle"] == project_handle
         assert Enum.at(decoded_body["events"], 1)["action"] == "download"
         assert Enum.at(decoded_body["events"], 1)["size"] == 2048
         assert Enum.at(decoded_body["events"], 1)["cas_id"] == "def456"
 
         headers = options[:headers]
         assert {"content-type", "application/json"} in headers
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-signature" end)
+        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
 
-        {:ok, %{status: 200, body: ""}}
+        {:ok, %{status: 202, body: ""}}
       end)
 
       result =
         CasEventsPipeline.handle_batch(
           :http,
           messages,
-          %{batch_key: {account_handle, project_handle}},
+          %{batch_key: :default},
           %{}
         )
 

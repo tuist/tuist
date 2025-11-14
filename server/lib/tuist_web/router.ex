@@ -409,13 +409,6 @@ defmodule TuistWeb.Router do
         :update_member
   end
 
-  scope path: "/api",
-        alias: TuistWeb.API do
-    scope "/projects/:account_handle/:project_handle/cache/cas" do
-      post "/events", CASEventsController, :create
-    end
-  end
-
   scope "/api", TuistWeb.API do
     scope "/accounts/:account_handle/registry", Registry do
       scope "/swift" do
