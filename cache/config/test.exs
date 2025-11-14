@@ -16,7 +16,7 @@ config :cache, CacheWeb.Endpoint,
 config :cache, Oban,
   queues: false,
   plugins: false,
-  testing: :inline
+  testing: :manual
 
 config :cache, :cas,
   server_url: "http://localhost:8080",
