@@ -26,6 +26,9 @@
       padding: var(--noora-spacing-3);
       height: 200px;
     }
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
   }
 
   & > [data-part="recent-runs"] {

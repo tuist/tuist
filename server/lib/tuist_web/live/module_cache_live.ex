@@ -25,9 +25,23 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   def handle_params(params, _uri, socket) do
+    uri =
+      URI.new!(
+        "?" <>
+          URI.encode_query(
+            Map.take(params, [
+              "analytics_selected_widget",
+              "analytics-environment",
+              "analytics_date_range",
+              "hit-rate-type"
+            ])
+          )
+      )
+
     {
       :noreply,
       socket
+      |> assign(:uri, uri)
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_recent_runs(params)
@@ -78,6 +92,7 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
+    analytics_environment = params["analytics-environment"] || "any"
     date_range = date_range(params)
     start_date = start_date(date_range)
     end_date = Date.utc_today()
@@ -88,7 +103,12 @@ defmodule TuistWeb.ModuleCacheLive do
       end_date: end_date
     ]
 
-    uri = URI.new!("?" <> URI.encode_query(params))
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
 
     # Get analytics from Analytics module (runs queries in parallel)
     [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
@@ -127,6 +147,7 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:analytics_date_range, date_range)
     |> assign(:analytics_trend_label, analytics_trend_label(date_range))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign(:analytics_environment, analytics_environment)
     |> assign(:hit_rate_analytics, hit_rate_analytics)
     |> assign(:hit_rate_p99, hit_rate_p99)
     |> assign(:hit_rate_p90, hit_rate_p90)
@@ -135,7 +156,6 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:misses_analytics, misses_analytics)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign(:analytics_chart_data, analytics_chart_data)
-    |> assign(:uri, uri)
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
@@ -230,6 +250,10 @@ defmodule TuistWeb.ModuleCacheLive do
       analytics_selected_widget
     end
   end
+
+  defp environment_label("any"), do: gettext("Any")
+  defp environment_label("local"), do: gettext("Local")
+  defp environment_label("ci"), do: gettext("CI")
 
   defp combined_module_cache_analytics(project_id, opts) do
     queries = [

@@ -1,6 +1,36 @@
 <div id="module-cache">
   <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics-card">
     <:actions>
+      <.dropdown
+        id="module-cache-analytics-environment-dropdown"
+        label={environment_label(@analytics_environment)}
+        secondary_text={gettext("Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={gettext("Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={gettext("Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={gettext("CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
