@@ -8,7 +8,7 @@ og_image_path: /marketing/images/blog/2025/11/03/website-redesign/og.png
 highlighted: true
 ---
 
-As you would all guess, Tuist’s main way of communicating is through the website. It’s where developers begin exploring the product, learning about its features, and discovering what Tuist is all about. We wanted to make this experience simple and welcoming, not just visually, but also in how the brand and content feel.
+One key way Tuist communicates is through its website. It’s where developers begin exploring the product, learning about its features, and discovering what Tuist is all about. We wanted to make this experience simple and welcoming, not just visually, but also in how the brand and content feel.
 
 As the product evolved, the old website no longer represented what we’re building and shipping today. After [redesigning our developer dashboard](https://tuist.dev/blog/2025/04/17/meet-new-tuist), we wanted our landing page to match its new look and feel. We began by reviewing what worked well on the previous site and what could be improved, drawing inspiration from other developer tools. We also realized some important information was missing, and with new features launching every cycle, it felt like the perfect time for a redesign.
 
@@ -24,14 +24,14 @@ The main issues we identified were:
 * The old website didn’t clearly communicate that Tuist had grown beyond the CLI.
 * The previous site layout made it hard to find information or understand Tuist’s features.
 * It was difficult to showcase new features and updates effectively.
-* We weren’t effectively showing how Tuist helps real teams or encouraging new contributors.
+* We weren’t clearly demonstrating how Tuist supports real teams or inspire new contributors to get involved.
 * The website visuals didn’t align with the newly redesigned dashboard.
 
 ### Stage 1: Clarifying the Message
 
 The first thing we noticed was that our story wasn’t being told the way we wanted. Tuist had grown far beyond being just a CLI tool, yet our website still gave that impression. We wanted to communicate what Tuist truly is today, a platform that helps teams build, collaborate, and ship iOS apps faster.
 
-To do this, we reworked the content and page flow to focus on the bigger picture of Tuist’s ecosystem. We looked at developer tools like [Vercel](https://vercel.com/home), [Supabase](https://supabase.com/), and [Linear](https://linear.app/homepage), learning how they communicate complex ideas simply and effectively. More on this section below.
+To do this, we reworked the content and page flow to focus on the bigger picture of Tuist’s ecosystem. We looked at developer tools like [Vercel](https://vercel.com/home), [Supabase](https://supabase.com/), and [Linear](https://linear.app/homepage), understanding how they convey complex ideas in a clear, simple way. More on this section below.
 
 ![Website header exploration](/marketing/images/blog/2025/11/03/website-redesign/headers.png)
 
@@ -65,7 +65,7 @@ We also introduced community metrics to highlight our open-source growth and ins
 
 ![Stats for Tuist project](/marketing/images/blog/2025/11/03/website-redesign/stats.png)
 
-## Unifying the Brand and Visual Language
+### Stage 5: Unifying the Brand and Visual Language
 
 Finally, we wanted to make sure our website felt like a natural extension of our newly redesigned dashboard. The previous site had a different tone and visual style, which made the overall experience feel disconnected. We brought everything together under a unified brand identity and built the website using the [Noora Design System](https://github.com/tuist/noora). All core elements, buttons, input fields, shadows, colors, and variables, are based on Noora for consistency and scalability.
 
@@ -74,9 +74,9 @@ While the foundation remains the same, we introduced and customized several comp
 This consistency not only strengthened how Tuist looked but also how it felt to use and explore.
 
 
-## The most challenging part
+## Iterating on the Perfect First Impression
 
-The most challenging part of the website redesign was perfecting the **header illustration**.
+One of the biggest hurdles in the redesign was getting the **header illustration** just right. It plays a huge role in shaping the first impression, but representing the tool’s value in one illustration is quite challenging.
 
 At first, we tried using a simple **dashboard screenshot**, but that approach quickly proved impractical. We release new features frequently, and updating the image every time would be too time-consuming. On top of that, a static dashboard screenshot doesn’t communicate much value to new users who are unfamiliar with the product.
 
@@ -100,8 +100,8 @@ As Tuist continues to grow, we expect the header to evolve as well, after all, i
 
 Design is never truly done. It’s a constant process of refinement and exploration. While dark mode is definitely something we’ve been thinking about (and it’s on the list), ours minds are already moving toward what’s next, experimenting with new visual patterns, micro-interactions, and immersive storytelling elements that make the experience feel more alive.
 
-I see Tuist’s design language as something that will evolve with the product, adapting to how developers use it, and reflecting the balance between engineering precision and creative expression.
+We see Tuist’s design language as something that will evolve with the product, adapting to how developers use it, and reflecting the balance between engineering precision and creative expression.
 
-If I had to describe it in one line: we’re building something functional, but with soul. Redesigning and redefining Tuist’s message was and will continue being a fun and rewarding process.
+If we had to describe it in one line: we’re building something functional, but with soul. Redesigning and redefining Tuist’s message was and will continue being a fun and rewarding process.
 
 
