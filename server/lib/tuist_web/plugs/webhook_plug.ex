@@ -58,8 +58,14 @@ defmodule TuistWeb.Plugs.WebhookPlug do
           raw_body = conn.assigns.raw_body |> List.flatten() |> IO.iodata_to_binary()
 
           if verify_signature(raw_body, secret, signature, signature_prefix) do
-            module.handle(conn, conn.body_params)
-            conn |> send_resp(200, "OK") |> halt()
+            result_conn = module.handle(conn, conn.body_params)
+
+            # If handler already sent a response, use it. Otherwise send default 200 OK
+            if result_conn.status do
+              result_conn
+            else
+              result_conn |> send_resp(200, "OK") |> halt()
+            end
           else
             conn
             |> send_resp(403, "Invalid signature")
