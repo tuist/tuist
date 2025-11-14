@@ -336,16 +336,7 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("Recent Runs")} icon="dashboard" data-part="recent-runs">
-    <:actions>
-      <.button
-        variant="secondary"
-        label={gettext("View more")}
-        size="medium"
-        navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/cache-runs"}
-        disabled={Enum.empty?(@runs)}
-      />
-    </:actions>
+  <.card title={gettext("Recent Runs")} icon="schema" data-part="recent-runs">
     <.card_section :if={not Enum.empty?(@runs)} data-part="recent-runs-section">
       <div data-part="runs-section">
         <div data-part="runs-chart">
