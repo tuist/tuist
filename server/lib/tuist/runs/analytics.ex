@@ -809,6 +809,12 @@ defmodule Tuist.Runs.Analytics do
   defp normalize_result(float) when is_float(float), do: float
   defp normalize_result(int) when is_integer(int), do: int * 1.0
 
+  # Calculates hit rate as a percentage, handling division by zero.
+  # Returns the hit rate as a percentage rounded to 1 decimal place.
+  # Returns 0.0 if total is 0.
+  defp calculate_hit_rate_percentage(_hits, total) when total == 0, do: 0.0
+  defp calculate_hit_rate_percentage(hits, total), do: Float.round(hits / total * 100.0, 1)
+
   @doc """
   Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
 
@@ -1583,7 +1589,7 @@ defmodule Tuist.Runs.Analytics do
     local_hits = hit_rate_result.local_cache_hits_count || 0
     remote_hits = hit_rate_result.remote_cache_hits_count || 0
     total_hits = local_hits + remote_hits
-    avg_hit_rate = if cacheable == 0, do: 0.0, else: Float.round(total_hits / cacheable * 100.0, 1)
+    avg_hit_rate = calculate_hit_rate_percentage(total_hits, cacheable)
 
     # Calculate trend (compare with previous period)
     previous_start = Date.add(start_date, -days_delta)
@@ -1591,8 +1597,7 @@ defmodule Tuist.Runs.Analytics do
     previous_cacheable = previous_result.cacheable_targets_count || 0
     previous_hits = (previous_result.local_cache_hits_count || 0) + (previous_result.remote_cache_hits_count || 0)
 
-    previous_hit_rate =
-      if previous_cacheable == 0, do: 0.0, else: Float.round(previous_hits / previous_cacheable * 100.0, 1)
+    previous_hit_rate = calculate_hit_rate_percentage(previous_hits, previous_cacheable)
 
     hit_rate_trend = trend(previous_value: previous_hit_rate, current_value: avg_hit_rate)
 
@@ -1604,7 +1609,7 @@ defmodule Tuist.Runs.Analytics do
         cacheable = item.cacheable_targets || 0
         local = item.local_cache_target_hits || 0
         remote = item.remote_cache_target_hits || 0
-        if cacheable == 0, do: 0.0, else: Float.round((local + remote) / cacheable * 100.0, 1)
+        calculate_hit_rate_percentage(local + remote, cacheable)
       end)
 
     %{
