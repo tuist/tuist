@@ -379,12 +379,8 @@ public class GraphTraverser: GraphTraversing {
         // Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isEmbeddableDependencyTarget,
-            skip: { dependency in
-                testTarget(dependency: dependency) { target in
-                    canEmbedFrameworks(target: target) || target.product == .macro
-                }
-            }
+            test: isDependencyDynamicTarget,
+            skip: canDependencyEmbedBinaries
         )
 
         if target.target.mergedBinaryType != .disabled {
@@ -544,7 +540,7 @@ public class GraphTraverser: GraphTraversing {
                     self.graph.dependencies[dependency, default: []]
                         .lazy
                         .filter(\.isTarget)
-                        .filter(isEmbeddableDependencyTarget)
+                        .filter(isDependencyDynamicTarget)
                 }
 
             let staticDependenciesPrecompiledLibrariesAndFrameworks =
@@ -1392,9 +1388,18 @@ public class GraphTraverser: GraphTraversing {
         testTarget(dependency: dependency) { $0.product == .framework }
     }
 
-    private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
-        testTarget(dependency: dependency) {
-            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
+    func isDependencyDynamicTarget(dependency: GraphDependency) -> Bool {
+        switch dependency {
+            case .macro: return false
+            case .xcframework: return false
+            case .framework: return false
+            case .library: return false
+            case .bundle: return false
+            case .packageProduct: return false
+            case let .target(name, path, _):
+                guard let target = target(path: path, name: name) else { return false }
+                return target.target.product.isDynamic
+            case .sdk: return false
         }
     }
 
