@@ -693,8 +693,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user}
       ] do
       live "/tests/test-runs", TestRunsLive
-      live "/binary-cache/cache-runs", CacheRunsLive
-      live "/binary-cache/generate-runs", GenerateRunsLive
+      live "/module-cache", ModuleCacheLive
+      live "/module-cache/cache-runs", CacheRunsLive
+      live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
@@ -713,6 +714,10 @@ defmodule TuistWeb.Router do
       live "/settings", ProjectSettingsLive
       live "/settings/qa", QASettingsLive
     end
+
+    # Redirects for renamed routes
+    redirect("/binary-cache/cache-runs", "/module-cache/cache-runs", :permanent, preserve_query_string: true)
+    redirect("/binary-cache/generate-runs", "/module-cache/generate-runs", :permanent, preserve_query_string: true)
   end
 
   def assign_current_path(conn, _params) do
