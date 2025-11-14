@@ -98,7 +98,7 @@ As Tuist continues to grow, we expect the header to evolve as well, after all, i
 
 ## What’s next
 
-Design is never truly done. It’s a constant process of refinement and exploration. While dark mode is definitely something we’ve been thinking about (and it’s on the list), my mind is already moving toward what’s next, experimenting with new visual patterns, micro-interactions, and immersive storytelling elements that make the experience feel more alive.
+Design is never truly done. It’s a constant process of refinement and exploration. While dark mode is definitely something we’ve been thinking about (and it’s on the list), ours minds are already moving toward what’s next, experimenting with new visual patterns, micro-interactions, and immersive storytelling elements that make the experience feel more alive.
 
 I see Tuist’s design language as something that will evolve with the product, adapting to how developers use it, and reflecting the balance between engineering precision and creative expression.
 
