@@ -205,15 +205,10 @@ defmodule TuistWeb.XcodeCacheLive do
   end
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
-    # Use custom query to filter by cacheable_tasks_count since it's not a Flop filterable field
-    base_query =
-      from(b in Build,
-        where: b.cacheable_tasks_count > 0
-      )
-
     options = %{
       filters: [
-        %{field: :project_id, op: :==, value: project.id}
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :cacheable_tasks_count, op: :>, value: 0}
       ],
       order_by: [:inserted_at],
       order_directions: [:desc],
@@ -221,13 +216,11 @@ defmodule TuistWeb.XcodeCacheLive do
       for: Build
     }
 
-    # Fetch builds for the chart and table
     {builds, _} =
-      base_query
+      Build
       |> preload(:ran_by_account)
       |> Flop.validate_and_run!(options, for: Build)
 
-    # Prepare chart data for recent builds (use all 40 builds)
     recent_builds_chart_data =
       builds
       |> Enum.reverse()
@@ -236,23 +229,10 @@ defmodule TuistWeb.XcodeCacheLive do
 
         %{
           value: hit_rate,
-          date: build.inserted_at,
-          itemStyle: %{
-            color:
-              if hit_rate >= 80 do
-                "var(--noora-chart-primary)"
-              else
-                if hit_rate >= 50 do
-                  "var(--noora-chart-warning)"
-                else
-                  "var(--noora-chart-destructive)"
-                end
-              end
-          }
+          date: build.inserted_at
         }
       end)
 
-    # Calculate average hit rate for display
     avg_recent_hit_rate =
       if Enum.empty?(recent_builds_chart_data) do
         0.0
