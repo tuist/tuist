@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      .calculator-container {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 0;
+      }
+
+      .input-group {
+        margin-bottom: var(--noora-spacing-6);
+      }
+
+      .input-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-3);
+      }
+
+      .input-hint {
+        font-size: 11px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-top: var(--noora-spacing-2);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        padding: 0;
+        height: 4px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: var(--noora-border-secondary, #e5e7eb);
+        outline: none;
+        border-radius: var(--noora-radius-full);
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: var(--noora-accent-primary, #3b82f6);
+        cursor: pointer;
+        border-radius: 50%;
+        transition: transform 0.15s ease;
+      }
+
+      input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: var(--noora-accent-primary, #3b82f6);
+        cursor: pointer;
+        border-radius: 50%;
+        border: none;
+        transition: transform 0.15s ease;
+      }
+
+      input[type="range"]::-moz-range-thumb:hover {
+        transform: scale(1.1);
+      }
+
+      .range-value {
+        display: inline-block;
+        margin-left: var(--noora-spacing-3);
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--noora-surface-label-primary, #111827);
+      }
+
+      .current-state {
+        margin-top: var(--noora-spacing-6);
+        padding: var(--noora-spacing-5);
+        background: transparent;
+        border-radius: var(--noora-radius-medium);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        margin-bottom: var(--noora-spacing-6);
+      }
+
+      .section-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-5);
+      }
+
+      .comparison-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-2);
+      }
+
+      .comparison-subtitle {
+        font-size: 12px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-bottom: var(--noora-spacing-6);
+      }
+
+      .comparison-table {
+        margin-top: var(--noora-spacing-6);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        border-radius: var(--noora-radius-medium);
+        overflow: hidden;
+      }
+
+      .comparison-header {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-4);
+        background: var(--noora-surface-tertiary, #f9fafb);
+        border-bottom: 1px solid var(--noora-border-secondary, #e5e7eb);
+      }
+
+      .header-cell {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        text-align: center;
+        position: relative;
+      }
+
+      .header-cell:first-child {
+        text-align: left;
+      }
+
+      .header-cell.recommended::after {
+        content: "Best Value";
+        position: absolute;
+        top: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--noora-accent-primary, #3b82f6);
+        color: white;
+        padding: 2px 10px;
+        border-radius: var(--noora-radius-full);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+
+      .comparison-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-4);
+        border-bottom: 1px solid var(--noora-border-tertiary, #f3f4f6);
+      }
+
+      .comparison-row:last-child {
+        border-bottom: none;
+      }
+
+      .comparison-row.highlight {
+        background: var(--noora-accent-surface, #eff6ff);
+      }
+
+      .row-label {
+        font-size: 13px;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        display: flex;
+        align-items: center;
+      }
+
+      .row-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
+      }
+
+      .result-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--noora-spacing-3) 0;
+        border-bottom: 1px solid var(--noora-border-tertiary, #f3f4f6);
+      }
+
+      .result-row:last-child {
+        border-bottom: none;
+      }
+
+      .result-label {
+        font-size: 13px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+      }
+
+      .result-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
+      }
+
+      .result-value.highlight {
+        color: var(--noora-accent-primary, #3b82f6);
+        font-size: 15px;
+      }
+
+      .result-value.negative {
+        color: var(--noora-error, #ef4444);
+      }
+
+      .result-value.positive {
+        color: var(--noora-success, #10b981);
+      }
+
+      .winner-summary {
+        margin-top: var(--noora-spacing-6);
+        padding: var(--noora-spacing-5);
+        background: var(--noora-accent-surface, #eff6ff);
+        border-radius: var(--noora-radius-medium);
+        border: 1px solid var(--noora-accent-border, #bfdbfe);
+      }
+
+      .winner-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--noora-accent-primary, #3b82f6);
+        margin-bottom: var(--noora-spacing-3);
+      }
+
+      .winner-text {
+        font-size: 13px;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        line-height: 1.5;
+      }
+
+      @media (max-width: 768px) {
+        .comparison-header,
+        .comparison-row {
+          grid-template-columns: 1.5fr 1fr 1fr 1fr;
+          font-size: 12px;
+        }
+
+        .header-cell,
+        .row-label,
+        .row-value {
+          font-size: 11px;
+        }
+
+        .header-cell.recommended::after {
+          font-size: 9px;
+          padding: 1px 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="calculator-container">
+      <div class="input-group">
+        <label class="input-label">
+          Team Size <span class="range-value" id="team-size-value">30</span>
+        </label>
+        <input type="range" id="team-size" min="5" max="100" value="30" />
+        <div class="input-hint">Number of developers on your team</div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          Current CI Time (minutes) <span class="range-value" id="ci-time-value">20</span>
+        </label>
+        <input type="range" id="ci-time" min="5" max="60" value="20" />
+        <div class="input-hint">Average build and test time in CI</div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          Average Salary (€) <span class="range-value" id="salary-value">140,000</span>
+        </label>
+        <input type="range" id="salary" min="50000" max="250000" step="10000" value="140000" />
+        <div class="input-hint">Average annual salary per developer</div>
+      </div>
+
+      <div class="current-state">
+        <div class="section-title">Your Current State</div>
+        <div class="result-row">
+          <span class="result-label">Average Build Time</span>
+          <span class="result-value" id="current-build-time">20 min</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Time Waiting Per Dev/Day</span>
+          <span class="result-value negative" id="current-wait-time">60 min</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Annual Time Cost</span>
+          <span class="result-value negative" id="annual-time-cost">5 FTE</span>
+        </div>
+      </div>
+
+      <div class="comparison-title">Compare Your Options</div>
+      <div class="comparison-subtitle">
+        Three ways to reduce build times. Which delivers the best value?
+      </div>
+
+      <div class="comparison-table">
+        <div class="comparison-header">
+          <div class="header-cell">Metric</div>
+          <div class="header-cell recommended">Workflow Optimization</div>
+          <div class="header-cell">Hire More Developers</div>
+          <div class="header-cell">Faster CI Hardware</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Solution</div>
+          <div class="row-value">Tuist Caching</div>
+          <div class="row-value" id="hire-count">+10 developers</div>
+          <div class="row-value">Faster runners</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">New Build Time</div>
+          <div class="row-value positive" id="tuist-build-time">4 min</div>
+          <div class="row-value" id="hire-build-time">20 min</div>
+          <div class="row-value" id="hardware-build-time">12 min</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Time Saved Per Dev/Day</div>
+          <div class="row-value positive" id="tuist-time-saved">48 min</div>
+          <div class="row-value negative" id="hire-time-saved">-15 min</div>
+          <div class="row-value" id="hardware-time-saved">24 min</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Annual Time Saved</div>
+          <div class="row-value positive" id="tuist-annual-saved">4 FTE</div>
+          <div class="row-value negative" id="hire-annual-saved">-3 FTE</div>
+          <div class="row-value" id="hardware-annual-saved">2 FTE</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Annual Cost</div>
+          <div class="row-value" id="tuist-cost">€22K</div>
+          <div class="row-value negative" id="hire-cost">€1.4M</div>
+          <div class="row-value" id="hardware-cost">€300K</div>
+        </div>
+
+        <div class="comparison-row highlight">
+          <div class="row-label">Value of Time Saved</div>
+          <div class="row-value positive" id="tuist-value">€560K</div>
+          <div class="row-value negative" id="hire-value">-€420K</div>
+          <div class="row-value" id="hardware-value">€280K</div>
+        </div>
+      </div>
+
+      <div class="winner-summary">
+        <div class="winner-title">
+          Tuist saves <span id="tuist-summary-time">4 FTE</span>
+          worth of time for <span id="tuist-summary-cost">€22K/year</span>
+        </div>
+        <div class="winner-text">
+          That's equivalent to <span id="tuist-summary-value">€560K</span>
+          in developer time, at a fraction of the cost of faster hardware or hiring.
+        </div>
+      </div>
+    </div>
+
+    <script nonce={get_csp_nonce()}>
+      const teamSizeInput = document.getElementById('team-size');
+      const ciTimeInput = document.getElementById('ci-time');
+      const salaryInput = document.getElementById('salary');
+
+      const teamSizeValue = document.getElementById('team-size-value');
+      const ciTimeValue = document.getElementById('ci-time-value');
+      const salaryValue = document.getElementById('salary-value');
+
+      // Current state elements
+      const currentBuildTimeEl = document.getElementById('current-build-time');
+      const currentWaitTimeEl = document.getElementById('current-wait-time');
+      const annualTimeCostEl = document.getElementById('annual-time-cost');
+
+      // Tuist solution elements
+      const tuistBuildTimeEl = document.getElementById('tuist-build-time');
+      const tuistTimeSavedEl = document.getElementById('tuist-time-saved');
+      const tuistAnnualSavedEl = document.getElementById('tuist-annual-saved');
+      const tuistCostEl = document.getElementById('tuist-cost');
+      const tuistValueEl = document.getElementById('tuist-value');
+
+      // Hiring solution elements
+      const hireCountEl = document.getElementById('hire-count');
+      const hireBuildTimeEl = document.getElementById('hire-build-time');
+      const hireTimeSavedEl = document.getElementById('hire-time-saved');
+      const hireAnnualSavedEl = document.getElementById('hire-annual-saved');
+      const hireCostEl = document.getElementById('hire-cost');
+      const hireValueEl = document.getElementById('hire-value');
+
+      // Hardware solution elements
+      const hardwareBuildTimeEl = document.getElementById('hardware-build-time');
+      const hardwareTimeSavedEl = document.getElementById('hardware-time-saved');
+      const hardwareAnnualSavedEl = document.getElementById('hardware-annual-saved');
+      const hardwareCostEl = document.getElementById('hardware-cost');
+      const hardwareValueEl = document.getElementById('hardware-value');
+
+      // Summary elements
+      const tuistSummaryTimeEl = document.getElementById('tuist-summary-time');
+      const tuistSummaryCostEl = document.getElementById('tuist-summary-cost');
+      const tuistSummaryValueEl = document.getElementById('tuist-summary-value');
+
+      function formatMoney(value) {
+        if (value >= 1000000) {
+          return '€' + (value / 1000000).toFixed(1) + 'M';
+        } else if (value >= 1000) {
+          return '€' + (value / 1000).toFixed(0) + 'K';
+        }
+        return '€' + value.toFixed(0);
+      }
+
+      function formatNumber(value) {
+        return value.toLocaleString('en-US');
+      }
+
+      function formatTime(minutes) {
+        if (minutes >= 60) {
+          const hours = Math.floor(minutes / 60);
+          const mins = Math.round(minutes % 60);
+          return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        }
+        return `${Math.round(minutes)} min`;
+      }
+
+      function formatFTE(fte) {
+        return fte.toFixed(1) + ' FTE';
+      }
+
+      function calculate() {
+        const teamSize = parseInt(teamSizeInput.value);
+        const ciTime = parseInt(ciTimeInput.value);
+        const salary = parseInt(salaryInput.value);
+
+        // Update display values
+        teamSizeValue.textContent = teamSize;
+        ciTimeValue.textContent = ciTime;
+        salaryValue.textContent = formatNumber(salary);
+
+        // Assumptions:
+        // - Developers wait for CI 3-4 times per day (conservative estimate)
+        // - Working hours: 8 hours/day, 220 working days/year
+        const ciRunsPerDay = 3;
+        const workingHoursPerYear = 220 * 8;
+        const currentWaitTimePerDay = ciTime * ciRunsPerDay; // minutes per day
+        const currentWaitHoursPerYear = (currentWaitTimePerDay / 60) * 220;
+        const currentTimeCostFTE = (currentWaitHoursPerYear * teamSize) / workingHoursPerYear;
+
+        // CURRENT STATE
+        currentBuildTimeEl.textContent = ciTime + ' min';
+        currentWaitTimeEl.textContent = formatTime(currentWaitTimePerDay);
+        annualTimeCostEl.textContent = formatFTE(currentTimeCostFTE);
+
+        // SOLUTION 1: Tuist (80% build time reduction)
+        const tuistBuildTime = Math.max(2, Math.round(ciTime * 0.2));
+        const tuistWaitTimePerDay = tuistBuildTime * ciRunsPerDay;
+        const tuistTimeSavedPerDay = currentWaitTimePerDay - tuistWaitTimePerDay;
+        const tuistHoursSavedPerYear = (tuistTimeSavedPerDay / 60) * 220;
+        const tuistFTESaved = (tuistHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const tuistAnnualCost = teamSize * 60 * 12; // €60/dev/month
+        const tuistValueSaved = tuistFTESaved * salary;
+
+        tuistBuildTimeEl.textContent = tuistBuildTime + ' min';
+        tuistTimeSavedEl.textContent = formatTime(tuistTimeSavedPerDay);
+        tuistAnnualSavedEl.textContent = formatFTE(tuistFTESaved);
+        tuistCostEl.textContent = formatMoney(tuistAnnualCost);
+        tuistValueEl.textContent = formatMoney(tuistValueSaved);
+
+        // SOLUTION 2: Hire more developers (33% more, but wait times increase)
+        const additionalDevs = Math.round(teamSize * 0.33);
+        const newTeamSize = teamSize + additionalDevs;
+        // More devs = more CI contention, longer queues: wait time increases by ~25%
+        const hireWaitTimePerDay = currentWaitTimePerDay * 1.25;
+        const hireTimeSavedPerDay = currentWaitTimePerDay - hireWaitTimePerDay;
+        const hireHoursSavedPerYear = (hireTimeSavedPerDay / 60) * 220;
+        const hireFTESaved = (hireHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const hireAnnualCost = additionalDevs * salary;
+        const hireValueSaved = hireFTESaved * salary;
+
+        hireCountEl.textContent = '+' + additionalDevs + ' developers';
+        hireBuildTimeEl.textContent = ciTime + ' min';
+        hireTimeSavedEl.textContent = formatTime(Math.abs(hireTimeSavedPerDay));
+        hireAnnualSavedEl.textContent = formatFTE(hireFTESaved);
+        hireCostEl.textContent = formatMoney(hireAnnualCost);
+        hireValueEl.textContent = formatMoney(hireValueSaved);
+
+        // Apply negative class if time is wasted instead of saved
+        if (hireTimeSavedPerDay < 0) {
+          hireTimeSavedEl.classList.add('negative');
+          hireAnnualSavedEl.classList.add('negative');
+          hireValueEl.classList.add('negative');
+        } else {
+          hireTimeSavedEl.classList.remove('negative');
+          hireAnnualSavedEl.classList.remove('negative');
+          hireValueEl.classList.remove('negative');
+        }
+
+        // SOLUTION 3: Faster hardware (40% build time reduction)
+        const hardwareBuildTime = Math.max(3, Math.round(ciTime * 0.6));
+        const hardwareWaitTimePerDay = hardwareBuildTime * ciRunsPerDay;
+        const hardwareTimeSavedPerDay = currentWaitTimePerDay - hardwareWaitTimePerDay;
+        const hardwareHoursSavedPerYear = (hardwareTimeSavedPerDay / 60) * 220;
+        const hardwareFTESaved = (hardwareHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const hardwareAnnualCost = teamSize * 10000; // €10K per dev/year
+        const hardwareValueSaved = hardwareFTESaved * salary;
+
+        hardwareBuildTimeEl.textContent = hardwareBuildTime + ' min';
+        hardwareTimeSavedEl.textContent = formatTime(hardwareTimeSavedPerDay);
+        hardwareAnnualSavedEl.textContent = formatFTE(hardwareFTESaved);
+        hardwareCostEl.textContent = formatMoney(hardwareAnnualCost);
+        hardwareValueEl.textContent = formatMoney(hardwareValueSaved);
+
+        // Update summary
+        tuistSummaryTimeEl.textContent = formatFTE(tuistFTESaved);
+        tuistSummaryCostEl.textContent = formatMoney(tuistAnnualCost);
+        tuistSummaryValueEl.textContent = formatMoney(tuistValueSaved);
+      }
+
+      // Add event listeners
+      teamSizeInput.addEventListener('input', calculate);
+      ciTimeInput.addEventListener('input', calculate);
+      salaryInput.addEventListener('input', calculate);
+
+      // Initial calculation
+      calculate();
+    </script>
+  </body>
+</html>
