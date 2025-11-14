@@ -1085,7 +1085,6 @@ defmodule Tuist.Runs.Analytics do
     start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
-    # Query current period data
     current_data =
       IngestRepo.query!(
         """
@@ -1110,11 +1109,9 @@ defmodule Tuist.Runs.Analytics do
 
     current_total = total_cas_size(project_id, action, start_date, end_date)
 
-    # Query previous period total for trend
     previous_start_date = Date.add(start_date, -days_delta)
     previous_total = total_cas_size(project_id, action, previous_start_date, start_date)
 
-    # Process the data to fill missing dates
     processed_data =
       current_data.rows
       |> Enum.map(fn [date, size] -> %{date: date, size: size} end)
@@ -1193,7 +1190,6 @@ defmodule Tuist.Runs.Analytics do
     start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
-    # Build base query
     query =
       from(b in Build,
         where:
@@ -1203,10 +1199,8 @@ defmodule Tuist.Runs.Analytics do
             b.cacheable_tasks_count > 0
       )
 
-    # Add is_ci filter if specified
     query = query_with_is_ci_filter(query, opts)
 
-    # Query current period data with time bucketing
     time_bucket = time_bucket_for_date_period(date_period)
 
     current_data =
@@ -1228,14 +1222,11 @@ defmodule Tuist.Runs.Analytics do
         )
       )
 
-    # Calculate current average hit rate
     current_avg_hit_rate = avg_cache_hit_rate(project_id, start_date, end_date, opts)
 
-    # Calculate previous period average hit rate for trend
     previous_start_date = Date.add(start_date, -days_delta)
     previous_avg_hit_rate = avg_cache_hit_rate(project_id, previous_start_date, start_date, opts)
 
-    # Process the data to fill missing dates
     processed_data =
       process_hit_rate_data(current_data, start_date, end_date, date_period)
 
@@ -1296,7 +1287,6 @@ defmodule Tuist.Runs.Analytics do
     start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
-    # Calculate hit rate for each build first, then get percentile
     query =
       from(b in Build,
         where:
