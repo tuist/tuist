@@ -10,7 +10,7 @@ highlighted: true
 
 Tuist's website is where developers begin exploring the product, learning about its features, and discovering what Tuist is all about. We wanted to make this experience simple and welcoming, not just visually, but also in how the brand and content feel.
 
-As the product evolved, the old website no longer represented what we’re building and shipping today. After [redesigning our developer dashboard](https://tuist.dev/blog/2025/04/17/meet-new-tuist), we wanted our landing page to match its new look and feel. We began by reviewing what worked well on the previous site and what could be improved, drawing inspiration from other developer tools. We also realized some important information was missing, and with new features launching every cycle, it felt like the perfect time for a redesign.
+As Tuist evolved, the old website no longer represented what we’re building and shipping today. After [redesigning our developer dashboard](https://tuist.dev/blog/2025/04/17/meet-new-tuist), we wanted our landing page to match its new look and feel. We began by reviewing what worked well on the previous site and what could be improved, drawing inspiration from other developer tools. We also realized some important information was missing, and with new features launching every cycle, it felt like the perfect time for a redesign.
 
 ![Home page of the new marketing site](/marketing/images/blog/2025/11/03/website-redesign/home-page.png)
 
