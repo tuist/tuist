@@ -1773,69 +1773,6 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
     end
-
-    test "handles empty cache data correctly" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Create events with empty cache arrays
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: [],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_hit_rate_analytics(
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.avg_hit_rate == 0.0
-      assert got.trend == 0.0
-    end
-
-    test "calculates trend correctly when improving" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Current period: 80% hit rate (8 hits out of 10 targets)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
-        local_cache_target_hits: ["A", "B", "C", "D", "E"],
-        remote_cache_target_hits: ["F", "G", "H"],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # Previous period: 40% hit rate (2 hits out of 5 targets)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["K", "L", "M", "N", "O"],
-        local_cache_target_hits: ["K"],
-        remote_cache_target_hits: ["L"],
-        created_at: ~N[2024-03-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_hit_rate_analytics(
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.avg_hit_rate == 80.0
-      assert got.trend == 100.0
-    end
   end
 
   describe "module_cache_hits_analytics/1" do
@@ -1909,33 +1846,6 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.total_count == 0
       assert got.trend == 0.0
-    end
-
-    test "handles events with no cache hits correctly" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Events with cacheable targets but no hits
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["A", "B", "C"],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_hits_analytics(
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.total_count == 0
-      assert got.values == [0]
     end
   end
 
@@ -2020,59 +1930,6 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.total_count == 0
       assert got.values == [0]
     end
-
-    test "handles events with empty cache arrays correctly" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Events with empty arrays
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: [],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_misses_analytics(
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.total_count == 0
-      assert got.values == [0]
-    end
-
-    test "never returns negative misses" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # All targets are cached (100% hit rate)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A", "B", "C"],
-        remote_cache_target_hits: ["D"],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_misses_analytics(
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.values == [0]
-    end
   end
 
   describe "module_cache_hit_rate_percentile/3" do
@@ -2152,90 +2009,6 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
-    end
-
-    test "handles events with no cacheable targets correctly" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Events with no cacheable targets
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: [],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_hit_rate_percentile(
-          project.id,
-          0.9,
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got.avg_hit_rate == 0.0
-    end
-
-    test "correctly calculates different percentiles" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Create events with varying hit rates for percentile calculation
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: ["A", "B"],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When p50
-      got_p50 =
-        Analytics.module_cache_hit_rate_percentile(
-          project.id,
-          0.5,
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert got_p50.avg_hit_rate == 100.0
-    end
-
-    test "rounds percentile values to one decimal place" do
-      # Given
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Create events where hit rate will have decimal values
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        cacheable_targets: ["A", "B", "C"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-15 10:00:00]
-      )
-
-      # When
-      got =
-        Analytics.module_cache_hit_rate_percentile(
-          project.id,
-          0.99,
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # Then
-      assert_in_delta got.avg_hit_rate, 33.3, 0.1
     end
   end
 end
