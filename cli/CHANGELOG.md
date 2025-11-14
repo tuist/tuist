@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add Emerge Tools SnapshottingTests to the list of targets that depend on XCTest by [@duarteich](https://github.com/duarteich) in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+## New Contributors
+* [@duarteich](https://github.com/duarteich) made their first contribution in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.4...4.104.5
+
 ## What's Changed in 4.104.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
