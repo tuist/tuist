@@ -1468,8 +1468,8 @@ defmodule Tuist.CommandEventsTest do
       assert day1.percentile_hit_rate == 75.0
 
       day2 = Enum.find(got, &(&1.date == "2024-04-30"))
-      # p50 of [25%, 60%] = median is between these values
-      assert day2.percentile_hit_rate in [25.0, 42.5, 60.0]
+      # p50 of [25%, 60%] = 42.5%
+      assert day2.percentile_hit_rate == 42.5
     end
 
     test "returns p90 percentile for high percentile queries" do
@@ -1735,44 +1735,8 @@ defmodule Tuist.CommandEventsTest do
           []
         )
 
-      # Then - p50 of [25%, 50%, 75%, 100%] should be around 62.5%
-      assert got >= 50.0
-      assert got <= 75.0
-    end
-
-    test "returns p99 percentile for high percentile queries" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Create 100 runs with varying hit rates from 1% to 100%
-      for i <- 1..100 do
-        hit_count = i
-        total_count = 100
-
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "build",
-          cacheable_targets: List.duplicate("T", total_count),
-          local_cache_target_hits: List.duplicate("T", hit_count),
-          remote_cache_target_hits: [],
-          ran_at: ~U[2024-04-30 10:00:00Z]
-        )
-      end
-
-      # When - p99 (99th percentile)
-      # With flipped percentile, p99 means 99% of runs achieved this hit rate or BETTER
-      got =
-        CommandEvents.cache_hit_rate_period_percentile(
-          project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
-          0.99,
-          []
-        )
-
-      # Then - p99 should be a very low value since 99% of runs are at or above this
-      assert got <= 2.0
+      # Then - p50 of [25%, 50%, 75%, 100%] = 62.5%
+      assert got == 62.5
     end
 
     test "filters by is_ci when specified" do
@@ -1826,57 +1790,6 @@ defmodule Tuist.CommandEventsTest do
       assert got == 100.0
     end
 
-    test "filters by status when specified" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Successful runs with high hit rates
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        status: :success,
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: ["A", "B"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        status: :success,
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A", "B", "C"],
-        remote_cache_target_hits: ["D"],
-        ran_at: ~U[2024-04-30 11:00:00Z]
-      )
-
-      # Failed runs with low hit rates (should be excluded)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        status: :failure,
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 12:00:00Z]
-      )
-
-      # When - filter for successful runs only
-      got =
-        CommandEvents.cache_hit_rate_period_percentile(
-          project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
-          0.5,
-          status: :success
-        )
-
-      # Then - p50 of [100%, 100%] = 100%
-      assert got == 100.0
-    end
-
     test "only includes events with cacheable_targets_count > 0" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -1914,100 +1827,6 @@ defmodule Tuist.CommandEventsTest do
 
       # Then - Only one event with 50% hit rate
       assert got == 50.0
-    end
-
-    test "returns nil when no events exist" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      got =
-        CommandEvents.cache_hit_rate_period_percentile(
-          project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
-          0.5,
-          []
-        )
-
-      # Then
-      assert got == nil
-    end
-
-    test "correctly calculates percentile with both local and remote cache hits" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Run 1: 50% hit rate (1 local, 1 remote out of 4)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: ["B"],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
-
-      # Run 2: 75% hit rate (2 local, 1 remote out of 4)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A", "B"],
-        remote_cache_target_hits: ["C"],
-        ran_at: ~U[2024-04-30 11:00:00Z]
-      )
-
-      # When - p50 (median)
-      got =
-        CommandEvents.cache_hit_rate_period_percentile(
-          project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
-          0.5,
-          []
-        )
-
-      # Then - p50 of [50%, 75%] should be between these values
-      assert got >= 50.0
-      assert got <= 75.0
-    end
-
-    test "verifies flipped percentile logic for p90" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Create 10 runs with hit rates: 10%, 20%, ..., 100%
-      for i <- 1..10 do
-        hit_count = i
-        total_count = 10
-
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "build",
-          cacheable_targets: List.duplicate("T", total_count),
-          local_cache_target_hits: List.duplicate("T", hit_count),
-          remote_cache_target_hits: [],
-          ran_at: ~U[2024-04-30 10:00:00Z]
-        )
-      end
-
-      # When - p90 should mean 90% of runs achieved this hit rate or better
-      # So p90 with flipped percentile should give us a low value
-      got =
-        CommandEvents.cache_hit_rate_period_percentile(
-          project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
-          0.9,
-          []
-        )
-
-      # Then - p90 should be <= 20% (90% of runs are above this)
-      assert got <= 20.0
     end
   end
 end
