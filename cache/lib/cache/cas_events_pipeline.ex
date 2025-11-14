@@ -1,4 +1,4 @@
-defmodule Cache.CasEventsPipeline do
+defmodule Cache.CASEventsPipeline do
   @moduledoc """
   Broadway pipeline for batching and sending CAS events to the server.
 

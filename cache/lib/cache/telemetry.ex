@@ -42,6 +42,6 @@ defmodule Cache.Telemetry do
       project_handle: metadata.project_handle
     }
 
-    Cache.CasEventsPipeline.async_push(event)
+    Cache.CASEventsPipeline.async_push(event)
   end
 end

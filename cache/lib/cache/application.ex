@@ -21,7 +21,7 @@ defmodule Cache.Application do
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},
       {Oban, Application.get_env(:cache, Oban)},
-      Cache.CasEventsPipeline
+      Cache.CASEventsPipeline
     ]
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]

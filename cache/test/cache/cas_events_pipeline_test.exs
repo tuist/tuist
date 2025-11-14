@@ -1,8 +1,8 @@
-defmodule Cache.CasEventsPipelineTest do
+defmodule Cache.CASEventsPipelineTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Cache.CasEventsPipeline
+  alias Cache.CASEventsPipeline
 
   setup do
     stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
@@ -24,7 +24,7 @@ defmodule Cache.CasEventsPipelineTest do
         acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
       }
 
-      result = CasEventsPipeline.handle_message(:default, message, %{})
+      result = CASEventsPipeline.handle_message(:default, message, %{})
 
       assert result.batch_key == :default
       assert result.batcher == :http
@@ -92,7 +92,7 @@ defmodule Cache.CasEventsPipelineTest do
       end)
 
       result =
-        CasEventsPipeline.handle_batch(
+        CASEventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},
