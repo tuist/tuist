@@ -8,6 +8,17 @@ import XcodeProj
 import XCTest
 
 struct GeneratorAcceptanceTests {
+    @Test(.withFixture("generated_macos_dylib_linking_static_lib")) func generated_macos_dylib_linking_static_lib() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then
+        try await TuistTest.run(BuildCommand.self, ["DynamicLibrary", "--path", fixtureDirectory.pathString])
+    }
+
     @Test(.withFixture("app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
