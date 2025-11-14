@@ -2,7 +2,7 @@
 title: "Designing the new marketing site"
 category: "product"
 tags: ["product"] 
-excerpt: "Unveiling the new Tuist website, and a behind-the-scenes look at our evolution from a CLI-only tool to an all-in-one open-source platform for iOS app development."
+excerpt: "Unveiling the new Tuist website, and a behind-the-scenes look at our evolution from a CLI-only tool to an all-in-one platform for app development."
 author: asmitbm
 og_image_path: /marketing/images/blog/2025/11/03/website-redesign/og.png
 highlighted: true
