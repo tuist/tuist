@@ -67,15 +67,10 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   def handle_info({:command_event_created, _event}, socket) do
-    # Only update when pagination is inactive
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_analytics(socket.assigns.current_params)
-       |> assign_recent_runs(socket.assigns.current_params)}
-    end
+    {:noreply,
+     socket
+     |> assign_analytics(socket.assigns.current_params)
+     |> assign_recent_runs(socket.assigns.current_params)}
   end
 
   def handle_info(_event, socket) do
