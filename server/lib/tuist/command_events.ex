@@ -1012,6 +1012,10 @@ defmodule Tuist.CommandEvents do
   def cache_hit_rate_percentiles(project_id, start_date, end_date, _date_period, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
+    # For hit rate (higher is better), flip the percentile to get descending order
+    # p99 means 99% of runs achieved this hit rate or better
+    flipped_percentile = 1 - percentile
+
     query =
       from(e in Event,
         as: :event,
@@ -1026,7 +1030,7 @@ defmodule Tuist.CommandEvents do
           percentile_hit_rate:
             fragment(
               "quantile(?)((? + ?) / ? * 100.0)",
-              ^percentile,
+              ^flipped_percentile,
               e.local_cache_hits_count,
               e.remote_cache_hits_count,
               e.cacheable_targets_count
@@ -1040,6 +1044,10 @@ defmodule Tuist.CommandEvents do
   end
 
   def cache_hit_rate_period_percentile(project_id, start_date, end_date, percentile, opts) do
+    # For hit rate (higher is better), flip the percentile to get descending order
+    # p99 means 99% of runs achieved this hit rate or better
+    flipped_percentile = 1 - percentile
+
     query =
       from(e in Event,
         as: :event,
@@ -1051,7 +1059,7 @@ defmodule Tuist.CommandEvents do
         select:
           fragment(
             "quantile(?)((? + ?) / ? * 100.0)",
-            ^percentile,
+            ^flipped_percentile,
             e.local_cache_hits_count,
             e.remote_cache_hits_count,
             e.cacheable_targets_count

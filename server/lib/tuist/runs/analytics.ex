@@ -1771,6 +1771,10 @@ defmodule Tuist.Runs.Analytics do
   This function calculates percentile-based hit rates by analyzing individual runs
   and determining what percentage of runs achieved a certain hit rate or better.
 
+  Note: For cache hit rate, higher values are better, so percentiles are calculated
+  in descending order. For example, p99 = 60% means that 99% of runs achieved
+  a hit rate of 60% or better (not 60% or worse).
+
   ## Parameters
     * `project_id` - The project ID
     * `percentile` - The percentile to calculate (e.g., 0.5, 0.9, 0.99)
