@@ -1,5 +1,5 @@
 <div id="xcode-cache">
-  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics-card">
     <:actions>
       <.button_group size="large">
         <.button_group_item
@@ -23,11 +23,12 @@
       <.percentile_dropdown_widget
         id="widget-cache-hit-rate"
         title={
-          case @selected_hit_rate_type do
-            "p99" -> gettext("p99 cache hit rate")
-            "p90" -> gettext("p90 cache hit rate")
-            "p50" -> gettext("p50 cache hit rate")
-            _ -> gettext("Avg. cache hit rate")
+          case {@selected_hit_rate_type, Enum.empty?(@builds)} do
+            {"avg", false} -> gettext("Avg. cache hit rate")
+            {"p99", false} -> gettext("p99 cache hit rate")
+            {"p90", false} -> gettext("p90 cache hit rate")
+            {"p50", false} -> gettext("p50 cache hit rate")
+            _ -> gettext("Cache hit rate")
           end
         }
         legend_color={
@@ -336,23 +337,22 @@
     </.empty_card_section>
   </.card>
   <.card title={gettext("Recent Builds")} icon="dashboard" data-part="recent-builds">
-    <.card_section data-part="recent-builds-section">
-      <div :if={not Enum.empty?(@builds)} data-part="builds-section">
+    <.card_section :if={not Enum.empty?(@builds)} data-part="recent-builds-section">
+      <div data-part="builds-section">
         <div data-part="builds-chart">
-          <div data-part="legends">
-            <.legend
-              title={gettext("Cache hit rate")}
-              value={
-                gettext("%{hit_rate}%",
-                  hit_rate:
-                    @avg_recent_hit_rate
-                    |> Decimal.from_float()
-                    |> Decimal.round(1)
-                )
-              }
-              style="primary"
-            />
-          </div>
+          <.legend
+            title={gettext("Cache hit rate")}
+            value={
+              gettext("%{hit_rate}%",
+                hit_rate:
+                  @avg_recent_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
+            style="primary"
+            data-part="legend"
+          />
           <.chart
             id="recent-builds-hit-rate-chart"
             type="bar"
@@ -452,19 +452,18 @@
           </:col>
         </.table>
       </div>
-
-      <div :if={Enum.empty?(@builds)} data-part="empty-builds">
-        <.empty_card_section
-          title={gettext("No data yet")}
-          get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
-          data-part="empty-builds-table-card-section"
-        >
-          <:image>
-            <img src="/images/empty_table_light.png" data-theme="light" />
-            <img src="/images/empty_table_dark.png" data-theme="dark" />
-          </:image>
-        </.empty_card_section>
-      </div>
     </.card_section>
+    <div :if={Enum.empty?(@builds)} data-part="empty-builds">
+      <.empty_card_section
+        title={gettext("No data yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
+        data-part="empty-builds-table-card-section"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </div>
   </.card>
 </div>
