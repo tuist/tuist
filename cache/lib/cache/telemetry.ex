@@ -9,7 +9,7 @@ defmodule Cache.Telemetry do
   def attach do
     events = [
       [:cache, :cas, :download, :disk_hit],
-      [:cache, :cas, :download, :success],
+      [:cache, :cas, :download, :s3_hit],
       [:cache, :cas, :upload, :success]
     ]
 
@@ -25,7 +25,7 @@ defmodule Cache.Telemetry do
     push_analytics_event("download", measurements, metadata)
   end
 
-  def handle_event([:cache, :cas, :download, :success], measurements, metadata, _config) do
+  def handle_event([:cache, :cas, :download, :s3_hit], measurements, metadata, _config) do
     push_analytics_event("download", measurements, metadata)
   end
 

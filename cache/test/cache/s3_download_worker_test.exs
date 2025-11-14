@@ -84,7 +84,7 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       :telemetry.attach(
         "test-download-handler",
-        [:cache, :cas, :download, :success],
+        [:cache, :cas, :download, :s3_hit],
         fn event, measurements, metadata, _config ->
           send(self(), {:telemetry_event, event, measurements, metadata})
         end,
@@ -96,7 +96,7 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
       assert result == :ok
       assert File.exists?(local_path)
 
-      assert_receive {:telemetry_event, [:cache, :cas, :download, :success], %{size: 24},
+      assert_receive {:telemetry_event, [:cache, :cas, :download, :s3_hit], %{size: 24},
                       %{
                         cas_id: ^id,
                         account_handle: ^account_handle,

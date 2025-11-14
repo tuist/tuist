@@ -21,7 +21,7 @@ defmodule Cache.S3DownloadWorker do
         :ok ->
           {:ok, %{size: size}} = Cache.Disk.stat(account_handle, project_handle, id)
 
-          :telemetry.execute([:cache, :cas, :download, :success], %{size: size}, %{
+          :telemetry.execute([:cache, :cas, :download, :s3_hit], %{size: size}, %{
             cas_id: id,
             account_handle: account_handle,
             project_handle: project_handle
