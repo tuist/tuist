@@ -1614,8 +1614,4 @@ extension GraphDependency {
     fileprivate var xcframeworkDependency: GraphDependency.XCFramework? {
         if case let .xcframework(xcframework) = self { xcframework } else { nil }
     }
-
-    private var isPrecompiledAndLinkable: Bool {
-        if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
-    }
 }
