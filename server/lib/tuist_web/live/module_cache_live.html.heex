@@ -54,10 +54,10 @@
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@runs)} do
-            {"avg", false} -> gettext("Avg. cache hit rate")
-            {"p99", false} -> gettext("p99 cache hit rate")
-            {"p90", false} -> gettext("p90 cache hit rate")
-            {"p50", false} -> gettext("p50 cache hit rate")
+            {"avg", false} -> gettext("Avg. hit rate")
+            {"p99", false} -> gettext("p99 hit rate")
+            {"p90", false} -> gettext("p90 hit rate")
+            {"p50", false} -> gettext("p50 hit rate")
             _ -> gettext("Cache hit rate")
           end
         }
@@ -136,7 +136,7 @@
         empty={@hit_rate_analytics.avg_hit_rate == 0}
       />
       <.widget
-        title={gettext("Cache hits")}
+        title={gettext("Hits")}
         legend_color="secondary"
         description={
           gettext(
@@ -153,7 +153,7 @@
         empty={@hits_analytics.total_count == 0}
       />
       <.widget
-        title={gettext("Cache misses")}
+        title={gettext("Misses")}
         legend_color="destructive"
         description={
           gettext(
