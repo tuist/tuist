@@ -70,11 +70,19 @@ defmodule TuistWeb.AppLayoutComponents do
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
             ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
         }
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
+        disabled={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
         default_open={
-          String.starts_with?(@current_path, ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache") or
-            (not is_nil(@selected_run) and (@selected_run.name == "generate" or @selected_run.name == "cache"))
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+          ) or
+            (not is_nil(@selected_run) and
+               (@selected_run.name == "generate" or @selected_run.name == "cache"))
         }
         phx-update="ignore"
       >
@@ -83,16 +91,24 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="schema"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"}
           selected={
-            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs") or
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"
+            ) or
               (not is_nil(@selected_run) and @selected_run.name == "cache")
           }
         />
         <.sidebar_item
           label={gettext("Generate Runs")}
           icon="filters"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"}
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+          }
           selected={
-            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs") or
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+            ) or
               (not is_nil(@selected_run) and @selected_run.name == "generate")
           }
         />

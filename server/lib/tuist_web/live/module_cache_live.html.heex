@@ -408,9 +408,7 @@
           rows={@runs |> Enum.take(7)}
           row_navigate={
             fn run ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{run.id}"
-              )
+              url(~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{run.id}")
             end
           }
         >

@@ -9,13 +9,14 @@ defmodule TuistWeb.RedirectPlug do
   This will redirect from `/:account_handle/:project_handle/binary-cache/cache-runs`
   to `/:account_handle/:project_handle/module-cache/cache-runs`.
   """
-  import Plug.Conn
   import Phoenix.Controller
+  import Plug.Conn
 
   def init(opts) do
-    unless Keyword.has_key?(opts, :to) do
+    if !Keyword.has_key?(opts, :to) do
       raise ArgumentError, "RedirectPlug requires a :to option"
     end
+
     opts
   end
 
@@ -27,11 +28,12 @@ defmodule TuistWeb.RedirectPlug do
     new_path = "/#{account_handle}/#{project_handle}#{to_path}"
 
     # Preserve query string if present
-    new_path_with_query = if conn.query_string != "" do
-      "#{new_path}?#{conn.query_string}"
-    else
-      new_path
-    end
+    new_path_with_query =
+      if conn.query_string == "" do
+        new_path
+      else
+        "#{new_path}?#{conn.query_string}"
+      end
 
     conn
     |> put_status(:moved_permanently)

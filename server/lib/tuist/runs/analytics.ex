@@ -1849,5 +1849,4 @@ defmodule Tuist.Runs.Analytics do
       value -> Float.round(value * 1.0, 1)
     end
   end
-
 end
