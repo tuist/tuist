@@ -1,6 +1,7 @@
 defmodule Cache.Workers.S3DownloadWorkerTest do
   use ExUnit.Case, async: false
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog
 
@@ -21,32 +22,9 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
       project_handle = "test_project"
       id = "test_hash"
 
-      expect(Oban, :insert, fn changeset ->
-        {:ok,
-         %{
-           changeset
-           | changes:
-               Map.put(changeset.changes, :args, %{
-                 "key" => "test_account/test_project/cas/test_hash",
-                 "account_handle" => "test_account",
-                 "project_handle" => "test_project",
-                 "id" => "test_hash"
-               })
-         }}
-      end)
+      {:ok, _job} = S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
 
-      capture_log(fn ->
-        {:ok, changeset} = S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
-
-        assert changeset.changes.args == %{
-                 "key" => "test_account/test_project/cas/test_hash",
-                 "account_handle" => "test_account",
-                 "project_handle" => "test_project",
-                 "id" => "test_hash"
-               }
-
-        assert changeset.changes.worker == "Cache.S3DownloadWorker"
-      end)
+      assert_enqueued(worker: S3DownloadWorker, args: %{key: "test_account/test_project/cas/test_hash"})
     end
   end
 

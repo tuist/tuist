@@ -1,6 +1,7 @@
 defmodule Cache.Workers.S3UploadWorkerTest do
   use ExUnit.Case, async: false
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog
 
@@ -22,20 +23,9 @@ defmodule Cache.Workers.S3UploadWorkerTest do
       project_handle = "test_project"
       id = "test_hash"
 
-      expect(Oban, :insert, fn changeset ->
-        {:ok,
-         %{
-           changeset
-           | changes: Map.put(changeset.changes, :args, %{"key" => "test_account/test_project/cas/test_hash"})
-         }}
-      end)
+      {:ok, _job} = S3UploadWorker.enqueue_upload(account_handle, project_handle, id)
 
-      capture_log(fn ->
-        {:ok, changeset} = S3UploadWorker.enqueue_upload(account_handle, project_handle, id)
-
-        assert changeset.changes.args == %{"key" => "test_account/test_project/cas/test_hash"}
-        assert changeset.changes.worker == "Cache.S3UploadWorker"
-      end)
+      assert_enqueued(worker: S3UploadWorker, args: %{key: "test_account/test_project/cas/test_hash"})
     end
   end
 
