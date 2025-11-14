@@ -63,8 +63,10 @@ defmodule TuistWeb.Plugs.WebhookPlug do
         |> send_resp(401, "Missing #{signature_header} header")
         |> halt()
 
-      verify_signature(
-        conn.assigns.raw_body |> List.flatten() |> IO.iodata_to_binary(),
+      conn.assigns.raw_body
+      |> List.flatten()
+      |> IO.iodata_to_binary()
+      |> verify_signature(
         secret,
         signature,
         signature_prefix

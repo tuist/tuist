@@ -1003,7 +1003,7 @@ defmodule Tuist.Runs.Analytics do
         false -> where(query, [xg, e], e.is_ci == false)
       end
 
-    result = Tuist.ClickHouseRepo.one(query) || %{actual_build_time: 0, total_time_saved: 0}
+    result = ClickHouseRepo.one(query) || %{actual_build_time: 0, total_time_saved: 0}
 
     actual = normalize_duration_result(result.actual_build_time)
     saved = result.total_time_saved || 0
