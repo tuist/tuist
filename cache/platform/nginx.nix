@@ -30,6 +30,34 @@
     '';
 
     virtualHosts = {
+      # Localhost-only metrics endpoint
+      "localhost" = {
+        listen = [
+          {
+            addr = "127.0.0.1";
+            port = 80;
+            extraParameters = ["default_server"];
+          }
+          {
+            addr = "[::1]";
+            port = 80;
+            extraParameters = ["default_server"];
+          }
+        ];
+
+        locations."= /metrics" = {
+          proxyPass = "http://unix:/run/cache/current.sock:/metrics";
+          extraConfig = ''
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto http;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+          '';
+        };
+      };
+
+      # Main HTTPS server
       "${config.networking.hostName}.tuist.dev" = {
         forceSSL = true;
         enableACME = true;
@@ -38,6 +66,10 @@
           client_max_body_size 0;
           client_body_timeout 30m;
         '';
+
+        locations."/metrics" = {
+          return = "404";
+        };
 
         locations."/" = {
           proxyPass = "http://unix:/run/cache/current.sock:/";

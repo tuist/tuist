@@ -2,10 +2,13 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/master";
   inputs.disko.url = "github:nix-community/disko";
   inputs.disko.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.opnix.url = "github:brizzbuzz/opnix";
+  inputs.opnix.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = {
     nixpkgs,
     disko,
+    opnix,
     ...
   }: let
     machines = [
@@ -22,6 +25,7 @@
         system = "x86_64-linux";
         modules = [
           disko.nixosModules.disko
+          opnix.nixosModules.default
           ./configuration.nix
           ./users.nix
           {

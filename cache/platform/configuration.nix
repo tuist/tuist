@@ -9,6 +9,8 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     ./disk-config.nix
     ./nginx.nix
+    ./secrets.nix
+    ./alloy.nix
   ];
   system.stateVersion = "25.11";
 

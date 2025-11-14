@@ -9,6 +9,10 @@ defmodule CacheWeb.Router do
     plug CacheWeb.Plugs.AuthPlug
   end
 
+  scope "/" do
+    forward "/metrics", PromEx.Plug, prom_ex_module: Cache.PromEx
+  end
+
   scope "/", CacheWeb do
     get "/up", UpController, :index
   end
