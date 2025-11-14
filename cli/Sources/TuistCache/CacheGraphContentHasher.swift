@@ -74,7 +74,6 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
                 configuration,
                 try SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
-                try await XcodeController.current.selectedVersion().xcodeStringValue,
             ]
         )
 
