@@ -24,7 +24,10 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       {:ok, _job} = S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
 
-      assert_enqueued(worker: S3DownloadWorker, args: %{account_handle: "test_account", project_handle: "test_project", id: "test_hash"})
+      assert_enqueued(
+        worker: S3DownloadWorker,
+        args: %{account_handle: "test_account", project_handle: "test_project", id: "test_hash"}
+      )
     end
   end
 
