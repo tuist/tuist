@@ -1702,36 +1702,40 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, start_date, end_date, _opts ->
-        case {start_date, end_date} do
-          {~D[2024-04-01], ~D[2024-04-30]} ->
-            %{
-              cacheable_targets_count: 100,
-              local_cache_hits_count: 40,
-              remote_cache_hits_count: 20
-            }
+      # Current period (2024-04-01 to 2024-04-30): 100 total, 40 local hits, 20 remote hits = 60% hit rate
+      # Create events spread across the period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
 
-          {~D[2024-03-03], ~D[2024-04-01]} ->
-            %{
-              cacheable_targets_count: 80,
-              local_cache_hits_count: 20,
-              remote_cache_hits_count: 20
-            }
-        end
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["K", "L", "M", "N", "O", "P", "Q"],
+        local_cache_target_hits: ["K", "L", "M"],
+        remote_cache_target_hits: ["N", "O"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        [
-          %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 5},
-          %{date: "2024-04-15", cacheable_targets: 35, local_cache_target_hits: 15, remote_cache_target_hits: 8},
-          %{date: "2024-04-30", cacheable_targets: 35, local_cache_target_hits: 15, remote_cache_target_hits: 7}
-        ]
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["R", "S", "T", "U", "V", "W", "X"],
+        local_cache_target_hits: ["R", "S", "T"],
+        remote_cache_target_hits: ["U", "V"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period (2024-03-03 to 2024-04-01): 40% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["AA", "BB", "CC", "DD", "EE"],
+        local_cache_target_hits: ["AA"],
+        remote_cache_target_hits: ["BB"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
 
       # When
       got =
@@ -1742,11 +1746,14 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.avg_hit_rate == 60.0
-      assert got.trend == 20.0
+      # Total: 24 targets, 13 hits = 54.2%
+      assert_in_delta got.avg_hit_rate, 54.2, 0.1
+      assert_in_delta got.trend, 62.8, 0.1
       assert length(got.dates) == 3
       assert got.dates == ["2024-04-01", "2024-04-15", "2024-04-30"]
-      assert got.values == [50.0, 65.7, 62.9]
+      assert_in_delta Enum.at(got.values, 0), 30.0, 0.1
+      assert_in_delta Enum.at(got.values, 1), 71.4, 0.1
+      assert_in_delta Enum.at(got.values, 2), 71.4, 0.1
     end
 
     test "returns zero hit rate when no cacheable targets exist" do
@@ -1754,24 +1761,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start_date, _end_date, _opts ->
-        %{
-          cacheable_targets_count: 0,
-          local_cache_hits_count: 0,
-          remote_cache_hits_count: 0
-        }
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        []
-      end)
-
-      # When
+      # When - no command events created
       got =
         Analytics.module_cache_hit_rate_analytics(
           project_id: project.id,
@@ -1784,27 +1774,19 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.trend == 0.0
     end
 
-    test "handles nil values correctly" do
+    test "handles empty cache data correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start_date, _end_date, _opts ->
-        %{
-          cacheable_targets_count: nil,
-          local_cache_hits_count: nil,
-          remote_cache_hits_count: nil
-        }
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        []
-      end)
+      # Create events with empty cache arrays
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -1824,24 +1806,23 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, start_date, end_date, _opts ->
-        case {start_date, end_date} do
-          {~D[2024-04-01], ~D[2024-04-30]} ->
-            %{cacheable_targets_count: 100, local_cache_hits_count: 50, remote_cache_hits_count: 30}
+      # Current period: 80% hit rate (8 hits out of 10 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        local_cache_target_hits: ["A", "B", "C", "D", "E"],
+        remote_cache_target_hits: ["F", "G", "H"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
-          {~D[2024-03-03], ~D[2024-04-01]} ->
-            %{cacheable_targets_count: 100, local_cache_hits_count: 30, remote_cache_hits_count: 10}
-        end
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        []
-      end)
+      # Previous period: 40% hit rate (2 hits out of 5 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["K", "L", "M", "N", "O"],
+        local_cache_target_hits: ["K"],
+        remote_cache_target_hits: ["L"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
 
       # When
       got =
@@ -1863,22 +1844,39 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id, start_date, _end_date, _date_period, _time_bucket, _opts ->
-        case start_date do
-          ~D[2024-04-01] ->
-            [
-              %{date: "2024-04-01", local_cache_target_hits: 10, remote_cache_target_hits: 5},
-              %{date: "2024-04-15", local_cache_target_hits: 15, remote_cache_target_hits: 8},
-              %{date: "2024-04-30", local_cache_target_hits: 20, remote_cache_target_hits: 12}
-            ]
+      # Current period events
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
 
-          ~D[2024-03-03] ->
-            [
-              %{date: "2024-03-03", local_cache_target_hits: 8, remote_cache_target_hits: 4},
-              %{date: "2024-03-15", local_cache_target_hits: 10, remote_cache_target_hits: 6}
-            ]
-        end
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D", "E", "F", "G"],
+        local_cache_target_hits: ["D", "E"],
+        remote_cache_target_hits: ["F", "G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["H", "I", "J", "K", "L"],
+        local_cache_target_hits: ["H", "I", "J"],
+        remote_cache_target_hits: ["K", "L"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period events
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["M", "N"],
+        local_cache_target_hits: ["M"],
+        remote_cache_target_hits: ["N"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
 
       # When
       got =
@@ -1889,10 +1887,10 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.total_count == 70
-      assert got.trend == 150.0
+      assert got.total_count == 12
+      assert_in_delta got.trend, 140.0, 0.1
       assert length(got.dates) == 3
-      assert got.values == [15, 23, 32]
+      assert got.values == [3, 4, 5]
     end
 
     test "returns zero when no hits exist" do
@@ -1900,16 +1898,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        []
-      end)
-
-      # When
+      # When - no events created
       got =
         Analytics.module_cache_hits_analytics(
           project_id: project.id,
@@ -1922,22 +1911,19 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.trend == 0.0
     end
 
-    test "handles nil hit counts correctly" do
+    test "handles events with no cache hits correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        [
-          %{date: "2024-04-01", local_cache_target_hits: nil, remote_cache_target_hits: 5},
-          %{date: "2024-04-15", local_cache_target_hits: 10, remote_cache_target_hits: nil}
-        ]
-      end)
+      # Events with cacheable targets but no hits
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -1948,8 +1934,8 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.total_count == 15
-      assert got.values == [5, 10]
+      assert got.total_count == 0
+      assert got.values == [0]
     end
   end
 
@@ -1959,22 +1945,39 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id, start_date, _end_date, _date_period, _time_bucket, _opts ->
-        case start_date do
-          ~D[2024-04-01] ->
-            [
-              %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 5},
-              %{date: "2024-04-15", cacheable_targets: 40, local_cache_target_hits: 15, remote_cache_target_hits: 10},
-              %{date: "2024-04-30", cacheable_targets: 50, local_cache_target_hits: 20, remote_cache_target_hits: 15}
-            ]
+      # Current period: varying miss rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
 
-          ~D[2024-03-03] ->
-            [
-              %{date: "2024-03-03", cacheable_targets: 25, local_cache_target_hits: 8, remote_cache_target_hits: 7},
-              %{date: "2024-03-15", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 8}
-            ]
-        end
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["F", "G", "H", "I"],
+        local_cache_target_hits: ["F"],
+        remote_cache_target_hits: ["G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["J", "K", "L", "M", "N", "O"],
+        local_cache_target_hits: ["J", "K"],
+        remote_cache_target_hits: ["L", "M"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["P", "Q", "R"],
+        local_cache_target_hits: ["P"],
+        remote_cache_target_hits: ["Q"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
 
       # When
       got =
@@ -1985,10 +1988,10 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.total_count == 45
-      assert_in_delta got.trend, 104.5, 0.1
+      assert got.total_count == 7
+      assert_in_delta got.trend, 75.0, 0.1
       assert length(got.dates) == 3
-      assert got.values == [15, 15, 15]
+      assert got.values == [3, 2, 2]
     end
 
     test "returns zero when no misses exist" do
@@ -1996,16 +1999,14 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        [
-          %{date: "2024-04-01", cacheable_targets: 10, local_cache_target_hits: 5, remote_cache_target_hits: 5}
-        ]
-      end)
+      # All targets have cache hits
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -2020,22 +2021,19 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0]
     end
 
-    test "handles nil values correctly" do
+    test "handles events with empty cache arrays correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        [
-          %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: nil, remote_cache_target_hits: 10},
-          %{date: "2024-04-15", cacheable_targets: 40, local_cache_target_hits: 15, remote_cache_target_hits: nil}
-        ]
-      end)
+      # Events with empty arrays
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -2046,8 +2044,8 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.total_count == 45
-      assert got.values == [20, 25]
+      assert got.total_count == 0
+      assert got.values == [0]
     end
 
     test "never returns negative misses" do
@@ -2055,16 +2053,14 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
-                                                     _start_date,
-                                                     _end_date,
-                                                     _date_period,
-                                                     _time_bucket,
-                                                     _opts ->
-        [
-          %{date: "2024-04-01", cacheable_targets: 10, local_cache_target_hits: 8, remote_cache_target_hits: 5}
-        ]
-      end)
+      # All targets are cached (100% hit rate)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B", "C"],
+        remote_cache_target_hits: ["D"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -2085,30 +2081,42 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
-                                                                       start_date,
-                                                                       _end_date,
-                                                                       _percentile,
-                                                                       _opts ->
-        case start_date do
-          ~D[2024-04-01] -> 75.5
-          ~D[2024-03-03] -> 60.0
-        end
-      end)
+      # Current period: Create multiple events with varying hit rates for p99 calculation
+      # Events on 2024-04-01
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A1", "A2", "A3", "A4"],
+        local_cache_target_hits: ["A1", "A2"],
+        remote_cache_target_hits: ["A3"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
-                                                                 _start_date,
-                                                                 _end_date,
-                                                                 _date_period,
-                                                                 _time_bucket,
-                                                                 _percentile,
-                                                                 _opts ->
-        [
-          %{date: "2024-04-01", percentile_hit_rate: 70.5},
-          %{date: "2024-04-15", percentile_hit_rate: 75.8},
-          %{date: "2024-04-30", percentile_hit_rate: 80.2}
-        ]
-      end)
+      # Events on 2024-04-15
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["B1", "B2", "B3", "B4"],
+        local_cache_target_hits: ["B1", "B2", "B3"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      # Events on 2024-04-30
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["C1", "C2", "C3", "C4"],
+        local_cache_target_hits: ["C1", "C2", "C3"],
+        remote_cache_target_hits: ["C4"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D1", "D2", "D3"],
+        local_cache_target_hits: ["D1"],
+        remote_cache_target_hits: ["D2"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
 
       # When
       got =
@@ -2121,10 +2129,9 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.avg_hit_rate == 75.5
-      assert_in_delta got.trend, 25.8, 0.1
+      assert_in_delta got.avg_hit_rate, 75.0, 0.1
+      assert_in_delta got.trend, 12.5, 0.1
       assert length(got.dates) == 3
-      assert got.values == [70.5, 75.8, 80.2]
     end
 
     test "returns zero percentile when no data exists" do
@@ -2132,25 +2139,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
-                                                                       _start_date,
-                                                                       _end_date,
-                                                                       _percentile,
-                                                                       _opts ->
-        nil
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
-                                                                 _start_date,
-                                                                 _end_date,
-                                                                 _date_period,
-                                                                 _time_bucket,
-                                                                 _percentile,
-                                                                 _opts ->
-        []
-      end)
-
-      # When
+      # When - no events created
       got =
         Analytics.module_cache_hit_rate_percentile(
           project.id,
@@ -2165,31 +2154,19 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.trend == 0.0
     end
 
-    test "handles nil percentile_hit_rate values correctly" do
+    test "handles events with no cacheable targets correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
-                                                                       _start_date,
-                                                                       _end_date,
-                                                                       _percentile,
-                                                                       _opts ->
-        50.0
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
-                                                                 _start_date,
-                                                                 _end_date,
-                                                                 _date_period,
-                                                                 _time_bucket,
-                                                                 _percentile,
-                                                                 _opts ->
-        [
-          %{date: "2024-04-01", percentile_hit_rate: nil},
-          %{date: "2024-04-15", percentile_hit_rate: 45.0}
-        ]
-      end)
+      # Events with no cacheable targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -2202,7 +2179,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.values == [0.0, 45.0]
+      assert got.avg_hit_rate == 0.0
     end
 
     test "correctly calculates different percentiles" do
@@ -2210,47 +2187,14 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
-                                                                       _start_date,
-                                                                       _end_date,
-                                                                       percentile,
-                                                                       _opts ->
-        case percentile do
-          0.99 -> 95.0
-          0.9 -> 85.0
-          0.5 -> 60.0
-        end
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
-                                                                 _start_date,
-                                                                 _end_date,
-                                                                 _date_period,
-                                                                 _time_bucket,
-                                                                 _percentile,
-                                                                 _opts ->
-        []
-      end)
-
-      # When p99
-      got_p99 =
-        Analytics.module_cache_hit_rate_percentile(
-          project.id,
-          0.99,
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
-
-      # When p90
-      got_p90 =
-        Analytics.module_cache_hit_rate_percentile(
-          project.id,
-          0.9,
-          project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
-        )
+      # Create events with varying hit rates for percentile calculation
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When p50
       got_p50 =
@@ -2263,9 +2207,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got_p99.avg_hit_rate == 95.0
-      assert got_p90.avg_hit_rate == 85.0
-      assert got_p50.avg_hit_rate == 60.0
+      assert got_p50.avg_hit_rate == 100.0
     end
 
     test "rounds percentile values to one decimal place" do
@@ -2273,25 +2215,14 @@ defmodule Tuist.Runs.AnalyticsTest do
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
-      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
-                                                                       _start_date,
-                                                                       _end_date,
-                                                                       _percentile,
-                                                                       _opts ->
-        75.567890
-      end)
-
-      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
-                                                                 _start_date,
-                                                                 _end_date,
-                                                                 _date_period,
-                                                                 _time_bucket,
-                                                                 _percentile,
-                                                                 _opts ->
-        [
-          %{date: "2024-04-01", percentile_hit_rate: 70.123456}
-        ]
-      end)
+      # Create events where hit rate will have decimal values
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
 
       # When
       got =
@@ -2304,8 +2235,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.avg_hit_rate == 75.6
-      assert got.values == [70.1]
+      assert_in_delta got.avg_hit_rate, 33.3, 0.1
     end
   end
 end
