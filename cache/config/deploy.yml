@@ -34,6 +34,7 @@ env:
     - S3_SECRET_ACCESS_KEY
     - S3_REGION
     - TUIST_CACHE_API_KEY
+    - RELEASE_COOKIE
 
 volumes:
   - /cas:/cas:rw
