@@ -13,10 +13,6 @@ defmodule TuistWeb.RedirectPlug do
   import Plug.Conn
 
   def init(opts) do
-    if !Keyword.has_key?(opts, :to) do
-      raise ArgumentError, "RedirectPlug requires a :to option"
-    end
-
     opts
   end
 
