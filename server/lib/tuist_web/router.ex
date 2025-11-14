@@ -716,8 +716,8 @@ defmodule TuistWeb.Router do
     end
 
     # Redirects for renamed routes
-    redirect("/binary-cache/cache-runs", "/module-cache/cache-runs", :permanent, preserve_query_string: true)
-    redirect("/binary-cache/generate-runs", "/module-cache/generate-runs", :permanent, preserve_query_string: true)
+    get "/binary-cache/cache-runs", RedirectPlug, to: "/module-cache/cache-runs"
+    get "/binary-cache/generate-runs", RedirectPlug, to: "/module-cache/generate-runs"
   end
 
   def assign_current_path(conn, _params) do

@@ -73,7 +73,8 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"}
         disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"}
         default_open={
-          String.starts_with?(@current_path, ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache")
+          String.starts_with?(@current_path, ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache") or
+            (not is_nil(@selected_run) and (@selected_run.name == "generate" or @selected_run.name == "cache"))
         }
         phx-update="ignore"
       >

@@ -1695,4 +1695,617 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert day1.cacheable_task_remote_hits == 0
     end
   end
+
+  describe "module_cache_hit_rate_analytics/1" do
+    test "returns module cache hit rate analytics with correct calculations" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, start_date, end_date, _opts ->
+        case {start_date, end_date} do
+          {~D[2024-04-01], ~D[2024-04-30]} ->
+            %{
+              cacheable_targets_count: 100,
+              local_cache_hits_count: 40,
+              remote_cache_hits_count: 20
+            }
+
+          {~D[2024-03-03], ~D[2024-04-01]} ->
+            %{
+              cacheable_targets_count: 80,
+              local_cache_hits_count: 20,
+              remote_cache_hits_count: 20
+            }
+        end
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        [
+          %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 5},
+          %{date: "2024-04-15", cacheable_targets: 35, local_cache_target_hits: 15, remote_cache_target_hits: 8},
+          %{date: "2024-04-30", cacheable_targets: 35, local_cache_target_hits: 15, remote_cache_target_hits: 7}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 60.0
+      assert got.trend == 20.0
+      assert length(got.dates) == 3
+      assert got.dates == ["2024-04-01", "2024-04-15", "2024-04-30"]
+      assert got.values == [50.0, 65.7, 62.9]
+    end
+
+    test "returns zero hit rate when no cacheable targets exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start_date, _end_date, _opts ->
+        %{
+          cacheable_targets_count: 0,
+          local_cache_hits_count: 0,
+          remote_cache_hits_count: 0
+        }
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        []
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+
+    test "handles nil values correctly" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start_date, _end_date, _opts ->
+        %{
+          cacheable_targets_count: nil,
+          local_cache_hits_count: nil,
+          remote_cache_hits_count: nil
+        }
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        []
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+
+    test "calculates trend correctly when improving" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, start_date, end_date, _opts ->
+        case {start_date, end_date} do
+          {~D[2024-04-01], ~D[2024-04-30]} ->
+            %{cacheable_targets_count: 100, local_cache_hits_count: 50, remote_cache_hits_count: 30}
+
+          {~D[2024-03-03], ~D[2024-04-01]} ->
+            %{cacheable_targets_count: 100, local_cache_hits_count: 30, remote_cache_hits_count: 10}
+        end
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        []
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 80.0
+      assert got.trend == 100.0
+    end
+  end
+
+  describe "module_cache_hits_analytics/1" do
+    test "returns module cache hits analytics with correct totals" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id, start_date, _end_date, _date_period, _time_bucket, _opts ->
+        case start_date do
+          ~D[2024-04-01] ->
+            [
+              %{date: "2024-04-01", local_cache_target_hits: 10, remote_cache_target_hits: 5},
+              %{date: "2024-04-15", local_cache_target_hits: 15, remote_cache_target_hits: 8},
+              %{date: "2024-04-30", local_cache_target_hits: 20, remote_cache_target_hits: 12}
+            ]
+
+          ~D[2024-03-03] ->
+            [
+              %{date: "2024-03-03", local_cache_target_hits: 8, remote_cache_target_hits: 4},
+              %{date: "2024-03-15", local_cache_target_hits: 10, remote_cache_target_hits: 6}
+            ]
+        end
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 70
+      assert got.trend == 150.0
+      assert length(got.dates) == 3
+      assert got.values == [15, 23, 32]
+    end
+
+    test "returns zero when no hits exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        []
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert got.trend == 0.0
+    end
+
+    test "handles nil hit counts correctly" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        [
+          %{date: "2024-04-01", local_cache_target_hits: nil, remote_cache_target_hits: 5},
+          %{date: "2024-04-15", local_cache_target_hits: 10, remote_cache_target_hits: nil}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 15
+      assert got.values == [5, 10]
+    end
+  end
+
+  describe "module_cache_misses_analytics/1" do
+    test "returns module cache misses analytics with correct calculations" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id, start_date, _end_date, _date_period, _time_bucket, _opts ->
+        case start_date do
+          ~D[2024-04-01] ->
+            [
+              %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 5},
+              %{date: "2024-04-15", cacheable_targets: 40, local_cache_target_hits: 15, remote_cache_target_hits: 10},
+              %{date: "2024-04-30", cacheable_targets: 50, local_cache_target_hits: 20, remote_cache_target_hits: 15}
+            ]
+
+          ~D[2024-03-03] ->
+            [
+              %{date: "2024-03-03", cacheable_targets: 25, local_cache_target_hits: 8, remote_cache_target_hits: 7},
+              %{date: "2024-03-15", cacheable_targets: 30, local_cache_target_hits: 10, remote_cache_target_hits: 8}
+            ]
+        end
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 45
+      assert_in_delta got.trend, 104.5, 0.1
+      assert length(got.dates) == 3
+      assert got.values == [15, 15, 15]
+    end
+
+    test "returns zero when no misses exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        [
+          %{date: "2024-04-01", cacheable_targets: 10, local_cache_target_hits: 5, remote_cache_target_hits: 5}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert got.values == [0]
+    end
+
+    test "handles nil values correctly" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        [
+          %{date: "2024-04-01", cacheable_targets: 30, local_cache_target_hits: nil, remote_cache_target_hits: 10},
+          %{date: "2024-04-15", cacheable_targets: 40, local_cache_target_hits: 15, remote_cache_target_hits: nil}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 45
+      assert got.values == [20, 25]
+    end
+
+    test "never returns negative misses" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rates, fn _project_id,
+                                                     _start_date,
+                                                     _end_date,
+                                                     _date_period,
+                                                     _time_bucket,
+                                                     _opts ->
+        [
+          %{date: "2024-04-01", cacheable_targets: 10, local_cache_target_hits: 8, remote_cache_target_hits: 5}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.values == [0]
+    end
+  end
+
+  describe "module_cache_hit_rate_percentile/3" do
+    test "returns module cache hit rate percentile analytics with descending order calculation" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
+                                                                       start_date,
+                                                                       _end_date,
+                                                                       _percentile,
+                                                                       _opts ->
+        case start_date do
+          ~D[2024-04-01] -> 75.5
+          ~D[2024-03-03] -> 60.0
+        end
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
+                                                                 _start_date,
+                                                                 _end_date,
+                                                                 _date_period,
+                                                                 _time_bucket,
+                                                                 _percentile,
+                                                                 _opts ->
+        [
+          %{date: "2024-04-01", percentile_hit_rate: 70.5},
+          %{date: "2024-04-15", percentile_hit_rate: 75.8},
+          %{date: "2024-04-30", percentile_hit_rate: 80.2}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 75.5
+      assert_in_delta got.trend, 25.8, 0.1
+      assert length(got.dates) == 3
+      assert got.values == [70.5, 75.8, 80.2]
+    end
+
+    test "returns zero percentile when no data exists" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
+                                                                       _start_date,
+                                                                       _end_date,
+                                                                       _percentile,
+                                                                       _opts ->
+        nil
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
+                                                                 _start_date,
+                                                                 _end_date,
+                                                                 _date_period,
+                                                                 _time_bucket,
+                                                                 _percentile,
+                                                                 _opts ->
+        []
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+
+    test "handles nil percentile_hit_rate values correctly" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
+                                                                       _start_date,
+                                                                       _end_date,
+                                                                       _percentile,
+                                                                       _opts ->
+        50.0
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
+                                                                 _start_date,
+                                                                 _end_date,
+                                                                 _date_period,
+                                                                 _time_bucket,
+                                                                 _percentile,
+                                                                 _opts ->
+        [
+          %{date: "2024-04-01", percentile_hit_rate: nil},
+          %{date: "2024-04-15", percentile_hit_rate: 45.0}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.9,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.values == [0.0, 45.0]
+    end
+
+    test "correctly calculates different percentiles" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
+                                                                       _start_date,
+                                                                       _end_date,
+                                                                       percentile,
+                                                                       _opts ->
+        case percentile do
+          0.99 -> 95.0
+          0.9 -> 85.0
+          0.5 -> 60.0
+        end
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
+                                                                 _start_date,
+                                                                 _end_date,
+                                                                 _date_period,
+                                                                 _time_bucket,
+                                                                 _percentile,
+                                                                 _opts ->
+        []
+      end)
+
+      # When p99
+      got_p99 =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # When p90
+      got_p90 =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.9,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # When p50
+      got_p50 =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.5,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got_p99.avg_hit_rate == 95.0
+      assert got_p90.avg_hit_rate == 85.0
+      assert got_p50.avg_hit_rate == 60.0
+    end
+
+    test "rounds percentile values to one decimal place" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_period_percentile, fn _project_id,
+                                                                       _start_date,
+                                                                       _end_date,
+                                                                       _percentile,
+                                                                       _opts ->
+        75.567890
+      end)
+
+      stub(Tuist.CommandEvents, :cache_hit_rate_percentiles, fn _project_id,
+                                                                 _start_date,
+                                                                 _end_date,
+                                                                 _date_period,
+                                                                 _time_bucket,
+                                                                 _percentile,
+                                                                 _opts ->
+        [
+          %{date: "2024-04-01", percentile_hit_rate: 70.123456}
+        ]
+      end)
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 75.6
+      assert got.values == [70.1]
+    end
+  end
 end
