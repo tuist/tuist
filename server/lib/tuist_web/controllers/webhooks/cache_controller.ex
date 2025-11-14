@@ -7,7 +7,6 @@ defmodule TuistWeb.Webhooks.CacheController do
   require Logger
 
   def handle(conn, %{"events" => events}) when is_list(events) do
-    # Gather all unique full handles
     full_handles =
       events
       |> Enum.map(fn event ->
@@ -15,10 +14,8 @@ defmodule TuistWeb.Webhooks.CacheController do
       end)
       |> Enum.uniq()
 
-    # Fetch all projects in a single query
     projects_map = Projects.projects_by_full_handles(full_handles)
 
-    # Create analytics events using the projects map
     analytics_events =
       events
       |> Enum.map(fn event ->
@@ -49,9 +46,7 @@ defmodule TuistWeb.Webhooks.CacheController do
       end)
       |> Enum.reject(&is_nil/1)
 
-    if analytics_events != [] do
-      Cache.create_cas_events(analytics_events)
-    end
+    Cache.create_cas_events(analytics_events)
 
     conn
     |> put_status(:accepted)
