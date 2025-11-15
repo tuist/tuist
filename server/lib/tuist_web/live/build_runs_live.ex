@@ -36,6 +36,23 @@ defmodule TuistWeb.BuildRunsLive do
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
+    # Clear cursors if sort parameters have changed to prevent cursor/order mismatch
+    # This handles both UI navigation (socket state changes) and direct URL navigation
+    params =
+      cond do
+        # If sort params changed from previous socket state
+        Query.sort_changed?(socket, build_runs_sort_by, build_runs_sort_order, :build_runs) ->
+          Query.clear_cursors(params)
+
+        # If explicit sort params are present with cursors (e.g., bookmarked URL)
+        # Default sort is "ran-at"/"desc", so explicit params indicate potential cursor mismatch
+        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :"build-runs") ->
+          Query.clear_cursors(params)
+
+        true ->
+          params
+      end
+
     socket =
       socket
       |> assign(:uri, uri)
@@ -150,14 +167,16 @@ defmodule TuistWeb.BuildRunsLive do
       |> URI.decode_query()
       |> Map.put("build-runs-sort-by", column_value)
       |> Map.put("build-runs-sort-order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -170,7 +189,10 @@ defmodule TuistWeb.BuildRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
