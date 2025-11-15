@@ -54,7 +54,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = LintingError()
+        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [framework.productName])
+        let expectedError = InspectImportsServiceError.implicitImportsFound([expectedIssue])
 
         // When
         await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
@@ -78,7 +79,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
 
-        let expectedError = LintingError()
+        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [testTarget.productName])
+        let expectedError = InspectImportsServiceError.implicitImportsFound([expectedIssue])
 
         // When / Then
         await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)

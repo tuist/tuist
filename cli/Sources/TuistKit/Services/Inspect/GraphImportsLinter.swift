@@ -12,7 +12,7 @@ protocol GraphImportsLinting {
         graphTraverser: GraphTraverser,
         inspectType: InspectType,
         ignoreTagsMatching: Set<String>
-    ) async throws -> [LintingIssue]
+    ) async throws -> [InspectImportsIssue]
 }
 
 final class GraphImportsLinter: GraphImportsLinting {
@@ -26,17 +26,14 @@ final class GraphImportsLinter: GraphImportsLinting {
         graphTraverser: GraphTraverser,
         inspectType: InspectType,
         ignoreTagsMatching: Set<String>
-    ) async throws -> [LintingIssue] {
+    ) async throws -> [InspectImportsIssue] {
         return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType)
             .sorted { $0.key.productName < $1.key.productName }
-            .compactMap { target, implicitDependencies in
+            .compactMap { target, dependencies in
                 guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
                     return nil
                 }
-                return LintingIssue(
-                    reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.sorted().joined(separator: ", "))",
-                    severity: .error
-                )
+                return InspectImportsIssue(target: target.productName, dependencies: dependencies)
             }
     }
 
