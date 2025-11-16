@@ -94,3 +94,16 @@ window.addEventListener("phx:js-exec", ({ detail }) => {
     liveSocket.execJS(el, el.getAttribute(detail.attr));
   });
 });
+
+// Custom event to open modals programmatically
+window.addEventListener("phx:open-modal", (event) => {
+  const modalId = event.detail.id;
+  const modalElement = document.getElementById(modalId);
+  if (modalElement) {
+    // Trigger a click on the modal's trigger button
+    const trigger = modalElement.querySelector('[data-part="trigger"]');
+    if (trigger) {
+      trigger.click();
+    }
+  }
+});
