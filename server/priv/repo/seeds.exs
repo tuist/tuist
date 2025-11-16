@@ -59,6 +59,26 @@ organization =
     organization
   end
 
+# Create additional organization member
+member_email = "member@tuist.dev"
+
+_member_user =
+  if is_nil(Accounts.get_user_by_email(member_email)) do
+    {:ok, member} =
+      Accounts.create_user(member_email,
+        password: password,
+        confirmed_at: NaiveDateTime.utc_now(),
+        setup_billing: false
+      )
+
+    # Add member to the organization
+    Accounts.add_user_to_organization(member, organization)
+
+    member
+  else
+    Accounts.get_user_by_email(member_email)
+  end
+
 Accounts.update_okta_configuration(organization.id, %{
   okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
   okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
@@ -221,7 +241,7 @@ generate_task_description = fn task_type ->
     "Emitting module for"
   ]
 
-  clang_actions = [
+  _clang_actions = [
     "Compiling"
   ]
 
