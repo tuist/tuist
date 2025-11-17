@@ -91,9 +91,11 @@ defmodule TuistWeb.MembersLive do
               </:col>
               <:col :let={[member, role]}>
                 <%!-- Modals rendered outside dropdown --%>
+                <% role_str = if is_atom(role), do: Atom.to_string(role), else: role %>
+                <% role_form = to_form(%{"role" => role_str}, as: :role_data) %>
                 <.form
                   id={"manage-role-form-#{member.id}"}
-                  for={to_form(%{"role" => role}, as: :role)}
+                  for={role_form}
                   phx-submit="update-member-role"
                   phx-value-member-id={member.id}
                 >
@@ -110,7 +112,7 @@ defmodule TuistWeb.MembersLive do
                     <.line_divider />
                     <.select
                       id={"role-select-#{member.id}"}
-                      field={to_form(%{"role" => role}, as: :role)[:role]}
+                      field={role_form[:role]}
                       label={gettext("Role")}
                     >
                       <:item value="user" label={gettext("User")} />
@@ -411,7 +413,7 @@ defmodule TuistWeb.MembersLive do
     end
   end
 
-  def handle_event("update-member-role", %{"member-id" => member_id, "role" => %{"role" => new_role}}, socket) do
+  def handle_event("update-member-role", %{"member-id" => member_id, "role_data" => %{"role" => new_role}}, socket) do
     member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
     organization = socket.assigns.organization
 
@@ -419,7 +421,11 @@ defmodule TuistWeb.MembersLive do
       [member, _role] ->
         case Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
           :ok ->
-            socket = assign_organization(socket)
+            socket =
+              socket
+              |> assign_organization()
+              |> push_event("phx:close-modal", %{id: "manage-role-modal-#{member_id}"})
+
             {:noreply, socket}
 
           {:error, _reason} ->
@@ -438,7 +444,12 @@ defmodule TuistWeb.MembersLive do
     case member do
       [member, _role] ->
         :ok = Accounts.remove_user_from_organization(member, organization)
-        socket = assign_organization(socket)
+
+        socket =
+          socket
+          |> assign_organization()
+          |> push_event("phx:close-modal", %{id: "remove-member-modal-#{member_id}"})
+
         {:noreply, socket}
 
       nil ->
