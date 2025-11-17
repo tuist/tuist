@@ -471,11 +471,14 @@
   }
 
   & > [data-part="cta"] {
-    align-self: stretch;
+    margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-9);
 
     @media (min-width: 1024px) {
-      padding-right: var(--noora-spacing-14);
-      padding-left: var(--noora-spacing-14);
+      margin-right: var(--noora-spacing-14);
+      margin-left: var(--noora-spacing-14);
+      padding-top: var(--noora-spacing-14);
     }
   }
 }
