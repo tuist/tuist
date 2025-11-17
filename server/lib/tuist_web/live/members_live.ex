@@ -9,9 +9,13 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Authorization
 
   @impl true
-  def mount(_params, _uri, socket) do
+  def mount(_params, _session, %{assigns: %{selected_account: account}} = socket) do
     socket =
       socket
+      |> assign(
+        :head_title,
+        "#{gettext("Members")} · #{account.name} · Tuist"
+      )
       |> assign(
         form: to_form(%{}, as: :invitation),
         selected_tab: "members",
