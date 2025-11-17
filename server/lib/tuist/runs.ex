@@ -5,6 +5,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -213,7 +214,7 @@ defmodule Tuist.Runs do
           query
         end
 
-      IngestRepo.all(query)
+      ClickHouseRepo.all(query)
     end
   end
 
@@ -242,7 +243,7 @@ defmodule Tuist.Runs do
            time_weighted_avg_upload_throughput
          ]
        ]
-     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
 
     %{
       download_count: download_count,
@@ -284,7 +285,7 @@ defmodule Tuist.Runs do
            p50_write_duration
          ]
        ]
-     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
 
     %{
       avg_read_duration: avg_read_duration || 0,

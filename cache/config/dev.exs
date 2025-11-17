@@ -15,7 +15,8 @@ config :cache, CacheWeb.Endpoint,
 
 config :cache, :cas,
   server_url: "http://localhost:8080",
-  storage_dir: "tmp/cas"
+  storage_dir: "tmp/cas",
+  api_key: System.get_env("TUIST_CACHE_API_KEY")
 
 config :logger, :console, format: "[$level] $message\n"
 

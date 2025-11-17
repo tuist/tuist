@@ -26,6 +26,7 @@ defmodule Tuist do
       Bundles,
       Bundles.Bundle,
       Cache,
+      Cache.Analytics,
       CacheActionItems,
       CommandEvents,
       Registry.Swift.Packages,
@@ -93,6 +94,7 @@ defmodule Tuist do
       # We should not be exposing this one
       Repo,
       Storage,
+      Tasks,
       Time,
       Utilities.ByteFormatter,
       Utilities.DateFormatter,

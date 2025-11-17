@@ -20,7 +20,8 @@ config :cache, Oban,
 
 config :cache, :cas,
   server_url: "http://localhost:8080",
-  storage_dir: "/tmp/test_cas"
+  storage_dir: "/tmp/test_cas",
+  api_key: "test-secret-key"
 
 config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
 config :cache, :s3, bucket: "test-bucket"
