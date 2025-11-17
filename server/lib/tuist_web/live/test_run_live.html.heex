@@ -179,6 +179,101 @@
       </.card_section>
     </.card>
 
+    <.card
+      :if={@failures_count > 0}
+      title={gettext("Failures")}
+      icon="alert_circle"
+      data-part="failures-overview-card"
+    >
+      <.card_section data-part="failures-overview-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Failures")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@failures_count}
+          </span>
+          <.button
+            variant="secondary"
+            label={gettext("View more")}
+            size="small"
+            patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
+          />
+        </div>
+        <div data-part="failures-list">
+          <%= for {test_case_run_id, failures} <- Enum.take(@failures_grouped_by_test_case, 4) do %>
+            <% first_failure = List.first(failures) %>
+            <div
+              id={"test-failure-overview-#{test_case_run_id}"}
+              phx-hook="NooraCollapsible"
+              data-part="collapsible"
+              data-state="closed"
+              class="test-failure-card"
+            >
+              <div data-part="root">
+                <div data-part="trigger">
+                  <div data-part="header">
+                    <div data-part="icon">
+                      <.alert_circle />
+                    </div>
+                    <div data-part="title-and-subtitle">
+                      <h3 data-part="title">
+                        {first_failure.test_case_name}
+                      </h3>
+                      <%= if first_failure.test_module_name && first_failure.test_suite_name != "" do %>
+                        <span data-part="subtitle">
+                          {first_failure.test_module_name} • {first_failure.test_suite_name}
+                        </span>
+                      <% else %>
+                        <%= if first_failure.test_module_name do %>
+                          <span data-part="subtitle">{first_failure.test_module_name}</span>
+                        <% end %>
+                      <% end %>
+                    </div>
+                    <.badge
+                      label={length(failures)}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
+                  </div>
+                  <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
+                <div data-part="content" data-state="closed">
+                  <%= for failure <- failures do %>
+                    <span data-part="failure">
+                      <%= if failure.file_name do %>
+                        {failure.file_name}:{failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
+                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
+                      <% else %>
+                        {gettext("Line")} {failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
+                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
+                      <% end %>
+                      <%= if failure.message do %>
+                        - {failure.message}
+                      <% end %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+          <%= if Enum.count(@failures_grouped_by_test_case) > 4 do %>
+            <div data-part="more-card" data-index="two"></div>
+            <div data-part="more-card" data-index="one"></div>
+          <% end %>
+        </div>
+      </.card_section>
+    </.card>
+
     <.tab_menu_horizontal>
       <.tab_menu_horizontal_item
         label={gettext("Test Cases")}

@@ -187,6 +187,59 @@
     }
   }
 
+  & > [data-part="failures-overview-card"] {
+    & > [data-part="failures-overview-card-section"] {
+      gap: var(--noora-spacing-8);
+
+      & > [data-part="header"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+
+        & > [data-part="title"],
+        & > [data-part="count"] {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & > [data-part="count"] {
+          flex-grow: 1;
+        }
+
+        & > [data-part="dot"] {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+
+      & > [data-part="failures-list"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        padding-bottom: 19px;
+
+        & > [data-part="more-card"] {
+          position: absolute;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-large);
+          background-color: var(--noora-surface-background-primary);
+          height: 48px;
+          &[data-index="one"] {
+            right: var(--noora-spacing-4);
+            bottom: 9px;
+            left: var(--noora-spacing-4);
+          }
+          &[data-index="two"] {
+            right: var(--noora-spacing-7);
+            bottom: 0;
+            left: var(--noora-spacing-7);
+          }
+        }
+      }
+    }
+  }
+
   & > [data-part="failures-card"] {
     & > [data-part="failures-card-section"] {
       gap: var(--noora-spacing-4);
