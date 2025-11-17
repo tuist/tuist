@@ -142,6 +142,12 @@
   & [data-part="test-suites-card"] > [data-part="test-suites-card-section"],
   & [data-part="test-modules-card"] > [data-part="test-modules-card-section"] {
     gap: var(--noora-spacing-8);
+    & [data-part="active-filters"] {
+      display: flex;
+      gap: var(--noora-spacing-3);
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
     & > [data-part="filters"] {
       display: flex;
       gap: var(--noora-spacing-6);
