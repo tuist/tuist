@@ -78,20 +78,6 @@
        forward_to = [loki.write.grafana_cloud.receiver]
      }
 
-     loki.source.file "nginx_access" {
-       targets    = [
-         {
-           __path__ = "/var/log/nginx/access.log",
-           labels   = {
-             job     = "nginx",
-             stream   = "access",
-             instance = "${config.networking.hostName}",
-           },
-         },
-       ]
-       forward_to = [loki.write.grafana_cloud.receiver]
-     }
-
      loki.source.file "nginx_error" {
        targets    = [
          {
