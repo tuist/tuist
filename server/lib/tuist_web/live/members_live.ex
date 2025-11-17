@@ -16,7 +16,8 @@ defmodule TuistWeb.MembersLive do
         form: to_form(%{}, as: :invitation),
         selected_tab: "members",
         # NOTE: This should preferably done on the client. Moved this to the server for now because LiveView went into `phx-skip` mode and elements disappeared.
-        selected_inner_tab: "members"
+        selected_inner_tab: "members",
+        selected_member_roles: %{}
         # invite_role: :user,
         # invite_emails: []
       )
@@ -92,51 +93,72 @@ defmodule TuistWeb.MembersLive do
               <:col :let={[member, role]}>
                 <%!-- Modals rendered outside dropdown --%>
                 <% role_str = if is_atom(role), do: Atom.to_string(role), else: role %>
-                <% role_form = to_form(%{"role" => role_str}, as: :role_data) %>
-                <.form
-                  id={"manage-role-form-#{member.id}"}
-                  for={role_form}
-                  phx-submit="update-member-role"
-                  phx-value-member-id={member.id}
+                <% selected_role = Map.get(@selected_member_roles, member.id, role_str) %>
+                <.modal
+                  id={"manage-role-modal-#{member.id}"}
+                  title={gettext("Manage role")}
+                  on_dismiss={"close-manage-role-modal-#{member.id}"}
                 >
-                  <.modal id={"manage-role-modal-#{member.id}"} title={gettext("Manage role")}>
-                    <:trigger :let={modal_attrs}>
-                      <button
-                        id={"manage-role-trigger-#{member.id}"}
-                        type="button"
-                        style="display: none;"
-                        {modal_attrs}
-                      >
-                      </button>
-                    </:trigger>
-                    <.line_divider />
-                    <.select
-                      id={"role-select-#{member.id}"}
-                      field={role_form[:role]}
-                      label={gettext("Role")}
+                  <:trigger :let={modal_attrs}>
+                    <button
+                      id={"manage-role-trigger-#{member.id}"}
+                      type="button"
+                      style="display: none;"
+                      {modal_attrs}
                     >
-                      <:item value="user" label={gettext("User")} />
-                      <:item value="admin" label={gettext("Admin")} />
-                    </.select>
-                    <.line_divider />
-                    <:footer>
-                      <.modal_footer>
-                        <:action>
-                          <.button
-                            label={gettext("Cancel")}
-                            variant="secondary"
-                            type="button"
-                          />
-                        </:action>
-                        <:action>
-                          <.button label={gettext("Save")} type="submit" />
-                        </:action>
-                      </.modal_footer>
-                    </:footer>
-                  </.modal>
-                </.form>
+                    </button>
+                  </:trigger>
+                  <.line_divider />
+                  <div>
+                    <label>{gettext("Role")}</label>
+                    <.dropdown
+                      id={"role-dropdown-#{member.id}"}
+                      label={Macro.camelize(selected_role)}
+                    >
+                      <.dropdown_item
+                        value="user"
+                        label={gettext("User")}
+                        phx-click="select-member-role"
+                        phx-value-member_id={member.id}
+                        phx-value-role="user"
+                      />
+                      <.dropdown_item
+                        value="admin"
+                        label={gettext("Admin")}
+                        phx-click="select-member-role"
+                        phx-value-member_id={member.id}
+                        phx-value-role="admin"
+                      />
+                    </.dropdown>
+                  </div>
+                  <.line_divider />
+                  <:footer>
+                    <.modal_footer>
+                      <:action>
+                        <.button
+                          label={gettext("Cancel")}
+                          variant="secondary"
+                          type="button"
+                          phx-click={"close-manage-role-modal-#{member.id}"}
+                        />
+                      </:action>
+                      <:action>
+                        <.button
+                          label={gettext("Save")}
+                          type="button"
+                          phx-click="save-member-role"
+                          phx-value-member-id={member.id}
+                        />
+                      </:action>
+                    </.modal_footer>
+                  </:footer>
+                </.modal>
 
-                <.modal id={"remove-member-modal-#{member.id}"} title={gettext("Remove member")}>
+                <.modal
+                  id={"remove-member-modal-#{member.id}"}
+                  title={gettext("Remove member")}
+                  on_dismiss={"close-remove-member-modal-#{member.id}"}
+                >
                   <:trigger :let={modal_attrs}>
                     <button
                       id={"remove-member-trigger-#{member.id}"}
@@ -160,6 +182,7 @@ defmodule TuistWeb.MembersLive do
                           label={gettext("Cancel")}
                           variant="secondary"
                           type="button"
+                          phx-click={"close-remove-member-modal-#{member.id}"}
                         />
                       </:action>
                       <:action>
@@ -367,6 +390,60 @@ defmodule TuistWeb.MembersLive do
     {:noreply, socket}
   end
 
+  def handle_event("select-member-role", %{"member_id" => member_id, "role" => role}, socket) do
+    member_id_int = String.to_integer(member_id)
+    socket = assign(socket, selected_member_roles: Map.put(socket.assigns.selected_member_roles, member_id_int, role))
+    {:noreply, socket}
+  end
+
+  def handle_event("save-member-role", %{"member-id" => member_id}, socket) do
+    member_id_int = String.to_integer(member_id)
+    new_role = Map.get(socket.assigns.selected_member_roles, member_id_int)
+
+    if is_nil(new_role) do
+      {:noreply, socket}
+    else
+      member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
+      organization = socket.assigns.organization
+
+      case member do
+        [member, _role] ->
+          case Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
+            %Tuist.Accounts.Role{} ->
+              socket =
+                socket
+                |> assign_organization()
+                |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
+                |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+
+              {:noreply, socket}
+
+            {:error, _reason} ->
+              {:noreply, socket}
+          end
+
+        nil ->
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event("close-manage-role-modal-" <> member_id, _, socket) do
+    member_id_int = String.to_integer(member_id)
+
+    socket =
+      socket
+      |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
+      |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("close-remove-member-modal-" <> member_id, _, socket) do
+    socket = push_event(socket, "close-modal", %{id: "remove-member-modal-#{member_id}"})
+    {:noreply, socket}
+  end
+
   # def handle_event("select-invite-role", %{"data" => role}, socket) do
   #   socket = assign(socket, invite_role: String.to_existing_atom(role))
   #   {:noreply, socket}
@@ -413,29 +490,6 @@ defmodule TuistWeb.MembersLive do
     end
   end
 
-  def handle_event("update-member-role", %{"member-id" => member_id, "role_data" => %{"role" => new_role}}, socket) do
-    member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
-    organization = socket.assigns.organization
-
-    case member do
-      [member, _role] ->
-        case Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
-          :ok ->
-            socket =
-              socket
-              |> assign_organization()
-              |> push_event("phx:close-modal", %{id: "manage-role-modal-#{member_id}"})
-
-            {:noreply, socket}
-
-          {:error, _reason} ->
-            {:noreply, socket}
-        end
-
-      nil ->
-        {:noreply, socket}
-    end
-  end
 
   def handle_event("confirm-remove-member", %{"member-id" => member_id}, socket) do
     member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
@@ -448,7 +502,7 @@ defmodule TuistWeb.MembersLive do
         socket =
           socket
           |> assign_organization()
-          |> push_event("phx:close-modal", %{id: "remove-member-modal-#{member_id}"})
+          |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
 
         {:noreply, socket}
 
