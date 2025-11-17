@@ -365,7 +365,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -398,7 +398,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -428,7 +428,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -516,7 +516,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -597,7 +597,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2126,12 +2126,12 @@ defmodule Tuist.AccountsTest do
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
     end
 
     test "creates a user from a google identity with a hosted domain" do
@@ -2144,7 +2144,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2156,7 +2156,7 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == "tuist.io"
     end
@@ -2171,7 +2171,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2183,20 +2183,20 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
@@ -2205,14 +2205,14 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new okta identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2322,7 +2322,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2448,7 +2448,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2500,7 +2500,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{

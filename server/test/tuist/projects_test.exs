@@ -114,7 +114,7 @@ defmodule Tuist.ProjectsTest do
         provider: :google,
         uid: 123,
         info: %{
-          email: "tuist@tuist.io"
+          email: "tuist@tuist.dev"
         },
         extra: %{
           raw_info: %{

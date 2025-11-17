@@ -11,7 +11,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
     %{user: user}
   end
 
@@ -309,7 +309,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -574,7 +574,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
