@@ -1,7 +1,7 @@
 servers:
   web:
     hosts:
-      - 23.88.35.139
+      - cache-eu-central-canary.tuist.dev
 env:
   clear:
     SERVER_URL: https://canary.tuist.dev
