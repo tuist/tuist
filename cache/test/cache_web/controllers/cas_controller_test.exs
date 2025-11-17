@@ -222,8 +222,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        true
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -254,8 +254,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -292,8 +292,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -321,7 +321,10 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      assert_enqueued(worker: Cache.S3DownloadWorker, args: %{key: "#{account_handle}/#{project_handle}/cas/#{id}"})
+      assert_enqueued(
+        worker: Cache.S3DownloadWorker,
+        args: %{account_handle: account_handle, project_handle: project_handle, id: id}
+      )
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do

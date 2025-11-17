@@ -19,7 +19,8 @@ defmodule Tuist.Runs.Build do
       :macos_version,
       :account_id,
       :is_ci,
-      :ci_provider
+      :ci_provider,
+      :cacheable_tasks_count
     ],
     sortable: [:inserted_at, :duration]
   }

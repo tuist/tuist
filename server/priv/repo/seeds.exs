@@ -328,6 +328,29 @@ cas_outputs
   IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
 end)
 
+# Generate CAS events based on CAS outputs
+# CAS events track upload/download actions for analytics
+cas_events =
+  Enum.map(cas_outputs, fn cas_output ->
+    # Use the operation from CAS output (upload or download) as the action
+    action = cas_output.operation
+
+    %{
+      id: Ecto.UUID.generate(),
+      action: action,
+      size: cas_output.size,
+      cas_id: cas_output.node_id,
+      project_id: tuist_project.id,
+      inserted_at: cas_output.inserted_at
+    }
+  end)
+
+cas_events
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Cache.CASEvent, chunk)
+end)
+
 # Group CAS outputs by build_id for later use
 cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
 

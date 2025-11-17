@@ -131,7 +131,7 @@ defmodule TuistWeb.Widget do
   def widget(assigns) do
     ~H"""
     <%= if @empty do %>
-      <.card_section class="tuist-widget" id={@id}>
+      <.card_section class="tuist-widget" id={@id} data-empty="true">
         <div data-part="background">
           <.empty_state_background />
         </div>

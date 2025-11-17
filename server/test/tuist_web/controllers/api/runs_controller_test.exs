@@ -226,7 +226,7 @@ defmodule TuistWeb.API.RunsControllerTest do
   describe "POST /api/projects/:account_handle/:project_handle/runs" do
     test "creates a new build when authenticated as user", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -382,7 +382,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build when authenticatd as project", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -427,7 +427,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "returns an existing build run if it already exists", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
       id = UUIDv7.generate()
 
@@ -470,7 +470,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build when non-required parameters are missing", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -517,7 +517,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with GitHub CI metadata", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -558,7 +558,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with GitLab CI metadata including a custom host", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -598,7 +598,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with cacheable tasks and calculates counts correctly", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When - randomize order of cacheable tasks
@@ -677,7 +677,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with empty cacheable tasks array", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -720,7 +720,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with CAS outputs", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
@@ -826,7 +826,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "returns :not_found when project doesn't exist", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       non_existent_project_name = UUIDv7.generate()
       non_existent_account_name = UUIDv7.generate()
       project_slug = "#{non_existent_account_name}/#{non_existent_project_name}"
@@ -858,7 +858,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       conn: conn
     } do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
       # When
@@ -881,7 +881,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "creates a new build with cacheable tasks that have cas_output_node_ids", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
       # When
