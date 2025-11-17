@@ -496,6 +496,39 @@ defmodule Tuist.XcodeTest do
       assert counts.binary_cache_remote_hits_count == 1
       assert counts.binary_cache_misses_count == 2
       assert counts.total_count == 4
+      assert counts.cache_hit_rate == 50.0
+    end
+
+    test "binary_cache_counts/1 returns zeros and 0.0 cache hit rate for empty data" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        with_flushed_ingestion_buffers(fn ->
+          Xcode.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "EmptyCacheGraph",
+              projects: [
+                %{
+                  "name" => "EmptyProject",
+                  "path" => "EmptyApp",
+                  "targets" => []
+                }
+              ]
+            }
+          })
+        end)
+
+      # When
+      counts = Xcode.binary_cache_counts(command_event)
+
+      # Then
+      assert counts.binary_cache_local_hits_count == 0
+      assert counts.binary_cache_remote_hits_count == 0
+      assert counts.binary_cache_misses_count == 0
+      assert counts.total_count == 0
+      assert counts.cache_hit_rate == 0.0
     end
   end
 

@@ -556,6 +556,50 @@ test_command_events
       test_case
     end
 
+  target_names = [
+    "App",
+    "AppKit",
+    "AppUI",
+    "AppCore",
+    "Authentication",
+    "Networking",
+    "DataLayer",
+    "Analytics",
+    "Settings",
+    "Profile",
+    "UIComponents",
+    "DesignSystem",
+    "Utilities",
+    "Extensions",
+    "UserManagement",
+    "ContentDelivery",
+    "PaymentProcessing",
+    "Notifications",
+    "CacheManager",
+    "LoggingFramework"
+  ]
+
+  generate_sha1_hash = fn ->
+    1..40
+    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+    |> List.to_string()
+  end
+
+  targets =
+    target_names
+    |> Enum.take(Enum.random(15..20))
+    |> Enum.map(fn target_name ->
+      hit_status = Enum.random(["local", "local", "remote", "remote", "remote", "miss"])
+
+      %{
+        "name" => target_name,
+        "binary_cache_metadata" => %{
+          "hash" => generate_sha1_hash.(),
+          "hit" => hit_status
+        }
+      }
+    end)
+
   {:ok, _graph} =
     Xcode.create_xcode_graph(%{
       command_event: command_event,
@@ -566,15 +610,7 @@ test_command_events
           %{
             "name" => name,
             "path" => module_name,
-            "targets" => [
-              %{
-                "name" => "target-#{System.unique_integer([:positive])}",
-                "binary_cache_metadata" => %{
-                  "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
-                  "hit" => "miss"
-                }
-              }
-            ]
+            "targets" => targets
           }
         ]
       }

@@ -122,12 +122,25 @@ defmodule Tuist.Xcode do
         )
       )
 
+    local_count = result.local || 0
+    remote_count = result.remote || 0
+    total_hits = local_count + remote_count
+    total = result.total || 0
+
+    cache_hit_rate =
+      if total > 0 do
+        (total_hits / total * 100) |> Float.round(1)
+      else
+        0.0
+      end
+
     %{
-      binary_cache_local_hits_count: result.local || 0,
-      binary_cache_remote_hits_count: result.remote || 0,
+      binary_cache_local_hits_count: local_count,
+      binary_cache_remote_hits_count: remote_count,
       binary_cache_misses_count: result.miss || 0,
-      total_count: result.total || 0,
-      total_targets_count: result.total || 0
+      total_count: total,
+      total_targets_count: total,
+      cache_hit_rate: cache_hit_rate
     }
   end
 
