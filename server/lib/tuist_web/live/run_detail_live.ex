@@ -3,8 +3,10 @@ defmodule TuistWeb.RunDetailLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Filter
   import TuistWeb.Runs.RanByBadge
 
+  alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Xcode
@@ -30,6 +32,7 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:project, project)
      |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
      |> assign_initial_analytics_state()
+     |> assign(:available_filters, define_binary_cache_filters())
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))
      |> assign(:has_binary_cache_data, Xcode.has_binary_cache_data?(run))
      |> assign_async(:has_result_bundle, fn ->
@@ -72,6 +75,32 @@ defmodule TuistWeb.RunDetailLive do
     {:noreply, socket}
   end
 
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{updated_query_params}"
+     )
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
   def sort_icon("desc") do
     "square_rounded_arrow_down"
   end
@@ -108,22 +137,11 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:selective_testing_page_count, 0)
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
+    |> assign(:binary_cache_active_filters, [])
   end
 
   defp build_uri(params) do
-    query_params = [
-      "tab",
-      "selective-testing-page",
-      "selective-testing-sort-by",
-      "selective-testing-sort-order",
-      "selective-testing-filter",
-      "binary-cache-page",
-      "binary-cache-sort-by",
-      "binary-cache-sort-order",
-      "binary-cache-filter"
-    ]
-
-    URI.new!("?" <> URI.encode_query(Map.take(params, query_params)))
+    URI.new!("?" <> URI.encode_query(params))
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
@@ -157,11 +175,14 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
+    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+
     socket
     |> assign(:binary_cache_analytics, analytics)
     |> assign(:binary_cache_meta, meta)
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
@@ -177,15 +198,19 @@ defmodule TuistWeb.RunDetailLive do
     socket
     |> assign(:binary_cache_analytics, socket.assigns.binary_cache_analytics)
     |> assign(:binary_cache_page_count, socket.assigns.binary_cache_page_count)
+    |> assign(:binary_cache_active_filters, [])
   end
 
   defp assign_param_defaults(socket, params) do
+    binary_cache_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, binary_cache_filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
@@ -195,7 +220,7 @@ defmodule TuistWeb.RunDetailLive do
     counts = Xcode.selective_testing_counts(run)
 
     flop_params = %{
-      filters: build_flop_filters(params["selective-testing-filter"]),
+      filters: build_text_flop_filters(params["selective-testing-filter"]),
       page: String.to_integer(params["selective-testing-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
@@ -211,9 +236,13 @@ defmodule TuistWeb.RunDetailLive do
 
   defp load_binary_cache_data(run, params) do
     counts = Xcode.binary_cache_counts(run)
+    filters = Filter.Operations.decode_filters_from_query(params, define_binary_cache_filters())
+
+    text_filters = build_text_flop_filters(params["binary-cache-filter"])
+    filter_flop_filters = build_binary_cache_flop_filters(filters)
 
     flop_params = %{
-      filters: build_flop_filters(params["binary-cache-filter"]),
+      filters: text_filters ++ filter_flop_filters,
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
@@ -237,10 +266,43 @@ defmodule TuistWeb.RunDetailLive do
 
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
-  defp build_flop_filters(nil), do: []
-  defp build_flop_filters(""), do: []
+  defp build_text_flop_filters(nil), do: []
+  defp build_text_flop_filters(""), do: []
 
-  defp build_flop_filters(filter_text) do
+  defp build_text_flop_filters(filter_text) do
     [%{field: :name, op: :=~, value: filter_text}]
+  end
+
+  defp build_binary_cache_flop_filters(filters) do
+    filters
+    |> Enum.map(fn filter ->
+      case filter.id do
+        "binary_cache_hit" ->
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value), else: nil)}
+
+        _ ->
+          filter
+      end
+    end)
+    |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  defp define_binary_cache_filters do
+    [
+      %Filter.Filter{
+        id: "binary_cache_hit",
+        field: :binary_cache_hit,
+        display_name: gettext("Hit"),
+        type: :option,
+        options: [:remote, :local, :miss],
+        options_display_names: %{
+          remote: gettext("Remote"),
+          local: gettext("Local"),
+          miss: gettext("Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
   end
 end

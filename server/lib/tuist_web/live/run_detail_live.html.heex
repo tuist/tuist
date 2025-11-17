@@ -304,6 +304,7 @@
     </.card>
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
       <.card_section data-part="binary-cache-section">
+        <div data-part="filters">
         <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
           <.text_input
             type="search"
@@ -315,6 +316,16 @@
             value={@binary_cache_filter}
           />
         </.form>
+          <.filter_dropdown
+            id="binary-cache-filter-dropdown"
+            label={gettext("Filter")}
+            available_filters={@available_filters}
+            active_filters={@binary_cache_active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@binary_cache_active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @binary_cache_active_filters} filter={filter} />
+        </div>
         <.table id="binary-cache-table" rows={@binary_cache_analytics.cacheable_targets}>
           <:col
             :let={binary_cache_module}
