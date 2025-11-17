@@ -15,7 +15,15 @@
     & [data-part="manage-role-trigger"] {
       display: none;
     }
+
+    & .noora-modal [data-part="body"] {
+      min-width: unset;
+    }
+
     & [data-part="manage-role-modal"] {
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
+      }
       & > [data-part="trigger"] {
         display: none;
       }
@@ -24,6 +32,7 @@
         flex-direction: column;
         gap: var(--noora-spacing-3);
         padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9) var(--noora-spacing-2);
+        width: 303px;
       }
     }
   }

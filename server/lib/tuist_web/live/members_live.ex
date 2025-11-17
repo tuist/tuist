@@ -126,14 +126,20 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="user"
-                      />
+                        data-selected={selected_role == "user"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
                       <.dropdown_item
                         value="admin"
                         label={gettext("Admin")}
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="admin"
-                      />
+                        data-selected={dbg(selected_role) == "admin"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
                     </.dropdown>
                   </div>
                   <.line_divider />
@@ -163,6 +169,8 @@ defmodule TuistWeb.MembersLive do
                 <.modal
                   id={"remove-member-modal-#{member.id}"}
                   title={gettext("Remove member")}
+                  header_type="icon"
+                  header_size="small"
                   on_dismiss={"close-remove-member-modal-#{member.id}"}
                 >
                   <:trigger :let={modal_attrs}>
@@ -174,13 +182,14 @@ defmodule TuistWeb.MembersLive do
                     >
                     </button>
                   </:trigger>
-                  <.line_divider />
+                  <:header_icon>
+                    <.trash_x />
+                  </:header_icon>
                   <p>
                     {gettext("Are you sure you want to remove %{name} from this organization?",
                       name: member.account.name
                     )}
                   </p>
-                  <.line_divider />
                   <:footer>
                     <.modal_footer>
                       <:action>
@@ -212,7 +221,9 @@ defmodule TuistWeb.MembersLive do
                     :if={member.id != @current_user.id}
                     label={gettext("Manage role")}
                     value="manage_role"
-                    phx-click={JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})}
+                    phx-click={
+                      JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})
+                    }
                   >
                     <:left_icon><.user /></:left_icon>
                   </.dropdown_item>
@@ -220,7 +231,9 @@ defmodule TuistWeb.MembersLive do
                   <.dropdown_item
                     label={gettext("Remove member")}
                     value="remove"
-                    phx-click={JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})}
+                    phx-click={
+                      JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})
+                    }
                   >
                     <:left_icon><.trash_x /></:left_icon>
                   </.dropdown_item>
@@ -496,7 +509,6 @@ defmodule TuistWeb.MembersLive do
         {:noreply, socket}
     end
   end
-
 
   def handle_event("confirm-remove-member", %{"member-id" => member_id}, socket) do
     member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
