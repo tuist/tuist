@@ -95,9 +95,6 @@ defmodule TuistWeb.MembersLive do
                 <.text_cell label={Macro.camelize(role)} />
               </:col>
               <:col :let={[member, role]}>
-                <%!-- Modals rendered outside dropdown --%>
-                <% role_str = if is_atom(role), do: Atom.to_string(role), else: role %>
-                <% selected_role = Map.get(@selected_member_roles, member.id, role_str) %>
                 <.modal
                   id={"manage-role-modal-#{member.id}"}
                   title={gettext("Manage role")}
@@ -122,7 +119,7 @@ defmodule TuistWeb.MembersLive do
                     <label>{gettext("Role")}</label>
                     <.dropdown
                       id={"role-dropdown-#{member.id}"}
-                      label={Macro.camelize(selected_role)}
+                      label={selected_role_label(@selected_member_roles, member, role)}
                     >
                       <.dropdown_item
                         value="user"
@@ -130,7 +127,7 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="user"
-                        data-selected={selected_role == "user"}
+                        data-selected={Map.get(@selected_member_roles, member, role) == "user"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -140,7 +137,7 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="admin"
-                        data-selected={dbg(selected_role) == "admin"}
+                        data-selected={Map.get(@selected_member_roles, member, role) == "admin"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -163,7 +160,7 @@ defmodule TuistWeb.MembersLive do
                           type="button"
                           phx-click="save-member-role"
                           phx-value-member-id={member.id}
-                          disabled={selected_role == role_str}
+                          disabled={Map.get(@selected_member_roles, member, role) == role}
                         />
                       </:action>
                     </.modal_footer>
@@ -301,6 +298,16 @@ defmodule TuistWeb.MembersLive do
       </div>
     </div>
     """
+  end
+
+  defp selected_role_label(selected_member_roles, member, role) do
+    dbg(selected_member_roles)
+    dbg(member)
+
+    case selected_member_roles |> Map.get(member.id, role) |> dbg() do
+      "user" -> gettext("User")
+      "admin" -> gettext("Admin")
+    end
   end
 
   defp invite_member_form(assigns) do
