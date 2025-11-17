@@ -428,13 +428,13 @@ defmodule TuistWeb.MembersLive do
     {:noreply, socket}
   end
 
-  def handle_event("save-member-role", %{"member-id" => member_id}, %{assigns: ${organization: organization}} = socket) do
+  def handle_event("save-member-role", %{"member-id" => member_id}, %{assigns: %{organization: organization}} = socket) do
     member_id_int = String.to_integer(member_id)
     {^member_id_int, new_role} = socket.assigns.managing_member
 
     [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
 
-    Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
+    {:ok, _} = Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
 
     socket =
       socket
