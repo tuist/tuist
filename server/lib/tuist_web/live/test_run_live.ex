@@ -46,11 +46,14 @@ defmodule TuistWeb.TestRunLive do
       raise NotFoundError, gettext("Test run not found.")
     end
 
+    test_metrics = Runs.Analytics.get_test_run_metrics(run.id)
+
     socket =
       socket
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Test Run")} · #{slug} · Tuist")
+      |> assign(:test_metrics, test_metrics)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign(:available_filters, [])
