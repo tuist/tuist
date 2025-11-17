@@ -5,7 +5,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestSuiteRunsTable do
     create table(:test_suite_runs,
              primary_key: false,
              engine: "MergeTree",
-             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_run_id, test_module_run_id, inserted_at, id)"
+             options:
+               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_run_id, test_module_run_id, inserted_at, id)"
            ) do
       add :id, :uuid, null: false
       add :name, :string, null: false
@@ -17,11 +18,23 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestSuiteRunsTable do
     end
 
     # Add secondary indices for common query patterns
-    execute("ALTER TABLE test_suite_runs ADD INDEX idx_test_run_id (test_run_id) TYPE bloom_filter GRANULARITY 4")
-    execute("ALTER TABLE test_suite_runs ADD INDEX idx_test_module_run_id (test_module_run_id) TYPE bloom_filter GRANULARITY 4")
+    execute(
+      "ALTER TABLE test_suite_runs ADD INDEX idx_test_run_id (test_run_id) TYPE bloom_filter GRANULARITY 4"
+    )
+
+    execute(
+      "ALTER TABLE test_suite_runs ADD INDEX idx_test_module_run_id (test_module_run_id) TYPE bloom_filter GRANULARITY 4"
+    )
+
     execute("ALTER TABLE test_suite_runs ADD INDEX idx_status (status) TYPE set(3) GRANULARITY 1")
-    execute("ALTER TABLE test_suite_runs ADD INDEX idx_duration (duration) TYPE minmax GRANULARITY 4")
-    execute("ALTER TABLE test_suite_runs ADD INDEX idx_name (name) TYPE bloom_filter GRANULARITY 4")
+
+    execute(
+      "ALTER TABLE test_suite_runs ADD INDEX idx_duration (duration) TYPE minmax GRANULARITY 4"
+    )
+
+    execute(
+      "ALTER TABLE test_suite_runs ADD INDEX idx_name (name) TYPE bloom_filter GRANULARITY 4"
+    )
   end
 
   def down do

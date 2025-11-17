@@ -3,16 +3,18 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   Fixtures for runs.
   """
   alias Tuist.Runs
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def build_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
+        ProjectsFixtures.project_fixture().id
       end)
 
     account_id =
       Keyword.get_lazy(attrs, :user_id, fn ->
-        TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account.id
+        AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
     Runs.create_build(%{
@@ -47,33 +49,34 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   def test_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
+        ProjectsFixtures.project_fixture().id
       end)
 
     account_id =
       Keyword.get_lazy(attrs, :account_id, fn ->
-        TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account.id
+        AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
-    test_modules = Keyword.get(attrs, :test_modules, [
-      %{
-        name: "TestModuleExample",
-        status: :success,
-        duration: 1000,
-        test_cases: [
-          %{
-            name: "testExample",
-            status: :success,
-            duration: 500
-          },
-          %{
-            name: "testAnotherExample",
-            status: :failure,
-            duration: 300
-          }
-        ]
-      }
-    ])
+    test_modules =
+      Keyword.get(attrs, :test_modules, [
+        %{
+          name: "TestModuleExample",
+          status: :success,
+          duration: 1000,
+          test_cases: [
+            %{
+              name: "testExample",
+              status: :success,
+              duration: 500
+            },
+            %{
+              name: "testAnotherExample",
+              status: :failure,
+              duration: 300
+            }
+          ]
+        }
+      ])
 
     Runs.create_test(%{
       id: Keyword.get(attrs, :id, UUIDv7.generate()),
@@ -91,6 +94,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       test_modules: test_modules
     })
   end
+
   def cas_output_fixture(attrs \\ []) do
     build_run_id =
       Keyword.get_lazy(attrs, :build_run_id, fn ->

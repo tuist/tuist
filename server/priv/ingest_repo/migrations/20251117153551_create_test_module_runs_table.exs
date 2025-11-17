@@ -16,10 +16,21 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestModuleRunsTable do
     end
 
     # Add secondary indices for common query patterns
-    execute("ALTER TABLE test_module_runs ADD INDEX idx_test_run_id (test_run_id) TYPE bloom_filter GRANULARITY 4")
-    execute("ALTER TABLE test_module_runs ADD INDEX idx_status (status) TYPE set(2) GRANULARITY 1")
-    execute("ALTER TABLE test_module_runs ADD INDEX idx_duration (duration) TYPE minmax GRANULARITY 4")
-    execute("ALTER TABLE test_module_runs ADD INDEX idx_name (name) TYPE bloom_filter GRANULARITY 4")
+    execute(
+      "ALTER TABLE test_module_runs ADD INDEX idx_test_run_id (test_run_id) TYPE bloom_filter GRANULARITY 4"
+    )
+
+    execute(
+      "ALTER TABLE test_module_runs ADD INDEX idx_status (status) TYPE set(2) GRANULARITY 1"
+    )
+
+    execute(
+      "ALTER TABLE test_module_runs ADD INDEX idx_duration (duration) TYPE minmax GRANULARITY 4"
+    )
+
+    execute(
+      "ALTER TABLE test_module_runs ADD INDEX idx_name (name) TYPE bloom_filter GRANULARITY 4"
+    )
   end
 
   def down do

@@ -28,11 +28,9 @@ defmodule TuistWeb.TestRunLive do
     slug = Projects.get_project_slug_from_id(project.id)
 
     # Fetch the account that ran this test and put it into the run
-    ran_by_account = 
+    ran_by_account =
       if run.account_id do
         Accounts.get_account_by_id(run.account_id)
-      else
-        nil
       end
 
     run = Map.put(run, :ran_by_account, ran_by_account)
@@ -76,9 +74,7 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
-  def handle_event("search-selective-testing", %{
-        "search" => search
-      }, socket) do
+  def handle_event("search-selective-testing", %{"search" => search}, socket) do
     socket =
       push_patch(
         socket,
@@ -106,6 +102,28 @@ defmodule TuistWeb.TestRunLive do
         socket,
         to:
           "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/tests/test-runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> Query.put("test-cases-filter", search) |> Query.put("test-cases-page", "1")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("search-test-suites", %{"search" => search}, socket) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/tests/test-runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> Query.put("test-suites-filter", search) |> Query.put("test-suites-page", "1")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("search-test-modules", %{"search" => search}, socket) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/tests/test-runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> Query.put("test-modules-filter", search) |> Query.put("test-modules-page", "1")}"
       )
 
     {:noreply, socket}
@@ -151,12 +169,25 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_initial_test_cases_state(socket) do
     socket
+    |> assign(:selected_test_tab, "test-cases")
     |> assign(:test_cases, [])
     |> assign(:test_cases_meta, %{})
     |> assign(:test_cases_page, 1)
     |> assign(:test_cases_search, "")
     |> assign(:test_cases_sort_by, "name")
     |> assign(:test_cases_sort_order, "asc")
+    |> assign(:test_suites, [])
+    |> assign(:test_suites_meta, %{})
+    |> assign(:test_suites_page, 1)
+    |> assign(:test_suites_search, "")
+    |> assign(:test_suites_sort_by, "name")
+    |> assign(:test_suites_sort_order, "asc")
+    |> assign(:test_modules, [])
+    |> assign(:test_modules_meta, %{})
+    |> assign(:test_modules_page, 1)
+    |> assign(:test_modules_search, "")
+    |> assign(:test_modules_sort_by, "name")
+    |> assign(:test_modules_sort_order, "asc")
   end
 
   defp build_uri(params) do
@@ -170,10 +201,19 @@ defmodule TuistWeb.TestRunLive do
       "binary-cache-sort-by",
       "binary-cache-sort-order",
       "binary-cache-filter",
+      "test-tab",
       "test-cases-page",
       "test-cases-sort-by",
       "test-cases-sort-order",
-      "test-cases-filter"
+      "test-cases-filter",
+      "test-suites-page",
+      "test-suites-sort-by",
+      "test-suites-sort-order",
+      "test-suites-filter",
+      "test-modules-page",
+      "test-modules-sort-by",
+      "test-modules-sort-order",
+      "test-modules-filter"
     ]
 
     URI.new!("?" <> URI.encode_query(Map.take(params, query_params)))
@@ -184,7 +224,7 @@ defmodule TuistWeb.TestRunLive do
       {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)
     else
-      assign_selective_testing_defaults(socket) |> assign_param_defaults(params)
+      socket |> assign_selective_testing_defaults() |> assign_param_defaults(params)
     end
   end
 
@@ -193,18 +233,37 @@ defmodule TuistWeb.TestRunLive do
       {analytics, meta} = load_binary_cache_data(socket.assigns.command_event, params)
       assign_binary_cache_data(socket, analytics, meta, params)
     else
-      assign_binary_cache_defaults(socket) |> assign_param_defaults(params)
+      socket |> assign_binary_cache_defaults() |> assign_param_defaults(params)
     end
   end
 
   defp assign_tab_data(socket, "overview", params) do
-    {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
-    
-    socket
-    |> assign_test_cases_data(test_cases, meta, params)
-    |> assign_selective_testing_defaults()
-    |> assign_binary_cache_defaults()
-    |> assign_param_defaults(params)
+    selected_test_tab = params["test-tab"] || "test-cases"
+
+    socket =
+      socket
+      |> assign(:selected_test_tab, selected_test_tab)
+      |> assign_selective_testing_defaults()
+      |> assign_binary_cache_defaults()
+      |> assign_param_defaults(params)
+
+    case selected_test_tab do
+      "test-cases" ->
+        {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
+        assign_test_cases_data(socket, test_cases, meta, params)
+
+      "test-suites" ->
+        {test_suites, meta} = load_test_suites_data(socket.assigns.run, params)
+        assign_test_suites_data(socket, test_suites, meta, params)
+
+      "test-modules" ->
+        {test_modules, meta} = load_test_modules_data(socket.assigns.run, params)
+        assign_test_modules_data(socket, test_modules, meta, params)
+
+      _ ->
+        {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
+        assign_test_cases_data(socket, test_cases, meta, params)
+    end
   end
 
   defp assign_tab_data(socket, _tab, params) do
@@ -256,6 +315,26 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_page, String.to_integer(params["test-cases-page"] || "1"))
     |> assign(:test_cases_sort_by, params["test-cases-sort-by"] || "name")
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
+  end
+
+  defp assign_test_suites_data(socket, test_suites, meta, params) do
+    socket
+    |> assign(:test_suites, test_suites)
+    |> assign(:test_suites_meta, meta)
+    |> assign(:test_suites_filter, params["test-suites-filter"] || "")
+    |> assign(:test_suites_page, String.to_integer(params["test-suites-page"] || "1"))
+    |> assign(:test_suites_sort_by, params["test-suites-sort-by"] || "name")
+    |> assign(:test_suites_sort_order, params["test-suites-sort-order"] || "asc")
+  end
+
+  defp assign_test_modules_data(socket, test_modules, meta, params) do
+    socket
+    |> assign(:test_modules, test_modules)
+    |> assign(:test_modules_meta, meta)
+    |> assign(:test_modules_filter, params["test-modules-filter"] || "")
+    |> assign(:test_modules_page, String.to_integer(params["test-modules-page"] || "1"))
+    |> assign(:test_modules_sort_by, params["test-modules-sort-by"] || "name")
+    |> assign(:test_modules_sort_order, params["test-modules-sort-order"] || "asc")
   end
 
   defp assign_param_defaults(socket, params) do
@@ -310,15 +389,13 @@ defmodule TuistWeb.TestRunLive do
     {analytics, meta}
   end
 
-  defp ensure_allowed_params("binary-cache-sort-by", %{"binary-cache-sort-by" => value})
-       when value in ["name"],
-       do: String.to_existing_atom(value)
+  defp ensure_allowed_params("binary-cache-sort-by", %{"binary-cache-sort-by" => value}) when value in ["name"],
+    do: String.to_existing_atom(value)
 
   defp ensure_allowed_params("binary-cache-sort-by", _value), do: :name
 
-  defp ensure_allowed_params("selective-testing-sort-by", %{"selective-testing-sort-by" => value})
-       when value in ["name"],
-       do: String.to_existing_atom(value)
+  defp ensure_allowed_params("selective-testing-sort-by", %{"selective-testing-sort-by" => value}) when value in ["name"],
+    do: String.to_existing_atom(value)
 
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
@@ -337,22 +414,98 @@ defmodule TuistWeb.TestRunLive do
     Runs.list_test_case_runs(flop_params)
   end
 
+  defp load_test_suites_data(run, params) do
+    flop_params = %{
+      filters: [
+        %{field: :test_run_id, op: :==, value: run.id}
+        | build_flop_filters(params["test-suites-filter"])
+      ],
+      page: String.to_integer(params["test-suites-page"] || "1"),
+      page_size: @table_page_size,
+      order_by: [ensure_allowed_test_suites_sort_params(params["test-suites-sort-by"])],
+      order_directions: [String.to_atom(params["test-suites-sort-order"] || "asc")]
+    }
+
+    Runs.list_test_suite_runs(flop_params)
+  end
+
+  defp load_test_modules_data(run, params) do
+    flop_params = %{
+      filters: [
+        %{field: :test_run_id, op: :==, value: run.id}
+        | build_flop_filters(params["test-modules-filter"])
+      ],
+      page: String.to_integer(params["test-modules-page"] || "1"),
+      page_size: @table_page_size,
+      order_by: [ensure_allowed_test_modules_sort_params(params["test-modules-sort-by"])],
+      order_directions: [String.to_atom(params["test-modules-sort-order"] || "asc")]
+    }
+
+    Runs.list_test_module_runs(flop_params)
+  end
+
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)
   defp ensure_allowed_test_cases_sort_params(_value), do: :name
+
+  defp ensure_allowed_test_suites_sort_params(value) when value in ["name", "duration"],
+    do: String.to_existing_atom(value)
+
+  defp ensure_allowed_test_suites_sort_params(_value), do: :name
+
+  defp ensure_allowed_test_modules_sort_params(value) when value in ["name", "duration"],
+    do: String.to_existing_atom(value)
+
+  defp ensure_allowed_test_modules_sort_params(_value), do: :name
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do
     query_params = URI.decode_query(uri.query)
     current_sort_order = query_params["test-cases-sort-order"] || "asc"
-    new_sort_order = if query_params["test-cases-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
-    
+
+    new_sort_order =
+      if query_params["test-cases-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+
     "?#{uri.query |> Query.put("test-cases-sort-by", sort_by) |> Query.put("test-cases-sort-order", new_sort_order)}"
   end
 
   defp test_cases_column_patch_sort(assigns, sort_by) do
     current_sort_order = assigns.test_cases_sort_order
     new_sort_order = if current_sort_order == "asc", do: "desc", else: "asc"
-    
+
     "?#{assigns.uri.query |> Query.put("test-cases-sort-by", sort_by) |> Query.put("test-cases-sort-order", new_sort_order)}"
+  end
+
+  defp test_suites_dropdown_item_patch_sort(sort_by, uri) do
+    query_params = URI.decode_query(uri.query)
+    current_sort_order = query_params["test-suites-sort-order"] || "asc"
+
+    new_sort_order =
+      if query_params["test-suites-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+
+    "?#{uri.query |> Query.put("test-suites-sort-by", sort_by) |> Query.put("test-suites-sort-order", new_sort_order)}"
+  end
+
+  defp test_suites_column_patch_sort(assigns, sort_by) do
+    current_sort_order = assigns.test_suites_sort_order
+    new_sort_order = if current_sort_order == "asc", do: "desc", else: "asc"
+
+    "?#{assigns.uri.query |> Query.put("test-suites-sort-by", sort_by) |> Query.put("test-suites-sort-order", new_sort_order)}"
+  end
+
+  defp test_modules_dropdown_item_patch_sort(sort_by, uri) do
+    query_params = URI.decode_query(uri.query)
+    current_sort_order = query_params["test-modules-sort-order"] || "asc"
+
+    new_sort_order =
+      if query_params["test-modules-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+
+    "?#{uri.query |> Query.put("test-modules-sort-by", sort_by) |> Query.put("test-modules-sort-order", new_sort_order)}"
+  end
+
+  defp test_modules_column_patch_sort(assigns, sort_by) do
+    current_sort_order = assigns.test_modules_sort_order
+    new_sort_order = if current_sort_order == "asc", do: "desc", else: "asc"
+
+    "?#{assigns.uri.query |> Query.put("test-modules-sort-by", sort_by) |> Query.put("test-modules-sort-order", new_sort_order)}"
   end
 
   defp build_flop_filters(nil), do: []

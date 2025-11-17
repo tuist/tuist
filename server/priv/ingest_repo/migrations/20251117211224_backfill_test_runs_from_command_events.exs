@@ -33,26 +33,26 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
 
     test_runs_data = Enum.map(mappings, fn {_event_id, _test_run_id, test_run} -> test_run end)
 
-      IngestRepo.insert_all("test_runs", test_runs_data,
-        on_conflict: :nothing,
-        types: %{
-          id: :uuid,
-          project_id: :i64,
-          duration: :i32,
-          macos_version: :string,
-          xcode_version: :string,
-          is_ci: :boolean,
-          model_identifier: :string,
-          scheme: :string,
-          status: "Enum8('success' = 0, 'failure' = 1)",
-          git_branch: :string,
-          git_commit_sha: :string,
-          git_ref: :string,
-          account_id: :i64,
-          ran_at: "DateTime64(6)",
-          inserted_at: "DateTime64(6)"
-        }
-      )
+    IngestRepo.insert_all("test_runs", test_runs_data,
+      on_conflict: :nothing,
+      types: %{
+        id: :uuid,
+        project_id: :i64,
+        duration: :i32,
+        macos_version: :string,
+        xcode_version: :string,
+        is_ci: :boolean,
+        model_identifier: :string,
+        scheme: :string,
+        status: "Enum8('success' = 0, 'failure' = 1)",
+        git_branch: :string,
+        git_commit_sha: :string,
+        git_ref: :string,
+        account_id: :i64,
+        ran_at: "DateTime64(6)",
+        inserted_at: "DateTime64(6)"
+      }
+    )
 
     # Create regular table with mappings (will be dropped after use)
     temp_table_name = "temp_event_to_test_run_#{:os.system_time(:second)}_#{:rand.uniform(1000)}"

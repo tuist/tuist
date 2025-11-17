@@ -8,8 +8,13 @@ defmodule Tuist.IngestRepo.Migrations.AddModuleNameAndSuiteNameToTestCaseRuns do
     end
 
     # Add indices for the new columns
-    execute("ALTER TABLE test_case_runs ADD INDEX idx_module_name (module_name) TYPE bloom_filter GRANULARITY 4")
-    execute("ALTER TABLE test_case_runs ADD INDEX idx_suite_name (suite_name) TYPE bloom_filter GRANULARITY 4")
+    execute(
+      "ALTER TABLE test_case_runs ADD INDEX idx_module_name (module_name) TYPE bloom_filter GRANULARITY 4"
+    )
+
+    execute(
+      "ALTER TABLE test_case_runs ADD INDEX idx_suite_name (suite_name) TYPE bloom_filter GRANULARITY 4"
+    )
   end
 
   def down do

@@ -67,25 +67,28 @@
     <.card title={gettext("Test Details")} icon="chart_arcs" data-part="test-details">
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
-        <div data-part="metadata-row" :if={@command_event}>
-        <div data-part="metadata">
-          <div data-part="title">{gettext("Command")}</div>
-          <span data-part="command">
-          {if @command_event.command_arguments,
-            do: ("tuist " <> @command_event.command_arguments) |> String.split(" ") |> Enum.join(" "),
-            else: "tuist #{@command_event.name}"}
-          </span>
-        </div>
-        </div>
-          <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Status")}</div>
-            <%= if @run.status == "success" do %>
-              <.badge label={gettext("Passed")} color="success" style="fill" size="large" />
-            <% else %>
-              <.badge label={gettext("Failed")} color="destructive" style="fill" size="large" />
-            <% end %>
+          <div :if={@command_event} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command")}</div>
+              <span data-part="command">
+                {if @command_event.command_arguments,
+                  do:
+                    ("tuist " <> @command_event.command_arguments)
+                    |> String.split(" ")
+                    |> Enum.join(" "),
+                  else: "tuist #{@command_event.name}"}
+              </span>
+            </div>
           </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Status")}</div>
+              <%= if @run.status == "success" do %>
+                <.badge label={gettext("Passed")} color="success" style="fill" size="large" />
+              <% else %>
+                <.badge label={gettext("Failed")} color="destructive" style="fill" size="large" />
+              <% end %>
+            </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Ran by")}</div>
               <span data-part="value">
@@ -112,21 +115,25 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Source")}</div>
               <span data-part="value">
-              <.git_branch />
-              {if @run.git_branch == "", do: gettext("Unknown"), else: @run.git_branch}
+                <.git_branch />
+                {if @run.git_branch == "", do: gettext("Unknown"), else: @run.git_branch}
               </span>
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Commit")}</div>
               <span data-part="value">
-                {if @run.git_commit_sha == "", do: gettext("Unknown"), else: String.slice(@run.git_commit_sha, 0, 8)}
+                {if @run.git_commit_sha == "",
+                  do: gettext("Unknown"),
+                  else: String.slice(@run.git_commit_sha, 0, 8)}
               </span>
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
-                {if @run.model_identifier == "", do: gettext("Unknown"), else: Tuist.Apple.devices()[@run.model_identifier]}
+                {if @run.model_identifier == "",
+                  do: gettext("Unknown"),
+                  else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
             <div data-part="metadata">
@@ -137,130 +144,372 @@
               </span>
             </div>
           </div>
-          </div>
+        </div>
       </.card_section>
     </.card>
-    
-    <.card title={gettext("Test cases")} icon="subtask" data-part="test-cases-card">
-      <.card_section data-part="test-cases-card-section">
-        <div data-part="filters">
-          <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
-            <.text_input
-              type="search"
-              id="search-test-cases"
-              name="search"
-              placeholder={gettext("Search...")}
-              show_suffix={false}
-              data-part="search"
-              value={@test_cases_filter}
-            />
-          </.form>
-          <.dropdown
-            id="test-cases-sort-by"
-            label={
-              case @test_cases_sort_by do
-                "name" -> gettext("Test case")
-                _ -> gettext("Duration")
-              end
-            }
-            secondary_text={gettext("Sort by:")}
-          >
-            <.dropdown_item
-              value="name"
-              label={gettext("Test case")}
-              patch={test_cases_dropdown_item_patch_sort("name", @uri)}
-              data-selected={@test_cases_sort_by == "name"}
-            >
-              <:right_icon><.check /></:right_icon>
-            </.dropdown_item>
-            <.dropdown_item
-              value="duration"
-              label={gettext("Duration")}
-              patch={test_cases_dropdown_item_patch_sort("duration", @uri)}
-              data-selected={@test_cases_sort_by == "duration"}
-            >
-              <:right_icon><.check /></:right_icon>
-            </.dropdown_item>
-          </.dropdown>
-        </div>
-        <.table id="test-cases-table" rows={@test_cases}>
-          <:col
-            :let={test_case}
-            label={gettext("Test case")}
-            patch={
-              @test_cases_sort_by == "name" &&
-                test_cases_column_patch_sort(assigns, "name")
-            }
-            icon={
-              @test_cases_sort_by == "name" &&
-                sort_icon(@test_cases_sort_order)
-            }
-          >
-            <.text_and_description_cell 
-              label={test_case.name} 
-              description={
-                case {test_case.module_name, test_case.suite_name} do
-                  {module_name, suite_name} when not is_nil(module_name) and suite_name != "" ->
-                    "#{module_name} • #{suite_name}"
-                  {module_name, _} when not is_nil(module_name) ->
-                    module_name
-                  _ ->
-                    nil
+
+    <.tab_menu_horizontal>
+      <.tab_menu_horizontal_item
+        label={gettext("Test Cases")}
+        selected={@selected_test_tab == "test-cases"}
+        patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={gettext("Test Suites")}
+        selected={@selected_test_tab == "test-suites"}
+        patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={gettext("Modules")}
+        selected={@selected_test_tab == "test-modules"}
+        patch={"?#{Query.put(@uri.query, "test-tab", "test-modules")}"}
+      />
+    </.tab_menu_horizontal>
+
+    <%= if @selected_test_tab == "test-cases" do %>
+      <.card title={gettext("Test cases")} icon="subtask" data-part="test-cases-card">
+        <.card_section data-part="test-cases-card-section">
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-test-cases"
+                name="search"
+                placeholder={gettext("Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@test_cases_filter}
+              />
+            </.form>
+            <.dropdown
+              id="test-cases-sort-by"
+              label={
+                case @test_cases_sort_by do
+                  "name" -> gettext("Test case")
+                  _ -> gettext("Duration")
                 end
               }
-            />
-          </:col>
-          <:col
-            :let={test_case}
-            label={gettext("Duration")}
-            patch={
-              @test_cases_sort_by == "duration" &&
-                test_cases_column_patch_sort(assigns, "duration")
-            }
-            icon={
-              @test_cases_sort_by == "duration" &&
-                sort_icon(@test_cases_sort_order)
-            }
-          >
-            <.text_cell
-              label={
-                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.duration
-                )
+              secondary_text={gettext("Sort by:")}
+            >
+              <.dropdown_item
+                value="name"
+                label={gettext("Test case")}
+                patch={test_cases_dropdown_item_patch_sort("name", @uri)}
+                data-selected={@test_cases_sort_by == "name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration"
+                label={gettext("Duration")}
+                patch={test_cases_dropdown_item_patch_sort("duration", @uri)}
+                data-selected={@test_cases_sort_by == "duration"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.table id="test-cases-table" rows={@test_cases}>
+            <:col
+              :let={test_case}
+              label={gettext("Test case")}
+              patch={
+                @test_cases_sort_by == "name" &&
+                  test_cases_column_patch_sort(assigns, "name")
               }
-              icon="history"
-            />
-          </:col>
-          <:col :let={test_case} label="Status">
-            <%= case test_case.status do %>
-              <% :success -> %>
-                <.status_badge_cell label={gettext("Passed")} status="success" />
-              <% :failure -> %>
-                <.status_badge_cell label={gettext("Failed")} status="error" />
-              <% :skipped -> %>
-                <.status_badge_cell label={gettext("Skipped")} status="warning" />
-            <% end %>
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              icon="subtask"
-              title={gettext("No test cases found")}
-              subtitle={gettext("Try updating your search")}
-            />
-          </:empty_state>
-        </.table>
-        <.pagination_group
-          :if={@test_cases_meta.total_pages > 1}
-          current_page={@test_cases_page}
-          number_of_pages={@test_cases_meta.total_pages}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "test-cases-page", page)}"
-            end
-          }
-        />
-      </.card_section>
-    </.card>
+              icon={
+                @test_cases_sort_by == "name" &&
+                  sort_icon(@test_cases_sort_order)
+              }
+            >
+              <.text_and_description_cell
+                label={test_case.name}
+                description={
+                  case {test_case.module_name, test_case.suite_name} do
+                    {module_name, suite_name} when not is_nil(module_name) and suite_name != "" ->
+                      "#{module_name} • #{suite_name}"
+
+                    {module_name, _} when not is_nil(module_name) ->
+                      module_name
+
+                    _ ->
+                      nil
+                  end
+                }
+              />
+            </:col>
+            <:col
+              :let={test_case}
+              label={gettext("Duration")}
+              patch={
+                @test_cases_sort_by == "duration" &&
+                  test_cases_column_patch_sort(assigns, "duration")
+              }
+              icon={
+                @test_cases_sort_by == "duration" &&
+                  sort_icon(@test_cases_sort_order)
+              }
+            >
+              <.text_cell
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_case.duration
+                  )
+                }
+                icon="history"
+              />
+            </:col>
+            <:col :let={test_case} label="Status">
+              <%= case test_case.status do %>
+                <% :success -> %>
+                  <.status_badge_cell label={gettext("Passed")} status="success" />
+                <% :failure -> %>
+                  <.status_badge_cell label={gettext("Failed")} status="error" />
+                <% :skipped -> %>
+                  <.status_badge_cell label={gettext("Skipped")} status="warning" />
+              <% end %>
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="subtask"
+                title={gettext("No test cases found")}
+                subtitle={gettext("Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@test_cases_meta.total_pages > 1}
+            current_page={@test_cases_page}
+            number_of_pages={@test_cases_meta.total_pages}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "test-cases-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+    <% end %>
+
+    <%= if @selected_test_tab == "test-suites" do %>
+      <.card title={gettext("Test suites")} icon="exchange" data-part="test-suites-card">
+        <.card_section data-part="test-suites-card-section">
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-test-suites" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-test-suites"
+                name="search"
+                placeholder={gettext("Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@test_suites_filter}
+              />
+            </.form>
+            <.dropdown
+              id="test-suites-sort-by"
+              label={
+                case @test_suites_sort_by do
+                  "name" -> gettext("Suite name")
+                  _ -> gettext("Duration")
+                end
+              }
+              secondary_text={gettext("Sort by:")}
+            >
+              <.dropdown_item
+                value="name"
+                label={gettext("Suite name")}
+                patch={test_suites_dropdown_item_patch_sort("name", @uri)}
+                data-selected={@test_suites_sort_by == "name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration"
+                label={gettext("Duration")}
+                patch={test_suites_dropdown_item_patch_sort("duration", @uri)}
+                data-selected={@test_suites_sort_by == "duration"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.table id="test-suites-table" rows={@test_suites}>
+            <:col
+              :let={test_suite}
+              label={gettext("Suite name")}
+              patch={
+                @test_suites_sort_by == "name" &&
+                  test_suites_column_patch_sort(assigns, "name")
+              }
+              icon={
+                @test_suites_sort_by == "name" &&
+                  sort_icon(@test_suites_sort_order)
+              }
+            >
+              <.text_and_description_cell label={test_suite.name} />
+            </:col>
+            <:col
+              :let={test_suite}
+              label={gettext("Duration")}
+              patch={
+                @test_suites_sort_by == "duration" &&
+                  test_suites_column_patch_sort(assigns, "duration")
+              }
+              icon={
+                @test_suites_sort_by == "duration" &&
+                  sort_icon(@test_suites_sort_order)
+              }
+            >
+              <.text_cell
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_suite.duration
+                  )
+                }
+                icon="history"
+              />
+            </:col>
+            <:col :let={test_suite} label="Status">
+              <%= case test_suite.status do %>
+                <% :success -> %>
+                  <.status_badge_cell label={gettext("Passed")} status="success" />
+                <% :failure -> %>
+                  <.status_badge_cell label={gettext("Failed")} status="error" />
+                <% :skipped -> %>
+                  <.status_badge_cell label={gettext("Skipped")} status="warning" />
+              <% end %>
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="exchange"
+                title={gettext("No test suites found")}
+                subtitle={gettext("Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@test_suites_meta.total_pages > 1}
+            current_page={@test_suites_page}
+            number_of_pages={@test_suites_meta.total_pages}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "test-suites-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+    <% end %>
+
+    <%= if @selected_test_tab == "test-modules" do %>
+      <.card title={gettext("Test modules")} icon="apps" data-part="test-modules-card">
+        <.card_section data-part="test-modules-card-section">
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-test-modules" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-test-modules"
+                name="search"
+                placeholder={gettext("Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@test_modules_filter}
+              />
+            </.form>
+            <.dropdown
+              id="test-modules-sort-by"
+              label={
+                case @test_modules_sort_by do
+                  "name" -> gettext("Module name")
+                  _ -> gettext("Duration")
+                end
+              }
+              secondary_text={gettext("Sort by:")}
+            >
+              <.dropdown_item
+                value="name"
+                label={gettext("Module name")}
+                patch={test_modules_dropdown_item_patch_sort("name", @uri)}
+                data-selected={@test_modules_sort_by == "name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration"
+                label={gettext("Duration")}
+                patch={test_modules_dropdown_item_patch_sort("duration", @uri)}
+                data-selected={@test_modules_sort_by == "duration"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.table id="test-modules-table" rows={@test_modules}>
+            <:col
+              :let={test_module}
+              label={gettext("Module name")}
+              patch={
+                @test_modules_sort_by == "name" &&
+                  test_modules_column_patch_sort(assigns, "name")
+              }
+              icon={
+                @test_modules_sort_by == "name" &&
+                  sort_icon(@test_modules_sort_order)
+              }
+            >
+              <.text_and_description_cell label={test_module.name} />
+            </:col>
+            <:col
+              :let={test_module}
+              label={gettext("Duration")}
+              patch={
+                @test_modules_sort_by == "duration" &&
+                  test_modules_column_patch_sort(assigns, "duration")
+              }
+              icon={
+                @test_modules_sort_by == "duration" &&
+                  sort_icon(@test_modules_sort_order)
+              }
+            >
+              <.text_cell
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_module.duration
+                  )
+                }
+                icon="history"
+              />
+            </:col>
+            <:col :let={test_module} label="Status">
+              <%= case test_module.status do %>
+                <% :success -> %>
+                  <.status_badge_cell label={gettext("Passed")} status="success" />
+                <% :failure -> %>
+                  <.status_badge_cell label={gettext("Failed")} status="error" />
+              <% end %>
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="apps"
+                title={gettext("No test modules found")}
+                subtitle={gettext("Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@test_modules_meta.total_pages > 1}
+            current_page={@test_modules_page}
+            number_of_pages={@test_modules_meta.total_pages}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "test-modules-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+    <% end %>
   <% end %>
 
   <%= if @selected_tab == "test-optimizations" && @has_selective_testing_data do %>

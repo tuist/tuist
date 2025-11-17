@@ -24,9 +24,7 @@ defmodule TuistWeb.TestRunLiveTest do
   } do
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(
-        project_id: project.id
-      )
+      RunsFixtures.test_fixture(project_id: project.id)
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
@@ -42,9 +40,7 @@ defmodule TuistWeb.TestRunLiveTest do
   } do
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(
-        project_id: project.id
-      )
+      RunsFixtures.test_fixture(project_id: project.id)
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
