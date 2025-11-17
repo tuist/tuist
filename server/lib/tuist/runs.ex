@@ -16,6 +16,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestModuleRun
   alias Tuist.Runs.TestSuiteRun
@@ -214,6 +215,57 @@ defmodule Tuist.Runs do
     {test_case_runs, meta} = Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
     normalized_test_case_runs = Enum.map(test_case_runs, &TestCaseRun.normalize_enums/1)
     {normalized_test_case_runs, meta}
+  end
+
+  def list_test_case_failures(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(TestCaseFailure, attrs, for: TestCaseFailure)
+  end
+
+  def get_test_run_failures_count(test_run_id) do
+    query =
+      from f in TestCaseFailure,
+        join: tcr in TestCaseRun,
+        on: f.test_case_run_id == tcr.id,
+        where: tcr.test_run_id == ^test_run_id,
+        select: count(f.id)
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  def list_test_run_failures(test_run_id, page, page_size) do
+    query =
+      from f in TestCaseFailure,
+        join: tcr in TestCaseRun,
+        on: f.test_case_run_id == tcr.id,
+        where: tcr.test_run_id == ^test_run_id,
+        order_by: [desc: f.inserted_at],
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size),
+        select: %{
+          id: f.id,
+          test_case_run_id: f.test_case_run_id,
+          message: f.message,
+          file_name: f.file_name,
+          line_number: f.line_number,
+          issue_type: f.issue_type,
+          inserted_at: f.inserted_at,
+          test_case_name: tcr.name,
+          test_module_name: tcr.module_name,
+          test_suite_name: tcr.suite_name
+        }
+
+    failures = ClickHouseRepo.all(query)
+    total_count = get_test_run_failures_count(test_run_id)
+    total_pages = ceil(total_count / page_size)
+
+    meta = %{
+      current_page: page,
+      page_size: page_size,
+      total_pages: total_pages,
+      total_count: total_count
+    }
+
+    {failures, meta}
   end
 
   def list_test_suite_runs(attrs) do
@@ -594,8 +646,11 @@ defmodule Tuist.Runs do
   end
 
   defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
-    test_case_runs =
-      Enum.map(test_cases, fn case_attrs ->
+    now = NaiveDateTime.utc_now()
+
+    # Create test case runs and collect failure data
+    {test_case_runs, all_failures} =
+      Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
         # Map status to raw enum value for ClickHouse
         case_status =
           case Map.get(case_attrs, :status) do
@@ -618,21 +673,47 @@ defmodule Tuist.Runs do
             suite_name -> Map.get(suite_name_to_id, suite_name)
           end
 
-        %{
-          id: Ecto.UUID.generate(),
+        test_case_run_id = Ecto.UUID.generate()
+
+        test_case_run = %{
+          id: test_case_run_id,
           name: Map.get(case_attrs, :name),
           test_run_id: test.id,
           test_module_run_id: module_id,
           test_suite_run_id: test_suite_run_id,
           status: case_status,
           duration: Map.get(case_attrs, :duration, 0),
-          inserted_at: NaiveDateTime.utc_now(),
+          inserted_at: now,
           module_name: module_name,
           suite_name: suite_name || ""
         }
+
+        # Process failures if present
+        failures = Map.get(case_attrs, :failures, [])
+
+        test_case_failures =
+          Enum.map(failures, fn failure_attrs ->
+            %{
+              id: Ecto.UUID.generate(),
+              test_case_run_id: test_case_run_id,
+              message: Map.get(failure_attrs, :message),
+              file_name: Map.get(failure_attrs, :file_name),
+              line_number: Map.get(failure_attrs, :line_number),
+              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+              inserted_at: now
+            }
+          end)
+
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc}
       end)
 
+    # Insert test case runs
     IngestRepo.insert_all(TestCaseRun, test_case_runs)
+
+    # Insert test case failures if any
+    if length(all_failures) > 0 do
+      IngestRepo.insert_all(TestCaseFailure, all_failures)
+    end
   end
 
   defp create_test_cases(_test, _test_cases) do

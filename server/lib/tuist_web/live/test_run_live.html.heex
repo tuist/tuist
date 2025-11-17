@@ -61,6 +61,13 @@
       patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@failures_count > 0}
+      label={gettext("Failures")}
+      selected={@selected_tab == "failures"}
+      patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
 
   <%= if @selected_tab == "overview" do %>
@@ -736,5 +743,78 @@
       run_id={@run.id}
       route_prefix="/tests/test-runs"
     />
+  <% end %>
+
+  <%= if @selected_tab == "failures" do %>
+    <.card title={gettext("Failures")} icon="alert_circle" data-part="failures-card">
+      <.card_section data-part="failures-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Failures")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@failures_count}
+          </span>
+        </div>
+        <div data-part="failures-list">
+          <%= for {_test_case_run_id, failures} <- @failures_grouped_by_test_case do %>
+            <% first_failure = List.first(failures) %>
+            <div data-part="failure-group">
+              <div data-part="failure-test-case-header">
+                <div data-part="test-case-info">
+                  <span data-part="test-case-name">{first_failure.test_case_name}</span>
+                  <%= if first_failure.test_module_name && first_failure.test_suite_name != "" do %>
+                    <span data-part="test-case-context">
+                      {first_failure.test_module_name} • {first_failure.test_suite_name}
+                    </span>
+                  <% else %>
+                    <%= if first_failure.test_module_name do %>
+                      <span data-part="test-case-context">{first_failure.test_module_name}</span>
+                    <% end %>
+                  <% end %>
+                </div>
+                <span data-part="failure-count">
+                  {length(failures)} {if length(failures) == 1, do: gettext("failure"), else: gettext("failures")}
+                </span>
+              </div>
+              <%= for failure <- failures do %>
+                <div data-part="failure-item">
+                  <div data-part="failure-location">
+                    <%= if failure.file_name do %>
+                      <span data-part="file-name">{failure.file_name}:{failure.line_number}</span>
+                    <% else %>
+                      <span data-part="line-number">{gettext("Line")} {failure.line_number}</span>
+                    <% end %>
+                    <%= if failure.issue_type && failure.issue_type != "unknown" do %>
+                      <span data-part="issue-type">• {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}</span>
+                    <% end %>
+                  </div>
+                  <%= if failure.message do %>
+                    <div data-part="failure-message">{failure.message}</div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+        <div :if={Enum.empty?(@failures_grouped_by_test_case)} data-part="empty-state">
+          <span data-part="title">{gettext("No failures detected")}</span>
+          <span data-part="subtitle">{gettext("All tests passed!")}</span>
+        </div>
+        <.pagination_group
+          :if={@failures_meta.total_pages > 1}
+          current_page={@failures_page}
+          number_of_pages={@failures_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "failures-page", page)}"
+            end
+          }
+        />
+      </.card_section>
+    </.card>
   <% end %>
 </div>

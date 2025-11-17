@@ -94,8 +94,16 @@ public struct InvocationRecord {
             self.summaries = summaries
         }
 
-        init(testPlanRunSummaries: ActionTestPlanRunSummaries) {
-            summaries = testPlanRunSummaries.summaries.map { .init(testPlanRunSummary: $0) }
+        init(
+            resultFile: XCResultFile,
+            testPlanRunSummaries: ActionTestPlanRunSummaries
+        ) {
+            summaries = testPlanRunSummaries.summaries.map {
+                TestPlanRunSummary(
+                    resultFile: resultFile,
+                    testPlanRunSummary: $0
+                )
+            }
         }
     }
 
@@ -106,8 +114,16 @@ public struct InvocationRecord {
             self.testableSummaries = testableSummaries
         }
 
-        init(testPlanRunSummary: ActionTestPlanRunSummary) {
-            testableSummaries = testPlanRunSummary.testableSummaries.map { .init(testableSummary: $0) }
+        init(
+            resultFile: XCResultFile,
+            testPlanRunSummary: ActionTestPlanRunSummary
+        ) {
+            testableSummaries = testPlanRunSummary.testableSummaries.map {
+                TestableSummary(
+                    resultFile: resultFile,
+                    testableSummary: $0
+                )
+            }
         }
     }
 
@@ -120,10 +136,15 @@ public struct InvocationRecord {
             self.tests = tests
         }
 
-        init(testableSummary: ActionTestableSummary) {
+        init(resultFile: XCResultFile, testableSummary: ActionTestableSummary) {
             targetName = testableSummary.targetName
-            let globalTests = testableSummary.globalTests.map { TestMetadata(testMetadata: $0) }
-            tests = testableSummary.tests.map { TestSummaryGroup(testSummaryGroup: $0) } + [
+            let globalTests = testableSummary.globalTests.map { TestMetadata(resultFile: resultFile, testMetadata: $0) }
+            tests = testableSummary.tests.map {
+                TestSummaryGroup(
+                    resultFile: resultFile,
+                    testSummaryGroup: $0
+                )
+            } + [
                 TestSummaryGroup(subtests: globalTests, subtestGroups: [])
             ]
         }
@@ -138,9 +159,56 @@ public struct InvocationRecord {
             self.subtestGroups = subtestGroups
         }
 
-        init(testSummaryGroup: ActionTestSummaryGroup) {
-            subtests = testSummaryGroup.subtests.map { .init(testMetadata: $0) }
-            subtestGroups = testSummaryGroup.subtestGroups.map { .init(testSummaryGroup: $0) }
+        init(
+            resultFile: XCResultFile,
+            testSummaryGroup: ActionTestSummaryGroup
+        ) {
+            subtests = testSummaryGroup.subtests.map {
+                TestMetadata(
+                    resultFile: resultFile,
+                    testMetadata: $0
+                )
+            }
+            subtestGroups = testSummaryGroup.subtestGroups.map {
+                TestSummaryGroup(
+                    resultFile: resultFile,
+                    testSummaryGroup: $0
+                )
+            }
+        }
+    }
+    
+    public struct ActionTestFailureSummary {
+        public enum IssueType: String {
+            case errorThrown = "Thrown Error"
+            case assertionFailure = "Assertion Failure"
+        }
+        public let message: String?
+        public let fileName: String?
+        public let lineNumber: Int
+        public let issueType: IssueType?
+        
+        public init(
+            message: String?,
+            fileName: String,
+            lineNumber: Int,
+            issueType: IssueType?
+        ) {
+            self.message = message
+            self.fileName = fileName
+            self.lineNumber = lineNumber
+            self.issueType = issueType
+        }
+        
+        init(_ actionTestFailureSummary: XCResultKit.ActionTestFailureSummary) {
+            message = actionTestFailureSummary.message
+            fileName = actionTestFailureSummary.fileName
+            lineNumber = actionTestFailureSummary.lineNumber
+            if let issueType = actionTestFailureSummary.issueType {
+                self.issueType = IssueType(rawValue: issueType)
+            } else {
+                issueType = nil
+            }
         }
     }
 
@@ -149,20 +217,23 @@ public struct InvocationRecord {
         public let suiteName: String?
         public let testStatus: String
         public let duration: Int?
+        public let failureSummaries: [ActionTestFailureSummary]
 
         public init(
             name: String?,
             suiteName: String?,
             testStatus: String,
-            duration: Int?
+            duration: Int?,
+            failureSummaries: [ActionTestFailureSummary]
         ) {
             self.name = name
             self.suiteName = suiteName
             self.testStatus = testStatus
             self.duration = duration
+            self.failureSummaries = failureSummaries
         }
 
-        init(testMetadata: ActionTestMetadata) {
+        init(resultFile: XCResultFile, testMetadata: ActionTestMetadata) {
             name = testMetadata.name
             if let identifier = testMetadata.identifier {
                 suiteName = Self.suiteName(from: identifier)
@@ -171,6 +242,16 @@ public struct InvocationRecord {
             }
             testStatus = testMetadata.testStatus
             duration = testMetadata.duration.map { Int($0 * 1000) }
+            if
+                let summaryRef = testMetadata.summaryRef,
+                let summary = resultFile.getActionTestSummary(id: summaryRef.id) {
+                self.failureSummaries = summary.failureSummaries.map {
+                    ActionTestFailureSummary($0)
+                }
+            } else {
+                failureSummaries = []
+            }
+            
         }
         
         private static func suiteName(from testIdentifier: String) -> String? {
@@ -204,7 +285,12 @@ public struct InvocationRecord {
         testSummaries = actions
             .compactMap(\.actionResult.testRefId)
             .compactMap { resultFile.getTestPlanRunSummaries(id: $0) }
-            .map { TestPlanRunSummaries(testPlanRunSummaries: $0) }
+            .map {
+                TestPlanRunSummaries(
+                    resultFile: resultFile,
+                    testPlanRunSummaries: $0
+                )
+            }
         path = resultFile.url
     }
 }

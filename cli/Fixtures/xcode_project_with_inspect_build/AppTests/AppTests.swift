@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import App
 
 struct AppTests {

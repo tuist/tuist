@@ -533,6 +533,212 @@ tests =
 
 IngestRepo.insert_all(Test, tests)
 
+# Generate test modules, suites, cases, and failures similar to how builds generate cacheable tasks
+module_names = [
+  "AppTests",
+  "FrameworkTests",
+  "UITests",
+  "IntegrationTests",
+  "UnitTests",
+  "PerformanceTests",
+  "SecurityTests",
+  "APITests"
+]
+
+suite_names = [
+  "LoginTests",
+  "NavigationTests",
+  "DataModelTests",
+  "NetworkTests",
+  "ViewModelTests",
+  "ServiceTests",
+  "UtilityTests",
+  "CacheTests"
+]
+
+test_case_names = [
+  "testUserLogin",
+  "testUserLogout",
+  "testNavigationFlow",
+  "testDataValidation",
+  "testNetworkRequest",
+  "testCacheHit",
+  "testErrorHandling",
+  "testUIRendering",
+  "testPerformance",
+  "testSecurity"
+]
+
+failure_messages = [
+  "XCTAssertEqual failed: (\"expected\") is not equal to (\"actual\")",
+  "XCTAssertTrue failed",
+  "XCTAssertNotNil failed",
+  "Asynchronous wait failed: Exceeded timeout of 10 seconds",
+  "Threw error: NetworkError.timeout",
+  "XCTAssertFalse failed - Condition was unexpectedly true",
+  "Failed to unwrap Optional value",
+  "XCTAssertGreaterThan failed: (0) is not greater than (0)"
+]
+
+file_names = [
+  "AppTests/LoginTests.swift",
+  "AppTests/NavigationTests.swift",
+  "FrameworkTests/DataModelTests.swift",
+  "UITests/ViewTests.swift",
+  "IntegrationTests/APITests.swift",
+  "UnitTests/ServiceTests.swift"
+]
+
+# Select a subset of test runs to generate detailed data for (similar to builds)
+selected_tests = tests |> Enum.shuffle() |> Enum.take(800)
+
+test_module_runs =
+  Enum.flat_map(selected_tests, fn test ->
+    # Each test run has 2-4 test modules
+    module_count = Enum.random(2..4)
+
+    Enum.map(1..module_count, fn _ ->
+      module_name = Enum.random(module_names)
+      # Inherit status from test run, but sometimes modules can succeed even if test failed
+      module_status = if test.status == 0, do: 0, else: Enum.random([0, 0, 1])
+      suite_count = Enum.random(2..5)
+      case_count = Enum.random(10..50)
+      module_duration = Enum.random(1_000..10_000)
+      avg_duration = div(module_duration, max(case_count, 1))
+
+      %{
+        id: UUIDv7.generate(),
+        name: module_name,
+        test_run_id: test.id,
+        status: module_status,
+        duration: module_duration,
+        test_suite_count: suite_count,
+        test_case_count: case_count,
+        avg_test_case_duration: avg_duration,
+        inserted_at: test.inserted_at
+      }
+    end)
+  end)
+
+test_module_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.TestModuleRun, chunk)
+end)
+
+# Generate test suite runs
+test_suite_runs =
+  Enum.flat_map(test_module_runs, fn module_run ->
+    # Create the number of suites specified in test_suite_count
+    suite_count = module_run.test_suite_count
+    test_run = Enum.find(tests, &(&1.id == module_run.test_run_id))
+
+    Enum.map(1..suite_count, fn _ ->
+      suite_name = Enum.random(suite_names)
+      # Inherit status from module, but allow some variation
+      suite_status =
+        if module_run.status == 0 do
+          Enum.random([0, 0, 0, 0, 2])
+        else
+          Enum.random([0, 0, 1, 2])
+        end
+
+      case_count = Enum.random(div(module_run.test_case_count, suite_count) - 2..div(module_run.test_case_count, suite_count) + 2)
+      suite_duration = Enum.random(500..div(module_run.duration, suite_count))
+      avg_duration = if case_count > 0, do: div(suite_duration, case_count), else: 0
+
+      %{
+        id: UUIDv7.generate(),
+        name: suite_name,
+        test_run_id: test_run.id,
+        test_module_run_id: module_run.id,
+        status: suite_status,
+        duration: suite_duration,
+        test_case_count: max(case_count, 1),
+        avg_test_case_duration: avg_duration,
+        inserted_at: module_run.inserted_at
+      }
+    end)
+  end)
+
+test_suite_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.TestSuiteRun, chunk)
+end)
+
+# Generate test case runs
+test_case_runs =
+  Enum.flat_map(test_suite_runs, fn suite_run ->
+    # Create the number of test cases specified in test_case_count
+    case_count = suite_run.test_case_count
+    module_run = Enum.find(test_module_runs, &(&1.id == suite_run.test_module_run_id))
+
+    Enum.map(1..case_count, fn _ ->
+      test_case_name = Enum.random(test_case_names)
+      # Inherit status from suite, but allow some variation
+      case_status =
+        if suite_run.status == 0 do
+          Enum.random([0, 0, 0, 0, 0, 0, 0, 0, 1, 2])
+        else
+          Enum.random([0, 0, 1, 2])
+        end
+
+      case_duration = Enum.random(10..div(suite_run.duration, max(case_count, 1)) * 2)
+
+      %{
+        id: UUIDv7.generate(),
+        name: test_case_name,
+        test_run_id: suite_run.test_run_id,
+        test_module_run_id: suite_run.test_module_run_id,
+        test_suite_run_id: suite_run.id,
+        status: case_status,
+        duration: case_duration,
+        module_name: module_run.name,
+        suite_name: suite_run.name,
+        inserted_at: suite_run.inserted_at
+      }
+    end)
+  end)
+
+test_case_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.TestCaseRun, chunk)
+end)
+
+# Generate test case failures for failed test cases
+test_case_failures =
+  test_case_runs
+  |> Enum.filter(&(&1.status == 1))
+  |> Enum.flat_map(fn test_case_run ->
+    # Each failed test case has 1-3 failures
+    failure_count = Enum.random(1..3)
+
+    Enum.map(1..failure_count, fn _ ->
+      issue_type = Enum.random(["thrown_error", "assertion_failure"])
+      message = Enum.random(failure_messages)
+      file_name = Enum.random(file_names)
+      line_number = Enum.random(10..500)
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_run_id: test_case_run.id,
+        message: message,
+        file_name: file_name,
+        line_number: line_number,
+        issue_type: issue_type,
+        inserted_at: test_case_run.inserted_at
+      }
+    end)
+  end)
+
+test_case_failures
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.TestCaseFailure, chunk)
+end)
+
 command_events =
   Enum.map(1..8000, fn _event ->
     names = ["test", "cache", "generate"]

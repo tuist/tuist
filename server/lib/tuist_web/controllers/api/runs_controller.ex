@@ -648,6 +648,33 @@ defmodule TuistWeb.API.RunsController do
                            duration: %Schema{
                              type: :integer,
                              description: "The duration of the test case in milliseconds."
+                           },
+                           failures: %Schema{
+                             type: :array,
+                             description: "The failures that occurred in this test case.",
+                             items: %Schema{
+                               type: :object,
+                               properties: %{
+                                 message: %Schema{
+                                   type: :string,
+                                   description: "The failure message."
+                                 },
+                                 file_name: %Schema{
+                                   type: :string,
+                                   description: "The file name where the failure occurred."
+                                 },
+                                 line_number: %Schema{
+                                   type: :integer,
+                                   description: "The line number where the failure occurred."
+                                 },
+                                 issue_type: %Schema{
+                                   type: :string,
+                                   description: "The type of issue that occurred.",
+                                   enum: ["thrown_error", "assertion_failure"]
+                                 }
+                               },
+                               required: [:line_number]
+                             }
                            }
                          },
                          required: [:name, :status, :duration]

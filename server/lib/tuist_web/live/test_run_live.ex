@@ -47,6 +47,7 @@ defmodule TuistWeb.TestRunLive do
     end
 
     test_metrics = Runs.Analytics.get_test_run_metrics(run.id)
+    failures_count = Runs.get_test_run_failures_count(run.id)
 
     socket =
       socket
@@ -54,8 +55,10 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
+      |> assign(:failures_count, failures_count)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
+      |> assign_initial_failures_state()
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
@@ -247,6 +250,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_active_filters, [])
   end
 
+  defp assign_initial_failures_state(socket) do
+    socket
+    |> assign(:failures, [])
+    |> assign(:failures_meta, %{})
+    |> assign(:failures_page, 1)
+  end
+
   defp build_uri(params) do
     URI.new!("?" <> URI.encode_query(params))
   end
@@ -296,6 +306,11 @@ defmodule TuistWeb.TestRunLive do
         {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
         assign_test_cases_data(socket, test_cases, meta, params)
     end
+  end
+
+  defp assign_tab_data(socket, "failures", params) do
+    {failures, meta} = load_failures_data(socket.assigns.run, params)
+    assign_failures_data(socket, failures, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do
@@ -491,6 +506,27 @@ defmodule TuistWeb.TestRunLive do
     do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_modules_sort_params(_value), do: :name
+
+  defp load_failures_data(run, params) do
+    page = String.to_integer(params["failures-page"] || "1")
+    page_size = 30
+
+    {failures, meta} = Runs.list_test_run_failures(run.id, page, page_size)
+
+    # Group failures by test case
+    failures_grouped = Enum.group_by(failures, fn failure ->
+      failure.test_case_run_id
+    end)
+
+    {failures_grouped, meta}
+  end
+
+  defp assign_failures_data(socket, failures_grouped, meta, params) do
+    socket
+    |> assign(:failures_grouped_by_test_case, failures_grouped)
+    |> assign(:failures_meta, meta)
+    |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+  end
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do
     query_params = URI.decode_query(uri.query)
