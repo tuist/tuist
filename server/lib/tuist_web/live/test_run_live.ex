@@ -565,11 +565,11 @@ defmodule TuistWeb.TestRunLive do
   defp test_cases_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :test_run_id, op: :==, value: run.id}] ++
-        map_filter_status_value(
-          Filter.Operations.convert_filters_to_flop(
-            Filter.Operations.decode_filters_from_query(params, available_filters)
-          )
-        )
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&remap_test_case_filter_fields/1)
+         |> map_filter_status_value())
 
     if search && search != "" do
       base_filters ++ [%{field: :name, op: :=~, value: search}]
@@ -581,11 +581,11 @@ defmodule TuistWeb.TestRunLive do
   defp test_suites_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :test_run_id, op: :==, value: run.id}] ++
-        map_filter_status_value(
-          Filter.Operations.convert_filters_to_flop(
-            Filter.Operations.decode_filters_from_query(params, available_filters)
-          )
-        )
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&remap_test_suite_filter_fields/1)
+         |> map_filter_status_value())
 
     if search && search != "" do
       base_filters ++ [%{field: :name, op: :=~, value: search}]
@@ -597,11 +597,11 @@ defmodule TuistWeb.TestRunLive do
   defp test_modules_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :test_run_id, op: :==, value: run.id}] ++
-        map_filter_status_value(
-          Filter.Operations.convert_filters_to_flop(
-            Filter.Operations.decode_filters_from_query(params, available_filters)
-          )
-        )
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&remap_test_module_filter_fields/1)
+         |> map_filter_status_value())
 
     if search && search != "" do
       base_filters ++ [%{field: :name, op: :=~, value: search}]
@@ -625,27 +625,47 @@ defmodule TuistWeb.TestRunLive do
   defp status_string_to_int("skipped"), do: 2
   defp status_string_to_int(value) when is_integer(value), do: value
 
+  defp remap_test_case_filter_fields(%{field: :test_case_name} = filter), do: %{filter | field: :name}
+  defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
+  defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
+  defp remap_test_case_filter_fields(filter), do: filter
+
+  defp remap_test_suite_filter_fields(%{field: :test_suite_name} = filter), do: %{filter | field: :name}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_test_case_count} = filter), do: %{filter | field: :test_case_count}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_avg_test_case_duration} = filter), do: %{filter | field: :avg_test_case_duration}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_duration} = filter), do: %{filter | field: :duration}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_status} = filter), do: %{filter | field: :status}
+  defp remap_test_suite_filter_fields(filter), do: filter
+
+  defp remap_test_module_filter_fields(%{field: :test_module_name} = filter), do: %{filter | field: :name}
+  defp remap_test_module_filter_fields(%{field: :test_module_test_suite_count} = filter), do: %{filter | field: :test_suite_count}
+  defp remap_test_module_filter_fields(%{field: :test_module_test_case_count} = filter), do: %{filter | field: :test_case_count}
+  defp remap_test_module_filter_fields(%{field: :test_module_avg_test_case_duration} = filter), do: %{filter | field: :avg_test_case_duration}
+  defp remap_test_module_filter_fields(%{field: :test_module_duration} = filter), do: %{filter | field: :duration}
+  defp remap_test_module_filter_fields(%{field: :test_module_status} = filter), do: %{filter | field: :status}
+  defp remap_test_module_filter_fields(filter), do: filter
+
   defp define_test_cases_filters do
     [
       %Filter.Filter{
-        id: "name",
-        field: :name,
+        id: "test_case_name",
+        field: :test_case_name,
         display_name: gettext("Test case"),
         type: :text,
         operator: :=~,
         value: ""
       },
       %Filter.Filter{
-        id: "duration",
-        field: :duration,
+        id: "test_case_duration",
+        field: :test_case_duration,
         display_name: gettext("Duration"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "status",
-        field: :status,
+        id: "test_case_status",
+        field: :test_case_status,
         display_name: gettext("Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
@@ -663,40 +683,40 @@ defmodule TuistWeb.TestRunLive do
   defp define_test_suites_filters do
     [
       %Filter.Filter{
-        id: "name",
-        field: :name,
+        id: "test_suite_name",
+        field: :test_suite_name,
         display_name: gettext("Test suite"),
         type: :text,
         operator: :=~,
         value: ""
       },
       %Filter.Filter{
-        id: "test_case_count",
-        field: :test_case_count,
+        id: "test_suite_test_case_count",
+        field: :test_suite_test_case_count,
         display_name: gettext("Test cases"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "avg_test_case_duration",
-        field: :avg_test_case_duration,
+        id: "test_suite_avg_test_case_duration",
+        field: :test_suite_avg_test_case_duration,
         display_name: gettext("Avg. test case duration"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "duration",
-        field: :duration,
+        id: "test_suite_duration",
+        field: :test_suite_duration,
         display_name: gettext("Duration"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "status",
-        field: :status,
+        id: "test_suite_status",
+        field: :test_suite_status,
         display_name: gettext("Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
@@ -714,48 +734,48 @@ defmodule TuistWeb.TestRunLive do
   defp define_test_modules_filters do
     [
       %Filter.Filter{
-        id: "name",
-        field: :name,
+        id: "test_module_name",
+        field: :test_module_name,
         display_name: gettext("Module"),
         type: :text,
         operator: :=~,
         value: ""
       },
       %Filter.Filter{
-        id: "test_suite_count",
-        field: :test_suite_count,
+        id: "test_module_test_suite_count",
+        field: :test_module_test_suite_count,
         display_name: gettext("Test suites"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "test_case_count",
-        field: :test_case_count,
+        id: "test_module_test_case_count",
+        field: :test_module_test_case_count,
         display_name: gettext("Test cases"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "avg_test_case_duration",
-        field: :avg_test_case_duration,
+        id: "test_module_avg_test_case_duration",
+        field: :test_module_avg_test_case_duration,
         display_name: gettext("Avg. test case duration"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "duration",
-        field: :duration,
+        id: "test_module_duration",
+        field: :test_module_duration,
         display_name: gettext("Duration"),
         type: :number,
         operator: :>,
         value: ""
       },
       %Filter.Filter{
-        id: "status",
-        field: :status,
+        id: "test_module_status",
+        field: :test_module_status,
         display_name: gettext("Status"),
         type: :option,
         options: ["success", "failure"],
