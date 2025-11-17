@@ -141,7 +141,9 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="admin"
-                        data-selected={get_selected_role(@managing_member, member.id, role) == "admin"}
+                        data-selected={
+                          get_selected_role(@managing_member, member.id, role) == "admin"
+                        }
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
