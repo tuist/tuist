@@ -7,7 +7,7 @@ defmodule Tuist.Xcode.XcodeTarget do
 
   @derive {
     Flop.Schema,
-    filterable: [:name],
+    filterable: [:name, :binary_cache_hit],
     sortable: [:name, :binary_cache_hit, :selective_testing_hit],
     default_order: %{
       order_by: [:name],

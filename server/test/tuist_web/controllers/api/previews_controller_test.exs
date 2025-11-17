@@ -15,7 +15,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+    user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     %{user: user, project: project, account: account}
   end

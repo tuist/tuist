@@ -870,12 +870,15 @@ defmodule Tuist.Accounts do
         select: r
       )
 
-    user_role = Repo.one(query)
+    case Repo.one(query) do
+      nil ->
+        {:error, :not_found}
 
-    {:ok, updated_role} =
-      user_role |> Changeset.change(name: Atom.to_string(role)) |> Repo.update()
-
-    updated_role
+      user_role ->
+        user_role
+        |> Changeset.change(name: Atom.to_string(role))
+        |> Repo.update()
+    end
   end
 
   def get_user_organization_accounts(%User{id: user_id}) do
