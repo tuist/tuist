@@ -435,8 +435,7 @@ defmodule TuistWeb.MembersLive do
     [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
     organization = socket.assigns.organization
 
-    %Tuist.Accounts.Role{} =
-      Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
+    Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
 
     socket =
       socket
