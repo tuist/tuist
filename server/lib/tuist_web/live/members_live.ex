@@ -220,7 +220,13 @@ defmodule TuistWeb.MembersLive do
                   </:footer>
                 </.modal>
 
-                <.dropdown id={"member-actions-#{member.id}"} icon_only>
+                <.dropdown
+                  :if={
+                    Authorization.authorize(:member_update, @current_user, @selected_account) == :ok
+                  }
+                  id={"member-actions-#{member.id}"}
+                  icon_only
+                >
                   <:icon><.dots_vertical /></:icon>
 
                   <.dropdown_item
