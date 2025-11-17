@@ -87,7 +87,8 @@ defmodule Tuist.Environment do
   end
 
   def license_key(secrets \\ secrets()) do
-    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) || get([:license, :key], secrets)
+    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) ||
+      get([:license, :key], secrets)
   end
 
   def license_certificate_base64(secrets \\ secrets()) do
@@ -105,6 +106,39 @@ defmodule Tuist.Environment do
 
   def redis_url(secrets \\ secrets()) do
     get([:redis_url], secrets)
+  end
+
+  def cache_endpoints(secrets \\ secrets()) do
+    case get([:cache, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+
+      _ ->
+        cond do
+          prod?() ->
+            [
+              "https://cache-eu-central.tuist.dev",
+              "https://cache-us-east.tuist.dev",
+              "https://cache-us-west.tuist.dev",
+              "https://cache-ap-southeast.tuist.dev"
+            ]
+
+          stag?() ->
+            ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
+
+          can?() ->
+            ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
+
+          dev?() ->
+            ["http://localhost:8087"]
+
+          test?() ->
+            ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+
+          true ->
+            []
+        end
+    end
   end
 
   def plain_authentication_secret(secrets \\ secrets()) do
@@ -451,7 +485,8 @@ defmodule Tuist.Environment do
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
+    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
+      github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do
@@ -504,6 +539,18 @@ defmodule Tuist.Environment do
     get([:mailgun, :api_key], secrets)
   end
 
+  def mailing_domain(secrets \\ secrets()) do
+    get([:mailing, :domain], secrets) || get([:smtp_settings, :domain], secrets)
+  end
+
+  def mailing_from_address(secrets \\ secrets()) do
+    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets)
+  end
+
+  def mailing_reply_to_address(secrets \\ secrets()) do
+    get([:mailing, :reply_to_address], secrets)
+  end
+
   def smtp_domain(secrets \\ secrets()) do
     get([:smtp_settings, :domain], secrets)
   end
@@ -513,12 +560,19 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and smtp_domain(secrets) != nil and
-      smtp_user_name(secrets) != nil
+    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+      mailing_from_address(secrets) != nil
   end
 
-  def clickhouse_configured?(secrets \\ secrets()) do
-    clickhouse_url(secrets) != nil
+  def skip_email_confirmation?(secrets \\ secrets()) do
+    case get([:skip_email_confirmation], secrets) do
+      skip when is_binary(skip) ->
+        truthy?(skip)
+
+      _ ->
+        # Default to true if email is not configured (e.g., air-gapped environments)
+        not mail_configured?(secrets)
+    end
   end
 
   def clickhouse_url(secrets \\ secrets()) do

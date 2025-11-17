@@ -5,109 +5,115 @@
   "description": "Get started contributing to Tuist by following this guide."
 }
 ---
-# Get started {#get-started}
+# Начало работы {#get-started}
 
-If you have experience building apps for Apple platforms, like iOS, adding code
-to Tuist shouldn’t be much different. There are two differences compared to
-developing apps that are worth mentioning:
+Если у вас есть опыт разработки приложений для платформ Apple, таких как iOS,
+добавление кода в Tuist не покажется чем-то новым. Однако по сравнению с
+созданием обычных приложений есть два отличия, о которых стоит упомянуть:
 
-- **The interactions with CLIs happen through the terminal.** The user executes
-  Tuist, which performs the desired task, and then returns successfully or with
-  a status code. During the execution, the user can be notified by sending
-  output information to the standard output and standard error. There are no
-  gestures, or graphical interactions, just the user intent.
+- **Взаимодействие с CLI происходит через терминал.** Пользователь запускает
+  Tuist, который выполняет нужную задачу и завершает работу – успешно или с
+  кодом состояния. Во время выполнения пользователю может выводиться информация
+  через стандартный вывод или стандартный поток ошибок. Никаких жестов и
+  графических элементов – только действия по намерению пользователя.
 
-- **There’s no runloop that keeps the process alive waiting for input**, like it
-  happens in an iOS app when the app receives system or user events. CLIs run in
-  its process and finishes when the work is done. Asynchronous work can be done
-  using system APIs like
+- **В CLI нет цикла выполнения (runloop), который поддерживает процесс в
+  активном состоянии в ожидании ввода**, как это происходит в iOS-приложении,
+  когда оно получает системные или пользовательские события. CLI выполняется в
+  своём процессе и завершает работу, когда задача выполнена. Асинхронные
+  операции можно выполнять с помощью системных API, таких как
   [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue)
-  or [structured
-  concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency),
-  but need to make sure the process is running while the asynchronous work is
-  being executed. Otherwise, the process will terminate the asynchronous work.
+  или [структурированный
+  параллелизм](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency),
+  но необходимо убедиться, что процесс остаётся активным во время их выполнения.
+  В противном случае процесс завершится, прервав выполнение асинхронной задачи.
 
-If you don’t have any experience with Swift, we recommend [Apple’s official
-book](https://docs.swift.org/swift-book/) to get familiar with the language and
-the most used elements from the Foundation’s API.
+Если у вас нет опыта работы со Swift, рекомендуем [официальную книгу
+Apple](https://docs.swift.org/swift-book/), чтобы познакомиться с языком и
+наиболее часто используемыми элементами API фреймворка Foundation.
 
-## Minimum requirements {#minimum-requirements}
+## Минимальные требования {#minimum-requirements}
 
-To contribute to Tuist, minimum requirements are:
+Чтобы внести свой вклад в Tuist, минимальными требованиями являются:
 
 - macOS 14.0+
 - Xcode 16.3+
 
-## Set up the project locally {#set-up-the-project-locally}
+## Настройка проекта локально {#set-up-the-project-locally}
 
-To start working on the project, we can follow the steps below:
+Для начала работы над проектом выполните следующие шаги:
 
-- Clone the repository by running: `git clone git@github.com:tuist/tuist.git`
-- [Install](https://mise.jdx.dev/getting-started.html) Mise to provision the
-  development environment.
-- Run `mise install` to install the system dependencies needed by Tuist
-- Run `tuist install` to install the external dependencies needed by Tuist
-- (Optional) Run `tuist auth login` to get access to the
+- Клонируйте репозиторий, выполнив команду `git clone
+  git@github.com:tuist/tuist.git`
+- [Установите](https://mise.jdx.dev/getting-started.html) Mise, чтобы
+  подготовить среду разработки.
+- Выполните команду `mise install`, чтобы установить системные зависимости,
+  необходимые для работы Tuist
+- Выполните команду `tuist install`, чтобы установить внешние зависимости,
+  необходимые для работы Tuist
+- (Опционально) Выполните команду `tuist auth login`, чтобы получить доступ к
   <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
-- Run `tuist generate` to generate the Tuist Xcode project using Tuist itself
+- Выполните команду `tuist generate`, чтобы сгенерировать Xcode-проект Tuist с
+  помощью самого Tuist
 
-**The generated project opens automatically**. If you need to open again without
-generating it, run `open Tuist.xcworkspace` (or use Finder).
+**Сгенерированный проект откроется автоматически**. Если нужно открыть его
+снова, не генерируя заново, выполните команду `open Tuist.xcworkspace` (или
+откройте через Finder).
 
 ::: info XED .
 <!-- -->
-If you try to open the project using `xed .`, it will open the package, and not
-the project generated by Tuist. We recommend using the Tuist-generated project
-to dog-food the tool.
+Если вы попытаетесь открыть проект с помощью команды `xed .`, откроется сам
+пакет, а не проект, сгенерированный Tuist. Мы рекомендуем использовать проект,
+созданный Tuist, чтобы тестировать инструмент на практике.
 <!-- -->
 :::
 
-## Edit the project {#edit-the-project}
+## Редактирование проекта {#edit-the-project}
 
-If you needed to edit the project, for example to add dependencies or adjust
-targets, you can use the
+Если вам нужно изменить проект, например, добавить зависимости или настроить
+цели – используйте команду
 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`
-command</LocalizedLink>. This is barely used, but it's good to know that it
-exists.
+command</LocalizedLink>. Эта команда применяется редко, но полезно знать, что
+она существует.
 
-## Run Tuist {#run-tuist}
+## Запуск Tuist {#run-tuist}
 
-### From Xcode {#from-xcode}
+### Из Xcode {#from-xcode}
 
-To run `tuist` from the generated Xcode project, edit the `tuist` scheme, and
-set the arguments that you'd like to pass to the command. For example, to run
-the `tuist generate` command, you can set the arguments to `generate --no-open`
-to prevent the project from opening after the generation.
+Чтобы запустить `tuist`из сгенерированного Xcode-проекта, отредактируйте схему
+`tuist` и укажите аргументы, которые нужно передать команде. Например, чтобы
+выполнить команду `tuist generate`, можно задать аргументы `generate --no-open`,
+чтобы проект не открывался после генерации.
 
-![An example of a scheme configuration to run the generate command with
+![Пример настройки схемы для запуска команды generate с помощью
 Tuist](/images/contributors/scheme-arguments.png)
 
-You'll also have to set the working directory to the root of the project being
-generated. You can do that either by using the `--path` argument, which all the
-commands accept, or configuring the working directory in the scheme as shown
-below:
+Вам также нужно будет указать в качестве рабочей директории корень создаваемого
+проекта. Это можно сделать либо с помощью аргумента `--path`, который
+поддерживают все команды, либо настроив рабочую директорию в схеме, как показано
+ниже:
 
 
-![An example of how to set the working directory to run
+![Пример настройки рабочей директории для запуска
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION COMPILATION
+::: warning КОМПИЛЯЦИЯ ОПИСАНИЯ ПРОЕКТА
 <!-- -->
-The `tuist` CLI depends on the `ProjectDescription` framework's presence in the
-built products directory. If `tuist` fails to run because it can't find the
-`ProjectDescription` framework, build the `Tuist-Workspace` scheme first.
+CLI `tuist` зависит от наличия фреймворка `ProjectDescription` в директории
+собранных продуктов. Если `tuist` не запускается из-за того, что не может найти
+фреймворк `ProjectDescription`, сначала соберите схему `Tuist-Workspace`.
 <!-- -->
 :::
 
-### From the terminal {#from-the-terminal}
+### Из терминала {#from-the-terminal}
 
-You can run `tuist` using Tuist itself through its `run` command:
+Вы можете запустить `tuist`, используя сам Tuist, с помощью команды `run` :
 
 ```bash
 tuist run tuist generate --path /path/to/project --no-open
 ```
 
-Alternatively, you can also run it through the Swift Package Manager directly:
+Кроме того, вы можете запустить его напрямую через Swift Package Manager:
 
 ```bash
 swift build --product ProjectDescription

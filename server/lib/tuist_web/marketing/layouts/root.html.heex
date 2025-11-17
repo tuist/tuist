@@ -2,7 +2,7 @@
 <html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
@@ -10,6 +10,29 @@
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <!-- Language alternates for SEO -->
+    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+      <link
+        rel="alternate"
+        hreflang={locale}
+        href={
+          Tuist.Environment.app_url(
+            path:
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                locale
+              )
+          )
+        }
+      />
+    <% end %>
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={
+        Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
+      }
+    />
     <script
       :for={
         structured_data <-
@@ -29,13 +52,13 @@
       <link
         rel="alternate"
         type="application/rss+xml"
-        title={gettext("Tuist Blog")}
+        title={dgettext("marketing", "Tuist Blog")}
         href={~p"/blog/rss.xml"}
       />
       <link
         rel="alternate"
         type="application/atom+xml"
-        title={gettext("Tuist Blog")}
+        title={dgettext("marketing", "Tuist Blog")}
         href={~p"/blog/atom.xml"}
       />
     <% end %>
@@ -44,13 +67,13 @@
       <link
         rel="alternate"
         type="application/rss+xml"
-        title={gettext("Tuist Changelog")}
+        title={dgettext("marketing", "Tuist Changelog")}
         href={~p"/changelog/rss.xml"}
       />
       <link
         rel="alternate"
         type="application/atom+xml"
-        title={gettext("Tuist Changelog")}
+        title={dgettext("marketing", "Tuist Changelog")}
         href={~p"/changelog/atom.xml"}
       />
     <% end %>
@@ -73,6 +96,8 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    {@inner_content}
+    <div data-part="content">
+      {@inner_content}
+    </div>
   </body>
 </html>

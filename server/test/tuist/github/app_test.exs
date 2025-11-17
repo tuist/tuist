@@ -5,8 +5,6 @@ defmodule Tuist.GitHub.AppTest do
 
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -64,51 +62,41 @@ defmodule Tuist.GitHub.AppTest do
       # Then
       assert {:error, "Failed to get installation token"} = result
     end
-  end
 
-  describe "get_app_installation_token_for_repository/2" do
-    test "returns a not found error when the GitHub app is not installed" do
+    test "returns error when HTTP connection fails after retries" do
       # Given
-      stub(Projects, :project_by_vcs_repository_full_handle, fn _, _ ->
-        {:error, :not_found}
-      end)
+      installation_id = "12345"
 
-      # When/Then
-      assert {:error, error_message} =
-               App.get_app_installation_token_for_repository("tuist/tuist")
-
-      assert error_message =~ "The Tuist GitHub app is not installed in the repository tuist/tuist"
-    end
-
-    test "returns installation token when project has VCS connection with GitHub app installation" do
-      # Given
-      token = "ghs_16C7e42F292c6912E7710c838347Ae178B4a"
-      expires_at = "2024-04-30T11:20:30Z"
-
-      ProjectsFixtures.project_fixture(
-        vcs_connection: [
-          repository_full_handle: "tuist/tuist",
-          provider: :github
-        ]
-      )
-
+      # Note: The actual Req client will retry this error 3 times with exponential backoff
+      # before returning the error. This test simulates the final error state after retries.
       stub(Req, :post, fn _opts ->
-        {:ok,
-         %Req.Response{
-           status: 201,
-           body: %{
-             "token" => token,
-             "expires_at" => expires_at
-           }
-         }}
+        {:error, %Req.HTTPError{protocol: :http2, reason: :closed_for_writing}}
       end)
 
       # When
-      result = App.get_app_installation_token_for_repository("tuist/tuist")
+      result = App.get_installation_token(installation_id)
 
       # Then
-      assert {:ok, %{token: ^token, expires_at: expires_at_datetime}} = result
-      assert expires_at_datetime == ~U[2024-04-30 11:20:30Z]
+      assert {:error, error_message} = result
+      assert error_message =~ "GitHub API connection error"
+      assert error_message =~ "closed_for_writing"
+    end
+
+    test "returns error when unexpected error occurs" do
+      # Given
+      installation_id = "12345"
+
+      stub(Req, :post, fn _opts ->
+        {:error, :timeout}
+      end)
+
+      # When
+      result = App.get_installation_token(installation_id)
+
+      # Then
+      assert {:error, error_message} = result
+      assert error_message =~ "Unexpected error getting installation token"
+      assert error_message =~ "timeout"
     end
   end
 end

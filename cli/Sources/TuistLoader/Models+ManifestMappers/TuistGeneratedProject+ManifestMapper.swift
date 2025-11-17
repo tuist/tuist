@@ -33,7 +33,8 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             optionalAuthentication: manifest.optionalAuthentication,
             buildInsightsDisabled: fullHandle == nil || manifest.buildInsightsDisabled,
             disableSandbox: manifest.disableSandbox,
-            includeGenerateScheme: manifest.includeGenerateScheme
+            includeGenerateScheme: manifest.includeGenerateScheme,
+            enableCaching: manifest.enableCaching
         )
     }
 }
@@ -44,16 +45,6 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     ) -> Self {
         return .init(
             passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
-        )
-    }
-}
-
-extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
-    static func from(
-        manifest: ProjectDescription.Config.CacheOptions
-    ) -> Self {
-        return .init(
-            keepSourceTargets: manifest.keepSourceTargets
         )
     }
 }

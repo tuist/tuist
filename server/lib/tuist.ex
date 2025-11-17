@@ -18,12 +18,14 @@ defmodule Tuist do
       Marketing.Changelog,
       Marketing.OpenGraph,
       Marketing.Newsletter,
+      Marketing.BlogContentProcessor,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
       # among them. They must only depend on core and utility modules.
       Bundles,
       Bundles.Bundle,
+      Cache,
       CacheActionItems,
       CommandEvents,
       Registry.Swift.Packages,
@@ -32,6 +34,7 @@ defmodule Tuist do
       Registry.Swift.Packages.PackageRelease,
       Runs,
       Runs.Build,
+      Runs.CASOutput,
       Runs.Analytics,
       # App
       # -----
@@ -62,14 +65,9 @@ defmodule Tuist do
       QA.Workers.TestWorker,
       Apple,
       Xcode,
-      Xcode.Postgres,
-      Xcode.Postgres.XcodeGraph,
-      Xcode.Postgres.XcodeProject,
-      Xcode.Postgres.XcodeTarget,
-      Xcode.Clickhouse,
-      Xcode.Clickhouse.XcodeGraph,
-      Xcode.Clickhouse.XcodeProject,
-      Xcode.Clickhouse.XcodeTarget,
+      Xcode.XcodeGraph,
+      Xcode.XcodeProject,
+      Xcode.XcodeTarget,
       Loops,
       Namespace,
       Namespace.JWTToken,
@@ -96,7 +94,9 @@ defmodule Tuist do
       Repo,
       Storage,
       Time,
+      Utilities.ByteFormatter,
       Utilities.DateFormatter,
+      Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
       OAuth.Apple,

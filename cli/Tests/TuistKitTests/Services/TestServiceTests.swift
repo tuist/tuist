@@ -52,7 +52,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
 
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
@@ -399,6 +399,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .any,
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -593,7 +594,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(localCacheStorage)
         given(localCacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1358,6 +1359,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .value([]),
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -2375,6 +2377,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .any,
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -2397,6 +2400,7 @@ final class TestServiceTests: TuistUnitTestCase {
         action: XcodeBuildTestAction = .test,
         rosetta: Bool = false,
         skipUiTests: Bool = false,
+        skipUnitTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         retryCount: Int = 0,
@@ -2420,6 +2424,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 action: action,
                 rosetta: rosetta,
                 skipUITests: skipUiTests,
+                skipUnitTests: skipUnitTests,
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,

@@ -129,6 +129,7 @@ defmodule TuistWeb.UserRegistrationLive do
               />
               <.text_input
                 field={@form[:email]}
+                name="user[email]"
                 id="email"
                 label={gettext("Email address")}
                 type="email"
@@ -137,31 +138,20 @@ defmodule TuistWeb.UserRegistrationLive do
                 required
                 tabindex={1}
               />
-              <% password_errors =
-                case Map.get(@errors, :password) do
-                  nil ->
-                    nil
-
-                  errors when is_binary(errors) ->
-                    String.trim_trailing(errors, ".")
-
-                  errors when is_list(errors) ->
-                    (errors
-                     |> Enum.map(&String.trim_trailing(&1, "."))
-                     |> Enum.join(". ")) <> "."
-                end %>
               <.text_input
                 field={@form[:password]}
+                name="user[password]"
                 label={gettext("Password")}
                 id="password"
                 input_type="password"
-                error={password_errors}
+                error={format_password_error(@errors)}
                 show_prefix={false}
                 required
                 tabindex={2}
               />
               <.text_input
                 field={@form[:username]}
+                name="user[username]"
                 label={gettext("Username")}
                 id="Username"
                 type="basic"
@@ -224,6 +214,19 @@ defmodule TuistWeb.UserRegistrationLive do
       Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
   end
 
+  defp format_password_error(errors) do
+    case Map.get(errors, :password) do
+      nil ->
+        nil
+
+      errors when is_binary(errors) ->
+        String.trim_trailing(errors, ".")
+
+      errors when is_list(errors) ->
+        Enum.map_join(errors, ". ", &String.trim_trailing(&1, ".")) <> "."
+    end
+  end
+
   def mount(_params, _session, socket) do
     form =
       to_form(%{}, as: "user")
@@ -253,12 +256,21 @@ defmodule TuistWeb.UserRegistrationLive do
            handle: Map.get(user_params, "username")
          ) do
       {:ok, user} ->
-        Accounts.deliver_user_confirmation_instructions(%{
-          user: user,
-          confirmation_url: &url(~p"/users/confirm/#{&1}")
-        })
+        if Environment.skip_email_confirmation?() do
+          # When email confirmation is skipped, redirect to login page with success message
+          # User is already confirmed and can log in immediately
+          {:noreply,
+           socket
+           |> put_flash(:info, gettext("Account created successfully! Please log in."))
+           |> redirect(to: ~p"/users/log_in")}
+        else
+          Accounts.deliver_user_confirmation_instructions(%{
+            user: user,
+            confirmation_url: &url(~p"/users/confirm/#{&1}")
+          })
 
-        {:noreply, assign(socket, :success, true)}
+          {:noreply, assign(socket, :success, true)}
+        end
 
       {:error, :account_handle_taken} ->
         {:noreply, put_flash(socket, :error, gettext("Account name is already taken"))}

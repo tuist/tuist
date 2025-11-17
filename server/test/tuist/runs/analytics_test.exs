@@ -2,10 +2,9 @@ defmodule Tuist.Runs.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
-  alias Tuist.Xcode.Clickhouse.XcodeGraph
+  alias Tuist.Xcode.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -301,6 +300,74 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.values == [0, 1500.0, 3000.0]
+      # P50 of [1500, 2000, 2000, 4000, 1_000_000] = 2000
+      assert got.total_percentile_duration == 2000.0
+    end
+
+    test "returns trend comparing current period percentile to previous period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Previous period (2024-04-25 to 2024-04-27): builds with p50 of 1000
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 500,
+        inserted_at: ~U[2024-04-25 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-26 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-27 03:00:00Z]
+      )
+
+      # Current period (2024-04-28 to 2024-04-30): builds with p50 of 2000
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_percentile_durations(
+          project.id,
+          0.5,
+          start_date: ~D[2024-04-28],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      # Trend from 1000 to 2000 = +100%
+      assert got.trend == 100.0
+      assert got.values == [1000.0, 2000.0, 3000.0]
+      # P50 of [1000, 2000, 3000] = 2000
+      assert got.total_percentile_duration == 2000.0
     end
   end
 
@@ -375,15 +442,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-04-29 10:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 2000,
-        created_at: ~N[2024-04-27 10:00:00]
+        duration: 3000,
+        created_at: ~N[2024-04-30 03:00:00]
       )
 
       # When
@@ -394,9 +454,9 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.values == [0, 1500.0, 1500.0]
-      assert got.trend == -25.0
-      assert got.total_average_duration == 1500
+      assert got.values == [0.0, 0.0, 2000.0]
+      assert got.trend == 0.0
+      assert got.total_average_duration == 2000.0
     end
 
     test "returns duration analytics for user runs only" do
@@ -423,8 +483,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-04-29 10:00:00],
+        duration: 3000,
+        created_at: ~N[2024-04-30 03:00:00],
         is_ci: false
       )
 
@@ -437,9 +497,9 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.values == [0, 1500.0, 2000.0]
+      assert got.values == [0.0, 0.0, 2500.0]
       assert got.trend == 0.0
-      assert got.total_average_duration == 1750.0
+      assert got.total_average_duration == 2500.0
     end
 
     test "returns runs analytics for the last 3 days" do
@@ -1141,24 +1201,9 @@ defmodule Tuist.Runs.AnalyticsTest do
   end
 
   describe "build_time_analytics/1" do
-    test "returns zeros when ClickHouse is not configured (PostgreSQL)" do
-      # Given
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      got = Analytics.build_time_analytics(project_id: project.id)
-
-      # Then
-      assert got.total_time_saved == 0
-      assert got.total_build_time == 0
-      assert got.actual_build_time == 0
-    end
-
     test "returns build time analytics with real data" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
 
       project = ProjectsFixtures.project_fixture()
 
@@ -1175,24 +1220,6 @@ defmodule Tuist.Runs.AnalyticsTest do
           created_at: ~N[2024-04-28 10:00:00],
           duration: 2000
         )
-
-      # Insert into ClickHouse Event table
-      IngestRepo.insert_all(Event, [
-        %{
-          id: command_event_1.id,
-          project_id: project.id,
-          duration: 1500,
-          created_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond)
-        },
-        %{
-          id: command_event_2.id,
-          project_id: project.id,
-          duration: 2000,
-          created_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond)
-        }
-      ])
 
       # Insert into ClickHouse XcodeGraph table
       IngestRepo.insert_all(XcodeGraph, [
@@ -1224,7 +1251,6 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "handles empty results correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
       # When - no command events or xcode graphs exist
@@ -1239,7 +1265,6 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "filters by project_id correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
 
@@ -1256,24 +1281,6 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: 2000,
           created_at: ~N[2024-04-28 10:00:00]
         )
-
-      # Insert into ClickHouse Event table
-      IngestRepo.insert_all(Event, [
-        %{
-          id: command_event_1.id,
-          project_id: project1.id,
-          duration: 1500,
-          created_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond)
-        },
-        %{
-          id: command_event_2.id,
-          project_id: project2.id,
-          duration: 2000,
-          created_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond)
-        }
-      ])
 
       # Insert into ClickHouse XcodeGraph table
       IngestRepo.insert_all(XcodeGraph, [
@@ -1305,7 +1312,6 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "filters by is_ci correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
       command_event_ci =
@@ -1323,26 +1329,6 @@ defmodule Tuist.Runs.AnalyticsTest do
           is_ci: false,
           created_at: ~N[2024-04-28 10:00:00]
         )
-
-      # Insert into ClickHouse Event table
-      IngestRepo.insert_all(Event, [
-        %{
-          id: command_event_ci.id,
-          project_id: project.id,
-          duration: 1500,
-          is_ci: true,
-          created_at: NaiveDateTime.add(command_event_ci.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_ci.created_at, 0, :microsecond)
-        },
-        %{
-          id: command_event_local.id,
-          project_id: project.id,
-          duration: 2000,
-          is_ci: false,
-          created_at: NaiveDateTime.add(command_event_local.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_local.created_at, 0, :microsecond)
-        }
-      ])
 
       # Insert into ClickHouse XcodeGraph table
       IngestRepo.insert_all(XcodeGraph, [
@@ -1373,7 +1359,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles custom date range" do
       # Given
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
       command_event_in_range =
@@ -1390,25 +1375,6 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: 2000
         )
 
-      # Insert into ClickHouse Event table
-      IngestRepo.insert_all(Event, [
-        %{
-          id: command_event_in_range.id,
-          project_id: project.id,
-          duration: 1000,
-          created_at: NaiveDateTime.add(command_event_in_range.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_in_range.created_at, 0, :microsecond)
-        },
-        %{
-          id: command_event_out_of_range.id,
-          project_id: project.id,
-          duration: 2000,
-          created_at: NaiveDateTime.add(command_event_out_of_range.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event_out_of_range.created_at, 0, :microsecond)
-        }
-      ])
-
-      # Insert into ClickHouse XcodeGraph table
       IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
@@ -1443,7 +1409,6 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "handles nil duration events correctly" do
       # Given
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
       command_event =
@@ -1453,18 +1418,6 @@ defmodule Tuist.Runs.AnalyticsTest do
           created_at: ~N[2024-04-29 10:00:00]
         )
 
-      # Insert into ClickHouse Event table
-      IngestRepo.insert_all(Event, [
-        %{
-          id: command_event.id,
-          project_id: project.id,
-          duration: nil,
-          created_at: NaiveDateTime.add(command_event.created_at, 0, :microsecond),
-          ran_at: NaiveDateTime.add(command_event.created_at, 0, :microsecond)
-        }
-      ])
-
-      # Insert into ClickHouse XcodeGraph table
       IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),

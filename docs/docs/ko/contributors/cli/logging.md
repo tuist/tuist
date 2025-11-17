@@ -5,7 +5,7 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Logging {#logging}
+# 로그 {#logging}
 
 The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface
 for logging. The package abstracts away the implementation details of logging,

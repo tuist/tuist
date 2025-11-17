@@ -9,6 +9,7 @@ on:
       - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
@@ -18,11 +19,13 @@ on:
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - .github/workflows/cli-cache-ee.yml
       - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
@@ -97,7 +100,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -134,14 +137,14 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 15
     needs: [check-team-membership]
     if: |
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -185,7 +188,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}

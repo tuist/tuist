@@ -34,7 +34,7 @@ defmodule Tuist.Projects.VCSConnection do
     ])
     |> validate_required([:project_id, :provider, :repository_full_handle, :github_app_installation_id])
     |> validate_format(:repository_full_handle, ~r/^[\w\-\.]+\/[\w\-\.]+$/)
-    |> unique_constraint([:provider, :project_id])
+    |> unique_constraint([:project_id])
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:created_by_id)
     |> foreign_key_constraint(:github_app_installation_id)

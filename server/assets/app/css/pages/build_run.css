@@ -284,6 +284,144 @@
       }
     }
   }
+
+  & > [data-part="cache"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-6);
+
+    & > [data-part="cache-summary-card"] {
+      & [data-part="widgets-card-section"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+        background-color: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-8);
+
+        & > * {
+          flex-grow: 1;
+        }
+
+        @media (max-width: 768px) {
+          & {
+            flex-direction: column;
+          }
+        }
+      }
+    }
+    & > [data-part="xcode-cache-card"] {
+      & > [data-part="xcode-cache-card-section"] {
+        gap: var(--noora-spacing-8);
+        padding: var(--noora-spacing-8);
+        & > [data-part="cacheable-tasks-card-section"],
+        & > [data-part="cas-outputs-breakdown-card-section"] {
+          gap: var(--noora-spacing-5);
+          & > [data-part="title"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-3);
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="value"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+            }
+          }
+
+          & > .noora-chart {
+            height: 62px;
+          }
+        }
+
+        & > [data-part="latency-widgets"],
+        & > [data-part="throughput-widgets"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-4);
+          & > * {
+            flex-grow: 1;
+          }
+        }
+
+        & > [data-part="filters"] {
+          display: flex;
+          gap: var(--noora-spacing-6);
+          & .noora-dropdown-item:not([data-selected]) svg {
+            visibility: hidden;
+          }
+        }
+
+        & > [data-part="active-filters"] {
+          display: flex;
+          align-self: flex-start;
+          gap: var(--noora-spacing-4);
+        }
+
+        & #cacheable-tasks-table {
+          & td:nth-child(1) {
+            max-width: 500px;
+          }
+
+          & td:nth-child(2),
+          & td:nth-child(3) {
+            width: 12%;
+          }
+
+          & [data-part="cas-outputs-list"] {
+            display: flex;
+            flex-direction: column;
+
+            & > [data-part="cas-output-item"] {
+              display: flex;
+              background-color: var(--noora-surface-background-secondary);
+
+              & > [data-part="cas-output-text"] {
+                display: flex;
+                flex-direction: row;
+                padding: var(--noora-spacing-5);
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+                & > [data-part="cas-output-label"] {
+                  padding-right: var(--noora-spacing-1);
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                }
+
+                & [data-part="trigger"] {
+                  cursor: pointer;
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                  text-decoration: underline;
+                }
+
+                & [data-part="hash-tooltip-content"] {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: var(--noora-spacing-1);
+                  padding: var(--noora-spacing-4);
+
+                  & [data-part="hash-tooltip-text"] {
+                    max-width: 356px;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                    word-break: break-all;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 .issue-card {

@@ -28,15 +28,9 @@ struct CacheGraphContentHasherTests {
             versionFetcher: CacheVersionFetcher(),
             defaultConfigurationFetcher: defaultConfigurationFetcher
         )
-
-        let xcodeControllerMock = try #require(XcodeController.mocked)
-        given(xcodeControllerMock)
-            .selectedVersion()
-            .willReturn(Version(15, 0, 0))
     }
 
     @Test(
-        .withMockedXcodeController,
         .withMockedSwiftVersionProvider
     ) func contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
@@ -82,7 +76,6 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedXcodeController,
         .withMockedSwiftVersionProvider
     ) func contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
@@ -133,7 +126,6 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedXcodeController,
         .withMockedSwiftVersionProvider
     ) func contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given

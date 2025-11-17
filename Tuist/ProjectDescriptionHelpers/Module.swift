@@ -32,6 +32,9 @@ public enum Module: String, CaseIterable {
     case ci = "TuistCI"
     case xcodeProjectOrWorkspacePathLocator = "TuistXcodeProjectOrWorkspacePathLocator"
     case xcResultService = "TuistXCResultService"
+    case cas = "TuistCAS"
+    case casAnalytics = "TuistCASAnalytics"
+    case launchctl = "TuistLaunchctl"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -56,7 +59,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .staticFramework,
                 bundleId: "dev.tuist.TuistCacheEE",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
@@ -84,14 +87,15 @@ public enum Module: String, CaseIterable {
                             xcconfig: nil
                         ),
                     ]
-                )
+                ),
+                metadata: .metadata(tags: ["domain:generation", "layer:feature", "ee:true"])
             ),
             .target(
                 name: "TuistCacheEETests",
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEETests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
                 dependencies: [
@@ -105,14 +109,15 @@ public enum Module: String, CaseIterable {
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
-                ]
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
             .target(
                 name: "TuistCacheEEAcceptanceTests",
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
@@ -126,7 +131,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
-                ]
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
         ]
     }
@@ -291,6 +297,55 @@ public enum Module: String, CaseIterable {
         }
     }
 
+    public var tags: [String] {
+        var moduleTags: [String] = []
+
+        // Domain tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("domain:foundation")
+        case .generator, .hasher, .cache:
+            moduleTags.append("domain:generation")
+        case .loader, .scaffold:
+            moduleTags.append("domain:project-loading")
+        case .dependencies:
+            moduleTags.append("domain:dependencies")
+        case .server:
+            moduleTags.append("domain:server")
+        case .analytics:
+            moduleTags.append("domain:analytics")
+        case .kit:
+            moduleTags.append("domain:cli")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("domain:cli-tools")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("domain:testing")
+        case .automation:
+            moduleTags.append("domain:automation")
+        case .migration:
+            moduleTags.append("domain:migration")
+        case .plugin:
+            moduleTags.append("domain:plugins")
+        case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
+             .process, .ci, .cas, .casAnalytics, .launchctl:
+            moduleTags.append("domain:infrastructure")
+        }
+
+        // Layer tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("layer:foundation")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("layer:tool")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("layer:testing")
+        default:
+            moduleTags.append("layer:feature")
+        }
+
+        return moduleTags
+    }
+
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
@@ -389,8 +444,13 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+<<<<<<< HEAD
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+=======
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.launchctl.targetName),
+>>>>>>> origin/main
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -556,6 +616,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.git.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XCLogParser"),
@@ -589,6 +650,25 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .external(name: "XCResultKit"),
                     .external(name: "FileSystem"),
+            case .cas:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.casAnalytics.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "libzstd"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .launchctl:
+                [
+                    .external(name: "Command"),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {
@@ -643,6 +723,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.launchctl.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
@@ -652,6 +733,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .core:
                 [
@@ -789,6 +871,26 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName)
+            case .cas:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.casAnalytics.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .launchctl:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "Command"),
                 ]
             }
         dependencies =
@@ -811,8 +913,8 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server: .multiplatform(iOS: "18.0", macOS: "14.0")
-        default: .macOS("14.0")
+        case .simulator, .server: .multiplatform(iOS: "18.0", macOS: "15.0")
+        default: .macOS("15.0")
         }
     }
 
@@ -846,7 +948,7 @@ public enum Module: String, CaseIterable {
         }
 
         var baseSettings = settings.base
-        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "15.0"
 
         let settings = Settings.settings(
             base: baseSettings,
@@ -873,7 +975,7 @@ public enum Module: String, CaseIterable {
         let deploymentTargets: DeploymentTargets =
             switch product {
             case .framework, .staticFramework: deploymentTargets
-            default: .macOS("14.0")
+            default: .macOS("15.0")
             }
 
         return .target(
@@ -885,7 +987,8 @@ public enum Module: String, CaseIterable {
             infoPlist: .default,
             buildableFolders: [.folder("\(rootFolder)/\(name)/")],
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            metadata: .metadata(tags: tags)
         )
     }
 

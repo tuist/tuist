@@ -55,8 +55,8 @@
           id="widget-qa-run-count"
           trend_value={@qa_runs_analytics.trend}
           trend_label={@analytics_trend_label}
-          patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_selected_widget", "qa_run_count")}"}
-          replace={true}
+          phx_click="select_widget"
+          phx_value_widget="qa_run_count"
           selected={@analytics_selected_widget == "qa_run_count"}
           empty={@qa_runs_analytics.count == 0}
         />
@@ -72,8 +72,8 @@
           trend_value={@qa_issues_analytics.trend}
           trend_label={@analytics_trend_label}
           trend_inverse
-          patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_selected_widget", "qa_issues_count")}"}
-          replace={true}
+          phx_click="select_widget"
+          phx_value_widget="qa_issues_count"
           selected={@analytics_selected_widget == "qa_issues_count"}
           empty={@qa_runs_analytics.count == 0}
         />
@@ -96,8 +96,8 @@
           trend_value={@qa_duration_analytics.trend}
           trend_label={@analytics_trend_label}
           trend_inverse
-          patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_selected_widget", "qa_duration")}"}
-          replace={true}
+          phx_click="select_widget"
+          phx_value_widget="qa_duration"
           selected={@analytics_selected_widget == "qa_duration"}
           empty={@qa_runs_analytics.count == 0}
         />
@@ -278,8 +278,13 @@
   <div id="qa-empty-state">
     <div data-part="background">
       <div data-part="illustration">
-        <img src="/images/empty_qa_light.png" data-theme="light" alt="QA illustration" />
-        <img src="/images/empty_qa_dark.png" data-theme="dark" alt="QA illustration" />
+        <!-- Replace the static images with SVG backgrounds -->
+        <div data-theme="light">
+          <.empty_state_light_background />
+        </div>
+        <div data-theme="dark">
+          <.empty_state_dark_background />
+        </div>
       </div>
     </div>
     <div data-part="content">

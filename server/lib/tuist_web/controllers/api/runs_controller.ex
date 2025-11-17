@@ -4,6 +4,7 @@ defmodule TuistWeb.API.RunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Runs
+  alias Tuist.Runs.CASOutput
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Runs.Build
@@ -435,6 +436,87 @@ defmodule TuistWeb.API.RunsController do
                      :status
                    ]
                  }
+               },
+               cacheable_tasks: %Schema{
+                 type: :array,
+                 description: "Cacheable tasks associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of cacheable task.",
+                       enum: [:clang, :swift]
+                     },
+                     status: %Schema{
+                       type: :string,
+                       description: "The cache status of the task.",
+                       enum: [:hit_local, :hit_remote, :miss]
+                     },
+                     key: %Schema{
+                       type: :string,
+                       description: "The cache key of the task."
+                     },
+                     read_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for reading from cache."
+                     },
+                     write_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for writing to cache."
+                     },
+                     description: %Schema{
+                       type: :string,
+                       description: "Optional description of the cacheable task."
+                     },
+                     cas_output_node_ids: %Schema{
+                       type: :array,
+                       description: "Array of CAS output node IDs associated with this cacheable task.",
+                       items: %Schema{type: :string}
+                     }
+                   },
+                   required: [:type, :status, :key]
+                 }
+               },
+               cas_outputs: %Schema{
+                 type: :array,
+                 description: "CAS output operations associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     node_id: %Schema{
+                       type: :string,
+                       description: "The CAS node identifier."
+                     },
+                     checksum: %Schema{
+                       type: :string,
+                       description: "The checksum of the CAS object."
+                     },
+                     size: %Schema{
+                       type: :integer,
+                       description: "The size of the CAS object in bytes."
+                     },
+                     duration: %Schema{
+                       type: :number,
+                       description: "The duration of the CAS operation in milliseconds."
+                     },
+                     compressed_size: %Schema{
+                       type: :integer,
+                       description: "The compressed size of the CAS object in bytes."
+                     },
+                     operation: %Schema{
+                       type: :string,
+                       description: "The type of CAS operation.",
+                       enum: [:download, :upload]
+                     },
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of the CAS output file.",
+                       enum: Enum.map(CASOutput.valid_types(), &String.to_atom/1)
+                     }
+                   },
+                   required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
+                 }
                }
              },
              required: [
@@ -688,7 +770,9 @@ defmodule TuistWeb.API.RunsController do
           ci_provider: Map.get(params, :ci_provider),
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
-          targets: Map.get(params, :targets, [])
+          targets: Map.get(params, :targets, []),
+          cacheable_tasks: Map.get(params, :cacheable_tasks, []),
+          cas_outputs: Map.get(params, :cas_outputs, [])
         })
     end
   end

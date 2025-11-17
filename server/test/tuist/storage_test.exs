@@ -3,6 +3,7 @@ defmodule Tuist.StorageTest do
   use Mimic
 
   alias ExAws.Operation.S3
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
 
@@ -554,6 +555,192 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size}, %{object_key: ^object_key}}
 
       assert is_number(size)
+      assert is_number(duration)
+    end
+  end
+
+  describe "put_object/3" do
+    test "puts object without region headers for non-account actors" do
+      # Given
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, :test)
+    end
+
+    test "puts object with X-Tigris-Regions header for account with usa region" do
+      # Given
+      account = %Account{region: :usa}
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, account)
+    end
+
+    test "puts object without region headers for account with all region" do
+      # Given
+      account = %Account{region: :all}
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, account)
+    end
+  end
+
+  describe "multipart_start/2 with region support" do
+    test "starts multipart upload with X-Tigris-Regions header for account with europe region" do
+      # Given
+      account = %Account{region: :europe}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+
+    test "starts multipart upload with X-Tigris-Regions header for account with usa region" do
+      # Given
+      account = %Account{region: :usa}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+
+    test "starts multipart upload without region headers for account with all region" do
+      # Given
+      account = %Account{region: :all}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
       assert is_number(duration)
     end
   end

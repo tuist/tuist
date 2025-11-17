@@ -127,7 +127,23 @@ defmodule TuistWeb.TestRunsLive do
      |> push_event("close-popover", %{all: true})}
   end
 
-  def handle_info({:test_created, _test}, socket) do
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:test_created, %{name: "test"}}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}

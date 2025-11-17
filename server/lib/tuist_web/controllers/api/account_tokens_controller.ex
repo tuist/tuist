@@ -11,6 +11,12 @@ defmodule TuistWeb.API.AccountTokensController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
 
+  plug(
+    OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
+
   tags ["Account tokens"]
 
   operation(:create,
@@ -69,14 +75,14 @@ defmodule TuistWeb.API.AccountTokensController do
     }
   )
 
-  def create(%{params: %{"scopes" => scopes}, assigns: %{selected_account: selected_account}} = conn, _opts) do
+  def create(%{body_params: %{scopes: scopes}, assigns: %{selected_account: selected_account}} = conn, _opts) do
     current_user = Authentication.current_user(conn)
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
          {:ok, {_token_record, token}} <-
            Accounts.create_account_token(%{
              account: selected_account,
-             scopes: Enum.map(scopes, &String.to_atom/1)
+             scopes: scopes
            }) do
       json(conn, %{token: token})
     end

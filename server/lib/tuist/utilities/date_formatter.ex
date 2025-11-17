@@ -15,6 +15,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
+    duration_ms = trunc(duration_ms)
 
     cond do
       duration_ms == 0 ->
@@ -24,7 +25,6 @@ defmodule Tuist.Utilities.DateFormatter do
         "#{duration_ms}ms"
 
       true ->
-        duration_ms = trunc(duration_ms)
         hours = div(duration_ms, 3_600_000)
         remainder = rem(duration_ms, 3_600_000)
 
@@ -108,4 +108,53 @@ defmodule Tuist.Utilities.DateFormatter do
   end
 
   def format_iso(_), do: "Unknown"
+
+  @doc """
+  Format datetime with timezone conversion.
+
+  Takes a UTC datetime and converts it to the specified timezone.
+  Falls back to UTC display if timezone is nil or conversion fails.
+
+  ## Examples
+
+      iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], "America/New_York")
+      "Mon 15 Jan 09:30:25 EST"
+
+      iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], nil)
+      "Mon 15 Jan 14:30:25 UTC"
+  """
+  def format_with_timezone(%DateTime{} = datetime, timezone) when is_binary(timezone) do
+    local_time = Timex.Timezone.convert(datetime, timezone)
+    Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+  rescue
+    _ ->
+      # Fallback to UTC if timezone conversion fails
+      Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(%NaiveDateTime{} = naive_datetime, timezone) when is_binary(timezone) do
+    # Convert NaiveDateTime to DateTime assuming UTC, then convert to timezone
+    utc_datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
+    local_time = Timex.Timezone.convert(utc_datetime, timezone)
+    Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+  rescue
+    _ ->
+      # Fallback to UTC if timezone conversion fails
+      Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(%DateTime{} = datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(%NaiveDateTime{} = naive_datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(_datetime, _timezone) do
+    # Fallback for other types
+    "Unknown"
+  end
 end

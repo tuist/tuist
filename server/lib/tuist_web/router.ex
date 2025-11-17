@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -39,10 +40,12 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug :fetch_current_user
     plug :content_security_policy
   end
@@ -65,6 +68,7 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
   end
 
@@ -77,6 +81,7 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
     plug :content_security_policy
@@ -90,6 +95,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
     plug :assign_current_path
@@ -114,7 +120,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :authenticated_api do
-    plug :accepts, ["json"]
+    plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -363,6 +369,17 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      scope "/keyvalue" do
+        put "/", Cache.KeyValueController, :put_value
+        get "/:cas_id", Cache.KeyValueController, :get_value
+      end
+
+      scope "/cas" do
+        get "/:id", CASController, :load
+        post "/:id", CASController, :save
+      end
+
+      get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -497,6 +514,7 @@ defmodule TuistWeb.Router do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
       live "/users/log_in/okta", UserOktaLoginLive, :new
+      live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
     end

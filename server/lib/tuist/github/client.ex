@@ -5,53 +5,34 @@ defmodule Tuist.GitHub.Client do
 
   alias Tuist.Base64
   alias Tuist.GitHub.App
+  alias Tuist.GitHub.Retry
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
-
-  defp retry(request, response_or_exception) do
-    case request.method do
-      method when method in [:get, :head] ->
-        case response_or_exception do
-          %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] ->
-            true
-
-          %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] ->
-            true
-
-          %Req.HTTPError{protocol: :http2, reason: reason}
-          when reason in [
-                 :unprocessed,
-                 :closed_for_writing,
-                 {:server_closed_request, :refused_stream}
-               ] ->
-            true
-
-          _ ->
-            false
-        end
-
-      _ ->
-        false
-    end
-  end
 
   @doc """
   Lists repositories for a GitHub app installation with pagination support.
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
   def list_installation_repositories(installation_id, opts \\ []) do
-    url = Keyword.get(opts, :next_url, "https://api.github.com/installation/repositories?per_page=100")
+    url =
+      Keyword.get(
+        opts,
+        :next_url,
+        "https://api.github.com/installation/repositories?per_page=100"
+      )
 
     case App.get_installation_token(installation_id) do
       {:ok, %{token: token}} ->
-        case Req.get(
-               url: url,
-               headers: default_headers(token),
-               finch: Tuist.Finch,
-               retry: &retry/2
-             ) do
+        req_opts =
+          [
+            url: url,
+            headers: default_headers(token),
+            finch: Tuist.Finch
+          ] ++ Retry.retry_options()
+
+        case Req.get(req_opts) do
           {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
             formatted_repos =
               Enum.map(repositories, fn repo ->
@@ -99,10 +80,10 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
+  def get_user_by_id(%{id: github_id, installation_id: installation_id}) do
     url = "https://api.github.com/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -111,40 +92,14 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository(repository_full_handle) do
-    url = "https://api.github.com/repos/#{repository_full_handle}"
-
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, repository} ->
-        {:ok,
-         %VCS.Repositories.Repository{
-           full_handle: repository["full_name"],
-           default_branch: repository["default_branch"],
-           provider: :github
-         }}
-
-      response ->
-        response
-    end
-  end
-
-  def get_user_permission(%{username: username, repository_full_handle: repository_full_handle}) do
-    url =
-      "https://api.github.com/repos/#{repository_full_handle}/collaborators/#{username}/permission"
-
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, permission} ->
-        {:ok, %VCS.Repositories.Permission{permission: permission["permission"]}}
-
-      response ->
-        response
-    end
-  end
-
-  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id}) do
+  def get_comments(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, comments} ->
         {:ok,
          Enum.map(comments, fn comment ->
@@ -163,22 +118,32 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
 
-  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
@@ -191,14 +156,16 @@ defmodule Tuist.GitHub.Client do
     url = "https://api.github.com/repos/#{repository_full_handle}/zipball/refs/tags/#{tag}"
     {:ok, path} = Briefly.create()
 
-    case Req.get(
-           url: url,
-           headers: default_headers(token),
-           decode_body: false,
-           finch: Tuist.Finch,
-           into: File.stream!(path, [:write]),
-           retry: &retry/2
-         ) do
+    req_opts =
+      [
+        url: url,
+        headers: default_headers(token),
+        decode_body: false,
+        finch: Tuist.Finch,
+        into: File.stream!(path, [:write])
+      ] ++ Retry.retry_options()
+
+    case Req.get(req_opts) do
       {:ok, %{status: 200}} ->
         {:ok, path}
 
@@ -224,12 +191,14 @@ defmodule Tuist.GitHub.Client do
         url <> "?ref=#{reference}"
       end
 
-    case Req.get(
-           url: url,
-           headers: default_headers(token),
-           finch: Tuist.Finch,
-           retry: &retry/2
-         ) do
+    req_opts =
+      [
+        url: url,
+        headers: default_headers(token),
+        finch: Tuist.Finch
+      ] ++ Retry.retry_options()
+
+    case Req.get(req_opts) do
       {:ok, %{status: 200, body: %{"content" => content, "path" => path}}} ->
         {:ok, %Content{path: path, content: Base64.decode(content)}}
 
@@ -248,9 +217,9 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    repository_full_handle = Keyword.get(attrs, :repository_full_handle)
+    installation_id = Keyword.get(attrs, :installation_id)
 
-    case App.get_app_installation_token_for_repository(repository_full_handle) do
+    case App.get_installation_token(installation_id) do
       {:ok, %{token: token}} ->
         attrs_with_headers =
           attrs
@@ -259,8 +228,8 @@ defmodule Tuist.GitHub.Client do
             {"Authorization", "token #{token}"}
           ])
           |> Keyword.put(:finch, Tuist.Finch)
-          |> Keyword.put(:retry, &retry/2)
-          |> Keyword.delete(:repository_full_handle)
+          |> Keyword.merge(Retry.retry_options())
+          |> Keyword.delete(:installation_id)
 
         attrs_with_headers |> method.() |> handle_github_response(method, attrs)
 
@@ -310,7 +279,14 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp get_all_tags_recursively(%{url: url, token: token, tags: tags}) do
-    case Req.get(url: url, headers: default_headers(token), finch: Tuist.Finch, retry: &retry/2) do
+    req_opts =
+      [
+        url: url,
+        headers: default_headers(token),
+        finch: Tuist.Finch
+      ] ++ Retry.retry_options()
+
+    case Req.get(req_opts) do
       {:ok, %Req.Response{status: 200, body: page_tags, headers: response_headers}} ->
         page_tags = Enum.map(page_tags, &%Tag{name: &1["name"]})
 
@@ -327,7 +303,7 @@ defmodule Tuist.GitHub.Client do
         end
 
       {:ok, %Req.Response{status: status}} ->
-        {:error, "Unexpected status code: #{status} when getting tags at #{url}."}
+        {:error, {:http_error, status}}
 
       {:error, _reason} = error ->
         error

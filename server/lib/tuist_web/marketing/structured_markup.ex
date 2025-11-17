@@ -96,7 +96,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@type" => "Product",
       "name" => "Tuist",
       "description" =>
-        gettext(
+        dgettext(
+          "marketing",
           "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
         ),
       "brand" => get_organization_structured_data(),
@@ -181,8 +182,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             post |> get_blog_post_structured_markup_data() |> Map.put("position", index + 1)
           end)
       },
-      "name" => gettext("Tuist's blog"),
-      "description" => gettext("Read engaging stories and expert insights."),
+      "name" => dgettext("marketing", "Tuist's blog"),
+      "description" => dgettext("marketing", "Read engaging stories and expert insights."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
@@ -214,8 +215,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     %{
       "@context" => "https://schema.org",
       "@type" => "ItemList",
-      "name" => gettext("Changelog"),
-      "description" => gettext("Stay updated with the latest changes and improvements in Tuist."),
+      "name" => dgettext("marketing", "Changelog"),
+      "description" => dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "itemListElement" =>
         entries

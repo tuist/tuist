@@ -44,12 +44,10 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 
 /// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphLoading {
-    /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-    /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
-    /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool
     ) async throws -> TuistLoader.DependenciesGraph
 }
 
@@ -77,7 +75,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool,
     ) async throws -> TuistLoader.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -133,7 +132,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder)
+            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in

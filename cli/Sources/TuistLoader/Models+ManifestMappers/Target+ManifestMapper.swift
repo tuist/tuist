@@ -31,6 +31,7 @@ extension XcodeGraph.Target {
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         fileSystem: FileSysteming,
+        contentHasher: ContentHashing,
         type: TargetType
     ) async throws -> XcodeGraph.Target {
         let name = manifest.name
@@ -61,7 +62,8 @@ extension XcodeGraph.Target {
             manifest: manifest,
             targetName: name,
             generatorPaths: generatorPaths,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            contentHasher: contentHasher
         )
 
         let (resources, resourcesPlaygrounds, resourcesCoreDatas) = try await resourcesAndOthers(
@@ -241,7 +243,8 @@ extension XcodeGraph.Target {
         manifest: ProjectDescription.Target,
         targetName: String,
         generatorPaths: GeneratorPaths,
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        contentHasher: ContentHashing
     ) async throws -> (sources: [XcodeGraph.SourceFile], playgrounds: [AbsolutePath]) {
         var sourcesWithoutPlaygrounds: [XcodeGraph.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
@@ -275,9 +278,13 @@ extension XcodeGraph.Target {
                     throw TargetManifestMapperError.nonSpecificGeneratedResource(targetName: targetName, generatedSource: path)
                 }
                 let mappedCodeGen = generated.codeGen.map(XcodeGraph.FileCodeGen.from)
+                // Generated files don't exist during project generation, so we provide a
+                // deterministic hash based on the file path to avoid file system access
+                let generatedFileHash = try contentHasher.hash("generated-file-\(generated.glob.pathString)")
                 return XcodeGraph.SourceFile(
                     path: path,
                     compilerFlags: generated.compilerFlags,
+                    contentHash: generatedFileHash,
                     codeGen: mappedCodeGen,
                     compilationCondition: generated.compilationCondition?.asGraphCondition
                 )

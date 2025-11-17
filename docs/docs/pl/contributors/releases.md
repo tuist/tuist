@@ -35,7 +35,7 @@ Format: `type(scope): description`
 
 #### Commit types and their impact
 
-| Type       | Description               | Version Impact             | Example                                         |
+| Type       | Opis                      | Version Impact             | Example                                         |
 | ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
 | `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
 | `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |

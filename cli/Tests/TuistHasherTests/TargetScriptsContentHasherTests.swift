@@ -300,11 +300,15 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "srcroot/replaced.txt"))))
             .willReturn(absoluteInputHash)
 
+        given(contentHasher)
+            .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "relative/not-existing.txt"))))
+            .willThrow(FileHandlerError.fileNotFound(try AbsolutePath(validating: "/")))
+
         let targetScript = TargetScript(
             name: "TestScript",
             order: .pre,
             script: .tool(path: "tool", args: ["arg"]),
-            inputPaths: ["relative/input.txt"],
+            inputPaths: ["relative/input.txt", "relative/not-existing.txt"],
             inputFileListPaths: ["$(SRCROOT)/srcroot/replaced.txt"],
             outputPaths: ["relative/output.txt"],
             outputFileListPaths: ["$(SRCROOT)/srcroot/output.txt"],
@@ -317,6 +321,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // Then
         let expected = [
             relativeInputHash,
+            "relative/not-existing.txt",
             absoluteInputHash,
             "relative/output.txt",
             "srcroot/output.txt",

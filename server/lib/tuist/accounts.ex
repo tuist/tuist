@@ -67,7 +67,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from a in Account, where: ilike(a.name, ^handle))
+    Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
   end
 
   @doc ~S"""
@@ -76,7 +76,7 @@ defmodule Tuist.Accounts do
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload) do
+    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
       nil -> {:error, :not_found}
       %Organization{} = organization -> {:ok, organization}
     end
@@ -174,9 +174,10 @@ defmodule Tuist.Accounts do
   """
   def get_user_by_token(token) do
     Repo.one(
-      from u in User,
+      from(u in User,
         where: u.token == ^token,
         preload: [:account]
+      )
     )
   end
 
@@ -211,15 +212,15 @@ defmodule Tuist.Accounts do
     - `email` - The email address of the user.
   """
   def get_user_by_email(email) do
-    Repo.one(from u in User, where: u.email == ^email, preload: [:account])
+    Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
   end
 
   def get_user_by_id(id) do
-    Repo.one(from u in User, where: u.id == ^id, preload: [:account])
+    Repo.one(from(u in User, where: u.id == ^id, preload: [:account]))
   end
 
   def list_users_with_accounts_by_ids(ids) when is_list(ids) do
-    Repo.all(from u in User, where: u.id in ^ids, preload: [:account])
+    Repo.all(from(u in User, where: u.id in ^ids, preload: [:account]))
   end
 
   def get_oauth2_identity_by_provider_and_id(provider, id_in_provider) do
@@ -489,7 +490,7 @@ defmodule Tuist.Accounts do
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
-    confirmed_at = Keyword.get(opts, :confirmed_at, nil)
+    confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
@@ -728,8 +729,9 @@ defmodule Tuist.Accounts do
 
   def get_account_from_customer_id(customer_id) do
     query =
-      from a in Account,
+      from(a in Account,
         where: a.customer_id == ^customer_id
+      )
 
     Repo.one(query)
   end
@@ -868,12 +870,15 @@ defmodule Tuist.Accounts do
         select: r
       )
 
-    user_role = Repo.one(query)
+    case Repo.one(query) do
+      nil ->
+        {:error, :not_found}
 
-    {:ok, updated_role} =
-      user_role |> Changeset.change(name: Atom.to_string(role)) |> Repo.update()
-
-    updated_role
+      user_role ->
+        user_role
+        |> Changeset.change(name: Atom.to_string(role))
+        |> Repo.update()
+    end
   end
 
   def get_user_organization_accounts(%User{id: user_id}) do
@@ -998,7 +1003,10 @@ defmodule Tuist.Accounts do
   end
 
   def get_invitation_by_token(token, %User{} = invitee) do
-    invitation = Invitation |> Repo.get_by(token: token, invitee_email: invitee.email) |> Repo.preload(inviter: :account)
+    invitation =
+      Invitation
+      |> Repo.get_by(token: token, invitee_email: invitee.email)
+      |> Repo.preload(inviter: :account)
 
     cond do
       is_nil(invitation) ->
@@ -1060,9 +1068,10 @@ defmodule Tuist.Accounts do
 
   def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{id: organization_id}) do
     Repo.one(
-      from i in Invitation,
+      from(i in Invitation,
         where: i.invitee_email == ^invitee_email,
         where: i.organization_id == ^organization_id
+      )
     )
   end
 
@@ -1100,7 +1109,7 @@ defmodule Tuist.Accounts do
   """
   def get_user_by_email_and_password(email, password) when is_binary(email) and is_binary(password) do
     user =
-      Repo.one(from u in User, where: u.email == ^email, preload: [:account])
+      Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
       if is_nil(user.confirmed_at) do
@@ -1402,7 +1411,9 @@ defmodule Tuist.Accounts do
          organization when not is_nil(organization) <- user_okta_organization(user) do
       {:ok, organization}
     else
-      _ -> {:error, :not_found}
+      _ ->
+        # If user doesn't exist or has no SSO organization, try domain-based matching
+        okta_organization_for_email_domain(email)
     end
   end
 
@@ -1414,6 +1425,23 @@ defmodule Tuist.Accounts do
         organization
       end
     end)
+  end
+
+  defp okta_organization_for_email_domain(email) do
+    with [_username, domain] <- String.split(email, "@"),
+         %Organization{} = organization <-
+           Repo.one(
+             from(o in Organization,
+               where: o.sso_provider == :okta,
+               where:
+                 o.sso_organization_id ==
+                   ^String.replace(domain, ".com", ".okta.com")
+             )
+           ) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   @doc """
@@ -1455,4 +1483,10 @@ defmodule Tuist.Accounts do
 
   def organization?(account), do: !is_nil(account.organization_id)
   def user?(account), do: !is_nil(account.user_id)
+
+  defp default_confirmed_at do
+    if Environment.skip_email_confirmation?() do
+      NaiveDateTime.utc_now()
+    end
+  end
 end

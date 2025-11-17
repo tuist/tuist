@@ -12,9 +12,13 @@ defmodule Tuist.Bundles.Bundle do
     filterable: [
       :project_id,
       :git_branch,
-      :type
+      :type,
+      :name,
+      :install_size,
+      :download_size,
+      :supported_platforms
     ],
-    sortable: [:inserted_at, :install_size]
+    sortable: [:inserted_at, :install_size, :download_size]
   }
 
   @primary_key {:id, UUIDv7, autogenerate: false}

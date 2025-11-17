@@ -13,6 +13,7 @@ on:
       - docs/pnpm-lock.yaml
       - handbook/package.json
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - docs/**
       - .github/workflows/docs.yml
@@ -36,9 +37,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-docker-compose:
+    name: Test Docker Compose
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test docker-compose configuration
+        run: ./docs/test-docker-compose.sh
+
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache
@@ -59,13 +70,16 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-
       - uses: jdx/mise-action@v2
         with:
-          working-directory: docs
+          working_directory: docs
       - name: Generate CLI docs
         working-directory: docs
         run: mise run generate-cli-docs
       - name: Generate manifest docs
         working-directory: docs
         run: mise run generate-manifests-docs
+      - name: Lint localization
+        working-directory: docs
+        run: mise run lint-localization
       - name: Free space
         # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
         # This step ensures that we have enough space to build the documentation.

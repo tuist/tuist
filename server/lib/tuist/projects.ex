@@ -6,6 +6,7 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -160,6 +161,24 @@ defmodule Tuist.Projects do
       }
     end)
   end
+
+  def get_all_project_accounts(%AuthenticatedAccount{account: account}) do
+    get_all_project_accounts(account)
+  end
+
+  def get_all_project_accounts(%Project{} = project) do
+    project = Repo.preload(project, :account)
+
+    [
+      %ProjectAccount{
+        handle: "#{project.account.name}/#{project.name}",
+        project: project,
+        account: project.account
+      }
+    ]
+  end
+
+  def get_all_project_accounts(_), do: []
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
@@ -394,7 +413,25 @@ defmodule Tuist.Projects do
     |> Enum.take(limit)
   end
 
-  def project_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+  @doc """
+  Get all projects connected to a VCS repository.
+  """
+  def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    Repo.all(
+      from p in Project,
+        join: pc in VCSConnection,
+        on: pc.project_id == p.id,
+        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        preload: ^preload
+    )
+  end
+
+  @doc """
+  Get a specific project by name and VCS repository handle.
+  """
+  def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
 
     project =
@@ -402,7 +439,7 @@ defmodule Tuist.Projects do
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
-          where: pc.repository_full_handle == ^vcs_repository_full_handle,
+          where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )
 

@@ -32,7 +32,9 @@ import OpenAPIURLSession
             ciRunId: String?,
             ciProjectHandle: String?,
             ciHost: String?,
-            ciProvider: CIProvider?
+            ciProvider: CIProvider?,
+            cacheableTasks: [CacheableTask],
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild
     }
 
@@ -95,7 +97,9 @@ import OpenAPIURLSession
             ciRunId: String?,
             ciProjectHandle: String?,
             ciHost: String?,
-            ciProvider: CIProvider?
+            ciProvider: CIProvider?,
+            cacheableTasks: [CacheableTask],
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -142,6 +146,12 @@ import OpenAPIURLSession
                     body: .json(
                         .case1(
                             .init(
+                                cacheable_tasks: cacheableTasks
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
+                                        .init
+                                    ),
+                                cas_outputs: casOutputs
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.init),
                                 category: category,
                                 ci_host: ciHost,
                                 ci_project_handle: ciProjectHandle,
@@ -286,6 +296,101 @@ import OpenAPIURLSession
                 name: target.name,
                 project: target.project,
                 status: status
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload {
+        fileprivate init(_ cacheableTask: CacheableTask) {
+            let taskType: Self._typePayload = switch cacheableTask.type {
+            case .swift: .swift
+            case .clang: .clang
+            }
+            let status: Self.statusPayload = switch cacheableTask.status {
+            case .localHit: .hit_local
+            case .remoteHit: .hit_remote
+            case .miss: .miss
+            }
+            self.init(
+                cas_output_node_ids: cacheableTask.nodeIDs,
+                description: cacheableTask.description,
+                key: cacheableTask.key,
+                read_duration: cacheableTask.readDuration,
+                status: status,
+                _type: taskType,
+                write_duration: cacheableTask.writeDuration
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
+        fileprivate init(_ casOutput: CASOutput) {
+            let operation: Self.operationPayload = switch casOutput.operation {
+            case .download: .download
+            case .upload: .upload
+            }
+            let type: Self._typePayload? = switch casOutput.type {
+            case .swift: .swift
+            case .sil: .sil
+            case .sib: .sib
+            case .image: .image
+            case .object: .object
+            case .dSYM: .dSYM
+            case .dependencies: .dependencies
+            case .autolink: .autolink
+            case .swiftModule: .swiftmodule
+            case .swiftDocumentation: .swiftdoc
+            case .swiftInterface: .swiftinterface
+            case .privateSwiftInterface: .private_hyphen_swiftinterface
+            case .packageSwiftInterface: .package_hyphen_swiftinterface
+            case .swiftSourceInfoFile: .swiftsourceinfo
+            case .swiftConstValues: .const_hyphen_values
+            case .assembly: .assembly
+            case .rawSil: .raw_hyphen_sil
+            case .rawSib: .raw_hyphen_sib
+            case .rawLlvmIr: .raw_hyphen_llvm_hyphen_ir
+            case .llvmIR: .llvm_hyphen_ir
+            case .llvmBitcode: .llvm_hyphen_bc
+            case .diagnostics: .diagnostics
+            case .emitModuleDiagnostics: .emit_hyphen_module_hyphen_diagnostics
+            case .dependencyScanDiagnostics: .dependency_hyphen_scan_hyphen_diagnostics
+            case .emitModuleDependencies: .emit_hyphen_module_hyphen_dependencies
+            case .objcHeader: .objc_hyphen_header
+            case .swiftDeps: .swift_hyphen_dependencies
+            case .modDepCache: .dependency_hyphen_scanner_hyphen_cache
+            case .remap: .remap
+            case .importedModules: .imported_hyphen_modules
+            case .tbd: .tbd
+            case .jsonDependencies: .json_hyphen_dependencies
+            case .jsonTargetInfo: .json_hyphen_target_hyphen_info
+            case .jsonCompilerFeatures: .json_hyphen_supported_hyphen_features
+            case .jsonSupportedFeatures: .json_hyphen_supported_hyphen_swift_hyphen_features
+            case .jsonSwiftArtifacts: .json_hyphen_module_hyphen_artifacts
+            case .moduleTrace: .module_hyphen_trace
+            case .indexData: .index_hyphen_data
+            case .indexUnitOutputPath: .index_hyphen_unit_hyphen_output_hyphen_path
+            case .yamlOptimizationRecord: .yaml_hyphen_opt_hyphen_record
+            case .bitstreamOptimizationRecord: .bitstream_hyphen_opt_hyphen_record
+            case .pcm: .pcm
+            case .pch: .pch
+            case .clangModuleMap: .modulemap
+            case .jsonAPIBaseline: .api_hyphen_baseline_hyphen_json
+            case .jsonABIBaseline: .abi_hyphen_baseline_hyphen_json
+            case .jsonAPIDescriptor: .api_hyphen_descriptor_hyphen_json
+            case .moduleSummary: .swift_hyphen_module_hyphen_summary
+            case .moduleSemanticInfo: .module_hyphen_semantic_hyphen_info
+            case .cachedDiagnostics: .cached_hyphen_diagnostics
+            case .localizationStrings: .localization_hyphen_strings
+            case .clangHeader: .clang_hyphen_header
+            }
+            self.init(
+                checksum: casOutput.checksum,
+                compressed_size: casOutput.compressedSize,
+                duration: casOutput.duration,
+                node_id: casOutput.nodeID,
+                operation: operation,
+                size: casOutput.size,
+                _type: type
             )
         }
     }

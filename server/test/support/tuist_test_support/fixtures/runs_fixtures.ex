@@ -38,7 +38,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       ci_provider: Keyword.get(attrs, :ci_provider),
       issues: Keyword.get(attrs, :issues, []),
       files: Keyword.get(attrs, :files, []),
-      targets: Keyword.get(attrs, :targets, [])
+      targets: Keyword.get(attrs, :targets, []),
+      cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
+      cas_outputs: Keyword.get(attrs, :cas_outputs, [])
     })
   end
 
@@ -88,5 +90,26 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       is_ci: Keyword.get(attrs, :is_ci, false),
       test_modules: test_modules
     })
+  end
+  def cas_output_fixture(attrs \\ []) do
+    build_run_id =
+      Keyword.get_lazy(attrs, :build_run_id, fn ->
+        {:ok, build} = build_fixture()
+        build.id
+      end)
+
+    cas_output = %{
+      node_id: Keyword.get(attrs, :node_id, "node1"),
+      checksum: Keyword.get(attrs, :checksum, "abc123"),
+      size: Keyword.get(attrs, :size, 1000),
+      duration: Keyword.get(attrs, :duration, 100),
+      compressed_size: Keyword.get(attrs, :compressed_size, 800),
+      operation: Keyword.get(attrs, :operation, :download),
+      type: Keyword.get(attrs, :type, :swift)
+    }
+
+    changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
+
+    Tuist.IngestRepo.insert(changeset)
   end
 end

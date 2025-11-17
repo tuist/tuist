@@ -4,7 +4,6 @@ defmodule Tuist.VCSTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.GitHub
   alias Tuist.GitHub.Client
@@ -12,8 +11,6 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
-  alias Tuist.VCS.Repositories.Permission
-  alias Tuist.VCS.Repositories.Repository
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -28,257 +25,13 @@ defmodule Tuist.VCSTest do
   ]
 
   setup do
-    stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
+    stub(GitHub.App, :get_installation_token, fn _installation_id ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
     stub(Environment, :github_app_client_id, fn -> "client_id" end)
 
     :ok
-  end
-
-  describe "get_user_permission/1" do
-    test "returns user permission when admin" do
-      # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :github,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          }
-        })
-
-      expect(Client, :get_user_by_id, fn %{
-                                           id: "123",
-                                           repository_full_handle: "tuist/tuist"
-                                         } ->
-        {:ok, %VCS.User{username: "tuist"}}
-      end)
-
-      expect(Client, :get_user_permission, fn %{
-                                                repository_full_handle: "tuist/tuist",
-                                                username: "tuist"
-                                              } ->
-        {:ok, %Permission{permission: "admin"}}
-      end)
-
-      # When
-      got =
-        VCS.get_user_permission(%{
-          user: user,
-          repository: %Repository{
-            provider: :github,
-            full_handle: "tuist/tuist",
-            default_branch: "main"
-          }
-        })
-
-      # Then
-      assert got == {:ok, %Permission{permission: "admin"}}
-    end
-  end
-
-  describe "connected/1" do
-    test "returns true when connected" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == true
-    end
-
-    test "returns true when connected but casing differs" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/Tuist"})
-
-      # Then
-      assert got == true
-    end
-
-    test "returns false when the GitHub app is not configured" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
-    end
-
-    test "returns false when the vcs_repository_full_handle is nil" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture()
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
-    end
-
-    test "returns false when the connected repositor full handles' do not match" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist-different"})
-
-      # Then
-      assert got == false
-    end
-  end
-
-  describe "get_repository_from_repository_url/1" do
-    test "returns repository when it exists" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with username" do
-      # Given
-      repository_url = "https://tuist@github.com/tuist/tuist.git"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with .git suffix" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist.git"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with trailing slash" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist/"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
   end
 
   describe "post_vcs_pull_request_comment/1" do
@@ -663,10 +416,6 @@ defmodule Tuist.VCSTest do
              body: "### 🛠️ Tuist Run Report 🛠️\n\nSome existing content"
            }
          ]}
-      end)
-
-      stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
-        {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
       stub(Req, :patch, fn opts ->
@@ -1087,6 +836,125 @@ defmodule Tuist.VCSTest do
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
         bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
+    test "handles different git_ref suffixes (head/merge) connected with the same PR correctly" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      test_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: "refs/pull/1/merge",
+          project_id: project.id,
+          command_arguments: ["test"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 04:00:00]
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: :success,
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: "refs/pull/1/merge"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) | #{commit_link} |
+
+
+        #### Tests 🧪
+
+        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/runs/#{test_command_event.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
+
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) | #{commit_link} | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: "refs/pull/1/merge",
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
       })
     end

@@ -5,17 +5,25 @@ public struct XCLogStoreManifestPlist: Codable {
         public let fileName: String
         public let timeStartedRecording: Double
         public let timeStoppedRecording: Double
+        public let signature: String
 
         enum CodingKeys: String, CodingKey {
             case fileName
             case timeStartedRecording
             case timeStoppedRecording
+            case signature
         }
 
-        public init(fileName: String, timeStartedRecording: Double, timeStoppedRecording: Double) {
+        public init(
+            fileName: String,
+            timeStartedRecording: Double,
+            timeStoppedRecording: Double,
+            signature: String
+        ) {
             self.fileName = fileName
             self.timeStartedRecording = timeStartedRecording
             self.timeStoppedRecording = timeStoppedRecording
+            self.signature = signature
         }
     }
 

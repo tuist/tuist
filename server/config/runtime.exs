@@ -29,50 +29,6 @@ if env != :test do
 end
 
 if Enum.member?([:prod, :stag, :can], env) do
-  config :tuist,
-    ecto_repos:
-      [Tuist.Repo] ++
-        if(Tuist.Environment.clickhouse_configured?(secrets),
-          do: [Tuist.IngestRepo],
-          else: []
-        ),
-    generators: [timestamp_type: :utc_datetime],
-    api_pipeline_producer_module: OffBroadwayMemory.Producer,
-    api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
-
-  if Tuist.Environment.clickhouse_configured?(secrets) do
-    config :tuist, Tuist.ClickHouseRepo,
-      url: Tuist.Environment.clickhouse_url(secrets),
-      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
-      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-      settings: [
-        readonly: 1,
-        # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
-        # parallel_hash (good for medium tables), and hash (fallback for large tables)
-        join_algorithm: "direct,parallel_hash,hash"
-      ],
-      transport_opts: [
-        keepalive: true,
-        show_econnreset: true,
-        inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
-
-    config :tuist, Tuist.IngestRepo,
-      url: Tuist.Environment.clickhouse_url(secrets),
-      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
-      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-      flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
-      max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
-      pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
-      transport_opts: [
-        keepalive: true,
-        show_econnreset: true,
-        inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
-  end
-
   database_url =
     Tuist.Environment.database_url(secrets) ||
       raise """
@@ -164,7 +120,44 @@ if Enum.member?([:prod, :stag, :can], env) do
   # Check `Plug.SSL` for all available options in `force_ssl`.
   config :logger, level: Tuist.Environment.log_level()
 
+  config :tuist, Tuist.ClickHouseRepo,
+    url: Tuist.Environment.clickhouse_url(secrets),
+    pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+    queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+    queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    settings: [
+      readonly: 1,
+      # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
+      # parallel_hash (good for medium tables), and hash (fallback for large tables)
+      join_algorithm: "direct,parallel_hash,hash"
+    ],
+    transport_opts: [
+      keepalive: true,
+      show_econnreset: true,
+      inet6: Tuist.Environment.use_ipv6?(secrets)
+    ]
+
+  config :tuist, Tuist.IngestRepo,
+    url: Tuist.Environment.clickhouse_url(secrets),
+    pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+    queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+    queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
+    max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
+    pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+    transport_opts: [
+      keepalive: true,
+      show_econnreset: true,
+      inet6: Tuist.Environment.use_ipv6?(secrets)
+    ]
+
   config :tuist, Tuist.Repo, database_options
+
+  config :tuist,
+    ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
+    generators: [timestamp_type: :utc_datetime],
+    api_pipeline_producer_module: OffBroadwayMemory.Producer,
+    api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
@@ -345,7 +338,7 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
   config :tuist, Tuist.Mailer,
     adapter: Bamboo.MailgunAdapter,
     api_key: Tuist.Environment.mailgun_api_key(secrets),
-    domain: Tuist.Environment.smtp_domain(secrets),
+    domain: Tuist.Environment.mailing_domain(secrets),
     base_uri: base_uri
 end
 

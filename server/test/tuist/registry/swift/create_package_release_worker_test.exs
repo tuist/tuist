@@ -3,6 +3,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog, only: [with_log: 1]
 
   alias Tuist.Registry.Swift.Packages
   alias Tuist.Registry.Swift.Packages.PackageRelease
@@ -117,10 +118,14 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       }
 
       # When
-      result = CreatePackageReleaseWorker.perform(job)
+      {result, log} =
+        with_log(fn ->
+          CreatePackageReleaseWorker.perform(job)
+        end)
 
       # Then
       assert result == {:error, :package_not_found}
+      assert log =~ "Package NonExistent/Package not found"
     end
 
     test "handles errors during package release creation" do
@@ -143,10 +148,14 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       }
 
       # When
-      result = CreatePackageReleaseWorker.perform(job)
+      {result, log} =
+        with_log(fn ->
+          CreatePackageReleaseWorker.perform(job)
+        end)
 
       # Then
-      assert {:error, _} = result
+      assert match?({:error, _}, result)
+      assert log =~ "Failed to create package release for ErrorPackage/ErrorPackage@1.0.0"
     end
 
     test "creates package release with pre-release version" do

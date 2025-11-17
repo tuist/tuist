@@ -75,6 +75,7 @@ defmodule TuistWeb do
       import TuistWeb.AppLayoutComponents
 
       on_mount(TuistWeb.CSP)
+      on_mount({TuistWeb.Timezone, :assign_timezone})
 
       unquote(html_helpers())
     end
@@ -122,6 +123,7 @@ defmodule TuistWeb do
       # Core UI components and translation
       import TuistWeb.AppComponents
       import TuistWeb.Components.IconComponents
+      import TuistWeb.Widget
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

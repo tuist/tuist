@@ -41,6 +41,74 @@ defmodule Tuist.RunsTest do
       assert build.account_id == account_id
       assert build.status == :success
     end
+
+    test "creates a build with cacheable tasks and calculates counts correctly" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      cacheable_tasks = [
+        %{type: :swift, status: :hit_local, key: "task1"},
+        %{type: :swift, status: :hit_remote, key: "task2"},
+        %{type: :clang, status: :miss, key: "task3"},
+        %{type: :swift, status: :hit_local, key: "task4"},
+        %{type: :clang, status: :hit_remote, key: "task5"}
+      ]
+
+      # When
+      {:ok, build} =
+        Runs.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: :success,
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: cacheable_tasks
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 5
+      assert build.cacheable_task_local_hits_count == 2
+      assert build.cacheable_task_remote_hits_count == 2
+    end
+
+    test "creates a build with empty cacheable tasks" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      # When
+      {:ok, build} =
+        Runs.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: :success,
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: []
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 0
+      assert build.cacheable_task_local_hits_count == 0
+      assert build.cacheable_task_remote_hits_count == 0
+    end
   end
 
   describe "build/1" do
@@ -505,6 +573,97 @@ defmodule Tuist.RunsTest do
     assert result.failed_count == 1
   end
 
+  describe "list_cacheable_tasks/1" do
+    test "lists cacheable tasks with pagination" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "task1"},
+            %{type: :swift, status: :hit_remote, key: "task2"},
+            %{type: :clang, status: :miss, key: "task3"},
+            %{type: :swift, status: :hit_local, key: "task4"}
+          ]
+        )
+
+      # When
+      {tasks, meta} =
+        Runs.list_cacheable_tasks(%{
+          page_size: 2,
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert length(tasks) == 2
+      assert meta.total_count == 4
+      assert meta.total_pages == 2
+    end
+
+    test "lists cacheable tasks with filters" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "swift_task"},
+            %{type: :clang, status: :hit_remote, key: "clang_task"},
+            %{type: :swift, status: :miss, key: "another_swift"}
+          ]
+        )
+
+      # When - filter by type
+      {swift_tasks, _meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: build.id},
+            %{field: :type, op: :==, value: "swift"}
+          ]
+        })
+
+      # Then
+      assert length(swift_tasks) == 2
+      assert Enum.all?(swift_tasks, &(&1.type == "swift"))
+    end
+
+    test "lists cacheable tasks with sorting by key ascending" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "zebra_task"},
+            %{type: :swift, status: :hit_remote, key: "alpha_task"},
+            %{type: :clang, status: :miss, key: "beta_task"}
+          ]
+        )
+
+      # When
+      {tasks, _meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:key],
+          order_directions: [:asc]
+        })
+
+      # Then
+      keys = Enum.map(tasks, & &1.key)
+      assert keys == ["alpha_task", "beta_task", "zebra_task"]
+    end
+
+    test "returns empty list when no cacheable tasks exist for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # When
+      {tasks, meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert tasks == []
+      assert meta.total_count == 0
+    end
+  end
+
   describe "build_ci_run_url/1" do
     test "returns GitHub Actions URL for GitHub provider" do
       # Given
@@ -683,6 +842,436 @@ defmodule Tuist.RunsTest do
 
       # Then
       assert url == nil
+    end
+  end
+
+  describe "cas_output_metrics/1" do
+    test "returns correct metrics for build with CAS outputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :upload,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 4000
+      assert metrics.upload_bytes == 2000
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 1000.0
+    end
+
+    test "returns zeros for build with no CAS outputs" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cas_outputs: [])
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "returns zeros for non-existent build" do
+      # Given
+      non_existent_build_id = UUIDv7.generate()
+
+      # When
+      metrics = Runs.cas_output_metrics(non_existent_build_id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only download operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 5000,
+              duration: 5000,
+              compressed_size: 4000,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 15_000
+      assert metrics.upload_bytes == 0
+      # Time-weighted average: (5000 + 10000) / (5000 + 10000) * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only upload operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 8000,
+              duration: 4000,
+              compressed_size: 6400,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 12_000,
+              duration: 6000,
+              compressed_size: 9600,
+              operation: :upload,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 2
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 20_000
+      assert metrics.time_weighted_avg_download_throughput == 0
+      # Time-weighted average: (8000 + 12000) / (4000 + 6000) * 1000 = 2000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 2000.0
+    end
+
+    test "ignores operations with zero duration for throughput calculation" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 0,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 3000
+      assert metrics.upload_bytes == 0
+      # Only the second operation (duration > 0) is included in throughput
+      # Time-weighted average: 2000 / 2000 * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles mixed operations with different throughputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 20_000,
+              duration: 4000,
+              compressed_size: 16_000,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 15_000,
+              duration: 5000,
+              compressed_size: 12_000,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 25_000
+      assert metrics.upload_bytes == 20_000
+      # Download throughput: (10000 + 15000) / (10000 + 5000) * 1000 = 1666.67 bytes/s
+      assert_in_delta metrics.time_weighted_avg_download_throughput, 1666.67, 0.1
+      # Upload throughput: 20000 / 4000 * 1000 = 5000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 5000.0
+    end
+  end
+
+  describe "cacheable_task_latency_metrics/1" do
+    test "returns correct metrics for build with cacheable tasks with durations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task1",
+              read_duration: 100.0,
+              write_duration: nil
+            },
+            %{
+              type: :swift,
+              status: :miss,
+              key: "task2",
+              read_duration: nil,
+              write_duration: 200.0
+            },
+            %{
+              type: :clang,
+              status: :hit_remote,
+              key: "task3",
+              read_duration: 150.0,
+              write_duration: 250.0
+            },
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task4",
+              read_duration: 200.0,
+              write_duration: 300.0
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 150.0
+      assert metrics.avg_write_duration == 250.0
+      assert metrics.p99_read_duration == 199.0
+      assert metrics.p99_write_duration == 299.0
+      assert metrics.p90_read_duration == 190.0
+      assert metrics.p90_write_duration == 290.0
+      assert metrics.p50_read_duration == 150.0
+      assert metrics.p50_write_duration == 250.0
+    end
+
+    test "returns zeros for build with no cacheable tasks" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # Allow ClickHouse to process the insert
+      Process.sleep(100)
+
+      # When
+      metrics = Runs.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 0
+      assert metrics.avg_write_duration == 0
+      assert metrics.p99_read_duration == 0
+      assert metrics.p99_write_duration == 0
+      assert metrics.p90_read_duration == 0
+      assert metrics.p90_write_duration == 0
+      assert metrics.p50_read_duration == 0
+      assert metrics.p50_write_duration == 0
+    end
+  end
+
+  describe "get_cas_outputs_by_node_ids/3" do
+    test "returns CAS outputs matching the given node_ids" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 200,
+              compressed_size: 1600,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 3000,
+              duration: 300,
+              compressed_size: 2400,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node3"])
+
+      # Then
+      assert length(outputs) == 2
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert "node1" in node_ids
+      assert "node3" in node_ids
+      refute "node2" in node_ids
+    end
+
+    test "returns empty list when node_ids is empty" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, [])
+
+      # Then
+      assert outputs == []
+    end
+
+    test "returns all CAS outputs" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
+      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
+      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"])
+
+      # Then
+      assert length(outputs) == 3
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert Enum.count(node_ids, &(&1 == "node1")) == 2
+      assert Enum.count(node_ids, &(&1 == "node2")) == 1
+    end
+
+    test "returns only distinct CAS outputs by node_id when distinct is true" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, _output1} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :download)
+      {:ok, _output2} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node1", operation: :upload)
+      {:ok, _output3} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :download)
+      {:ok, _output4} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "node2", operation: :upload)
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node2"], distinct: true)
+
+      # Then
+      assert length(outputs) == 2
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert "node1" in node_ids
+      assert "node2" in node_ids
     end
   end
 end

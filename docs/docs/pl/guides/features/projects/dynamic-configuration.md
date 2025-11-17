@@ -5,38 +5,38 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# Dynamic configuration {#dynamic-configuration}
+# Konfiguracja dynamiczna {#dynamic-configuration}
 
-There are certain scenarios where you might need to dynamically configure your
-project at generation time. For example, you might want to change the name of
-the app, the bundle identifier, or the deployment target based on the
-environment where the project is being generated. Tuist supports that via
-environment variables, which can be accessed from the manifest files.
+Istnieją pewne scenariusze, w których może być konieczne dynamiczne
+skonfigurowanie projektu w trakcie generacji. Na przykład, możesz chcieć zmienić
+nazwę aplikacji, identyfikator lub wspieraną urządzenia w zależności od
+środowiska, dla którego projekt jest generowany. Tuist obsługuje to poprzez
+zmienne środowiskowe, do których można uzyskać dostęp w plikach manifestu.
 
-## Configuration through environment variables {#configuration-through-environment-variables}
+## Konfiguracja poprzez zmienne środowiskowe {#configuration-through-environment-variables}
 
-Tuist allows passing configuration through environment variables that can be
-accessed from the manifest files. For example:
+Tuist umożliwia przekazywanie konfiguracji poprzez zmienne środowiskowe, do
+których można uzyskać dostęp z plików manifestu. Na przykład:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-If you want to pass multiple environment variables just separate them with a
-space. For example:
+Jeśli chcesz przekazać wiele zmiennych środowiskowych, po prostu oddziel je
+spacją. Na przykład:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
+## Odczytywanie zmiennych środowiskowych z manifestów {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the
-<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>
-type. Any variables following the convention `TUIST_XXX` defined in the
-environment or passed to Tuist when running commands will be accessible using
-the `Environment` type. The following example shows how we access the
-`TUIST_APP_NAME` variable:
+Dostęp do zmiennych można uzyskać za pomocą typu
+<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>.
+Wszelkie zmienne zgodne z konwencją `TUIST_XXX` zdefiniowane w środowisku lub
+przekazane do Tuist podczas uruchamiania poleceń będą dostępne przy użyciu typu
+`Environment`. Poniższy przykład pokazuje, jak uzyskać dostęp do zmiennej
+`TUIST_APP_NAME`:
 
 ```swift
 func appName() -> String {
@@ -48,17 +48,18 @@ func appName() -> String {
 }
 ```
 
-Accessing variables returns an instance of type `Environment.Value?` which can
-take any of the following values:
+Dostęp do zmiennych zwraca instancję typu `Environment.Value?`, która może
+przyjąć dowolną z następujących wartości:
 
-| Case              | Description                                 |
-| ----------------- | ------------------------------------------- |
-| `.string(String)` | Used when the variable represents a string. |
+| Przypadek         | Opis                                           |
+| ----------------- | ---------------------------------------------- |
+| `.string(String)` | Używany, gdy zmienna reprezentuje ciąg znaków. |
 
-You can also retrieve the string or boolean `Environment` variable using either
-of the helper methods defined below, these methods require a default value to be
-passed to ensure the user gets consistent results each time. This avoids the
-need to define the function appName() defined above.
+Możesz również pobrać zmienną `Environment` typu string lub boolean za pomocą
+jednej z metod pomocniczych zdefiniowanych poniżej, metody te wymagają
+przekazania wartości domyślnej, aby zapewnić użytkownikowi spójne wyniki za
+każdym razem. Pozwala to uniknąć konieczności definiowania funkcji appName()
+zdefiniowanej powyżej.
 
 ::: code-group
 

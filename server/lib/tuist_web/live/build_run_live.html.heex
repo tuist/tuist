@@ -55,6 +55,12 @@
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
+      :if={@run.cacheable_tasks_count > 0}
+      label={gettext("Xcode Cache")}
+      selected={@selected_tab == "xcode-cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "xcode-cache")}"}
+    />
+    <.tab_menu_horizontal_item
       label={gettext("Warnings")}
       selected={@selected_tab == "warnings"}
       patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
@@ -115,7 +121,10 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Built at")}</div>
               <span data-part="label">
-                {Timex.format!(@run.inserted_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+                {Tuist.Utilities.DateFormatter.format_with_timezone(
+                  @run.inserted_at,
+                  @user_timezone
+                )}
               </span>
             </div>
           </div>
@@ -575,5 +584,762 @@
         </div>
       </.card_section>
     </.card>
+  <% end %>
+  <%= if @selected_tab == "xcode-cache" do %>
+    <div data-part="cache">
+      <.card
+        title={gettext("Cache Summary")}
+        icon="chart_arcs"
+        data-part="cache-summary-card"
+      >
+        <.card_section data-part="widgets-card-section">
+          <.widget
+            title={gettext("Task hits")}
+            description={
+              gettext("Cacheable tasks that were retrieved from cache (local + remote).")
+            }
+            value={@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count}
+            id="widget-task-hits"
+          />
+          <.widget
+            title={gettext("Task misses")}
+            description={gettext("Cacheable tasks that were not found in cache.")}
+            value={
+              @run.cacheable_tasks_count - @run.cacheable_task_local_hits_count -
+                @run.cacheable_task_remote_hits_count
+            }
+            id="widget-task-misses"
+          />
+          <.widget
+            title={gettext("Hit rate")}
+            description={
+              gettext("The percentage of cacheable tasks that were cache hits (local + remote).")
+            }
+            value={
+              if @run.cacheable_tasks_count > 0 do
+                hit_rate =
+                  ((@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count) /
+                     @run.cacheable_tasks_count * 100)
+                  |> Float.round(1)
+
+                gettext("%{hit_rate}%", hit_rate: hit_rate)
+              else
+                "0%"
+              end
+            }
+            id="widget-hit-rate"
+            empty={@run.cacheable_tasks_count == 0}
+          />
+          <.widget
+            title={gettext("Cache downloads")}
+            description={gettext("Total size of cache artifacts downloaded.")}
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.download_bytes)}
+            id="widget-binary-cache-pulls"
+          />
+          <.widget
+            title={gettext("Cache uploads")}
+            description={gettext("Total size of cache artifacts uploaded.")}
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.upload_bytes)}
+            id="widget-binary-cache-uploads"
+          />
+        </.card_section>
+      </.card>
+      <.tab_menu_horizontal>
+        <.tab_menu_horizontal_item
+          label={gettext("Cacheable Tasks")}
+          selected={@selected_cache_tab == "cacheable-tasks"}
+          patch={"?#{Query.put(@uri.query, "cache-tab", "cacheable-tasks")}"}
+        />
+        <.tab_menu_horizontal_item
+          label={gettext("CAS Outputs")}
+          selected={@selected_cache_tab == "cas-outputs"}
+          patch={"?#{Query.put(@uri.query, "cache-tab", "cas-outputs")}"}
+        />
+      </.tab_menu_horizontal>
+      <.card
+        data-part="xcode-cache-card"
+        title={gettext("Xcode Cache")}
+        icon="database"
+      >
+        <.card_section data-part="xcode-cache-card-section">
+          <%= if @selected_cache_tab == "cacheable-tasks" do %>
+            <.card_section
+              :if={@run.cacheable_tasks_count > 0}
+              data-part="cacheable-tasks-card-section"
+            >
+              <div data-part="title">
+                <span data-part="label">
+                  {gettext("Cacheable tasks:")}
+                </span>
+                <span data-part="value">
+                  {@run.cacheable_tasks_count}
+                </span>
+              </div>
+              <.chart
+                id="cacheable-tasks-breakdown-chart"
+                type="bar"
+                extra_options={
+                  %{
+                    tooltip: %{
+                      trigger: "axis",
+                      axisPointer: %{
+                        type: "none"
+                      }
+                    },
+                    legend: %{
+                      left: "-0.3%",
+                      top: "bottom",
+                      orient: "horizontal",
+                      textStyle: %{
+                        color: "var:noora-surface-label-primary",
+                        fontFamily: "monospace",
+                        fontWeight: 400,
+                        fontSize: 10,
+                        lineHeight: 12
+                      },
+                      icon:
+                        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                      itemWidth: 8,
+                      itemHeight: 4
+                    },
+                    grid: %{
+                      width: "99%",
+                      left: "0%",
+                      height: "60%",
+                      top: "0%"
+                    },
+                    xAxis: %{
+                      type: "value",
+                      axisLabel: %{
+                        show: false
+                      },
+                      splitLine: %{show: false}
+                    },
+                    yAxis: %{
+                      type: "category",
+                      data: [gettext("Cacheable tasks")],
+                      axisLabel: %{
+                        show: false
+                      }
+                    }
+                  }
+                }
+                series={
+                  local_hits = @run.cacheable_task_local_hits_count
+                  remote_hits = @run.cacheable_task_remote_hits_count
+
+                  misses =
+                    @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
+                      @run.cacheable_task_local_hits_count
+
+                  [
+                    %{
+                      name: gettext("Local"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [local_hits],
+                      color: "var:hits-chart-legend-local",
+                      itemStyle: %{
+                        borderRadius:
+                          cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                      }
+                    },
+                    %{
+                      name: gettext("Remote"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [remote_hits],
+                      color: "var:hits-chart-legend-remote",
+                      itemStyle: %{
+                        borderRadius:
+                          cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                      }
+                    },
+                    %{
+                      name: gettext("Missed"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [misses],
+                      color: "var:hits-chart-legend-missed",
+                      itemStyle: %{
+                        borderRadius:
+                          cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                      }
+                    }
+                  ]
+                }
+                x_axis_min={0}
+                x_axis_max={@run.cacheable_tasks_count}
+              />
+            </.card_section>
+            <div data-part="latency-widgets">
+              <.percentile_dropdown_widget
+                id="widget-avg-read-latency"
+                title={
+                  case @selected_read_latency_type do
+                    "avg" -> gettext("Avg. latency reading cache keys")
+                    "p99" -> gettext("p99 latency reading cache keys")
+                    "p90" -> gettext("p90 latency reading cache keys")
+                    "p50" -> gettext("p50 latency reading cache keys")
+                  end
+                }
+                description={
+                  gettext(
+                    "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
+                  )
+                }
+                value={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    case @selected_read_latency_type do
+                      "avg" -> @cacheable_task_latency_metrics.avg_read_duration
+                      "p99" -> @cacheable_task_latency_metrics.p99_read_duration
+                      "p90" -> @cacheable_task_latency_metrics.p90_read_duration
+                      "p50" -> @cacheable_task_latency_metrics.p50_read_duration
+                    end
+                  )
+                }
+                metrics={
+                  %{
+                    avg:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.avg_read_duration
+                      ),
+                    p99:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p99_read_duration
+                      ),
+                    p90:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p90_read_duration
+                      ),
+                    p50:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p50_read_duration
+                      )
+                  }
+                }
+                selected_type={@selected_read_latency_type}
+                event_name="select_read_latency_type"
+                empty={
+                  @cacheable_task_latency_metrics.avg_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p99_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p90_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p50_read_duration == 0
+                }
+                empty_label={gettext("No data")}
+              />
+              <.percentile_dropdown_widget
+                id="widget-avg-write-latency"
+                title={
+                  case @selected_write_latency_type do
+                    "avg" -> gettext("Avg. latency writing cache keys")
+                    "p99" -> gettext("p99 latency writing cache keys")
+                    "p90" -> gettext("p90 latency writing cache keys")
+                    "p50" -> gettext("p50 latency writing cache keys")
+                  end
+                }
+                description={
+                  gettext(
+                    "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
+                  )
+                }
+                value={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    case @selected_write_latency_type do
+                      "avg" -> @cacheable_task_latency_metrics.avg_write_duration
+                      "p99" -> @cacheable_task_latency_metrics.p99_write_duration
+                      "p90" -> @cacheable_task_latency_metrics.p90_write_duration
+                      "p50" -> @cacheable_task_latency_metrics.p50_write_duration
+                    end
+                  )
+                }
+                metrics={
+                  %{
+                    avg:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.avg_write_duration
+                      ),
+                    p99:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p99_write_duration
+                      ),
+                    p90:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p90_write_duration
+                      ),
+                    p50:
+                      Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                        @cacheable_task_latency_metrics.p50_write_duration
+                      )
+                  }
+                }
+                selected_type={@selected_write_latency_type}
+                event_name="select_write_latency_type"
+                empty={
+                  @cacheable_task_latency_metrics.avg_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p99_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p90_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p50_write_duration == 0
+                }
+                empty_label={gettext("No data")}
+              />
+            </div>
+            <div data-part="filters">
+              <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+                <.text_input
+                  type="search"
+                  id="search-cacheable-tasks"
+                  name="search"
+                  placeholder={gettext("Search...")}
+                  show_suffix={false}
+                  data-part="search"
+                  value={@cacheable_tasks_search}
+                />
+              </.form>
+              <.filter_dropdown
+                id="cacheable-tasks-filter-dropdown"
+                label={gettext("Filter")}
+                available_filters={@cacheable_tasks_available_filters}
+                active_filters={@cacheable_tasks_active_filters}
+              />
+            </div>
+            <div :if={Enum.any?(@cacheable_tasks_active_filters)} data-part="active-filters">
+              <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
+            </div>
+            <.table
+              id="cacheable-tasks-table"
+              rows={@cacheable_tasks}
+              row_key={fn task -> task.key end}
+              row_expandable={
+                fn task ->
+                  if is_map(@task_cas_outputs_map) do
+                    not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
+                  else
+                    false
+                  end
+                end
+              }
+              expanded_rows={MapSet.to_list(@expanded_task_keys)}
+            >
+              <:col
+                :let={task}
+                label={gettext("Task")}
+                patch={
+                  @cacheable_tasks_sort_by == "description" &&
+                    cacheable_tasks_column_patch_sort(assigns, "description")
+                }
+                icon={
+                  @cacheable_tasks_sort_by == "description" &&
+                    sort_icon(@cacheable_tasks_sort_order)
+                }
+              >
+                <.text_cell label={task.description || gettext("Unknown")} />
+              </:col>
+              <:col :let={task} label={gettext("Hit")}>
+                <%= case task.status do %>
+                  <% "hit_local" -> %>
+                    <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                  <% "hit_remote" -> %>
+                    <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                  <% "miss" -> %>
+                    <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+                <% end %>
+              </:col>
+              <:col :let={task} label={gettext("Type")}>
+                <.text_cell label={task.type |> String.capitalize()} />
+              </:col>
+              <:col
+                :let={task}
+                label={gettext("Cache key")}
+                patch={
+                  @cacheable_tasks_sort_by == "key" &&
+                    cacheable_tasks_column_patch_sort(assigns, "key")
+                }
+                icon={
+                  @cacheable_tasks_sort_by == "key" &&
+                    sort_icon(@cacheable_tasks_sort_order)
+                }
+              >
+                <.text_cell label={String.slice(task.key, 0, 30) <> if(String.length(task.key) > 30, do: "...", else: "")} />
+              </:col>
+              <:col :let={task}>
+                <.button_cell>
+                  <:button>
+                    <.button
+                      id={"cacheable-task-copy-#{task.key}"}
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      phx-hook="Clipboard"
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                      data-clipboard-value={task.key}
+                    >
+                      <.copy />
+                    </.button>
+                  </:button>
+                </.button_cell>
+              </:col>
+              <:expanded_content :let={task}>
+                <div data-part="cas-outputs-list">
+                  <%= for cas_output <- Map.get(@task_cas_outputs_map, task.key, []) do %>
+                    <div data-part="cas-output-item">
+                      <span data-part="cas-output-text">
+                        <span data-part="cas-output-label">
+                          {gettext("CAS output")} {cas_output.type}:
+                        </span>
+                        <.popover
+                          id={"cas-output-popover-#{cas_output.node_id}"}
+                          tabindex="-1"
+                          placement="top"
+                        >
+                          <:trigger :let={attrs}>
+                            <span {attrs} data-part="cas-output-hash">
+                              {String.slice(cas_output.node_id, 0, 40)}
+                            </span>
+                          </:trigger>
+                          <div data-part="hash-tooltip-content">
+                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
+                            <.button
+                              id={"cas-output-copy-#{cas_output.node_id}"}
+                              variant="secondary"
+                              size="small"
+                              label={gettext("Copy")}
+                              phx-hook="Clipboard"
+                              tabindex="-1"
+                              data-clipboard-value={cas_output.node_id}
+                              phx-click={JS.dispatch("pointerdown", to: "body")}
+                            >
+                              <:icon_right><.copy /></:icon_right>
+                            </.button>
+                          </div>
+                        </.popover>
+                        <span data-part="cas-output-label">...</span>
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              </:expanded_content>
+              <:empty_state>
+                <.table_empty_state
+                  icon="chart_arcs"
+                  title={gettext("No cacheable tasks found")}
+                  subtitle={gettext("Cacheable tasks will appear here when using Tuist cache")}
+                />
+              </:empty_state>
+            </.table>
+            <.pagination_group
+              :if={@cacheable_tasks_meta.total_pages > 1}
+              current_page={@cacheable_tasks_page}
+              number_of_pages={@cacheable_tasks_meta.total_pages}
+              page_patch={
+                fn page ->
+                  "?#{Query.put(@uri.query, "cacheable-tasks-page", page)}"
+                end
+              }
+            />
+          <% end %>
+          <%= if @selected_cache_tab == "cas-outputs" do %>
+            <.card_section
+              :if={@cas_metrics.download_count > 0 or @cas_metrics.upload_count > 0}
+              data-part="cas-outputs-breakdown-card-section"
+            >
+              <div data-part="title">
+                <span data-part="label">
+                  {gettext("CAS outputs:")}
+                </span>
+                <span data-part="value">
+                  {@cas_metrics.download_count + @cas_metrics.upload_count}
+                </span>
+              </div>
+              <.chart
+                id="cas-outputs-breakdown-chart"
+                type="bar"
+                extra_options={
+                  %{
+                    tooltip: %{
+                      trigger: "axis",
+                      axisPointer: %{
+                        type: "none"
+                      }
+                    },
+                    legend: %{
+                      left: "-0.3%",
+                      top: "bottom",
+                      orient: "horizontal",
+                      textStyle: %{
+                        color: "var:noora-surface-label-primary",
+                        fontFamily: "monospace",
+                        fontWeight: 400,
+                        fontSize: 10,
+                        lineHeight: 12
+                      },
+                      icon:
+                        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                      itemWidth: 8,
+                      itemHeight: 4
+                    },
+                    grid: %{
+                      width: "99%",
+                      left: "0%",
+                      height: "60%",
+                      top: "0%"
+                    },
+                    xAxis: %{
+                      type: "value",
+                      axisLabel: %{
+                        show: false
+                      },
+                      splitLine: %{show: false}
+                    },
+                    yAxis: %{
+                      type: "category",
+                      data: [gettext("CAS outputs")],
+                      axisLabel: %{
+                        show: false
+                      }
+                    }
+                  }
+                }
+                series={
+                  download_count = @cas_metrics.download_count
+                  upload_count = @cas_metrics.upload_count
+
+                  [
+                    %{
+                      name: gettext("Download"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [download_count],
+                      color: "var:hits-chart-legend-remote",
+                      itemStyle: %{
+                        borderRadius:
+                          if(download_count > 0 and upload_count == 0,
+                            do: [8, 8, 8, 8],
+                            else: if(download_count > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
+                          )
+                      }
+                    },
+                    %{
+                      name: gettext("Upload"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [upload_count],
+                      color: "var:hits-chart-legend-local",
+                      itemStyle: %{
+                        borderRadius:
+                          if(upload_count > 0 and download_count == 0,
+                            do: [8, 8, 8, 8],
+                            else: if(upload_count > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
+                          )
+                      }
+                    }
+                  ]
+                }
+                x_axis_min={0}
+                x_axis_max={@cas_metrics.download_count + @cas_metrics.upload_count}
+              />
+            </.card_section>
+            <div data-part="throughput-widgets">
+              <.widget
+                title={gettext("Download throughput")}
+                description={
+                  gettext("Time-weighted average download throughput in megabits per second.")
+                }
+                value={
+                  Tuist.Utilities.ThroughputFormatter.format_throughput(
+                    @cas_metrics.time_weighted_avg_download_throughput
+                  )
+                }
+                id="widget-download-throughput"
+                empty={@cas_metrics.time_weighted_avg_download_throughput == 0}
+                empty_label={gettext("No data")}
+              />
+              <.widget
+                title={gettext("Upload throughput")}
+                description={
+                  gettext("Time-weighted average upload throughput in megabits per second.")
+                }
+                value={
+                  Tuist.Utilities.ThroughputFormatter.format_throughput(
+                    @cas_metrics.time_weighted_avg_upload_throughput
+                  )
+                }
+                id="widget-upload-throughput"
+                empty={@cas_metrics.time_weighted_avg_upload_throughput == 0}
+                empty_label={gettext("No data")}
+              />
+            </div>
+            <div data-part="filters">
+              <.form for={%{}} phx-change="search-cas-outputs" phx-debounce="200">
+                <.text_input
+                  type="search"
+                  id="search-cas-outputs"
+                  name="search"
+                  placeholder={gettext("Search...")}
+                  show_suffix={false}
+                  data-part="search"
+                  value={@cas_outputs_search}
+                />
+              </.form>
+              <.dropdown
+                id="cas-outputs-sort-by"
+                label={
+                  case @cas_outputs_sort_by do
+                    "node-id" -> gettext("Key")
+                    "size" -> gettext("Size")
+                    "compressed-size" -> gettext("Compressed Size")
+                    _ -> gettext("Compressed Size")
+                  end
+                }
+                secondary_text={gettext("Sort by:")}
+              >
+                <.dropdown_item
+                  value="node-id"
+                  patch={cas_outputs_dropdown_item_patch_sort("node-id", @uri)}
+                  data-selected={@cas_outputs_sort_by == "node-id"}
+                >
+                  {gettext("Key")}
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="size"
+                  patch={cas_outputs_dropdown_item_patch_sort("size", @uri)}
+                  data-selected={@cas_outputs_sort_by == "size"}
+                >
+                  {gettext("Size")}
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="compressed-size"
+                  patch={cas_outputs_dropdown_item_patch_sort("compressed-size", @uri)}
+                  data-selected={@cas_outputs_sort_by == "compressed-size"}
+                >
+                  {gettext("Compressed Size")}
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+              </.dropdown>
+              <.filter_dropdown
+                id="cas-outputs-filter-dropdown"
+                label={gettext("Filter")}
+                available_filters={@cas_outputs_available_filters}
+                active_filters={@cas_outputs_active_filters}
+              />
+            </div>
+            <div :if={Enum.any?(@cas_outputs_active_filters)} data-part="active-filters">
+              <.active_filter :for={filter <- @cas_outputs_active_filters} filter={filter} />
+            </div>
+            <.table
+              id="cas-outputs-table"
+              rows={@cas_outputs}
+              row_key={fn output -> "#{output.node_id}-#{output.operation}" end}
+            >
+              <:col
+                :let={output}
+                label={gettext("Key")}
+                patch={
+                  @cas_outputs_sort_by == "node-id" &&
+                    cas_outputs_column_patch_sort(assigns, "node-id")
+                }
+                icon={
+                  @cas_outputs_sort_by == "node-id" &&
+                    sort_icon(@cas_outputs_sort_order)
+                }
+              >
+                <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
+              </:col>
+              <:col :let={output} label={gettext("Status")}>
+                <%= case output.operation do %>
+                  <% "download" -> %>
+                    <.badge_cell label={gettext("Download")} color="focus" style="light-fill" />
+                  <% "upload" -> %>
+                    <.badge_cell label={gettext("Upload")} color="secondary" style="light-fill" />
+                <% end %>
+              </:col>
+              <:col :let={output} label={gettext("Type")}>
+                <.text_cell label={output.type} />
+              </:col>
+              <:col
+                :let={output}
+                label={gettext("Size")}
+                patch={
+                  @cas_outputs_sort_by == "size" &&
+                    cas_outputs_column_patch_sort(assigns, "size")
+                }
+                icon={
+                  @cas_outputs_sort_by == "size" &&
+                    sort_icon(@cas_outputs_sort_order)
+                }
+              >
+                <.text_cell label={Tuist.Utilities.ByteFormatter.format_bytes(output.size)} />
+              </:col>
+              <:col
+                :let={output}
+                label={gettext("Compressed Size")}
+                patch={
+                  @cas_outputs_sort_by == "compressed-size" &&
+                    cas_outputs_column_patch_sort(assigns, "compressed-size")
+                }
+                icon={
+                  @cas_outputs_sort_by == "compressed-size" &&
+                    sort_icon(@cas_outputs_sort_order)
+                }
+              >
+                <.text_cell label={
+                  Tuist.Utilities.ByteFormatter.format_bytes(output.compressed_size)
+                } />
+              </:col>
+              <:col :let={output}>
+                <.button_cell>
+                  <:button>
+                    <.button
+                      id={"cas-output-copy-#{output.node_id}"}
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      phx-hook="Clipboard"
+                      data-clipboard-value={output.node_id}
+                    >
+                      <.copy />
+                    </.button>
+                  </:button>
+                </.button_cell>
+              </:col>
+              <:empty_state>
+                <.table_empty_state
+                  icon="package"
+                  title={gettext("No CAS outputs found")}
+                  subtitle={gettext("CAS outputs will appear here when using Tuist cache")}
+                />
+              </:empty_state>
+            </.table>
+            <.pagination_group
+              :if={@cas_outputs_meta.total_pages > 1}
+              current_page={@cas_outputs_page}
+              number_of_pages={@cas_outputs_meta.total_pages}
+              page_patch={
+                fn page ->
+                  "?#{Query.put(@uri.query, "cas-outputs-page", page)}"
+                end
+              }
+            />
+          <% end %>
+        </.card_section>
+      </.card>
+    </div>
   <% end %>
 </div>

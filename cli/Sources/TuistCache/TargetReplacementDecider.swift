@@ -11,28 +11,32 @@ public protocol TargetReplacementDeciding {
     func shouldReplace(project: Project, target: Target) -> Bool
 }
 
-/// A decider that chooses to replace only external targets.
-public struct ExternalOnlyTargetReplacementDecider: TargetReplacementDeciding {
-    public init() {}
+/// A decider that chooses to replace targets based on a cache profile.
+public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
+    private let base: BaseCacheProfile
+    private let profileTargetNames: Set<String>
+    private let profileTargetTags: Set<String>
+    private let focusedTargetNames: Set<String>
+    private let focusedTargetTags: Set<String>
 
-    public func shouldReplace(project: Project, target _: Target) -> Bool {
-        switch project.type {
-        case .external:
-            true
-        case .local:
-            false
-        }
-    }
-}
+    public init(profile: CacheProfile, exceptions: Set<TargetQuery>) {
+        base = profile.base
 
-/// A decider that chooses to replace all targets, except for those that are explicitly excluded.
-public struct AllPossibleTargetReplacementDecider: TargetReplacementDeciding {
-    private let exceptionNames: Set<String>
-    private let exceptionTags: Set<String>
-
-    public init(exceptions: Set<TargetQuery>) {
         var names = Set<String>()
         var tags = Set<String>()
+        for query in profile.targetQueries {
+            switch query {
+            case let .named(name):
+                names.insert(name)
+            case let .tagged(tag):
+                tags.insert(tag)
+            }
+        }
+        profileTargetNames = names
+        profileTargetTags = tags
+
+        names.removeAll()
+        tags.removeAll()
         for exception in exceptions {
             switch exception {
             case let .named(name):
@@ -41,17 +45,31 @@ public struct AllPossibleTargetReplacementDecider: TargetReplacementDeciding {
                 tags.insert(tag)
             }
         }
-        exceptionNames = names
-        exceptionTags = tags
+        focusedTargetNames = names
+        focusedTargetTags = tags
     }
 
-    public func shouldReplace(project _: Project, target: Target) -> Bool {
-        if exceptionNames.contains(target.name) {
-            return false
+    public func shouldReplace(project: Project, target: Target) -> Bool {
+        switch project.type {
+        case .external:
+            switch base {
+            case .none:
+                return false
+            case .onlyExternal, .allPossible:
+                return true
+            }
+        case .local:
+            if focusedTargetNames.contains(target.name) { return false }
+            if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
+
+            switch base {
+            case .allPossible:
+                return true
+            case .onlyExternal, .none:
+                if profileTargetNames.contains(target.name) { return true }
+                if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
+                return false
+            }
         }
-        if !exceptionTags.isEmpty, !target.metadata.tags.isDisjoint(with: exceptionTags) {
-            return false
-        }
-        return true
     }
 }

@@ -62,10 +62,10 @@ defmodule Tuist.BundlesTest do
           project_id: project_id,
           artifacts: [
             %{
-              "artifact_type" => "invalid",
-              "path" => "Tuist.app/Tuist.bundle",
-              "shasum" => "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
-              "size" => 1183
+              artifact_type: :invalid,
+              path: "Tuist.app/Tuist.bundle",
+              shasum: "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
+              size: 1183
             }
           ]
         })
@@ -775,24 +775,6 @@ defmodule Tuist.BundlesTest do
     end
   end
 
-  describe "format_bytes/1" do
-    test "formats bytes when 2 bytes" do
-      assert "2 B" == Bundles.format_bytes(2)
-    end
-
-    test "formats bytes when 1024 bytes" do
-      assert "1.0 KB" == Bundles.format_bytes(1024)
-    end
-
-    test "formats bytes when 1_000_000 bytes" do
-      assert "1.0 MB" == Bundles.format_bytes(1_000_000)
-    end
-
-    test "formats bytes when 1_000_000_000 bytes" do
-      assert "1.0 GB" == Bundles.format_bytes(1_000_000_000)
-    end
-  end
-
   describe "default_app/1" do
     test "returns nil when there are no app bundles" do
       # Given
@@ -942,6 +924,58 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert Bundles.get_bundle(bundle.id) == {:error, :not_found}
+    end
+  end
+
+  describe "list_bundles/1" do
+    test "returns all bundles for a project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, name: "App1")
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, name: "App2")
+
+      # Different project bundle should not be included
+      _other_bundle = BundlesFixtures.bundle_fixture(name: "Other")
+
+      # When
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+  end
+
+  describe "has_bundles_in_project?/1" do
+    test "returns true when project has bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      _bundle = BundlesFixtures.bundle_fixture(project: project)
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == true
+    end
+
+    test "returns false when project has no bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == false
     end
   end
 end

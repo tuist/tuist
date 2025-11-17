@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# Build insights {#insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -77,10 +77,18 @@ activate `tuist` in the post-action environment:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
-eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-tuist inspect build
+$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
+
+::: tip MISE & PROJECT PATHS
+<!-- -->
+Your environment's `PATH` environment variable is not inherited by the scheme
+post action, and therefore you have to use Mise's absolute path, which will
+depend on how you installed Mise. Moreover, don't forget to inherit the build
+settings from a target in your project such that you can run Mise from the
+directory pointed to by $SRCROOT.
+<!-- -->
+:::
 
 
 Your local builds are now tracked as long as you are logged in to your Tuist
@@ -97,7 +105,7 @@ To quickly access the dashboard, run `tuist project show --web` from the CLI.
 ![Dashboard with build
 insights](/images/guides/features/insights/builds-dashboard.png)
 
-## Generated projects {#generated-projects}
+## Сгенерированные проекты {#generated-projects}
 
 ::: info
 <!-- -->
@@ -131,8 +139,7 @@ let project = Project(
                     .executionAction(
                         title: "Inspect Build",
                         scriptText: """
-                        eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
-                        tuist inspect build
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
                         """,
                         target: "MyApp"
                     )

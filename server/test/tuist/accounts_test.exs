@@ -28,9 +28,6 @@ defmodule Tuist.AccountsTest do
       }
     end)
 
-    stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-    stub(Environment, :clickhouse_configured?, fn -> true end)
-
     :ok
   end
 
@@ -147,14 +144,12 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project_id,
-          remote_test_target_hits: ["Core"],
-          remote_cache_target_hits: ["Kit"],
-          created_at: ~U[2025-05-17 15:27:00Z]
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_test_target_hits: ["Core"],
+        remote_cache_target_hits: ["Kit"],
+        created_at: ~U[2025-05-17 15:27:00Z]
+      )
 
       # When
       got = Accounts.account_month_usage(account_id)
@@ -230,25 +225,23 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: first_user_project.id,
-          user_id: first_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: first_user_project.id,
+        user_id: first_user.id,
+        remote_cache_target_hits: ["Module"],
+        remote_test_target_hits: ["ModuleTeests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: second_user_project.id,
-          user_id: second_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: second_user_project.id,
+        user_id: second_user.id,
+        remote_cache_target_hits: ["Module2"],
+        remote_test_target_hits: ["Module2Tests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
 
       # When
       assert [^first_account_customer_id] = Accounts.list_billable_customers()
@@ -948,7 +941,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       :ok
     end
 
@@ -1451,13 +1444,11 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            name: "generate",
-            project_id: project.id,
-            user_id: user.id
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          user_id: user.id
+        )
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1774,7 +1765,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1799,7 +1790,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1836,7 +1827,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture()}
     end
 
@@ -1861,7 +1852,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2371,7 +2362,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :admin)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :admin)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == true
@@ -2385,7 +2376,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :admin)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :user)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :user)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == false
@@ -2893,6 +2884,40 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got_organization.id == organization.id
       assert got_organization.sso_provider == :okta
+    end
+
+    test "falls back to domain-based matching when user doesn't exist" do
+      # Given - no user exists but organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
+    end
+
+    test "falls back to domain-based matching when user has no okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture(email: "user@company.com")
+      # User has no organization
+
+      # But organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
     end
 
     test "returns error when user does not exist" do

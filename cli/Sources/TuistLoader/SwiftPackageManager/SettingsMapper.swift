@@ -67,6 +67,16 @@ struct SettingsMapper {
         var settingsDictionary = XcodeGraph.SettingsDictionary()
         for setting in settings {
             switch (setting.tool, setting.name) {
+            case (.swift, .defaultIsolation):
+                // Map SPM defaultIsolation to SWIFT_DEFAULT_ACTOR_ISOLATION
+                // nil -> "nonisolated", MainActor.self -> "main-actor"
+                if setting.value == ["nonisolated"] || setting.value == ["nil"] {
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "nonisolated"
+                } else if setting.value.contains("MainActor") || setting.value == ["main-actor"] {
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "main-actor"
+                }
+            case (_, .defaultIsolation):
+                break
             case (.swift, .interoperabilityMode):
                 if setting.value == ["Cxx"] {
                     settingsDictionary["SWIFT_OBJC_INTEROP_MODE"] = "objcxx"
@@ -82,16 +92,28 @@ struct SettingsMapper {
                 defines[name] = value
             case (.c, .unsafeFlags):
                 cFlags.append(contentsOf: setting.value)
+            case (.c, .disableWarning):
+                cFlags.append("-Wno-\(setting.value[0])")
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
+            case (.cxx, .disableWarning):
+                cxxFlags.append("-Wno-\(setting.value[0])")
             case (.swift, .define):
                 swiftDefines.append(contentsOf: setting.value)
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
+            case (.swift, .disableWarning):
+                swiftFlags.append("-Wno-\(setting.value[0])")
             case (.swift, .enableUpcomingFeature):
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
                 swiftFlags.append("-enable-experimental-feature \"\(setting.value[0])\"")
+            case (.swift, .strictMemorySafety):
+                swiftFlags.append("-strict-memory-safety")
+                // If the value indicates errors enforcement, treat warnings as errors
+                if setting.value.first?.lowercased() == "errors" {
+                    swiftFlags.append("-Werror=StrictMemorySafety")
+                }
             case (.swift, .swiftLanguageMode):
                 // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
                 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
@@ -107,8 +129,9 @@ struct SettingsMapper {
                 continue
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                 (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                 (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
+                 (.linker, .headerSearchPath), (.linker, .define), (.linker, .disableWarning),
+                 (_, .enableUpcomingFeature), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                 (_, .strictMemorySafety):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }

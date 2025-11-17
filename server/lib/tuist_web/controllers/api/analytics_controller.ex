@@ -853,15 +853,11 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   defp normalize_run_id(run_id) do
-    if Tuist.Environment.clickhouse_configured?() do
-      if Tuist.UUIDv7.valid?(run_id) do
-        # Newer CLI versions send UUIDs which can be converted to integer IDs,
-        # but older versions send integer IDs which cannot be converted back to UUIDs.
-        # Due to this one-way conversion, we must use the legacy_id for object keys.
-        {:ok, Tuist.UUIDv7.to_int64(run_id)}
-      else
-        {:ok, run_id}
-      end
+    if Tuist.UUIDv7.valid?(run_id) do
+      # Newer CLI versions send UUIDs which can be converted to integer IDs,
+      # but older versions send integer IDs which cannot be converted back to UUIDs.
+      # Due to this one-way conversion, we must use the legacy_id for object keys.
+      {:ok, Tuist.UUIDv7.to_int64(run_id)}
     else
       case CommandEvents.get_command_event_by_id(run_id) do
         {:ok, command_event} ->

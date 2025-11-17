@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 
 @preconcurrency import PackageDescription
 
@@ -84,6 +84,8 @@ let targets: [Target] = [
             "TuistCache",
             "TuistRootDirectoryLocator",
             "TuistCI",
+            "TuistCAS",
+            "TuistLaunchctl",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -93,6 +95,7 @@ let targets: [Target] = [
             .product(name: "MCP", package: "swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
             .product(name: "Rosalind", package: "Rosalind"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
         ],
         path: "cli/Sources/TuistKit",
         swiftSettings: [
@@ -419,6 +422,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistRootDirectoryLocator",
+            "TuistCASAnalytics",
             "TuistGit",
             "FileSystem",
             "XCLogParser",
@@ -468,6 +472,50 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistCAS",
+        dependencies: [
+            "TuistServer",
+            "TuistRootDirectoryLocator",
+            "TuistCASAnalytics",
+            .product(name: "GRPCCore", package: "grpc-swift-2"),
+            .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            .product(name: "libzstd", package: "zstd"),
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCAS",
+        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistCASAnalytics",
+        dependencies: [
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "Mockable",
+        ],
+        path: "cli/Sources/TuistCASAnalytics",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistLaunchctl",
+        dependencies: [
+            "Command",
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistLaunchctl",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
 ]
 
 #if TUIST
@@ -491,7 +539,7 @@ let targets: [Target] = [
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
@@ -591,7 +639,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.4.3")),
-        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.20.0")),
+        .package(url: "https://github.com/cpisciotta/xcbeautify", from: "3.1.0"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.3.1")),
         .package(
@@ -604,7 +652,7 @@ let package = Package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.23.0")),
+        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.29.0")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.11.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
@@ -619,7 +667,7 @@ let package = Package(
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(
             url: "https://github.com/MobileNativeFoundation/XCLogParser",
-            branch: "master"
+            revision: "d37cc78024c5411e1bd9b2b73092b9e35b7cf1bb"
         ),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
         .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.45.0")),
@@ -643,6 +691,15 @@ let package = Package(
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
+        .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.0.0"),
+        .package(
+            url: "https://github.com/apple/swift-protobuf.git",
+            from: "1.32.0"
+        ),
+        .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.0.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.0.0"),
+        .package(url: "https://github.com/facebook/zstd.git", from: "1.5.0"),
     ],
-    targets: targets
+    targets: targets,
+    swiftLanguageModes: [.v5]
 )

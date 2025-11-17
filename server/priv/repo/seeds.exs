@@ -3,8 +3,9 @@ alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
+alias Tuist.Bundles
 alias Tuist.CommandEvents
-alias Tuist.CommandEvents.Clickhouse.Event
+alias Tuist.CommandEvents.Event
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -20,7 +21,6 @@ alias Tuist.Xcode
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
-FunWithFlags.enable(:clickhouse_events)
 FunWithFlags.enable(:qa)
 
 _account =
@@ -59,6 +59,33 @@ organization =
 
     organization
   end
+
+# Create additional organization member
+member_email = "member@tuist.dev"
+
+_member_user =
+  if is_nil(Accounts.get_user_by_email(member_email)) do
+    {:ok, member} =
+      Accounts.create_user(member_email,
+        password: password,
+        confirmed_at: NaiveDateTime.utc_now(),
+        setup_billing: false
+      )
+
+    # Add member to the organization
+    :ok = Accounts.add_user_to_organization(member, organization)
+
+    member
+  else
+    Accounts.get_user_by_email(member_email)
+  end
+
+Accounts.update_okta_configuration(organization.id, %{
+  okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
+  okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
+  sso_provider: :okta,
+  sso_organization_id: "trial-2983119.okta.com"
+})
 
 _public_project =
   case Projects.get_project_by_slug("tuist/public") do
@@ -135,6 +162,10 @@ builds =
         )
       )
 
+    total_tasks = Enum.random(50..200)
+    remote_hits = Enum.random(0..div(total_tasks, 2))
+    local_hits = Enum.random(0..(total_tasks - remote_hits))
+
     %{
       id: UUIDv7.generate(),
       duration: Enum.random(10_000..100_000),
@@ -147,11 +178,259 @@ builds =
       scheme: scheme,
       configuration: configuration,
       inserted_at: inserted_at,
-      status: status
+      status: status,
+      cacheable_tasks_count: total_tasks,
+      cacheable_task_remote_hits_count: remote_hits,
+      cacheable_task_local_hits_count: local_hits
     }
   end)
 
-Repo.insert_all(Build, builds)
+{_count, build_records} = Repo.insert_all(Build, builds, returning: [:id])
+
+generate_cache_key = fn _build_id, _task_type, _index ->
+  # Generate base64-like content similar to the real example
+  # Real keys are mostly alphanumeric with occasional + / = _ - characters
+  content =
+    1..88
+    |> Enum.map(fn i ->
+      case rem(i, 20) do
+        # 85% alphanumeric characters
+        x when x < 17 ->
+          Enum.random([
+            Enum.random(?A..?Z),
+            Enum.random(?a..?z),
+            Enum.random(?0..?9)
+          ])
+
+        # 15% special base64 characters
+        _ ->
+          Enum.random([?+, ?/, ?=, ?_, ?-])
+      end
+    end)
+    |> List.to_string()
+
+  "0~#{content}"
+end
+
+generate_task_description = fn task_type ->
+  swift_files = [
+    "ContentView.swift",
+    "AppDelegate.swift",
+    "ViewModel.swift",
+    "MainView.swift",
+    "NetworkManager.swift",
+    "DataModel.swift",
+    "HomeViewController.swift",
+    "SettingsView.swift",
+    "ProfileViewModel.swift",
+    "AuthenticationService.swift"
+  ]
+
+  clang_files = [
+    "main.m",
+    "NetworkManager.m",
+    "Utils.c",
+    "DataProcessor.mm",
+    "ImageHelper.m",
+    "CacheManager.m",
+    "Analytics.m",
+    "Bridge.mm"
+  ]
+
+  swift_actions = [
+    "Compiling",
+    "Emitting module for"
+  ]
+
+  _clang_actions = [
+    "Compiling"
+  ]
+
+  case task_type do
+    "swift" ->
+      action = Enum.random(swift_actions)
+      file = Enum.random(swift_files)
+      if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file
+      "#{action} #{if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file}"
+
+    "clang" ->
+      "Compiling #{Enum.random(clang_files)}"
+  end
+end
+
+generate_cas_node_id = fn ->
+  # Generate realistic CAS node IDs (base64-like strings)
+  content =
+    1..64
+    |> Enum.map(fn _ ->
+      Enum.random([
+        Enum.random(?A..?Z),
+        Enum.random(?a..?z),
+        Enum.random(?0..?9),
+        ?+,
+        ?/,
+        ?=
+      ])
+    end)
+    |> List.to_string()
+
+  content
+end
+
+generate_checksum = fn ->
+  # Generate SHA256-like checksums
+  1..64
+  |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+  |> List.to_string()
+end
+
+cas_file_types = [
+  "object",
+  "swiftmodule",
+  "swiftdoc",
+  "dependencies",
+  "swift-dependencies",
+  "swiftinterface",
+  "llvm-bc",
+  "diagnostics"
+]
+
+cas_outputs =
+  Enum.flat_map(builds, fn build ->
+    # Generate 5-25 CAS operations per build
+    operation_count = Enum.random(5..25)
+
+    Enum.map(1..operation_count, fn _i ->
+      operation = Enum.random(["download", "upload"])
+      size = Enum.random(1024..50_000_000)
+      # 1KB to 50MB
+      compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6))
+      # 30-90% compression
+      duration = Enum.random(100..30_000)
+
+      %{
+        build_run_id: build.id,
+        node_id: generate_cas_node_id.(),
+        checksum: generate_checksum.(),
+        size: size,
+        duration: duration,
+        compressed_size: compressed_size,
+        operation: operation,
+        type: Enum.random(cas_file_types),
+        inserted_at: DateTime.to_naive(build.inserted_at)
+      }
+    end)
+  end)
+
+cas_outputs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
+end)
+
+# Group CAS outputs by build_id for later use
+cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
+
+cacheable_tasks =
+  build_records
+  |> Enum.map(& &1.id)
+  |> Enum.shuffle()
+  |> Enum.take(500)
+  |> Enum.flat_map(fn build_id ->
+    build = Enum.find(builds, &(&1.id == build_id))
+    total_tasks = build.cacheable_tasks_count
+    remote_hits = build.cacheable_task_remote_hits_count
+    local_hits = build.cacheable_task_local_hits_count
+    misses = total_tasks - remote_hits - local_hits
+
+    # Get CAS output node_ids for this build
+    cas_node_ids =
+      cas_outputs_by_build
+      |> Map.get(build_id, [])
+      |> Enum.map(& &1.node_id)
+
+    tasks = []
+
+    tasks =
+      if remote_hits > 0 do
+        tasks ++
+          Enum.map(1..remote_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "hit_remote",
+              key: generate_cache_key.(build_id, "remote", i),
+              read_duration: Enum.random(100..2000) * 1.0,
+              write_duration: nil,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if local_hits > 0 do
+        tasks ++
+          Enum.map(1..local_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "hit_local",
+              key: generate_cache_key.(build_id, "local", i),
+              read_duration: Enum.random(10..100) * 1.0,
+              write_duration: nil,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if misses > 0 do
+        tasks ++
+          Enum.map(1..misses, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "miss",
+              key: generate_cache_key.(build_id, "miss", i),
+              read_duration: Enum.random(50..500) * 1.0,
+              write_duration: Enum.random(100..2000) * 1.0,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks
+  end)
+
+cacheable_tasks
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
+end)
 
 branches = [
   "main",
@@ -376,6 +655,50 @@ test_command_events
       test_case
     end
 
+  target_names = [
+    "App",
+    "AppKit",
+    "AppUI",
+    "AppCore",
+    "Authentication",
+    "Networking",
+    "DataLayer",
+    "Analytics",
+    "Settings",
+    "Profile",
+    "UIComponents",
+    "DesignSystem",
+    "Utilities",
+    "Extensions",
+    "UserManagement",
+    "ContentDelivery",
+    "PaymentProcessing",
+    "Notifications",
+    "CacheManager",
+    "LoggingFramework"
+  ]
+
+  generate_sha1_hash = fn ->
+    1..40
+    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+    |> List.to_string()
+  end
+
+  targets =
+    target_names
+    |> Enum.take(Enum.random(15..20))
+    |> Enum.map(fn target_name ->
+      hit_status = Enum.random(["local", "local", "remote", "remote", "remote", "miss"])
+
+      %{
+        "name" => target_name,
+        "binary_cache_metadata" => %{
+          "hash" => generate_sha1_hash.(),
+          "hit" => hit_status
+        }
+      }
+    end)
+
   {:ok, _graph} =
     Xcode.create_xcode_graph(%{
       command_event: command_event,
@@ -386,15 +709,7 @@ test_command_events
           %{
             "name" => name,
             "path" => module_name,
-            "targets" => [
-              %{
-                "name" => "target-#{System.unique_integer([:positive])}",
-                "binary_cache_metadata" => %{
-                  "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
-                  "hit" => "miss"
-                }
-              }
-            ]
+            "targets" => targets
           }
         ]
       }
@@ -511,19 +826,6 @@ qa_prompts = [
 ]
 
 qa_statuses = ["pending", "running", "completed", "failed"]
-
-qa_summaries = [
-  "All tests passed successfully. The app flows work as expected.",
-  "Found minor UI issues in the onboarding flow. Overall functionality is good.",
-  "Critical bug discovered in the payment process. Needs immediate attention.",
-  "App performance is excellent. All accessibility features work correctly.",
-  "Login functionality has some edge case issues that need addressing.",
-  "Great user experience overall. Minor improvements suggested for navigation.",
-  "App crashes when handling large datasets. Memory optimization needed.",
-  "Perfect implementation of dark mode. All UI elements adapt correctly.",
-  "Push notifications work but delivery timing could be improved.",
-  "Offline mode works well but sync process could be faster."
-]
 
 selected_app_builds = Enum.take_random(app_builds, 25)
 
@@ -784,3 +1086,119 @@ if !Enum.empty?(token_usage_data) do
   Repo.insert_all(Billing.TokenUsage, token_usage_data)
   IO.puts("Created #{length(token_usage_data)} token usage records")
 end
+
+# Create bundles with artifacts
+bundle_types = [:app, :ipa, :xcarchive]
+
+platforms_combinations = [
+  [:ios, :ios_simulator],
+  [:macos],
+  [:ios, :ios_simulator, :macos],
+  [:watchos, :watchos_simulator],
+  [:tvos, :tvos_simulator],
+  [:visionos, :visionos_simulator]
+]
+
+git_branches = ["main", "develop", "feature/new-ui", "feature/caching", "hotfix/memory-leak"]
+
+bundle_names = [
+  "TuistApp",
+  "TuistInternalApp"
+]
+
+Enum.map(1..20, fn index ->
+  bundle_id = UUIDv7.generate()
+  bundle_name = Enum.random(bundle_names)
+  bundle_type = Enum.random(bundle_types)
+  supported_platforms = Enum.random(platforms_combinations)
+  git_branch = Enum.random(git_branches)
+
+  git_commit_sha =
+    1..40
+    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+    |> List.to_string()
+
+  inserted_at =
+    DateTime.new!(
+      Date.add(DateTime.utc_now(), -Enum.random(0..90)),
+      Time.new!(
+        Enum.random(0..23),
+        Enum.random(0..59),
+        Enum.random(0..59)
+      )
+    )
+
+  artifacts = [
+    %{
+      artifact_type: :directory,
+      path: "#{bundle_name}.#{"app"}",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      artifact_type: :file,
+      path: "#{bundle_name}.#{"app"}/Info.plist",
+      size: Enum.random(1000..3000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      artifact_type: :binary,
+      path: "#{bundle_name}.#{"app"}/#{bundle_name}",
+      size: Enum.random(1_000_000..50_000_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      artifact_type: :directory,
+      path: "#{bundle_name}.app/Assets.car",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      artifact_type: :asset,
+      path: "#{bundle_name}.app/Assets.car/Contents.json",
+      size: Enum.random(50_000..500_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
+    },
+    # Localization
+    %{
+      artifact_type: :directory,
+      path: "#{bundle_name}.app/en.lproj",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      artifact_type: :localization,
+      path: "#{bundle_name}.app/en.lproj/Localizable.strings",
+      size: Enum.random(1000..10_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
+    },
+    # Fonts
+    %{
+      artifact_type: :font,
+      path: "#{bundle_name}.app/Fonts/CustomFont.ttf",
+      size: Enum.random(50_000..200_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
+    }
+  ]
+
+  {:ok, bundle} =
+    Bundles.create_bundle(%{
+      id: bundle_id,
+      name: bundle_name,
+      app_bundle_id: "dev.tuist.#{String.downcase(bundle_name)}",
+      install_size: Enum.sum(Enum.map(artifacts, & &1.size)),
+      download_size: Enum.random(500_000..20_000_000),
+      supported_platforms: supported_platforms,
+      version: "#{Enum.random(1..3)}.#{Enum.random(0..9)}.#{Enum.random(0..9)}",
+      git_branch: git_branch,
+      git_commit_sha: git_commit_sha,
+      git_ref: if(git_branch == "main", do: nil, else: "refs/heads/#{git_branch}"),
+      type: bundle_type,
+      project_id: tuist_project.id,
+      uploaded_by_account_id: organization.account.id,
+      inserted_at: inserted_at,
+      artifacts: artifacts
+    })
+
+  bundle
+end)

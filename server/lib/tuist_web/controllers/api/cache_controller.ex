@@ -19,19 +19,48 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:endpoints]
 
-  plug(TuistWeb.API.Authorization.AuthorizationPlug,
-    category: :cache,
-    caching: true,
-    cache_ttl: to_timeout(minute: 1)
-  )
+  plug TuistWeb.API.Authorization.AuthorizationPlug,
+       [
+         category: :cache,
+         caching: true,
+         cache_ttl: to_timeout(minute: 1)
+       ]
+       when action not in [:endpoints]
 
-  plug(TuistWeb.API.Authorization.BillingPlug)
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
 
-  plug(:sign)
+  plug :sign
 
   tags(["Cache"])
+
+  operation(:endpoints,
+    summary: "Get cache endpoints.",
+    description: "This endpoint returns a list of available cache endpoints.",
+    operation_id: "getCacheEndpoints",
+    responses: %{
+      ok:
+        {"List of cache endpoints", "application/json",
+         %Schema{
+           title: "CacheEndpoints",
+           description: "List of available cache endpoints",
+           type: :object,
+           required: [:endpoints],
+           properties: %{
+             endpoints: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             }
+           }
+         }}
+    }
+  )
+
+  def endpoints(conn, _params) do
+    endpoints = Tuist.Environment.cache_endpoints()
+    json(conn, %{endpoints: endpoints})
+  end
 
   operation(:get_cache_action_item,
     summary: "Get a cache action item.",

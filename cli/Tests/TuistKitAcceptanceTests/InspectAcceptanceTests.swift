@@ -104,8 +104,18 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
             try await setUpFixture(.iosAppWithImplicitDependencies)
             await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
             XCTAssertStandardOutput(pattern: """
+             - App implicitly depends on: ClassModule, EnumModule, FuncModule, LetModule, ProtocolModule, StructModule, TypeAliasModule, VarModule
              - FrameworkA implicitly depends on: FrameworkB
             """)
+        }
+    }
+
+    func test_framework_with_macros_redundant_imports() async throws {
+        try await withMockedDependencies {
+            try await setUpFixture(.custom("framework_with_macros_and_tests"))
+            try await run(InstallCommand.self)
+            try await run(InspectRedundantImportsCommand.self)
+            XCTAssertStandardOutput(pattern: "We did not find any redundant dependencies in your project.")
         }
     }
 }
