@@ -506,23 +506,19 @@ defmodule TuistWeb.MembersLive do
   end
 
   def handle_event("confirm-remove-member", %{"member-id" => member_id}, socket) do
-    member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
+    :ok = Authorization.authorize(:member_update, socket.assigns.current_user, socket.assigns.selected_account)
+
+    [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
     organization = socket.assigns.organization
 
-    case member do
-      [member, _role] ->
-        :ok = Accounts.remove_user_from_organization(member, organization)
+    :ok = Accounts.remove_user_from_organization(member, organization)
 
-        socket =
-          socket
-          |> assign_organization()
-          |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
+    socket =
+      socket
+      |> assign_organization()
+      |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
 
-        {:noreply, socket}
-
-      nil ->
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   defp assign_organization(socket) do

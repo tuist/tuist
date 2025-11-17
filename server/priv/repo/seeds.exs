@@ -72,7 +72,7 @@ _member_user =
       )
 
     # Add member to the organization
-    Accounts.add_user_to_organization(member, organization)
+    :ok = Accounts.add_user_to_organization(member, organization)
 
     member
   else
