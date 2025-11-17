@@ -310,17 +310,36 @@
               id="test-suites-sort-by"
               label={
                 case @test_suites_sort_by do
-                  "name" -> gettext("Test Suite")
-                  _ -> gettext("Duration")
+                  "name" -> gettext("Test suite")
+                  "test_case_count" -> gettext("Test cases")
+                  "avg_test_case_duration" -> gettext("Avg. test case duration")
+                  "duration" -> gettext("Duration")
+                  _ -> gettext("Test suite")
                 end
               }
               secondary_text={gettext("Sort by:")}
             >
               <.dropdown_item
                 value="name"
-                label={gettext("Test Suite")}
+                label={gettext("Test suite")}
                 patch={test_suites_dropdown_item_patch_sort("name", @uri)}
                 data-selected={@test_suites_sort_by == "name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="test_case_count"
+                label={gettext("Test cases")}
+                patch={test_suites_dropdown_item_patch_sort("test_case_count", @uri)}
+                data-selected={@test_suites_sort_by == "test_case_count"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="avg_test_case_duration"
+                label={gettext("Avg. test case duration")}
+                patch={test_suites_dropdown_item_patch_sort("avg_test_case_duration", @uri)}
+                data-selected={@test_suites_sort_by == "avg_test_case_duration"}
               >
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
@@ -337,7 +356,7 @@
           <.table id="test-suites-table" rows={@test_suites}>
             <:col
               :let={test_suite}
-              label={gettext("Test Suite")}
+              label={gettext("Test suite")}
               patch={
                 @test_suites_sort_by == "name" &&
                   test_suites_column_patch_sort(assigns, "name")
@@ -349,10 +368,32 @@
             >
               <.text_and_description_cell label={test_suite.name} />
             </:col>
-            <:col :let={test_suite} label={gettext("Test Cases")}>
+            <:col
+              :let={test_suite}
+              label={gettext("Test cases")}
+              patch={
+                @test_suites_sort_by == "test_case_count" &&
+                  test_suites_column_patch_sort(assigns, "test_case_count")
+              }
+              icon={
+                @test_suites_sort_by == "test_case_count" &&
+                  sort_icon(@test_suites_sort_order)
+              }
+            >
               <.text_cell label={"#{test_suite.test_case_count}"} />
             </:col>
-            <:col :let={test_suite} label={gettext("Avg. test case duration")}>
+            <:col
+              :let={test_suite}
+              label={gettext("Avg. test case duration")}
+              patch={
+                @test_suites_sort_by == "avg_test_case_duration" &&
+                  test_suites_column_patch_sort(assigns, "avg_test_case_duration")
+              }
+              icon={
+                @test_suites_sort_by == "avg_test_case_duration" &&
+                  sort_icon(@test_suites_sort_order)
+              }
+            >
               <.text_cell
                 label={
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -435,7 +476,11 @@
               label={
                 case @test_modules_sort_by do
                   "name" -> gettext("Module")
-                  _ -> gettext("Duration")
+                  "test_suite_count" -> gettext("Test suites")
+                  "test_case_count" -> gettext("Test cases")
+                  "avg_test_case_duration" -> gettext("Avg. test case duration")
+                  "duration" -> gettext("Duration")
+                  _ -> gettext("Module")
                 end
               }
               secondary_text={gettext("Sort by:")}
@@ -445,6 +490,30 @@
                 label={gettext("Module")}
                 patch={test_modules_dropdown_item_patch_sort("name", @uri)}
                 data-selected={@test_modules_sort_by == "name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="test_suite_count"
+                label={gettext("Test suites")}
+                patch={test_modules_dropdown_item_patch_sort("test_suite_count", @uri)}
+                data-selected={@test_modules_sort_by == "test_suite_count"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="test_case_count"
+                label={gettext("Test cases")}
+                patch={test_modules_dropdown_item_patch_sort("test_case_count", @uri)}
+                data-selected={@test_modules_sort_by == "test_case_count"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="avg_test_case_duration"
+                label={gettext("Avg. test case duration")}
+                patch={test_modules_dropdown_item_patch_sort("avg_test_case_duration", @uri)}
+                data-selected={@test_modules_sort_by == "avg_test_case_duration"}
               >
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
@@ -473,13 +542,46 @@
             >
               <.text_and_description_cell label={test_module.name} />
             </:col>
-            <:col :let={test_module} label={gettext("Test Suites")}>
+            <:col
+              :let={test_module}
+              label={gettext("Test suites")}
+              patch={
+                @test_modules_sort_by == "test_suite_count" &&
+                  test_modules_column_patch_sort(assigns, "test_suite_count")
+              }
+              icon={
+                @test_modules_sort_by == "test_suite_count" &&
+                  sort_icon(@test_modules_sort_order)
+              }
+            >
               <.text_cell label={"#{test_module.test_suite_count}"} />
             </:col>
-            <:col :let={test_module} label={gettext("Test Cases")}>
+            <:col
+              :let={test_module}
+              label={gettext("Test cases")}
+              patch={
+                @test_modules_sort_by == "test_case_count" &&
+                  test_modules_column_patch_sort(assigns, "test_case_count")
+              }
+              icon={
+                @test_modules_sort_by == "test_case_count" &&
+                  sort_icon(@test_modules_sort_order)
+              }
+            >
               <.text_cell label={"#{test_module.test_case_count}"} />
             </:col>
-            <:col :let={test_module} label={gettext("Avg. test case duration")}>
+            <:col
+              :let={test_module}
+              label={gettext("Avg. test case duration")}
+              patch={
+                @test_modules_sort_by == "avg_test_case_duration" &&
+                  test_modules_column_patch_sort(assigns, "avg_test_case_duration")
+              }
+              icon={
+                @test_modules_sort_by == "avg_test_case_duration" &&
+                  sort_icon(@test_modules_sort_order)
+              }
+            >
               <.text_cell
                 label={
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(

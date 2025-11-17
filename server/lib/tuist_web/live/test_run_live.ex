@@ -447,22 +447,27 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)
   defp ensure_allowed_test_cases_sort_params(_value), do: :name
 
-  defp ensure_allowed_test_suites_sort_params(value) when value in ["name", "duration"],
+  defp ensure_allowed_test_suites_sort_params(value) when value in ["name", "duration", "avg_test_case_duration", "test_case_count"],
     do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_suites_sort_params(_value), do: :name
 
-  defp ensure_allowed_test_modules_sort_params(value) when value in ["name", "duration"],
+  defp ensure_allowed_test_modules_sort_params(value) when value in ["name", "duration", "avg_test_case_duration", "test_case_count", "test_suite_count"],
     do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_modules_sort_params(_value), do: :name
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do
     query_params = URI.decode_query(uri.query)
+    current_sort_by = query_params["test-cases-sort-by"]
     current_sort_order = query_params["test-cases-sort-order"] || "asc"
 
     new_sort_order =
-      if query_params["test-cases-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+      if current_sort_by == sort_by do
+        if current_sort_order == "asc", do: "desc", else: "asc"
+      else
+        if sort_by == "name", do: "asc", else: "desc"
+      end
 
     "?#{uri.query |> Query.put("test-cases-sort-by", sort_by) |> Query.put("test-cases-sort-order", new_sort_order)}"
   end
@@ -476,10 +481,15 @@ defmodule TuistWeb.TestRunLive do
 
   defp test_suites_dropdown_item_patch_sort(sort_by, uri) do
     query_params = URI.decode_query(uri.query)
+    current_sort_by = query_params["test-suites-sort-by"]
     current_sort_order = query_params["test-suites-sort-order"] || "asc"
 
     new_sort_order =
-      if query_params["test-suites-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+      if current_sort_by == sort_by do
+        if current_sort_order == "asc", do: "desc", else: "asc"
+      else
+        if sort_by == "name", do: "asc", else: "desc"
+      end
 
     "?#{uri.query |> Query.put("test-suites-sort-by", sort_by) |> Query.put("test-suites-sort-order", new_sort_order)}"
   end
@@ -493,10 +503,15 @@ defmodule TuistWeb.TestRunLive do
 
   defp test_modules_dropdown_item_patch_sort(sort_by, uri) do
     query_params = URI.decode_query(uri.query)
+    current_sort_by = query_params["test-modules-sort-by"]
     current_sort_order = query_params["test-modules-sort-order"] || "asc"
 
     new_sort_order =
-      if query_params["test-modules-sort-by"] == sort_by && current_sort_order == "asc", do: "desc", else: "asc"
+      if current_sort_by == sort_by do
+        if current_sort_order == "asc", do: "desc", else: "asc"
+      else
+        if sort_by == "name", do: "asc", else: "desc"
+      end
 
     "?#{uri.query |> Query.put("test-modules-sort-by", sort_by) |> Query.put("test-modules-sort-order", new_sort_order)}"
   end

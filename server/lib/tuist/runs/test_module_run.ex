@@ -14,7 +14,7 @@ defmodule Tuist.Runs.TestModuleRun do
       :name,
       :status
     ],
-    sortable: [:inserted_at, :duration, :name]
+    sortable: [:inserted_at, :duration, :name, :avg_test_case_duration, :test_case_count, :test_suite_count]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
