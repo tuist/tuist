@@ -14,8 +14,8 @@
     machines = [
       "cache-eu-central"
       "cache-us-east"
-			"cache-us-west"
-			"cache-ap-southeast"
+      "cache-us-west"
+      "cache-ap-southeast"
       "cache-eu-central-staging"
       "cache-us-east-staging"
       "cache-eu-central-canary"
