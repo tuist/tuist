@@ -294,7 +294,7 @@ defmodule TuistWeb.RunDetailLive do
         field: :binary_cache_hit,
         display_name: gettext("Hit"),
         type: :option,
-        options: [:remote, :local, :miss],
+        options: [:local, :remote, :miss],
         options_display_names: %{
           remote: gettext("Remote"),
           local: gettext("Local"),
