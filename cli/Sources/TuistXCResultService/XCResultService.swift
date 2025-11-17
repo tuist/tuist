@@ -57,12 +57,12 @@ public enum TestStatus {
 }
 
 public struct InvocationRecord {
-    struct ActionRecord {
-        let actionResult: Result
-        let startedTime: Date
-        let endedTime: Date
+    public struct ActionRecord {
+        public let actionResult: Result
+        public let startedTime: Date
+        public let endedTime: Date
 
-        init(actionResult: Result, startedTime: Date, endedTime: Date) {
+        public init(actionResult: Result, startedTime: Date, endedTime: Date) {
             self.actionResult = actionResult
             self.startedTime = startedTime
             self.endedTime = endedTime
@@ -75,10 +75,10 @@ public struct InvocationRecord {
         }
     }
 
-    struct Result {
-        let testRefId: String?
+    public struct Result {
+        public let testRefId: String?
 
-        init(testRefId: String?) {
+        public init(testRefId: String?) {
             self.testRefId = testRefId
         }
 
@@ -87,10 +87,10 @@ public struct InvocationRecord {
         }
     }
 
-    struct TestPlanRunSummaries {
-        let summaries: [TestPlanRunSummary]
+    public struct TestPlanRunSummaries {
+        public let summaries: [TestPlanRunSummary]
 
-        init(summaries: [TestPlanRunSummary]) {
+        public init(summaries: [TestPlanRunSummary]) {
             self.summaries = summaries
         }
 
@@ -99,10 +99,10 @@ public struct InvocationRecord {
         }
     }
 
-    struct TestPlanRunSummary {
-        let testableSummaries: [TestableSummary]
+    public struct TestPlanRunSummary {
+        public let testableSummaries: [TestableSummary]
 
-        init(testableSummaries: [TestableSummary]) {
+        public init(testableSummaries: [TestableSummary]) {
             self.testableSummaries = testableSummaries
         }
 
@@ -111,11 +111,11 @@ public struct InvocationRecord {
         }
     }
 
-    struct TestableSummary {
-        let targetName: String?
-        let tests: [TestSummaryGroup]
+    public struct TestableSummary {
+        public let targetName: String?
+        public let tests: [TestSummaryGroup]
 
-        init(targetName: String, tests: [TestSummaryGroup]) {
+        public init(targetName: String, tests: [TestSummaryGroup]) {
             self.targetName = targetName
             self.tests = tests
         }
@@ -126,11 +126,11 @@ public struct InvocationRecord {
         }
     }
 
-    struct TestSummaryGroup {
-        let subtests: [TestMetadata]
-        let subtestGroups: [TestSummaryGroup]
+    public struct TestSummaryGroup {
+        public let subtests: [TestMetadata]
+        public let subtestGroups: [TestSummaryGroup]
 
-        init(subtests: [TestMetadata], subtestGroups: [TestSummaryGroup]) {
+        public init(subtests: [TestMetadata], subtestGroups: [TestSummaryGroup]) {
             self.subtests = subtests
             self.subtestGroups = subtestGroups
         }
@@ -141,13 +141,13 @@ public struct InvocationRecord {
         }
     }
 
-    struct TestMetadata {
-        let name: String?
-        let suiteName: String?
-        let testStatus: String
-        let duration: Int?
+    public struct TestMetadata {
+        public let name: String?
+        public let suiteName: String?
+        public let testStatus: String
+        public let duration: Int?
 
-        init(
+        public init(
             name: String?,
             suiteName: String?,
             testStatus: String,
@@ -186,11 +186,11 @@ public struct InvocationRecord {
         }
     }
 
-    let actions: [ActionRecord]
-    let testSummaries: [TestPlanRunSummaries]
-    let path: URL
+    public let actions: [ActionRecord]
+    public let testSummaries: [TestPlanRunSummaries]
+    public let path: URL
 
-    init(actions: [ActionRecord], testSummaries: [TestPlanRunSummaries], path: URL) {
+    public init(actions: [ActionRecord], testSummaries: [TestPlanRunSummaries], path: URL) {
         self.actions = actions
         self.testSummaries = testSummaries
         self.path = path

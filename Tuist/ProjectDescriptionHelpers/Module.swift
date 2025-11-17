@@ -327,7 +327,7 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .casAnalytics, .launchctl:
+             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator:
             moduleTags.append("domain:infrastructure")
         }
 
@@ -444,13 +444,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
-<<<<<<< HEAD
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
-=======
                     .target(name: Module.cas.targetName),
                     .target(name: Module.launchctl.targetName),
->>>>>>> origin/main
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -650,6 +647,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .external(name: "XCResultKit"),
                     .external(name: "FileSystem"),
+                ]
             case .cas:
                 [
                     .target(name: Module.core.targetName),
@@ -871,6 +869,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName)
+                ]
             case .cas:
                 [
                     .target(name: Module.testing.targetName),

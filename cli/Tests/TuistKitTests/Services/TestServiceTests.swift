@@ -8,6 +8,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import TuistXCResultService
 import XCTest
 
 @testable import TuistKit
@@ -1155,7 +1156,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(xcResultService)
             .parse(path: .value(xcresultPath))
-            .willReturn(InvocationRecord(actions: [], testSummaries: []))
+            .willReturn(InvocationRecord(actions: [], testSummaries: [], path: URL.test()))
 
         given(xcResultService)
             .successfulTestTargets(invocationRecord: .any)
