@@ -282,9 +282,14 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "overview", params) do
     selected_test_tab = params["test-tab"] || "test-cases"
 
+    # Load failures data for the overview preview card
+    {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
+
     socket =
       socket
       |> assign(:selected_test_tab, selected_test_tab)
+      |> assign(:failures_grouped_by_test_case, failures_grouped)
+      |> assign(:failures_meta, failures_meta)
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)
