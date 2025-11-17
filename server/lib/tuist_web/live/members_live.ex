@@ -20,7 +20,7 @@ defmodule TuistWeb.MembersLive do
         form: to_form(%{}, as: :invitation),
         selected_tab: "members",
         selected_inner_tab: "members",
-        selected_member_roles: %{}
+        managing_member: nil
         # invite_role: :user,
         # invite_emails: []
       )
@@ -119,7 +119,7 @@ defmodule TuistWeb.MembersLive do
                     <.dropdown
                       id={"role-dropdown-#{member.id}"}
                       label={
-                        case Map.get(@selected_member_roles, member.id, role) do
+                        case get_selected_role(@managing_member, member.id, role) do
                           "user" -> gettext("User")
                           "admin" -> gettext("Admin")
                         end
@@ -131,7 +131,7 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="user"
-                        data-selected={Map.get(@selected_member_roles, member, role) == "user"}
+                        data-selected={get_selected_role(@managing_member, member.id, role) == "user"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -141,7 +141,7 @@ defmodule TuistWeb.MembersLive do
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="admin"
-                        data-selected={Map.get(@selected_member_roles, member, role) == "admin"}
+                        data-selected={get_selected_role(@managing_member, member.id, role) == "admin"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -164,7 +164,7 @@ defmodule TuistWeb.MembersLive do
                           type="button"
                           phx-click="save-member-role"
                           phx-value-member-id={member.id}
-                          disabled={Map.get(@selected_member_roles, member, role) == role}
+                          disabled={get_selected_role(@managing_member, member.id, role) == role}
                         />
                       </:action>
                     </.modal_footer>
@@ -416,35 +416,33 @@ defmodule TuistWeb.MembersLive do
 
   def handle_event("select-member-role", %{"member_id" => member_id, "role" => role}, socket) do
     member_id_int = String.to_integer(member_id)
-    socket = assign(socket, selected_member_roles: Map.put(socket.assigns.selected_member_roles, member_id_int, role))
+    socket = assign(socket, managing_member: {member_id_int, role})
     {:noreply, socket}
   end
 
   def handle_event("save-member-role", %{"member-id" => member_id}, socket) do
     member_id_int = String.to_integer(member_id)
-    new_role = Map.get(socket.assigns.selected_member_roles, member_id_int)
+    {^member_id_int, new_role} = socket.assigns.managing_member
 
     [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
     organization = socket.assigns.organization
 
     %Tuist.Accounts.Role{} =
-      Accounts.update_user_role_in_organization member, organization, String.to_existing_atom(new_role) do
-        socket =
-          socket
-          |> assign_organization()
-          |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
-          |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
-
-        {:noreply, socket}
-      end
-  end
-
-  def handle_event("close-manage-role-modal-" <> member_id, _, socket) do
-    member_id_int = String.to_integer(member_id)
+      Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
 
     socket =
       socket
-      |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
+      |> assign_organization()
+      |> assign(managing_member: nil)
+      |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("close-manage-role-modal-" <> member_id, _, socket) do
+    socket =
+      socket
+      |> assign(managing_member: nil)
       |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
 
     {:noreply, socket}
@@ -535,6 +533,13 @@ defmodule TuistWeb.MembersLive do
       all_members: members,
       invitations: organization.invitations
     )
+  end
+
+  defp get_selected_role(managing_member, member_id, current_role) do
+    case managing_member do
+      {id, selected_role} when id == member_id -> selected_role
+      _ -> current_role
+    end
   end
 
   defp background_grid_light(assigns) do
