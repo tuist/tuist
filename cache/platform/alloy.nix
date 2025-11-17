@@ -7,6 +7,10 @@
   grafanaCloudUsername = config.services.onepassword-secrets.secrets.grafanaCloudPromUsername.path;
   grafanaCloudPassword = config.services.onepassword-secrets.secrets.grafanaCloudPromPassword.path;
 
+  grafanaCloudLokiUrl = config.services.onepassword-secrets.secrets.grafanaCloudLokiUrl.path;
+  grafanaCloudLokiUsername = config.services.onepassword-secrets.secrets.grafanaCloudLokiUsername.path;
+  grafanaCloudLokiPassword = config.services.onepassword-secrets.secrets.grafanaCloudLokiPassword.path;
+
   alloyConfig = ''
     local.file "grafana_cloud_url" {
       filename = "${grafanaCloudUrl}"
@@ -21,6 +25,19 @@
       is_secret = true
     }
 
+    local.file "grafana_cloud_loki_url" {
+      filename = "${grafanaCloudLokiUrl}"
+    }
+
+    local.file "grafana_cloud_loki_username" {
+      filename = "${grafanaCloudLokiUsername}"
+    }
+
+    local.file "grafana_cloud_loki_password" {
+      filename = "${grafanaCloudLokiPassword}"
+      is_secret = true
+    }
+
     prometheus.remote_write "grafana_cloud" {
       endpoint {
         url = local.file.grafana_cloud_url.content
@@ -32,19 +49,58 @@
       }
     }
 
-    prometheus.scrape "cache_promex" {
-      targets = [
-        {
-          __address__ = "127.0.0.1:80",
-          __scheme__ = "http",
-          __metrics_path__ = "/metrics",
-    	instance = "${config.networking.hostName}",
-        },
-      ]
+     prometheus.scrape "cache_promex" {
+       targets = [
+         {
+           __address__ = "127.0.0.1:80",
+           __scheme__ = "http",
+           __metrics_path__ = "/metrics",
+           instance = "${config.networking.hostName}",
+         },
+       ]
 
       scrape_interval = "15s"
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+    }
+
+    discovery.docker "linux" {
+      host = "unix:///var/run/docker.sock"
+    }
+
+     loki.source.docker "default" {
+       host       = "unix:///var/run/docker.sock"
+       targets    = discovery.docker.linux.targets
+       labels     = {
+         app = "docker",
+         instance = "${config.networking.hostName}",
+       }
+       forward_to = [loki.write.grafana_cloud.receiver]
+     }
+
+     loki.source.file "nginx_error" {
+       targets    = [
+         {
+           __path__ = "/var/log/nginx/error.log",
+           labels   = {
+             job     = "nginx",
+             stream   = "error",
+             instance = "${config.networking.hostName}",
+           },
+         },
+       ]
+       forward_to = [loki.write.grafana_cloud.receiver]
+     }
+
+    loki.write "grafana_cloud" {
+      endpoint {
+        url = local.file.grafana_cloud_loki_url.content
+
+        basic_auth {
+          username = local.file.grafana_cloud_loki_username.content
+          password = local.file.grafana_cloud_loki_password.content
+        }
+      }
     }
   '';
 in {
@@ -73,7 +129,7 @@ in {
       User = "grafana-alloy";
       Group = "grafana-alloy";
       StateDirectory = "grafana-alloy";
-      SupplementaryGroups = ["keys" "systemd-journal"];
+      SupplementaryGroups = ["keys" "systemd-journal" "docker" "nginx"];
     };
   };
 }

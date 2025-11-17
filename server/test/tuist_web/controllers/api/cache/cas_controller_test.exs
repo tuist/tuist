@@ -9,7 +9,7 @@ defmodule TuistWeb.API.CASControllerTest do
   alias TuistWeb.Errors.NotFoundError
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
     %{

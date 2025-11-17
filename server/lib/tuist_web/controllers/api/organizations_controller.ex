@@ -610,7 +610,7 @@ defmodule TuistWeb.API.OrganizationsController do
         end
 
         if Accounts.belongs_to_organization?(member, organization) do
-          Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))
+          {:ok, _} = Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))
 
           json(conn, %{id: member.id, email: member.email, name: member_account.name, role: role})
         else

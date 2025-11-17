@@ -30,7 +30,7 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 1. We already have a pre-made user account that you can use to test the server:
 
 ```
-Email: tuistrocks@tuist.io
+Email: tuistrocks@tuist.dev
 Pass: tuistrocks
 ```
 
