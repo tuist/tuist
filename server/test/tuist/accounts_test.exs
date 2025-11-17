@@ -2362,7 +2362,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :admin)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :admin)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == true
@@ -2376,7 +2376,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :admin)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :user)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :user)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == false

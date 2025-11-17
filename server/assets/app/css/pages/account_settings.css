@@ -51,6 +51,13 @@
             min-width: 80vw;
           }
         }
+
+        & [data-part="content"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-8);
+          padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9) var(--noora-spacing-2);
+        }
       }
     }
   }
