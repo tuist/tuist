@@ -98,18 +98,23 @@ defmodule TuistWeb.MembersLive do
                   id={"manage-role-modal-#{member.id}"}
                   title={gettext("Manage role")}
                   on_dismiss={"close-manage-role-modal-#{member.id}"}
+                  header_type="icon"
+                  header_size="small"
+                  data-part="manage-role-modal"
                 >
+                  <:header_icon>
+                    <.user />
+                  </:header_icon>
                   <:trigger :let={modal_attrs}>
                     <button
                       id={"manage-role-trigger-#{member.id}"}
                       type="button"
-                      style="display: none;"
                       {modal_attrs}
                     >
                     </button>
                   </:trigger>
                   <.line_divider />
-                  <div>
+                  <div data-part="change-role">
                     <label>{gettext("Role")}</label>
                     <.dropdown
                       id={"role-dropdown-#{member.id}"}
@@ -148,6 +153,7 @@ defmodule TuistWeb.MembersLive do
                           type="button"
                           phx-click="save-member-role"
                           phx-value-member-id={member.id}
+                          disabled={selected_role == role_str}
                         />
                       </:action>
                     </.modal_footer>
@@ -203,11 +209,12 @@ defmodule TuistWeb.MembersLive do
                   <:icon><.dots_vertical /></:icon>
 
                   <.dropdown_item
+                    :if={member.id != @current_user.id}
                     label={gettext("Manage role")}
                     value="manage_role"
                     phx-click={JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})}
                   >
-                    <:left_icon><.settings /></:left_icon>
+                    <:left_icon><.user /></:left_icon>
                   </.dropdown_item>
 
                   <.dropdown_item
@@ -215,7 +222,7 @@ defmodule TuistWeb.MembersLive do
                     value="remove"
                     phx-click={JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})}
                   >
-                    <:left_icon><.user_x /></:left_icon>
+                    <:left_icon><.trash_x /></:left_icon>
                   </.dropdown_item>
                 </.dropdown>
               </:col>
