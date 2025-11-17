@@ -23,6 +23,9 @@ defmodule Tuist.Runs.TestModuleRun do
     field :test_run_id, Ecto.UUID
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
     field :duration, Ch, type: "Int32"
+    field :test_suite_count, Ch, type: "Int32"
+    field :test_case_count, Ch, type: "Int32"
+    field :avg_test_case_duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -34,6 +37,9 @@ defmodule Tuist.Runs.TestModuleRun do
       :test_run_id,
       :status,
       :duration,
+      :test_suite_count,
+      :test_case_count,
+      :avg_test_case_duration,
       :inserted_at
     ])
     |> validate_required([

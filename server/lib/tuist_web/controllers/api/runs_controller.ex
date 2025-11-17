@@ -733,7 +733,6 @@ defmodule TuistWeb.API.RunsController do
             })
 
           {:error, changeset} ->
-            dbg(changeset)
             conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
         end
 

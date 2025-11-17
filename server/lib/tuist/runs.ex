@@ -467,6 +467,26 @@ defmodule Tuist.Runs do
 
       module_id = Ecto.UUID.generate()
 
+      # Get test suites and test cases
+      test_suites = Map.get(module_attrs, :test_suites, [])
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      # Compute statistics
+      test_suite_count = length(test_suites)
+      test_case_count = length(test_cases)
+
+      avg_test_case_duration =
+        if test_case_count > 0 do
+          total_duration =
+            Enum.reduce(test_cases, 0, fn case_attrs, acc ->
+              acc + Map.get(case_attrs, :duration, 0)
+            end)
+
+          round(total_duration / test_case_count)
+        else
+          0
+        end
+
       # Create test module run
       module_run_attrs = %{
         id: module_id,
@@ -474,6 +494,9 @@ defmodule Tuist.Runs do
         test_run_id: test.id,
         status: module_status,
         duration: Map.get(module_attrs, :duration, 0),
+        test_suite_count: test_suite_count,
+        test_case_count: test_case_count,
+        avg_test_case_duration: avg_test_case_duration,
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -484,7 +507,7 @@ defmodule Tuist.Runs do
           # Create test suites if present and get suite name to ID mapping
           suite_name_to_id =
             if Map.has_key?(module_attrs, :test_suites) do
-              create_test_suites(test, module_id, Map.get(module_attrs, :test_suites, []))
+              create_test_suites(test, module_id, test_suites, test_cases)
             else
               %{}
             end
@@ -496,7 +519,7 @@ defmodule Tuist.Runs do
             create_test_cases_for_module(
               test,
               module_id,
-              Map.get(module_attrs, :test_cases, []),
+              test_cases,
               suite_name_to_id,
               module_name
             )
@@ -510,7 +533,13 @@ defmodule Tuist.Runs do
     end)
   end
 
-  defp create_test_suites(test, module_id, test_suites) do
+  defp create_test_suites(test, module_id, test_suites, test_cases) do
+    # Group test cases by suite name to compute statistics
+    test_cases_by_suite =
+      Enum.group_by(test_cases, fn case_attrs ->
+        Map.get(case_attrs, :test_suite_name, "")
+      end)
+
     {test_suite_runs, suite_name_to_id} =
       Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
         # Map status to raw enum value for ClickHouse
@@ -527,6 +556,22 @@ defmodule Tuist.Runs do
         suite_id = Ecto.UUID.generate()
         suite_name = Map.get(suite_attrs, :name)
 
+        # Compute test case statistics for this suite
+        suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
+        test_case_count = length(suite_test_cases)
+
+        avg_test_case_duration =
+          if test_case_count > 0 do
+            total_duration =
+              Enum.reduce(suite_test_cases, 0, fn case_attrs, acc ->
+                acc + Map.get(case_attrs, :duration, 0)
+              end)
+
+            round(total_duration / test_case_count)
+          else
+            0
+          end
+
         suite_run = %{
           id: suite_id,
           name: suite_name,
@@ -534,6 +579,8 @@ defmodule Tuist.Runs do
           test_module_run_id: module_id,
           status: suite_status,
           duration: Map.get(suite_attrs, :duration, 0),
+          test_case_count: test_case_count,
+          avg_test_case_duration: avg_test_case_duration,
           inserted_at: NaiveDateTime.utc_now()
         }
 

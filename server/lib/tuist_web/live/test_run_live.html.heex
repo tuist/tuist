@@ -310,7 +310,7 @@
               id="test-suites-sort-by"
               label={
                 case @test_suites_sort_by do
-                  "name" -> gettext("Suite name")
+                  "name" -> gettext("Test Suite")
                   _ -> gettext("Duration")
                 end
               }
@@ -318,7 +318,7 @@
             >
               <.dropdown_item
                 value="name"
-                label={gettext("Suite name")}
+                label={gettext("Test Suite")}
                 patch={test_suites_dropdown_item_patch_sort("name", @uri)}
                 data-selected={@test_suites_sort_by == "name"}
               >
@@ -337,7 +337,7 @@
           <.table id="test-suites-table" rows={@test_suites}>
             <:col
               :let={test_suite}
-              label={gettext("Suite name")}
+              label={gettext("Test Suite")}
               patch={
                 @test_suites_sort_by == "name" &&
                   test_suites_column_patch_sort(assigns, "name")
@@ -348,6 +348,29 @@
               }
             >
               <.text_and_description_cell label={test_suite.name} />
+            </:col>
+            <:col :let={test_suite} label={gettext("Test Cases")}>
+              <.text_cell label={"#{test_suite.test_case_count}"} />
+            </:col>
+            <:col :let={test_suite} label={gettext("Avg. test case duration")}>
+              <.text_cell
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_suite.avg_test_case_duration
+                  )
+                }
+                icon="history"
+              />
+            </:col>
+            <:col :let={test_suite} label={gettext("Status")}>
+              <%= case test_suite.status do %>
+                <% :success -> %>
+                  <.status_badge_cell label={gettext("Passed")} status="success" />
+                <% :failure -> %>
+                  <.status_badge_cell label={gettext("Failed")} status="error" />
+                <% :skipped -> %>
+                  <.status_badge_cell label={gettext("Skipped")} status="warning" />
+              <% end %>
             </:col>
             <:col
               :let={test_suite}
@@ -369,16 +392,6 @@
                 }
                 icon="history"
               />
-            </:col>
-            <:col :let={test_suite} label="Status">
-              <%= case test_suite.status do %>
-                <% :success -> %>
-                  <.status_badge_cell label={gettext("Passed")} status="success" />
-                <% :failure -> %>
-                  <.status_badge_cell label={gettext("Failed")} status="error" />
-                <% :skipped -> %>
-                  <.status_badge_cell label={gettext("Skipped")} status="warning" />
-              <% end %>
             </:col>
             <:empty_state>
               <.table_empty_state
@@ -421,7 +434,7 @@
               id="test-modules-sort-by"
               label={
                 case @test_modules_sort_by do
-                  "name" -> gettext("Module name")
+                  "name" -> gettext("Module")
                   _ -> gettext("Duration")
                 end
               }
@@ -429,7 +442,7 @@
             >
               <.dropdown_item
                 value="name"
-                label={gettext("Module name")}
+                label={gettext("Module")}
                 patch={test_modules_dropdown_item_patch_sort("name", @uri)}
                 data-selected={@test_modules_sort_by == "name"}
               >
@@ -448,7 +461,7 @@
           <.table id="test-modules-table" rows={@test_modules}>
             <:col
               :let={test_module}
-              label={gettext("Module name")}
+              label={gettext("Module")}
               patch={
                 @test_modules_sort_by == "name" &&
                   test_modules_column_patch_sort(assigns, "name")
@@ -459,6 +472,30 @@
               }
             >
               <.text_and_description_cell label={test_module.name} />
+            </:col>
+            <:col :let={test_module} label={gettext("Test Suites")}>
+              <.text_cell label={"#{test_module.test_suite_count}"} />
+            </:col>
+            <:col :let={test_module} label={gettext("Test Cases")}>
+              <.text_cell label={"#{test_module.test_case_count}"} />
+            </:col>
+            <:col :let={test_module} label={gettext("Avg. test case duration")}>
+              <.text_cell
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_module.avg_test_case_duration
+                  )
+                }
+                icon="history"
+              />
+            </:col>
+            <:col :let={test_module} label={gettext("Status")}>
+              <%= case test_module.status do %>
+                <% :success -> %>
+                  <.status_badge_cell label={gettext("Passed")} status="success" />
+                <% :failure -> %>
+                  <.status_badge_cell label={gettext("Failed")} status="error" />
+              <% end %>
             </:col>
             <:col
               :let={test_module}
@@ -480,14 +517,6 @@
                 }
                 icon="history"
               />
-            </:col>
-            <:col :let={test_module} label="Status">
-              <%= case test_module.status do %>
-                <% :success -> %>
-                  <.status_badge_cell label={gettext("Passed")} status="success" />
-                <% :failure -> %>
-                  <.status_badge_cell label={gettext("Failed")} status="error" />
-              <% end %>
             </:col>
             <:empty_state>
               <.table_empty_state

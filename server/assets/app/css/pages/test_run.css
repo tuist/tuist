@@ -138,15 +138,15 @@
     }
   }
 
-  & [data-part="test-cases-card"] {
-    & > [data-part="test-cases-card-section"] {
-      gap: var(--noora-spacing-8);
-      & > [data-part="filters"] {
-        display: flex;
-        gap: var(--noora-spacing-6);
-        & .noora-dropdown-item:not([data-selected]) svg {
-          visibility: hidden;
-        }
+  & [data-part="test-cases-card"] > [data-part="test-cases-card-section"],
+  & [data-part="test-suites-card"] > [data-part="test-suites-card-section"],
+  & [data-part="test-modules-card"] > [data-part="test-modules-card-section"] {
+    gap: var(--noora-spacing-8);
+    & > [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+      & .noora-dropdown-item:not([data-selected]) svg {
+        visibility: hidden;
       }
     }
   }
