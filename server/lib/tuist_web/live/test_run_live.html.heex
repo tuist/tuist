@@ -760,43 +760,66 @@
           </span>
         </div>
         <div data-part="failures-list">
-          <%= for {_test_case_run_id, failures} <- @failures_grouped_by_test_case do %>
+          <%= for {test_case_run_id, failures} <- @failures_grouped_by_test_case do %>
             <% first_failure = List.first(failures) %>
-            <div data-part="failure-group">
-              <div data-part="failure-test-case-header">
-                <div data-part="test-case-info">
-                  <span data-part="test-case-name">{first_failure.test_case_name}</span>
-                  <%= if first_failure.test_module_name && first_failure.test_suite_name != "" do %>
-                    <span data-part="test-case-context">
-                      {first_failure.test_module_name} • {first_failure.test_suite_name}
-                    </span>
-                  <% else %>
-                    <%= if first_failure.test_module_name do %>
-                      <span data-part="test-case-context">{first_failure.test_module_name}</span>
-                    <% end %>
-                  <% end %>
-                </div>
-                <span data-part="failure-count">
-                  {length(failures)} {if length(failures) == 1, do: gettext("failure"), else: gettext("failures")}
-                </span>
-              </div>
-              <%= for failure <- failures do %>
-                <div data-part="failure-item">
-                  <div data-part="failure-location">
-                    <%= if failure.file_name do %>
-                      <span data-part="file-name">{failure.file_name}:{failure.line_number}</span>
-                    <% else %>
-                      <span data-part="line-number">{gettext("Line")} {failure.line_number}</span>
-                    <% end %>
-                    <%= if failure.issue_type && failure.issue_type != "unknown" do %>
-                      <span data-part="issue-type">• {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}</span>
-                    <% end %>
+            <div
+              id={"test-failure-#{test_case_run_id}"}
+              phx-hook="NooraCollapsible"
+              data-part="collapsible"
+              data-state="closed"
+              class="test-failure-card"
+            >
+              <div data-part="root">
+                <div data-part="trigger">
+                  <div data-part="header">
+                    <div data-part="icon">
+                      <.alert_circle />
+                    </div>
+                    <div data-part="title-and-subtitle">
+                      <h3 data-part="title">
+                        {first_failure.test_case_name}
+                      </h3>
+                      <%= if first_failure.test_module_name && first_failure.test_suite_name != "" do %>
+                        <span data-part="subtitle">
+                          {first_failure.test_module_name} • {first_failure.test_suite_name}
+                        </span>
+                      <% else %>
+                        <%= if first_failure.test_module_name do %>
+                          <span data-part="subtitle">{first_failure.test_module_name}</span>
+                        <% end %>
+                      <% end %>
+                    </div>
+                    <.badge
+                      label={length(failures)}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
                   </div>
-                  <%= if failure.message do %>
-                    <div data-part="failure-message">{failure.message}</div>
+                  <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
+                <div data-part="content" data-state="closed">
+                  <%= for failure <- failures do %>
+                    <span data-part="failure">
+                      <%= if failure.file_name do %>
+                        {failure.file_name}:{failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
+                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
+                      <% else %>
+                        {gettext("Line")} {failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
+                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
+                      <% end %>
+                      <%= if failure.message do %>
+                        - {failure.message}
+                      <% end %>
+                    </span>
                   <% end %>
                 </div>
-              <% end %>
+              </div>
             </div>
           <% end %>
         </div>
