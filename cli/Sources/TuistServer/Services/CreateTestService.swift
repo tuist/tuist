@@ -95,12 +95,13 @@ import OpenAPIURLSession
                 
                 // Group test cases by test suite within this module
                 let testCasesBySuite = Dictionary(grouping: testCases) { testCase in
-                    testCase.testSuite ?? "Unknown"
+                    testCase.testSuite
                 }
                 
                 // Create test suites with their test cases
-                let testSuites = testCasesBySuite.map { (suiteName, suiteTestCases) in
-                    let suiteStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload = 
+                let testSuites = testCasesBySuite.compactMap { (suiteName, suiteTestCases) -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload? in
+                    guard let suiteName = suiteName else { return nil }
+                    let suiteStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload =
                         suiteTestCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
                     let suiteDuration = suiteTestCases.compactMap { $0.duration }.reduce(0, +)
                     

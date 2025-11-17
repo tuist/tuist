@@ -14,7 +14,8 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_module_run_id,
       :test_suite_run_id,
       :name,
-      :status
+      :status,
+      :duration
     ],
     sortable: [:inserted_at, :duration, :name]
   }

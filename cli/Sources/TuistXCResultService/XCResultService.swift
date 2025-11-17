@@ -122,7 +122,10 @@ public struct InvocationRecord {
 
         init(testableSummary: ActionTestableSummary) {
             targetName = testableSummary.targetName
-            tests = testableSummary.tests.map { .init(testSummaryGroup: $0) }
+            let globalTests = testableSummary.globalTests.map { TestMetadata(testMetadata: $0) }
+            tests = testableSummary.tests.map { TestSummaryGroup(testSummaryGroup: $0) } + [
+                TestSummaryGroup(subtests: globalTests, subtestGroups: [])
+            ]
         }
     }
 

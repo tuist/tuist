@@ -208,6 +208,15 @@
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
             </.dropdown>
+            <.filter_dropdown
+              id="test-cases-filter-dropdown"
+              label={gettext("Filter")}
+              available_filters={@test_cases_available_filters}
+              active_filters={@test_cases_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@test_cases_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @test_cases_active_filters} filter={filter} />
           </div>
           <.table id="test-cases-table" rows={@test_cases}>
             <:col
@@ -352,6 +361,15 @@
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
             </.dropdown>
+            <.filter_dropdown
+              id="test-suites-filter-dropdown"
+              label={gettext("Filter")}
+              available_filters={@test_suites_available_filters}
+              active_filters={@test_suites_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@test_suites_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @test_suites_active_filters} filter={filter} />
           </div>
           <.table id="test-suites-table" rows={@test_suites}>
             <:col
@@ -526,6 +544,15 @@
                 <:right_icon><.check /></:right_icon>
               </.dropdown_item>
             </.dropdown>
+            <.filter_dropdown
+              id="test-modules-filter-dropdown"
+              label={gettext("Filter")}
+              available_filters={@test_modules_available_filters}
+              active_filters={@test_modules_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@test_modules_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @test_modules_active_filters} filter={filter} />
           </div>
           <.table id="test-modules-table" rows={@test_modules}>
             <:col

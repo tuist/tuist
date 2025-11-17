@@ -13,7 +13,10 @@ defmodule Tuist.Runs.TestSuiteRun do
       :test_run_id,
       :test_module_run_id,
       :name,
-      :status
+      :status,
+      :test_case_count,
+      :avg_test_case_duration,
+      :duration
     ],
     sortable: [:inserted_at, :duration, :name, :avg_test_case_duration, :test_case_count]
   }

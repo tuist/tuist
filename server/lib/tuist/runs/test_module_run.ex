@@ -12,7 +12,11 @@ defmodule Tuist.Runs.TestModuleRun do
     filterable: [
       :test_run_id,
       :name,
-      :status
+      :status,
+      :test_suite_count,
+      :test_case_count,
+      :avg_test_case_duration,
+      :duration
     ],
     sortable: [:inserted_at, :duration, :name, :avg_test_case_duration, :test_case_count, :test_suite_count]
   }

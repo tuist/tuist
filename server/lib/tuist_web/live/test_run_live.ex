@@ -5,6 +5,7 @@ defmodule TuistWeb.TestRunLive do
 
   import TuistWeb.Runs.RanByBadge
 
+  alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
@@ -52,6 +53,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{gettext("Test Run")} · #{slug} · Tuist")
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
+      |> assign(:available_filters, [])
+      |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
       |> assign_async(:has_result_bundle, fn ->
@@ -64,11 +67,30 @@ defmodule TuistWeb.TestRunLive do
   def handle_params(params, _uri, socket) do
     uri = build_uri(params)
     selected_tab = selected_tab(params)
+    selected_test_tab = params["test-tab"] || "test-cases"
+
+    # Determine which filters to use based on the current tab
+    {available_filters, active_filters} =
+      case {selected_tab, selected_test_tab} do
+        {"overview", "test-cases"} ->
+          {socket.assigns.test_cases_available_filters, socket.assigns.test_cases_active_filters}
+
+        {"overview", "test-suites"} ->
+          {socket.assigns.test_suites_available_filters, socket.assigns.test_suites_active_filters}
+
+        {"overview", "test-modules"} ->
+          {socket.assigns.test_modules_available_filters, socket.assigns.test_modules_active_filters}
+
+        _ ->
+          {[], []}
+      end
 
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
+      |> assign(:available_filters, available_filters)
+      |> assign(:active_filters, active_filters)
       |> assign_tab_data(selected_tab, params)
 
     {:noreply, socket}
@@ -129,6 +151,32 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs/#{socket.assigns.run.id}?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs/#{socket.assigns.run.id}?#{updated_query_params}"
+     )
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
   def sort_icon("desc") do
     "square_rounded_arrow_down"
   end
@@ -176,47 +224,28 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_search, "")
     |> assign(:test_cases_sort_by, "name")
     |> assign(:test_cases_sort_order, "asc")
+    |> assign(:test_cases_available_filters, define_test_cases_filters())
+    |> assign(:test_cases_active_filters, [])
     |> assign(:test_suites, [])
     |> assign(:test_suites_meta, %{})
     |> assign(:test_suites_page, 1)
     |> assign(:test_suites_search, "")
     |> assign(:test_suites_sort_by, "name")
     |> assign(:test_suites_sort_order, "asc")
+    |> assign(:test_suites_available_filters, define_test_suites_filters())
+    |> assign(:test_suites_active_filters, [])
     |> assign(:test_modules, [])
     |> assign(:test_modules_meta, %{})
     |> assign(:test_modules_page, 1)
     |> assign(:test_modules_search, "")
     |> assign(:test_modules_sort_by, "name")
     |> assign(:test_modules_sort_order, "asc")
+    |> assign(:test_modules_available_filters, define_test_modules_filters())
+    |> assign(:test_modules_active_filters, [])
   end
 
   defp build_uri(params) do
-    query_params = [
-      "tab",
-      "selective-testing-page",
-      "selective-testing-sort-by",
-      "selective-testing-sort-order",
-      "selective-testing-filter",
-      "binary-cache-page",
-      "binary-cache-sort-by",
-      "binary-cache-sort-order",
-      "binary-cache-filter",
-      "test-tab",
-      "test-cases-page",
-      "test-cases-sort-by",
-      "test-cases-sort-order",
-      "test-cases-filter",
-      "test-suites-page",
-      "test-suites-sort-by",
-      "test-suites-sort-order",
-      "test-suites-filter",
-      "test-modules-page",
-      "test-modules-sort-by",
-      "test-modules-sort-order",
-      "test-modules-filter"
-    ]
-
-    URI.new!("?" <> URI.encode_query(Map.take(params, query_params)))
+    URI.new!("?" <> URI.encode_query(params))
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
@@ -308,6 +337,9 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_test_cases_data(socket, test_cases, meta, params) do
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.test_cases_available_filters)
+
     socket
     |> assign(:test_cases, test_cases)
     |> assign(:test_cases_meta, meta)
@@ -315,9 +347,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_page, String.to_integer(params["test-cases-page"] || "1"))
     |> assign(:test_cases_sort_by, params["test-cases-sort-by"] || "name")
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
+    |> assign(:test_cases_active_filters, filters)
   end
 
   defp assign_test_suites_data(socket, test_suites, meta, params) do
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.test_suites_available_filters)
+
     socket
     |> assign(:test_suites, test_suites)
     |> assign(:test_suites_meta, meta)
@@ -325,9 +361,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_suites_page, String.to_integer(params["test-suites-page"] || "1"))
     |> assign(:test_suites_sort_by, params["test-suites-sort-by"] || "name")
     |> assign(:test_suites_sort_order, params["test-suites-sort-order"] || "asc")
+    |> assign(:test_suites_active_filters, filters)
   end
 
   defp assign_test_modules_data(socket, test_modules, meta, params) do
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.test_modules_available_filters)
+
     socket
     |> assign(:test_modules, test_modules)
     |> assign(:test_modules_meta, meta)
@@ -335,6 +375,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_page, String.to_integer(params["test-modules-page"] || "1"))
     |> assign(:test_modules_sort_by, params["test-modules-sort-by"] || "name")
     |> assign(:test_modules_sort_order, params["test-modules-sort-order"] || "asc")
+    |> assign(:test_modules_active_filters, filters)
   end
 
   defp assign_param_defaults(socket, params) do
@@ -399,12 +440,9 @@ defmodule TuistWeb.TestRunLive do
 
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
-  defp load_test_cases_data(run, params) do
+  defp load_test_cases_data(run, params, available_filters \\ define_test_cases_filters()) do
     flop_params = %{
-      filters: [
-        %{field: :test_run_id, op: :==, value: run.id}
-        | build_flop_filters(params["test-cases-filter"])
-      ],
+      filters: test_cases_filters(run, params, available_filters, params["test-cases-filter"]),
       page: String.to_integer(params["test-cases-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_cases_sort_params(params["test-cases-sort-by"])],
@@ -414,12 +452,9 @@ defmodule TuistWeb.TestRunLive do
     Runs.list_test_case_runs(flop_params)
   end
 
-  defp load_test_suites_data(run, params) do
+  defp load_test_suites_data(run, params, available_filters \\ define_test_suites_filters()) do
     flop_params = %{
-      filters: [
-        %{field: :test_run_id, op: :==, value: run.id}
-        | build_flop_filters(params["test-suites-filter"])
-      ],
+      filters: test_suites_filters(run, params, available_filters, params["test-suites-filter"]),
       page: String.to_integer(params["test-suites-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_suites_sort_params(params["test-suites-sort-by"])],
@@ -429,12 +464,9 @@ defmodule TuistWeb.TestRunLive do
     Runs.list_test_suite_runs(flop_params)
   end
 
-  defp load_test_modules_data(run, params) do
+  defp load_test_modules_data(run, params, available_filters \\ define_test_modules_filters()) do
     flop_params = %{
-      filters: [
-        %{field: :test_run_id, op: :==, value: run.id}
-        | build_flop_filters(params["test-modules-filter"])
-      ],
+      filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
       page: String.to_integer(params["test-modules-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_modules_sort_params(params["test-modules-sort-by"])],
@@ -528,5 +560,212 @@ defmodule TuistWeb.TestRunLive do
 
   defp build_flop_filters(filter_text) do
     [%{field: :name, op: :=~, value: filter_text}]
+  end
+
+  defp test_cases_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :test_run_id, op: :==, value: run.id}] ++
+        map_filter_status_value(
+          Filter.Operations.convert_filters_to_flop(
+            Filter.Operations.decode_filters_from_query(params, available_filters)
+          )
+        )
+
+    if search && search != "" do
+      base_filters ++ [%{field: :name, op: :=~, value: search}]
+    else
+      base_filters
+    end
+  end
+
+  defp test_suites_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :test_run_id, op: :==, value: run.id}] ++
+        map_filter_status_value(
+          Filter.Operations.convert_filters_to_flop(
+            Filter.Operations.decode_filters_from_query(params, available_filters)
+          )
+        )
+
+    if search && search != "" do
+      base_filters ++ [%{field: :name, op: :=~, value: search}]
+    else
+      base_filters
+    end
+  end
+
+  defp test_modules_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :test_run_id, op: :==, value: run.id}] ++
+        map_filter_status_value(
+          Filter.Operations.convert_filters_to_flop(
+            Filter.Operations.decode_filters_from_query(params, available_filters)
+          )
+        )
+
+    if search && search != "" do
+      base_filters ++ [%{field: :name, op: :=~, value: search}]
+    else
+      base_filters
+    end
+  end
+
+  defp map_filter_status_value(filters) do
+    Enum.map(filters, fn filter ->
+      if filter.field == :status do
+        %{filter | value: status_string_to_int(filter.value)}
+      else
+        filter
+      end
+    end)
+  end
+
+  defp status_string_to_int("success"), do: 0
+  defp status_string_to_int("failure"), do: 1
+  defp status_string_to_int("skipped"), do: 2
+  defp status_string_to_int(value) when is_integer(value), do: value
+
+  defp define_test_cases_filters do
+    [
+      %Filter.Filter{
+        id: "name",
+        field: :name,
+        display_name: gettext("Test case"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "duration",
+        field: :duration,
+        display_name: gettext("Duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Status"),
+        type: :option,
+        options: ["success", "failure", "skipped"],
+        options_display_names: %{
+          "success" => gettext("Passed"),
+          "failure" => gettext("Failed"),
+          "skipped" => gettext("Skipped")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp define_test_suites_filters do
+    [
+      %Filter.Filter{
+        id: "name",
+        field: :name,
+        display_name: gettext("Test suite"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "test_case_count",
+        field: :test_case_count,
+        display_name: gettext("Test cases"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "avg_test_case_duration",
+        field: :avg_test_case_duration,
+        display_name: gettext("Avg. test case duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "duration",
+        field: :duration,
+        display_name: gettext("Duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Status"),
+        type: :option,
+        options: ["success", "failure", "skipped"],
+        options_display_names: %{
+          "success" => gettext("Passed"),
+          "failure" => gettext("Failed"),
+          "skipped" => gettext("Skipped")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp define_test_modules_filters do
+    [
+      %Filter.Filter{
+        id: "name",
+        field: :name,
+        display_name: gettext("Module"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "test_suite_count",
+        field: :test_suite_count,
+        display_name: gettext("Test suites"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "test_case_count",
+        field: :test_case_count,
+        display_name: gettext("Test cases"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "avg_test_case_duration",
+        field: :avg_test_case_duration,
+        display_name: gettext("Avg. test case duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "duration",
+        field: :duration,
+        display_name: gettext("Duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Status"),
+        type: :option,
+        options: ["success", "failure"],
+        options_display_names: %{
+          "success" => gettext("Passed"),
+          "failure" => gettext("Failed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
   end
 end
