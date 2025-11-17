@@ -278,7 +278,7 @@ defmodule TuistWeb.RunDetailLive do
     |> Enum.map(fn filter ->
       case filter.id do
         "binary_cache_hit" ->
-          %{filter | value: if(filter.value, do: Atom.to_string(filter.value), else: nil)}
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
 
         _ ->
           filter

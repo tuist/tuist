@@ -305,17 +305,17 @@
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
       <.card_section data-part="binary-cache-section">
         <div data-part="filters">
-        <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-binary-cache"
-            name="search"
-            placeholder={gettext("Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@binary_cache_filter}
-          />
-        </.form>
+          <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-binary-cache"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@binary_cache_filter}
+            />
+          </.form>
           <.filter_dropdown
             id="binary-cache-filter-dropdown"
             label={gettext("Filter")}
