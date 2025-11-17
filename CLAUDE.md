@@ -96,7 +96,7 @@ mise run dev                   # Start development server
 ```
 
 **Test User Account:**
-- Email: `tuistrocks@tuist.io`
+- Email: `tuistrocks@tuist.dev`
 - Password: `tuistrocks`
 
 ## Common Development Commands
