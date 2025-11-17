@@ -300,6 +300,16 @@
           value={@binary_cache_analytics.binary_cache_misses_count}
           id="widget-optimization-summary-binary-cache-misses"
         />
+        <.widget
+          title={gettext("Cache hit rate")}
+          description={
+            gettext(
+              "Percentage of modules that were successfully retrieved from the cache."
+            )
+          }
+          value={"#{@binary_cache_analytics.cache_hit_rate}%"}
+          id="widget-optimization-summary-cache-hit-rate"
+        />
       </.card_section>
     </.card>
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
