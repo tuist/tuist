@@ -19,7 +19,6 @@ defmodule TuistWeb.MembersLive do
       |> assign(
         form: to_form(%{}, as: :invitation),
         selected_tab: "members",
-        # NOTE: This should preferably done on the client. Moved this to the server for now because LiveView went into `phx-skip` mode and elements disappeared.
         selected_inner_tab: "members",
         selected_member_roles: %{}
         # invite_role: :user,
@@ -119,7 +118,12 @@ defmodule TuistWeb.MembersLive do
                     <label>{gettext("Role")}</label>
                     <.dropdown
                       id={"role-dropdown-#{member.id}"}
-                      label={selected_role_label(@selected_member_roles, member, role)}
+                      label={
+                        case Map.get(@selected_member_roles, member.id, role) do
+                          "user" -> gettext("User")
+                          "admin" -> gettext("Admin")
+                        end
+                      }
                     >
                       <.dropdown_item
                         value="user"
@@ -214,7 +218,6 @@ defmodule TuistWeb.MembersLive do
                   </:footer>
                 </.modal>
 
-                <%!-- Dropdown with items that trigger the modals --%>
                 <.dropdown id={"member-actions-#{member.id}"} icon_only>
                   <:icon><.dots_vertical /></:icon>
 
@@ -298,16 +301,6 @@ defmodule TuistWeb.MembersLive do
       </div>
     </div>
     """
-  end
-
-  defp selected_role_label(selected_member_roles, member, role) do
-    dbg(selected_member_roles)
-    dbg(member)
-
-    case selected_member_roles |> Map.get(member.id, role) |> dbg() do
-      "user" -> gettext("User")
-      "admin" -> gettext("Admin")
-    end
   end
 
   defp invite_member_form(assigns) do
@@ -431,32 +424,19 @@ defmodule TuistWeb.MembersLive do
     member_id_int = String.to_integer(member_id)
     new_role = Map.get(socket.assigns.selected_member_roles, member_id_int)
 
-    if is_nil(new_role) do
-      {:noreply, socket}
-    else
-      member = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
-      organization = socket.assigns.organization
+    [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
+    organization = socket.assigns.organization
 
-      case member do
-        [member, _role] ->
-          case Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
-            %Tuist.Accounts.Role{} ->
-              socket =
-                socket
-                |> assign_organization()
-                |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
-                |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+    %Tuist.Accounts.Role{} =
+      Accounts.update_user_role_in_organization member, organization, String.to_existing_atom(new_role) do
+        socket =
+          socket
+          |> assign_organization()
+          |> assign(selected_member_roles: Map.delete(socket.assigns.selected_member_roles, member_id_int))
+          |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
 
-              {:noreply, socket}
-
-            {:error, _reason} ->
-              {:noreply, socket}
-          end
-
-        nil ->
-          {:noreply, socket}
+        {:noreply, socket}
       end
-    end
   end
 
   def handle_event("close-manage-role-modal-" <> member_id, _, socket) do
