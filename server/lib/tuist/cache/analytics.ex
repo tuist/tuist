@@ -189,6 +189,11 @@ defmodule Tuist.Cache.Analytics do
     |> Enum.filter(&(&1.day == 1))
   end
 
-  defp date_to_string(date, :day), do: Date.to_string(date)
-  defp date_to_string(date, :month), do: "#{date.year}-#{String.pad_leading(Integer.to_string(date.month), 2, "0")}"
+  defp date_to_string(date, :day) do
+    Timex.format!(date, "%Y-%m-%d", :strftime)
+  end
+
+  defp date_to_string(date, :month) do
+    Timex.format!(date, "%Y-%m", :strftime)
+  end
 end
