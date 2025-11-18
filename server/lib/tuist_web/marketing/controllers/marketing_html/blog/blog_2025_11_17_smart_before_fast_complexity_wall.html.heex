@@ -17,20 +17,17 @@
       font-size: 10px;
       font-weight: 500;
       fill: var(--noora-surface-label-secondary);
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     }
 
     .chart-title {
       font-size: 12px;
       font-weight: 600;
       fill: var(--noora-surface-label-primary);
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     }
 
     .tick text {
       font-size: 9px;
       fill: var(--noora-surface-label-tertiary);
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     }
 
     .tick line {
@@ -55,8 +52,7 @@
     }
 
     .gap-area {
-      fill: var(--noora-status-error-background);
-      opacity: 0.3;
+      fill: oklch(from var(--noora-button-primary-background) calc(l + 0.3) c h / 0.3);
     }
 
     .dot {
@@ -74,7 +70,6 @@
 
     .legend {
       font-size: 12px;
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     }
 
     .legend-line {
@@ -89,7 +84,6 @@
     .phase-label {
       font-size: 8px;
       fill: var(--noora-surface-label-tertiary);
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
       text-anchor: middle;
     }
   """}
@@ -268,7 +262,7 @@
           .attr("x", 35)
           .attr("y", 0)
           .attr("dy", "0.35em")
-          .text("Expected (linear)");
+          .text("Expected");
 
         // Actual legend
         legend.append("line")
