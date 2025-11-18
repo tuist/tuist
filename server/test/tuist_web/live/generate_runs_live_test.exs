@@ -59,7 +59,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       )
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
 
       # Then
       assert has_element?(lv, "span", "generate App")
