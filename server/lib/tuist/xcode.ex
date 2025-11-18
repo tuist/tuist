@@ -129,7 +129,7 @@ defmodule Tuist.Xcode do
 
     cache_hit_rate =
       if total > 0 do
-        (total_hits / total * 100) |> Float.round(1)
+        Float.round(total_hits / total * 100, 1)
       else
         0.0
       end

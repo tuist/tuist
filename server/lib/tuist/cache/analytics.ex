@@ -52,8 +52,7 @@ defmodule Tuist.Cache.Analytics do
 
     all_dates = generate_date_range(start_date, end_date, date_period)
 
-    all_dates
-    |> Enum.map(fn date ->
+    Enum.map(all_dates, fn date ->
       lookup_key = date_to_string(date, date_period)
       event_data = Map.get(event_map, lookup_key)
       build_data = Map.get(build_map, lookup_key)
@@ -180,12 +179,15 @@ defmodule Tuist.Cache.Analytics do
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{months: 1}), do: "1 month"
 
   defp generate_date_range(start_date, end_date, :day) do
-    Date.range(start_date, end_date)
+    start_date
+    |> Date.range(end_date)
     |> Enum.to_list()
   end
 
   defp generate_date_range(start_date, end_date, :month) do
-    Date.range(Date.beginning_of_month(start_date), Date.beginning_of_month(end_date))
+    start_date
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(end_date))
     |> Enum.filter(&(&1.day == 1))
   end
 

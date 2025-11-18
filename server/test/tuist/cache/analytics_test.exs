@@ -238,10 +238,10 @@ defmodule Tuist.Cache.AnalyticsTest do
         )
 
       assert got == [
-        %{date: ~D[2024-04-28], cache_hit_rate: 0.0},
-        %{date: ~D[2024-04-29], cache_hit_rate: 0.0},
-        %{date: ~D[2024-04-30], cache_hit_rate: 0.0}
-      ]
+               %{date: ~D[2024-04-28], cache_hit_rate: 0.0},
+               %{date: ~D[2024-04-29], cache_hit_rate: 0.0},
+               %{date: ~D[2024-04-30], cache_hit_rate: 0.0}
+             ]
     end
 
     test "handles monthly aggregation" do
@@ -327,36 +327,38 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert length(got) == 12
       dates = Enum.map(got, & &1.date)
+
       assert dates == [
-        ~D[2024-01-01],
-        ~D[2024-02-01],
-        ~D[2024-03-01],
-        ~D[2024-04-01],
-        ~D[2024-05-01],
-        ~D[2024-06-01],
-        ~D[2024-07-01],
-        ~D[2024-08-01],
-        ~D[2024-09-01],
-        ~D[2024-10-01],
-        ~D[2024-11-01],
-        ~D[2024-12-01]
-      ]
+               ~D[2024-01-01],
+               ~D[2024-02-01],
+               ~D[2024-03-01],
+               ~D[2024-04-01],
+               ~D[2024-05-01],
+               ~D[2024-06-01],
+               ~D[2024-07-01],
+               ~D[2024-08-01],
+               ~D[2024-09-01],
+               ~D[2024-10-01],
+               ~D[2024-11-01],
+               ~D[2024-12-01]
+             ]
 
       values = Enum.map(got, & &1.cache_hit_rate)
+
       assert values == [
-        0.5,
-        0.0,
-        0.0,
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.5,
-        0.0,
-        0.0
-      ]
+               0.5,
+               0.0,
+               0.0,
+               1.0,
+               0.0,
+               0.0,
+               0.0,
+               0.0,
+               0.0,
+               0.5,
+               0.0,
+               0.0
+             ]
     end
   end
 
