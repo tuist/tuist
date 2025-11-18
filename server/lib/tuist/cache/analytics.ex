@@ -50,12 +50,13 @@ defmodule Tuist.Cache.Analytics do
     event_map = Map.new(event_results, &{&1.date, &1})
     build_map = Map.new(build_results, &{&1.date, &1})
 
-    all_dates = MapSet.union(MapSet.new(Map.keys(event_map)), MapSet.new(Map.keys(build_map)))
+    all_dates = generate_date_range(start_date, end_date, date_period)
 
     all_dates
     |> Enum.map(fn date ->
-      event_data = Map.get(event_map, date)
-      build_data = Map.get(build_map, date)
+      lookup_key = date_to_string(date, date_period)
+      event_data = Map.get(event_map, lookup_key)
+      build_data = Map.get(build_map, lookup_key)
 
       module_hit_rate =
         if event_data do
@@ -80,7 +81,6 @@ defmodule Tuist.Cache.Analytics do
         cache_hit_rate: average_hit_rates(module_hit_rate, xcode_hit_rate)
       }
     end)
-    |> Enum.sort_by(& &1.date)
   end
 
   defp calculate_hit_rate(local_hits, remote_hits, total) do
@@ -178,4 +178,17 @@ defmodule Tuist.Cache.Analytics do
 
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{days: 1}), do: "1 day"
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{months: 1}), do: "1 month"
+
+  defp generate_date_range(start_date, end_date, :day) do
+    Date.range(start_date, end_date)
+    |> Enum.to_list()
+  end
+
+  defp generate_date_range(start_date, end_date, :month) do
+    Date.range(Date.beginning_of_month(start_date), Date.beginning_of_month(end_date))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_to_string(date, :day), do: Date.to_string(date)
+  defp date_to_string(date, :month), do: "#{date.year}-#{String.pad_leading(Integer.to_string(date.month), 2, "0")}"
 end
