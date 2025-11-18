@@ -60,13 +60,13 @@ custom_script = """
 
     const width = container.clientWidth;
     const height = 400;
-    // Calculate margins as percentage of width for fluid scaling
+    // Calculate margins for responsive layout
     const isMobile = width < 768;
     const margin = {
       top: 30,
-      right: isMobile ? Math.max(70, width * 0.19) : Math.max(120, width * 0.24),
+      right: isMobile ? 80 : 120,
       bottom: 95,
-      left: isMobile ? Math.max(100, width * 0.28) : Math.max(140, width * 0.27)
+      left: isMobile ? 100 : 120
     };
 
     // Colors
