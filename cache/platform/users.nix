@@ -26,4 +26,9 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII0j+FOf7IUXTuH8oMXRCxsnqhvAek+HT7gSF8mRIf5q github-actions@github"
     ];
   };
+
+  users.users.cache = {
+    isSystemUser = true;
+    group = "cache";
+  };
 }
