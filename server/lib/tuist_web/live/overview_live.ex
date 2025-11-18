@@ -317,7 +317,7 @@ defmodule TuistWeb.OverviewLive do
 
   defp combined_overview_analytics(project_id, opts) do
     queries = [
-      fn -> opts |> Cache.Analytics.cache_hit_rate_analytics() |> dbg() end,
+      fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
       fn -> Analytics.selective_testing_analytics(opts) end,
       fn -> Analytics.build_duration_analytics(project_id, opts) end,
       fn -> Analytics.runs_duration_analytics("test", opts) end
