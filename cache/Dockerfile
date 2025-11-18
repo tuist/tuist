@@ -46,6 +46,8 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
+RUN groupadd -g 990 cache && useradd -u 990 -g cache cache
+
 WORKDIR "/app"
 
 ENV MIX_ENV="prod"

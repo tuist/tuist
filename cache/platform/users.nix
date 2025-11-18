@@ -30,5 +30,10 @@
   users.users.cache = {
     isSystemUser = true;
     group = "cache";
+    uid = 990;
+  };
+
+  users.groups.cache = {
+    gid = 990;
   };
 }
