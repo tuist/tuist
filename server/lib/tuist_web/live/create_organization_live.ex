@@ -4,11 +4,11 @@ defmodule TuistWeb.CreateOrganizationLive do
   use Noora
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.Account
 
   @impl true
   def mount(_params, _session, socket) do
-    form = to_form(Organization.create_changeset())
+    form = to_form(Account.create_changeset(%Account{}, %{}))
     socket = assign(socket, form: form)
 
     {:ok, socket}
@@ -64,14 +64,7 @@ defmodule TuistWeb.CreateOrganizationLive do
   end
 
   @impl true
-  def handle_event("select_account", %{"value" => [value]}, socket) do
-    socket = assign(socket, selected_account: String.to_integer(value))
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("create_organization", %{"organization" => %{"name" => name}}, socket) do
+  def handle_event("create_organization", %{"account" => %{"name" => name}}, socket) do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =
