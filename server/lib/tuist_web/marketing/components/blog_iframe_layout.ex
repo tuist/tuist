@@ -54,6 +54,12 @@ defmodule TuistWeb.Marketing.Components.BlogIframeLayout do
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
           }
 
+          /* Sankey diagram link styling */
+          .link {
+            fill: none;
+            stroke-opacity: 0.3;
+          }
+
           <%= raw(@custom_styles) %>
         </style>
       </head>
