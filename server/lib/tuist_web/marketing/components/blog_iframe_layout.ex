@@ -1,5 +1,7 @@
 defmodule TuistWeb.Marketing.Components.BlogIframeLayout do
+  @moduledoc false
   use Phoenix.Component
+
   import Phoenix.HTML
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
@@ -31,7 +33,7 @@ defmodule TuistWeb.Marketing.Components.BlogIframeLayout do
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <%= if @custom_head do %>
-          <%= raw(@custom_head) %>
+          {raw(@custom_head)}
         <% end %>
 
         <style>
@@ -56,7 +58,7 @@ defmodule TuistWeb.Marketing.Components.BlogIframeLayout do
         </style>
       </head>
       <body>
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
 
         <script nonce={@csp_nonce}>
           let isPaused = true;

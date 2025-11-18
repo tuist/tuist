@@ -1,5 +1,7 @@
 <TuistWeb.Marketing.Components.BlogIframeLayout.base
-  custom_head={~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>|}
+  custom_head={
+    ~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>|
+  }
   custom_styles={"""
     #viz-container {
       width: 100%;

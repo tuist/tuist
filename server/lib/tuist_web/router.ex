@@ -202,6 +202,15 @@ defmodule TuistWeb.Router do
             :blog_post,
             metadata: %{type: :marketing},
             private: private
+
+        # Add iframe route for each blog post
+        iframe_path = Path.join([locale_path_prefix, blog_post_slug, "iframe.html"])
+
+        get iframe_path,
+            TuistWeb.Marketing.MarketingBlogIframeController,
+            :show,
+            metadata: %{type: :marketing},
+            private: private
       end
 
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
