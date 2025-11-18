@@ -134,6 +134,21 @@ defmodule Tuist.Application do
     )
   end
 
+  defp s3_ca_cert_opts do
+    case Environment.s3_ca_cert_pem() do
+      nil ->
+        [cacertfile: CAStore.file_path()]
+
+      pem_content ->
+        der_certs =
+          pem_content
+          |> :public_key.pem_decode()
+          |> Enum.map(fn {_, der, _} -> der end)
+
+        [cacerts: der_certs]
+    end
+  end
+
   defp finch_pools do
     if Environment.test?() do
       %{:default => [size: 10]}
@@ -159,11 +174,11 @@ defmodule Tuist.Application do
           conn_opts: [
             log: true,
             protocols: Environment.s3_protocols(),
-            transport_opts: [
-              inet6: Environment.use_ipv6?() in ~w(true 1),
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
+            transport_opts:
+              [
+                inet6: Environment.use_ipv6?() in ~w(true 1),
+                verify: :verify_peer
+              ] ++ s3_ca_cert_opts()
           ],
           size: Environment.s3_pool_size(),
           count: Environment.s3_pool_count(),
@@ -174,11 +189,11 @@ defmodule Tuist.Application do
           conn_opts: [
             log: true,
             protocols: Environment.s3_protocols(),
-            transport_opts: [
-              inet6: Environment.use_ipv6?() in ~w(true 1),
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
+            transport_opts:
+              [
+                inet6: Environment.use_ipv6?() in ~w(true 1),
+                verify: :verify_peer
+              ] ++ s3_ca_cert_opts()
           ],
           size: Environment.s3_pool_size(),
           count: Environment.s3_pool_count(),
