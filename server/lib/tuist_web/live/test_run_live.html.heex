@@ -250,16 +250,7 @@
                 <div data-part="content" data-state="closed">
                   <%= for failure <- failures do %>
                     <span data-part="failure">
-                      <%= if failure.file_name do %>
-                        {failure.file_name}:{failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
-                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
-                      <% else %>
-                        {gettext("Line")} {failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
-                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
-                      <% end %>
-                      <%= if failure.message do %>
-                        - {failure.message}
-                      <% end %>
+                      {format_failure_message(failure, @run)}
                     </span>
                   <% end %>
                 </div>
@@ -901,16 +892,7 @@
                 <div data-part="content" data-state="closed">
                   <%= for failure <- failures do %>
                     <span data-part="failure">
-                      <%= if failure.file_name do %>
-                        {failure.file_name}:{failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
-                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
-                      <% else %>
-                        {gettext("Line")} {failure.line_number}<%= if failure.issue_type && failure.issue_type != "unknown" do %>
-                          • {failure.issue_type |> String.replace("_", " ") |> String.capitalize()}<% end %>
-                      <% end %>
-                      <%= if failure.message do %>
-                        - {failure.message}
-                      <% end %>
+                      {format_failure_message(failure, @run)}
                     </span>
                   <% end %>
                 </div>

@@ -86,8 +86,8 @@
             let response = try await client.createBundle(
                 .init(
                     path: .init(
-                        project_handle: handles.projectHandle,
-                        account_handle: handles.accountHandle
+                        account_handle: handles.accountHandle,
+                        project_handle: handles.projectHandle
                     ),
                     body: .json(
                         .init(

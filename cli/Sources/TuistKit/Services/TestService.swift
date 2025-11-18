@@ -3,7 +3,9 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCore
+import TuistGit
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -83,6 +85,8 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let fileSystem: FileSysteming
     private let xcResultService: XCResultServicing
     private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
+    private let gitController: GitControlling
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -108,7 +112,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         configLoader: ConfigLoading,
         fileSystem: FileSysteming = FileSystem(),
         xcResultService: XCResultServicing = XCResultService(),
-        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser()
+        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
+        gitController: GitControlling = GitController(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -120,6 +126,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.fileSystem = fileSystem
         self.xcResultService = xcResultService
         xcodeBuildAgumentParser = xcodeBuildArgumentParser
+        self.gitController = gitController
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     static func validateParameters(
@@ -471,8 +479,9 @@ final class TestService { // swiftlint:disable:this type_body_length
             }
         } catch {
             // Check the test results and store successful test hashes for any targets that passed
+            let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
-                  let invocationRecord = xcResultService.parse(path: resultBundlePath)
+                  let invocationRecord = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             else { throw error }
 
             let testTargets = testActionTargets(
@@ -877,5 +886,15 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         return nil
+    }
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
     }
 }

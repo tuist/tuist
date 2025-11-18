@@ -659,9 +659,9 @@ defmodule TuistWeb.API.RunsController do
                                    type: :string,
                                    description: "The failure message."
                                  },
-                                 file_name: %Schema{
+                                 path: %Schema{
                                    type: :string,
-                                   description: "The file name where the failure occurred."
+                                   description: "The file path where the failure occurred, relative to the project root."
                                  },
                                  line_number: %Schema{
                                    type: :integer,
@@ -670,7 +670,7 @@ defmodule TuistWeb.API.RunsController do
                                  issue_type: %Schema{
                                    type: :string,
                                    description: "The type of issue that occurred.",
-                                   enum: ["thrown_error", "assertion_failure"]
+                                   enum: ["error_thrown", "assertion_failure"]
                                  }
                                },
                                required: [:line_number]

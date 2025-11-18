@@ -11,7 +11,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseFailures do
       add :id, :uuid, null: false
       add :test_case_run_id, :uuid, null: false
       add :message, :text
-      add :file_name, :string
+      add :path, :string
       add :line_number, :Int32, null: false
       add :issue_type, :"LowCardinality(String)"
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")

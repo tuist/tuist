@@ -114,8 +114,19 @@ import OpenAPIURLSession
                 
                 // Create all test cases for this module
                 let moduleTestCases = testCases.map { testCase in
-                    Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload(
+                    // Map test case failures to API format
+                    let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload]? = testCase.failures.isEmpty ? nil : testCase.failures.map { failure in
+                        Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload(
+                            issue_type: mapIssueType(failure.issueType),
+                            line_number: failure.lineNumber,
+                            message: failure.message,
+                            path: failure.path?.pathString
+                        )
+                    }
+
+                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload(
                         duration: testCase.duration ?? 0,
+                        failures: failures,
                         name: testCase.name,
                         status: testCaseStatusToServerStatus(testCase.status),
                         test_suite_name: testCase.testSuite
@@ -204,6 +215,16 @@ import OpenAPIURLSession
                 return .failure
             case .skipped:
                 return .skipped
+            }
+        }
+
+        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload? {
+            guard let issueType = issueType else { return nil }
+            switch issueType {
+            case .errorThrown:
+                return .error_thrown
+            case .assertionFailure:
+                return .assertion_failure
             }
         }
     }

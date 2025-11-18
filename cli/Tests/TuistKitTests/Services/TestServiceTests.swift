@@ -1155,7 +1155,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         given(xcResultService)
-            .parse(path: .value(xcresultPath))
+            .parse(path: .value(xcresultPath), rootDirectory: .any)
             .willReturn(InvocationRecord(actions: [], testSummaries: [], path: URL.test()))
 
         given(xcResultService)

@@ -11,7 +11,7 @@ defmodule Tuist.Runs.TestCaseFailure do
     Flop.Schema,
     filterable: [
       :test_case_run_id,
-      :file_name,
+      :path,
       :issue_type
     ],
     sortable: [:inserted_at]
@@ -19,7 +19,7 @@ defmodule Tuist.Runs.TestCaseFailure do
 
   def valid_types do
     [
-      "thrown_error",
+      "error_thrown",
       "assertion_failure",
       "unknown"
     ]
@@ -29,7 +29,7 @@ defmodule Tuist.Runs.TestCaseFailure do
   schema "test_case_failures" do
     field :test_case_run_id, Ecto.UUID
     field :message, :string
-    field :file_name, :string
+    field :path, :string
     field :line_number, Ch, type: "Int32"
     field :issue_type, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -42,7 +42,7 @@ defmodule Tuist.Runs.TestCaseFailure do
         id: attrs[:id],
         test_case_run_id: attrs[:test_case_run_id],
         message: attrs[:message],
-        file_name: attrs[:file_name],
+        path: attrs[:path],
         line_number: attrs[:line_number],
         issue_type: attrs[:issue_type] || "unknown",
         inserted_at: attrs[:inserted_at]
@@ -51,7 +51,7 @@ defmodule Tuist.Runs.TestCaseFailure do
         :id,
         :test_case_run_id,
         :message,
-        :file_name,
+        :path,
         :line_number,
         :issue_type,
         :inserted_at

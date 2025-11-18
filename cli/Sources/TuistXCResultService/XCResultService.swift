@@ -7,7 +7,7 @@ import TuistXCActivityLog
 
 @Mockable
 public protocol XCResultServicing {
-    func parse(path: AbsolutePath) -> InvocationRecord?
+    func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> InvocationRecord?
     func successfulTestTargets(invocationRecord: InvocationRecord) -> Set<String>
     func testSummary(invocationRecord: InvocationRecord) -> TestSummary
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> XCResultFile?
@@ -38,15 +38,24 @@ public struct TestCase {
     public let name: String
     public let testSuite: String?
     public let module: String?
-    public let duration: Int?
+    public var duration: Int?
     public let status: TestStatus
-    
-    public init(name: String, testSuite: String?, module: String?, duration: Int?, status: TestStatus) {
+    public let failures: [TestCaseFailure]
+
+    public init(
+        name: String,
+        testSuite: String?,
+        module: String?,
+        duration: Int?,
+        status: TestStatus,
+        failures: [TestCaseFailure]
+    ) {
         self.name = name
         self.testSuite = testSuite
         self.module = module
         self.duration = duration
         self.status = status
+        self.failures = failures
     }
 }
 
@@ -54,6 +63,47 @@ public enum TestStatus {
     case passed
     case failed
     case skipped
+}
+
+public struct TestCaseFailure {
+    public enum IssueType: String {
+        case errorThrown = "Thrown Error"
+        case assertionFailure = "Assertion Failure"
+    }
+    public let message: String?
+    public let path: RelativePath?
+    public let lineNumber: Int
+    public let issueType: IssueType?
+
+    public init(
+        message: String?,
+        path: RelativePath?,
+        lineNumber: Int,
+        issueType: IssueType?
+    ) {
+        self.message = message
+        self.path = path
+        self.lineNumber = lineNumber
+        self.issueType = issueType
+    }
+
+    init(_ actionTestFailureSummary: XCResultKit.ActionTestFailureSummary, rootDirectory: AbsolutePath?) {
+        message = actionTestFailureSummary.message
+
+        if let fileName = actionTestFailureSummary.fileName,
+           let absolutePath = try? AbsolutePath(validating: fileName) {
+            path = absolutePath.relative(to: rootDirectory ?? AbsolutePath.root)
+        } else {
+            path = nil
+        }
+
+        lineNumber = actionTestFailureSummary.lineNumber
+        if let issueType = actionTestFailureSummary.issueType {
+            self.issueType = IssueType(rawValue: issueType)
+        } else {
+            issueType = nil
+        }
+    }
 }
 
 public struct InvocationRecord {
@@ -96,12 +146,14 @@ public struct InvocationRecord {
 
         init(
             resultFile: XCResultFile,
-            testPlanRunSummaries: ActionTestPlanRunSummaries
+            testPlanRunSummaries: ActionTestPlanRunSummaries,
+            rootDirectory: AbsolutePath?
         ) {
             summaries = testPlanRunSummaries.summaries.map {
                 TestPlanRunSummary(
                     resultFile: resultFile,
-                    testPlanRunSummary: $0
+                    testPlanRunSummary: $0,
+                    rootDirectory: rootDirectory
                 )
             }
         }
@@ -116,12 +168,14 @@ public struct InvocationRecord {
 
         init(
             resultFile: XCResultFile,
-            testPlanRunSummary: ActionTestPlanRunSummary
+            testPlanRunSummary: ActionTestPlanRunSummary,
+            rootDirectory: AbsolutePath?
         ) {
             testableSummaries = testPlanRunSummary.testableSummaries.map {
                 TestableSummary(
                     resultFile: resultFile,
-                    testableSummary: $0
+                    testableSummary: $0,
+                    rootDirectory: rootDirectory
                 )
             }
         }
@@ -136,13 +190,14 @@ public struct InvocationRecord {
             self.tests = tests
         }
 
-        init(resultFile: XCResultFile, testableSummary: ActionTestableSummary) {
+        init(resultFile: XCResultFile, testableSummary: ActionTestableSummary, rootDirectory: AbsolutePath?) {
             targetName = testableSummary.targetName
-            let globalTests = testableSummary.globalTests.map { TestMetadata(resultFile: resultFile, testMetadata: $0) }
+            let globalTests = testableSummary.globalTests.map { TestMetadata(resultFile: resultFile, testMetadata: $0, rootDirectory: rootDirectory) }
             tests = testableSummary.tests.map {
                 TestSummaryGroup(
                     resultFile: resultFile,
-                    testSummaryGroup: $0
+                    testSummaryGroup: $0,
+                    rootDirectory: rootDirectory
                 )
             } + [
                 TestSummaryGroup(subtests: globalTests, subtestGroups: [])
@@ -161,79 +216,48 @@ public struct InvocationRecord {
 
         init(
             resultFile: XCResultFile,
-            testSummaryGroup: ActionTestSummaryGroup
+            testSummaryGroup: ActionTestSummaryGroup,
+            rootDirectory: AbsolutePath?
         ) {
             subtests = testSummaryGroup.subtests.map {
                 TestMetadata(
                     resultFile: resultFile,
-                    testMetadata: $0
+                    testMetadata: $0,
+                    rootDirectory: rootDirectory
                 )
             }
             subtestGroups = testSummaryGroup.subtestGroups.map {
                 TestSummaryGroup(
                     resultFile: resultFile,
-                    testSummaryGroup: $0
+                    testSummaryGroup: $0,
+                    rootDirectory: rootDirectory
                 )
             }
         }
     }
     
-    public struct ActionTestFailureSummary {
-        public enum IssueType: String {
-            case errorThrown = "Thrown Error"
-            case assertionFailure = "Assertion Failure"
-        }
-        public let message: String?
-        public let fileName: String?
-        public let lineNumber: Int
-        public let issueType: IssueType?
-        
-        public init(
-            message: String?,
-            fileName: String,
-            lineNumber: Int,
-            issueType: IssueType?
-        ) {
-            self.message = message
-            self.fileName = fileName
-            self.lineNumber = lineNumber
-            self.issueType = issueType
-        }
-        
-        init(_ actionTestFailureSummary: XCResultKit.ActionTestFailureSummary) {
-            message = actionTestFailureSummary.message
-            fileName = actionTestFailureSummary.fileName
-            lineNumber = actionTestFailureSummary.lineNumber
-            if let issueType = actionTestFailureSummary.issueType {
-                self.issueType = IssueType(rawValue: issueType)
-            } else {
-                issueType = nil
-            }
-        }
-    }
-
     public struct TestMetadata {
         public let name: String?
         public let suiteName: String?
         public let testStatus: String
         public let duration: Int?
-        public let failureSummaries: [ActionTestFailureSummary]
+        public let failures: [TestCaseFailure]
 
         public init(
             name: String?,
             suiteName: String?,
             testStatus: String,
             duration: Int?,
-            failureSummaries: [ActionTestFailureSummary]
+            failures: [TestCaseFailure]
         ) {
             self.name = name
             self.suiteName = suiteName
             self.testStatus = testStatus
             self.duration = duration
-            self.failureSummaries = failureSummaries
+            self.failures = failures
         }
 
-        init(resultFile: XCResultFile, testMetadata: ActionTestMetadata) {
+        init(resultFile: XCResultFile, testMetadata: ActionTestMetadata, rootDirectory: AbsolutePath?) {
             name = testMetadata.name
             if let identifier = testMetadata.identifier {
                 suiteName = Self.suiteName(from: identifier)
@@ -245,13 +269,13 @@ public struct InvocationRecord {
             if
                 let summaryRef = testMetadata.summaryRef,
                 let summary = resultFile.getActionTestSummary(id: summaryRef.id) {
-                self.failureSummaries = summary.failureSummaries.map {
-                    ActionTestFailureSummary($0)
+                self.failures = summary.failureSummaries.map {
+                    TestCaseFailure($0, rootDirectory: rootDirectory)
                 }
             } else {
-                failureSummaries = []
+                failures = []
             }
-            
+
         }
         
         private static func suiteName(from testIdentifier: String) -> String? {
@@ -280,7 +304,7 @@ public struct InvocationRecord {
         self.path = path
     }
 
-    init(resultFile: XCResultFile, invocationRecord: ActionsInvocationRecord) {
+    init(resultFile: XCResultFile, invocationRecord: ActionsInvocationRecord, rootDirectory: AbsolutePath?) {
         actions = invocationRecord.actions.map { .init(result: $0) }
         testSummaries = actions
             .compactMap(\.actionResult.testRefId)
@@ -288,7 +312,8 @@ public struct InvocationRecord {
             .map {
                 TestPlanRunSummaries(
                     resultFile: resultFile,
-                    testPlanRunSummaries: $0
+                    testPlanRunSummaries: $0,
+                    rootDirectory: rootDirectory
                 )
             }
         path = resultFile.url
@@ -328,11 +353,11 @@ public struct XCResultService: XCResultServicing {
         return XCResultFile(url: logsBuildDirectoryPath.appending(component: latestLog.fileName).url)
     }
     
-    public func parse(path: AbsolutePath) -> InvocationRecord? {
+    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> InvocationRecord? {
         let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
 
-        return .init(resultFile: resultFile, invocationRecord: invocationRecord)
+        return .init(resultFile: resultFile, invocationRecord: invocationRecord, rootDirectory: rootDirectory)
     }
 
     public func successfulTestTargets(invocationRecord: InvocationRecord) -> Set<String> {
@@ -422,7 +447,7 @@ public struct XCResultService: XCResultServicing {
     
     private func extractTestCases(from testGroups: [InvocationRecord.TestSummaryGroup], module: String?) -> [TestCase] {
         var testCases: [TestCase] = []
-        
+
         for group in testGroups {
             for testMetadata in group.subtests {
                 if let testName = testMetadata.name {
@@ -431,15 +456,16 @@ public struct XCResultService: XCResultServicing {
                         testSuite: testMetadata.suiteName,
                         module: module,
                         duration: testMetadata.duration,
-                        status: testStatusFromString(testMetadata.testStatus)
+                        status: testStatusFromString(testMetadata.testStatus),
+                        failures: testMetadata.failures
                     )
                     testCases.append(testCase)
                 }
             }
-            
+
             testCases.append(contentsOf: extractTestCases(from: group.subtestGroups, module: module))
         }
-        
+
         return testCases
     }
     
@@ -619,13 +645,9 @@ public struct XCResultService: XCResultServicing {
             
             if testCase.duration == nil || testCase.duration == 0 {
                 if let swiftTestingDuration = durationMap[testNameWithoutParens] ?? durationMap[testCase.name] {
-                    return TestCase(
-                        name: testCase.name,
-                        testSuite: testCase.testSuite,
-                        module: testCase.module,
-                        duration: swiftTestingDuration,
-                        status: testCase.status
-                    )
+                    var testCase = testCase
+                    testCase.duration = swiftTestingDuration
+                    return testCase
                 }
             }
             

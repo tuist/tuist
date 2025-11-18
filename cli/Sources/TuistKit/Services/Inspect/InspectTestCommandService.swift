@@ -6,6 +6,7 @@ import TuistCore
 import TuistGit
 import TuistLoader
 import TuistProcess
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
@@ -42,9 +43,10 @@ struct InspectTestCommandService {
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
+    private let rootDirectoryLocator: RootDirectoryLocating
     private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
     private let xcodeBuildController: XcodeBuildControlling
-    
+
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -57,6 +59,7 @@ struct InspectTestCommandService {
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController()
     ) {
@@ -70,6 +73,7 @@ struct InspectTestCommandService {
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
+        self.rootDirectoryLocator = rootDirectoryLocator
         self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
         self.xcodeBuildController = xcodeBuildController
     }
@@ -89,10 +93,11 @@ struct InspectTestCommandService {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
 
+        let rootDirectory = try await rootDirectory()
         let mostRecentXCResultFile = try await xcResultService.mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
         guard let xcResultFile = mostRecentXCResultFile,
-              let invocationRecord = xcResultService.parse(path: AbsolutePath(xcResultFile.url.path)) else { 
-            fatalError() 
+              let invocationRecord = xcResultService.parse(path: AbsolutePath(xcResultFile.url.path), rootDirectory: rootDirectory) else {
+            fatalError()
         }
         
         // Set the test run ID using the xcresult basename (same pattern as buildRunId)
@@ -149,7 +154,17 @@ struct InspectTestCommandService {
             .alert("View the analyzed test at \(test.url)")
         )
     }
-    
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
+    }
+
     private func path(_ path: String?) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         if let path {

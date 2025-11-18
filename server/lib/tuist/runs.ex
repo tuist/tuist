@@ -245,7 +245,7 @@ defmodule Tuist.Runs do
           id: f.id,
           test_case_run_id: f.test_case_run_id,
           message: f.message,
-          file_name: f.file_name,
+          path: f.path,
           line_number: f.line_number,
           issue_type: f.issue_type,
           inserted_at: f.inserted_at,
@@ -697,7 +697,7 @@ defmodule Tuist.Runs do
               id: Ecto.UUID.generate(),
               test_case_run_id: test_case_run_id,
               message: Map.get(failure_attrs, :message),
-              file_name: Map.get(failure_attrs, :file_name),
+              path: Map.get(failure_attrs, :path),
               line_number: Map.get(failure_attrs, :line_number),
               issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
               inserted_at: now

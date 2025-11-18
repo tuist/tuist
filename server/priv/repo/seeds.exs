@@ -580,7 +580,7 @@ failure_messages = [
   "XCTAssertGreaterThan failed: (0) is not greater than (0)"
 ]
 
-file_names = [
+paths = [
   "AppTests/LoginTests.swift",
   "AppTests/NavigationTests.swift",
   "FrameworkTests/DataModelTests.swift",
@@ -716,16 +716,16 @@ test_case_failures =
     failure_count = Enum.random(1..3)
 
     Enum.map(1..failure_count, fn _ ->
-      issue_type = Enum.random(["thrown_error", "assertion_failure"])
+      issue_type = Enum.random(["error_thrown", "assertion_failure"])
       message = Enum.random(failure_messages)
-      file_name = Enum.random(file_names)
+      path = Enum.random(paths)
       line_number = Enum.random(10..500)
 
       %{
         id: UUIDv7.generate(),
         test_case_run_id: test_case_run.id,
         message: message,
-        file_name: file_name,
+        path: path,
         line_number: line_number,
         issue_type: issue_type,
         inserted_at: test_case_run.inserted_at
