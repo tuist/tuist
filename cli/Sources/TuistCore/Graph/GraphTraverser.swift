@@ -429,6 +429,10 @@ public class GraphTraverser: GraphTraversing {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
     }
 
+    private func hasDependentTargets(_ targetGraphDependency: GraphDependency) -> Bool {
+        dependencies.flatMap(\.value).contains(targetGraphDependency)
+    }
+
     // swiftlint:disable:next function_body_length
     public func linkableDependencies(
         path: Path.AbsolutePath,
@@ -441,7 +445,7 @@ public class GraphTraverser: GraphTraversing {
         let targetGraphDependency = GraphDependency.target(name: name, path: path)
 
         // System libraries and frameworks
-        if target.target.canLinkStaticProducts() {
+        if target.target.canLinkStaticProducts() || !hasDependentTargets(targetGraphDependency) {
             let transitiveSystemLibraries = transitiveStaticDependencies(
                 from: targetGraphDependency
             )
