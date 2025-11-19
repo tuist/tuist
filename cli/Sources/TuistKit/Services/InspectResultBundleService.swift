@@ -77,9 +77,6 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             throw InspectResultBundleServiceError.missingInvocationRecord
         }
 
-        let testRunId = UUID().uuidString
-        await RunMetadataStorage.current.update(testRunId: testRunId)
-
         let testSummary = xcResultService.testSummary(invocationRecord: invocationRecord)
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -89,10 +86,9 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         }
 
         let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
-        let test = try! await createTestService.createTest(
+        let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            id: testRunId,
             testSummary: testSummary,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
@@ -103,6 +99,8 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             macOSVersion: machineEnvironment.macOSVersion,
             xcodeVersion: try await xcodeBuildController.version()?.description
         )
+
+        await RunMetadataStorage.current.update(testRunId: test.id)
 
         return test
     }

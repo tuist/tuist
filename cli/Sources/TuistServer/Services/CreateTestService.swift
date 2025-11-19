@@ -10,7 +10,6 @@ import OpenAPIURLSession
         func createTest(
             fullHandle: String,
             serverURL: URL,
-            id: String,
             testSummary: TestSummary,
             gitBranch: String?,
             gitCommitSHA: String?,
@@ -58,7 +57,6 @@ import OpenAPIURLSession
         public func createTest(
             fullHandle: String,
             serverURL: URL,
-            id: String,
             testSummary: TestSummary,
             gitBranch: String?,
             gitCommitSHA: String?,
@@ -165,7 +163,6 @@ import OpenAPIURLSession
                                 git_commit_sha: gitCommitSHA,
                                 git_ref: gitRef,
                                 git_remote_url_origin: gitRemoteURLOrigin,
-                                id: id,
                                 is_ci: isCI,
                                 macos_version: macOSVersion,
                                 model_identifier: modelIdentifier,
