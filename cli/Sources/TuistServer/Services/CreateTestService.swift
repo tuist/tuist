@@ -96,16 +96,15 @@ import OpenAPIURLSession
                 let moduleTestCases = module.testCases.map { testCase in
                     let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
                         .test_casesPayloadPayload.failuresPayloadPayload
-                    ]? = testCase.failures.isEmpty ? nil : testCase.failures
-                        .map { failure in
-                            Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                                .test_casesPayloadPayload.failuresPayloadPayload(
-                                    issue_type: mapIssueType(failure.issueType),
-                                    line_number: failure.lineNumber,
-                                    message: failure.message,
-                                    path: failure.path?.pathString
-                                )
-                        }
+                    ] = testCase.failures.map { failure in
+                        Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                            .test_casesPayloadPayload.failuresPayloadPayload(
+                                issue_type: mapIssueType(failure.issueType),
+                                line_number: failure.lineNumber,
+                                message: failure.message,
+                                path: failure.path?.pathString
+                            )
+                    }
 
                     return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
                         .test_casesPayloadPayload(
