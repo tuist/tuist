@@ -25,13 +25,21 @@ struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var derivedDataPath: String?
 
+    @Argument(
+        help: "The path to the result bundle (.xcresult) to inspect. If not provided, the most recent result bundle from derived data will be used.",
+        completion: .file(extensions: ["xcresult"]),
+        envKey: .inspectTestResultBundlePath
+    )
+    var resultBundlePath: String?
+
     var jsonThroughNoora: Bool = false
 
     func run() async throws {
         try await InspectTestCommandService()
             .run(
                 path: path,
-                derivedDataPath: derivedDataPath
+                derivedDataPath: derivedDataPath,
+                resultBundlePath: resultBundlePath
             )
     }
 }

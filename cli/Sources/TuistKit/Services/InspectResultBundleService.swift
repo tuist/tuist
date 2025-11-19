@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistAutomation
@@ -28,7 +29,6 @@ enum InspectResultBundleServiceError: Equatable, LocalizedError {
 protocol InspectResultBundleServicing {
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
-        rootDirectory: AbsolutePath,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest
 }
@@ -41,6 +41,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
     private let xcodeBuildController: XcodeBuildControlling
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -49,7 +50,8 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
-        xcodeBuildController: XcodeBuildControlling = XcodeBuildController()
+        xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -58,13 +60,17 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
         self.xcodeBuildController = xcodeBuildController
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
-        rootDirectory: AbsolutePath,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest {
+        let rootDirectory = try await rootDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+
         guard let invocationRecord = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) else {
             throw InspectResultBundleServiceError.missingInvocationRecord
         }
@@ -80,7 +86,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             throw InspectResultBundleServiceError.missingFullHandle
         }
 
-        let gitInfo = try gitController.gitInfo(workingDirectory: rootDirectory)
+        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let test = try! await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -97,5 +103,15 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         )
 
         return test
+    }
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
     }
 }

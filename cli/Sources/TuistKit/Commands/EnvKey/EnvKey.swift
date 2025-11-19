@@ -124,6 +124,7 @@ public enum EnvKey: String, CaseIterable {
 
     case inspectTestPath = "TUIST_INSPECT_TEST_PATH"
     case inspectTestDerivedDataPath = "TUIST_INSPECT_TEST_DERIVED_DATA_PATH"
+    case inspectTestResultBundlePath = "TUIST_INSPECT_TEST_RESULT_BUNDLE_PATH"
 
     // RUN
 

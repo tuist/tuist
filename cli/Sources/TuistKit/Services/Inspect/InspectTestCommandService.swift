@@ -3,10 +3,8 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCore
-import TuistGit
 import TuistLoader
 import TuistProcess
-import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
@@ -16,6 +14,7 @@ import TuistXCResultService
 enum InspectTestCommandServiceError: Equatable, LocalizedError {
     case executablePathMissing
     case mostRecentActivityLogNotFound(AbsolutePath)
+    case mostRecentResultBundleNotFound(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +23,9 @@ enum InspectTestCommandServiceError: Equatable, LocalizedError {
         case let .mostRecentActivityLogNotFound(projectPath):
             return
                 "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
+        case let .mostRecentResultBundleNotFound(derivedDataPath):
+            return
+                "We couldn't find the most recent result bundle in the derived data directory at \(derivedDataPath.pathString)"
         }
     }
 }
@@ -32,61 +34,42 @@ struct InspectTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
     private let xcResultService: XCResultServicing
-    private let rootDirectoryLocator: RootDirectoryLocating
     private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
     private let inspectResultBundleService: InspectResultBundleServicing
-    private let gitController: GitControlling
     private let configLoader: ConfigLoading
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
         xcResultService: XCResultServicing = XCResultService(),
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
         inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
-        gitController: GitControlling = GitController(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
         self.xcResultService = xcResultService
-        self.rootDirectoryLocator = rootDirectoryLocator
         self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
         self.inspectResultBundleService = inspectResultBundleService
-        self.gitController = gitController
         self.configLoader = configLoader
     }
 
     func run(
         path: String?,
-        derivedDataPath: String? = nil
+        derivedDataPath: String? = nil,
+        resultBundlePath: String? = nil
     ) async throws {
         let basePath = try await self.path(path)
-        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
-            validating: $0,
-            relativeTo: currentWorkingDirectory
-        ) }
-        if projectDerivedDataDirectory == nil {
-            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
-        }
 
-        guard let rootDirectory = try await rootDirectory() else {
-            fatalError()
-        }
-        let mostRecentXCResultFile = try await xcResultService
-            .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
-        guard let xcResultFile = mostRecentXCResultFile else {
-            fatalError()
-        }
+        let resolvedResultBundlePath = try await resolveResultBundlePath(
+            resultBundlePath: resultBundlePath,
+            basePath: basePath,
+            derivedDataPath: derivedDataPath
+        )
 
         let config = try await configLoader.loadConfig(path: basePath)
-        let resultBundlePath = AbsolutePath(xcResultFile.url.path)
         let test = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            rootDirectory: rootDirectory,
+            resultBundlePath: resolvedResultBundlePath,
             config: config
         )
 
@@ -95,14 +78,35 @@ struct InspectTestCommandService {
         )
     }
 
-    private func rootDirectory() async throws -> AbsolutePath? {
+    private func resolveResultBundlePath(
+        resultBundlePath: String?,
+        basePath: AbsolutePath,
+        derivedDataPath: String?
+    ) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
-        } else {
-            return try await rootDirectoryLocator.locate(from: workingDirectory)
+
+        if let resultBundlePath {
+            return try AbsolutePath(
+                validating: resultBundlePath,
+                relativeTo: currentWorkingDirectory
+            )
         }
+
+        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
+            validating: $0,
+            relativeTo: currentWorkingDirectory
+        ) }
+        if projectDerivedDataDirectory == nil {
+            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+        }
+
+        let mostRecentXCResultFile = try await xcResultService
+            .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
+        guard let xcResultFile = mostRecentXCResultFile else {
+            throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
+        }
+        return AbsolutePath(xcResultFile.url.path)
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
