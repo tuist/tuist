@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistAutomation
 import TuistCore
@@ -26,6 +27,7 @@ enum InspectResultBundleServiceError: Equatable, LocalizedError {
     }
 }
 
+@Mockable
 protocol InspectResultBundleServicing {
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,

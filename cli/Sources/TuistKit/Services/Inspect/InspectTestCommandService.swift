@@ -37,6 +37,7 @@ struct InspectTestCommandService {
     private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
     private let inspectResultBundleService: InspectResultBundleServicing
     private let configLoader: ConfigLoading
+    private let backgroundProcessRunner: BackgroundProcessRunning
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -44,7 +45,8 @@ struct InspectTestCommandService {
         xcResultService: XCResultServicing = XCResultService(),
         xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
         inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
@@ -52,6 +54,7 @@ struct InspectTestCommandService {
         self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
         self.inspectResultBundleService = inspectResultBundleService
         self.configLoader = configLoader
+        self.backgroundProcessRunner = backgroundProcessRunner
     }
 
     func run(
@@ -59,6 +62,22 @@ struct InspectTestCommandService {
         derivedDataPath: String? = nil,
         resultBundlePath: String? = nil
     ) async throws {
+        guard let executablePath = Bundle.main.executablePath else {
+            throw InspectTestCommandServiceError.executablePathMissing
+        }
+
+        if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
+           Environment.current.workspacePath != nil
+        {
+            var environment = Environment.current.variables
+            environment["TUIST_INSPECT_TEST_WAIT"] = "YES"
+            try backgroundProcessRunner.runInBackground(
+                [executablePath, "inspect", "test"],
+                environment: environment
+            )
+            return
+        }
+
         let basePath = try await self.path(path)
 
         let resolvedResultBundlePath = try await resolveResultBundlePath(
@@ -67,7 +86,8 @@ struct InspectTestCommandService {
             derivedDataPath: derivedDataPath
         )
 
-        let config = try await configLoader.loadConfig(path: basePath)
+        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        let config = try await configLoader.loadConfig(path: projectPath)
         let test = try await inspectResultBundleService.inspectResultBundle(
             resultBundlePath: resolvedResultBundlePath,
             config: config
@@ -93,12 +113,13 @@ struct InspectTestCommandService {
         }
 
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
-        var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
-            validating: $0,
-            relativeTo: currentWorkingDirectory
-        ) }
-        if projectDerivedDataDirectory == nil {
-            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+        let projectDerivedDataDirectory = if let derivedDataPath {
+            try AbsolutePath(
+                validating: derivedDataPath,
+                relativeTo: currentWorkingDirectory
+            )
+        } else {
+            try await derivedDataLocator.locate(for: projectPath)
         }
 
         let mostRecentXCResultFile = try await xcResultService
@@ -106,7 +127,7 @@ struct InspectTestCommandService {
         guard let xcResultFile = mostRecentXCResultFile else {
             throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
         }
-        return AbsolutePath(xcResultFile.url.path)
+        return try AbsolutePath(validating: xcResultFile.url.path)
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
