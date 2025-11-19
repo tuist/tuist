@@ -1161,22 +1161,38 @@ final class TestServiceTests: TuistUnitTestCase {
                     testPlanName: nil,
                     status: .failed,
                     duration: nil,
-                    testCases: [
-                        TestCase(
-                            name: "testA",
-                            testSuite: nil,
-                            module: "FrameworkATests",
-                            duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "FrameworkATests",
                             status: .failed,
-                            failures: []
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testA",
+                                    testSuite: nil,
+                                    module: "FrameworkATests",
+                                    duration: nil,
+                                    status: .failed,
+                                    failures: []
+                                ),
+                            ]
                         ),
-                        TestCase(
-                            name: "testB",
-                            testSuite: nil,
-                            module: "FrameworkBTests",
-                            duration: nil,
+                        TestModule(
+                            name: "FrameworkBTests",
                             status: .passed,
-                            failures: []
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testB",
+                                    testSuite: nil,
+                                    module: "FrameworkBTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
                         ),
                     ]
                 )

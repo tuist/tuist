@@ -103,7 +103,7 @@ struct InspectResultBundleServiceTests {
 
         given(xcResultService)
             .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testCases: []))
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
 
         gitController.reset()
         given(gitController)
@@ -161,7 +161,7 @@ struct InspectResultBundleServiceTests {
 
         given(xcResultService)
             .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testCases: []))
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
 
         // When / Then
         await #expect(
@@ -207,7 +207,7 @@ struct InspectResultBundleServiceTests {
 
         given(xcResultService)
             .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testCases: []))
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
 
         gitController.reset()
         given(gitController)

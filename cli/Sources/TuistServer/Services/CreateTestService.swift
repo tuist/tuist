@@ -28,6 +28,7 @@ import OpenAPIURLSession
         case notFound(String)
         case unauthorized(String)
         case badRequest(String)
+        case unexpectedResponseType
 
         var errorDescription: String? {
             switch self {
@@ -37,6 +38,8 @@ import OpenAPIURLSession
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
                  let .badRequest(message):
                 return message
+            case .unexpectedResponseType:
+                return "The server returned an unexpected response type. Expected a test run but received a different type."
             }
         }
     }
@@ -77,46 +80,20 @@ import OpenAPIURLSession
                 case .failed:
                     .failure
                 case .skipped:
-                    .success // Map skipped to success for overall run status
+                    .success
                 }
 
-            // Group test cases by module (target)
-            let testCasesByModule = Dictionary(grouping: testSummary.testCases) { testCase in
-                testCase.module ?? "Unknown"
-            }
-
-            let testModules = testCasesByModule.map { moduleName, testCases in
-                // Calculate module status and duration
-                let moduleStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                    .statusPayload =
-                    testCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
-                let moduleDuration = testCases.compactMap(\.duration).reduce(0, +)
-
-                // Group test cases by test suite within this module
-                let testCasesBySuite = Dictionary(grouping: testCases) { testCase in
-                    testCase.testSuite
+            let testModules = testSummary.testModules.map { module in
+                let testSuites = module.testSuites.map { suite in
+                    Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                        .test_suitesPayloadPayload(
+                            duration: suite.duration,
+                            name: suite.name,
+                            status: mapSuiteStatus(suite.status)
+                        )
                 }
 
-                // Create test suites with their test cases
-                let testSuites = testCasesBySuite
-                    .compactMap { suiteName, suiteTestCases -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload? in
-                        guard let suiteName else { return nil }
-                        let suiteStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                            .test_suitesPayloadPayload.statusPayload =
-                            suiteTestCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
-                        let suiteDuration = suiteTestCases.compactMap(\.duration).reduce(0, +)
-
-                        return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                            .test_suitesPayloadPayload(
-                                duration: suiteDuration,
-                                name: suiteName,
-                                status: suiteStatus
-                            )
-                    }
-
-                // Create all test cases for this module
-                let moduleTestCases = testCases.map { testCase in
-                    // Map test case failures to API format
+                let moduleTestCases = module.testCases.map { testCase in
                     let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
                         .test_casesPayloadPayload.failuresPayloadPayload
                     ]? = testCase.failures.isEmpty ? nil : testCase.failures
@@ -141,9 +118,9 @@ import OpenAPIURLSession
                 }
 
                 return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload(
-                    duration: moduleDuration,
-                    name: moduleName,
-                    status: moduleStatus,
+                    duration: module.duration,
+                    name: module.name,
+                    status: mapModuleStatus(module.status),
                     test_cases: moduleTestCases,
                     test_suites: testSuites
                 )
@@ -183,7 +160,7 @@ import OpenAPIURLSession
                 case let .json(run):
                     switch run {
                     case .RunsBuild:
-                        fatalError()
+                        throw CreateTestServiceError.unexpectedResponseType
                     case let .RunsTest(test):
                         return test
                     }
@@ -223,6 +200,28 @@ import OpenAPIURLSession
                 return .failure
             case .skipped:
                 return .skipped
+            }
+        }
+
+        private func mapModuleStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayloadPayload.statusPayload
+        {
+            switch status {
+            case .passed, .skipped:
+                return .success
+            case .failed:
+                return .failure
+            }
+        }
+
+        private func mapSuiteStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+        {
+            switch status {
+            case .passed, .skipped:
+                return .success
+            case .failed:
+                return .failure
             }
         }
 
