@@ -1,9 +1,9 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
-import XCResultKit
-import FileSystem
 import TuistXCActivityLog
+import XCResultKit
 
 @Mockable
 public protocol XCResultServicing {
@@ -70,6 +70,7 @@ public struct TestCaseFailure {
         case errorThrown = "Thrown Error"
         case assertionFailure = "Assertion Failure"
     }
+
     public let message: String?
     public let path: RelativePath?
     public let lineNumber: Int
@@ -91,7 +92,8 @@ public struct TestCaseFailure {
         message = actionTestFailureSummary.message
 
         if let fileName = actionTestFailureSummary.fileName,
-           let absolutePath = try? AbsolutePath(validating: fileName) {
+           let absolutePath = try? AbsolutePath(validating: fileName)
+        {
             path = absolutePath.relative(to: rootDirectory ?? AbsolutePath.root)
         } else {
             path = nil
@@ -195,7 +197,11 @@ public struct InvocationRecord {
 
         init(resultFile: XCResultFile, testableSummary: ActionTestableSummary, rootDirectory: AbsolutePath?) {
             targetName = testableSummary.targetName
-            let globalTests = testableSummary.globalTests.map { TestMetadata(resultFile: resultFile, testMetadata: $0, rootDirectory: rootDirectory) }
+            let globalTests = testableSummary.globalTests.map { TestMetadata(
+                resultFile: resultFile,
+                testMetadata: $0,
+                rootDirectory: rootDirectory
+            ) }
             tests = testableSummary.tests.map {
                 TestSummaryGroup(
                     resultFile: resultFile,
@@ -203,7 +209,7 @@ public struct InvocationRecord {
                     rootDirectory: rootDirectory
                 )
             } + [
-                TestSummaryGroup(subtests: globalTests, subtestGroups: [])
+                TestSummaryGroup(subtests: globalTests, subtestGroups: []),
             ]
         }
     }
@@ -238,7 +244,7 @@ public struct InvocationRecord {
             }
         }
     }
-    
+
     public struct TestMetadata {
         public let name: String?
         public let suiteName: String?
@@ -269,26 +275,25 @@ public struct InvocationRecord {
             }
             testStatus = testMetadata.testStatus
             duration = testMetadata.duration.map { Int($0 * 1000) }
-            if
-                let summaryRef = testMetadata.summaryRef,
-                let summary = resultFile.getActionTestSummary(id: summaryRef.id) {
-                self.failures = summary.failureSummaries.map {
+            if let summaryRef = testMetadata.summaryRef,
+               let summary = resultFile.getActionTestSummary(id: summaryRef.id)
+            {
+                failures = summary.failureSummaries.map {
                     TestCaseFailure($0, rootDirectory: rootDirectory)
                 }
             } else {
                 failures = []
             }
-
         }
-        
+
         private static func suiteName(from testIdentifier: String) -> String? {
             // Split the identifier by forward slashes
             let components = testIdentifier.split(separator: "/")
-            
+
             // We need at least the following structure:
             // test://domain/target/[suite]/testMethod
             // If suite is optional, minimum is: test://domain/target/testMethod
-            
+
             if components.count == 2 {
                 return String(components[0])
             } else {
@@ -325,13 +330,13 @@ public struct InvocationRecord {
 
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
-    
+
     public init(
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.fileSystem = fileSystem
     }
-    
+
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
         async throws -> XCResultFile?
     {
@@ -352,10 +357,10 @@ public struct XCResultService: XCResultServicing {
         else {
             return nil
         }
-        
+
         return XCResultFile(url: logsBuildDirectoryPath.appending(component: latestLog.fileName).url)
     }
-    
+
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> InvocationRecord? {
         let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
@@ -378,7 +383,7 @@ public struct XCResultService: XCResultServicing {
 
         return Set(passingTargets)
     }
-    
+
     public func testSummary(invocationRecord: InvocationRecord) -> TestSummary {
         var allTestCases: [TestCase] = []
         var hasFailedTests = false
@@ -396,17 +401,23 @@ public struct XCResultService: XCResultServicing {
                 }
             }
         }
-        
+
         // Extract Swift Testing durations and update test cases if needed
         let resultFile = XCResultFile(url: invocationRecord.path)
         if let actionsInvocationRecord = resultFile.getInvocationRecord() {
-            let swiftTestingDurations = extractSwiftTestingDurationsFromLogs(resultFile: resultFile, invocationRecord: actionsInvocationRecord)
-            
+            let swiftTestingDurations = extractSwiftTestingDurationsFromLogs(
+                resultFile: resultFile,
+                invocationRecord: actionsInvocationRecord
+            )
+
             if !swiftTestingDurations.isEmpty {
-                allTestCases = updateTestCasesWithSwiftTestingDurations(testCases: allTestCases, swiftTestingDurations: swiftTestingDurations)
+                allTestCases = updateTestCasesWithSwiftTestingDurations(
+                    testCases: allTestCases,
+                    swiftTestingDurations: swiftTestingDurations
+                )
             }
         }
-        
+
         // Calculate overall status using test case results
         for testCase in allTestCases {
             switch testCase.status {
@@ -418,19 +429,19 @@ public struct XCResultService: XCResultServicing {
                 break
             }
         }
-        
+
         let overallStatus: TestStatus
         if hasFailedTests {
             overallStatus = .failed
-        } else if hasSkippedTests && allTestCases.allSatisfy({ $0.status == .skipped }) {
+        } else if hasSkippedTests, allTestCases.allSatisfy({ $0.status == .skipped }) {
             overallStatus = .skipped
         } else {
             overallStatus = .passed
         }
-        
+
         // Calculate total duration from action records (top-level duration)
         let totalDuration = calculateOverallDuration(from: invocationRecord.actions)
-        
+
         return TestSummary(
             testPlanName: testPlanName,
             status: overallStatus,
@@ -438,18 +449,18 @@ public struct XCResultService: XCResultServicing {
             testCases: allTestCases
         )
     }
-    
+
     private func calculateOverallDuration(from actions: [InvocationRecord.ActionRecord]) -> Int {
         // Find the earliest start time and latest end time across all actions
         guard !actions.isEmpty else { return 0 }
-        
+
         let startTime = actions.map(\.startedTime).min() ?? Date()
         let endTime = actions.map(\.endedTime).max() ?? Date()
-        
+
         let duration = endTime.timeIntervalSince(startTime)
         return Int(duration * 1000) // Convert to milliseconds
     }
-    
+
     private func extractTestCases(from testGroups: [InvocationRecord.TestSummaryGroup], module: String?) -> [TestCase] {
         var testCases: [TestCase] = []
 
@@ -473,7 +484,7 @@ public struct XCResultService: XCResultServicing {
 
         return testCases
     }
-    
+
     private func testStatusFromString(_ statusString: String) -> TestStatus {
         switch statusString {
         case "Success", "Expected Failure":
@@ -484,37 +495,40 @@ public struct XCResultService: XCResultServicing {
             return .failed
         }
     }
-    
-    private func extractSwiftTestingDurationsFromLogs(resultFile: XCResultFile, invocationRecord: ActionsInvocationRecord) -> [SwiftTestingDurationInfo] {
+
+    private func extractSwiftTestingDurationsFromLogs(
+        resultFile: XCResultFile,
+        invocationRecord: ActionsInvocationRecord
+    ) -> [SwiftTestingDurationInfo] {
         return extractDurationsFromAllReferences(resultFile: resultFile, invocationRecord: invocationRecord)
     }
-    
+
     private func extractEmittedOutput(from line: String) -> String? {
         guard let emittedRange = line.range(of: "emittedOutput") else { return nil }
-        
+
         let searchString = String(line[emittedRange.upperBound...])
         let pattern = #"K2:_vV(\d+):(.*?)(?:\]|$)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
-        
-        let range = NSRange(searchString.startIndex..<searchString.endIndex, in: searchString)
+
+        let range = NSRange(searchString.startIndex ..< searchString.endIndex, in: searchString)
         guard let match = regex.firstMatch(in: searchString, options: [], range: range) else { return nil }
-        
+
         guard let lengthRange = Range(match.range(at: 1), in: searchString),
               let contentRange = Range(match.range(at: 2), in: searchString) else { return nil }
-        
+
         let lengthString = String(searchString[lengthRange])
         let content = String(searchString[contentRange])
-        
+
         guard let expectedLength = Int(lengthString) else { return nil }
-        
+
         let extractedContent = String(content.prefix(expectedLength))
         return extractedContent
     }
-    
+
     private func parseSwiftTestingFromConsoleOutput(_ consoleOutput: String) -> [SwiftTestingDurationInfo] {
         var durations: [SwiftTestingDurationInfo] = []
         let lines = consoleOutput.components(separatedBy: .newlines)
-        
+
         for line in lines {
             let patterns = [
                 #"[✓✘] Test (\w+)\(\) (?:passed|failed) after ([\d.]+) seconds"#,
@@ -524,18 +538,19 @@ public struct XCResultService: XCResultServicing {
                 #"✘ Test (\w+)\(\) failed after ([\d.]+) seconds"#,
                 #"✓ Test (\w+)\(\) passed after ([\d.]+) seconds"#,
                 #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
-                #"✓ Suite (\w+) passed after ([\d.]+) seconds"#
+                #"✓ Suite (\w+) passed after ([\d.]+) seconds"#,
             ]
-            
+
             for pattern in patterns {
                 if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-                    let range = NSRange(line.startIndex..<line.endIndex, in: line)
+                    let range = NSRange(line.startIndex ..< line.endIndex, in: line)
                     if let match = regex.firstMatch(in: line, options: [], range: range) {
                         if let testNameRange = Range(match.range(at: 1), in: line),
-                           let durationRange = Range(match.range(at: 2), in: line) {
+                           let durationRange = Range(match.range(at: 2), in: line)
+                        {
                             let testName = String(line[testNameRange])
                             let durationString = String(line[durationRange])
-                            
+
                             if let duration = Double(durationString) {
                                 let durationInfo = SwiftTestingDurationInfo(
                                     testName: testName,
@@ -551,14 +566,17 @@ public struct XCResultService: XCResultServicing {
                 }
             }
         }
-        
+
         return durations
     }
-    
-    private func extractDurationsFromAllReferences(resultFile: XCResultFile, invocationRecord: ActionsInvocationRecord) -> [SwiftTestingDurationInfo] {
+
+    private func extractDurationsFromAllReferences(
+        resultFile: XCResultFile,
+        invocationRecord: ActionsInvocationRecord
+    ) -> [SwiftTestingDurationInfo] {
         var allDurations: [SwiftTestingDurationInfo] = []
         var allReferences: Set<String> = []
-        
+
         for action in invocationRecord.actions {
             if let logRef = action.actionResult.logRef {
                 allReferences.insert(logRef.id)
@@ -576,22 +594,22 @@ public struct XCResultService: XCResultServicing {
                 allReferences.insert(consoleLogRef.id)
             }
         }
-        
+
         var exploredRefs: Set<String> = []
         var referencesToExplore = Array(allReferences)
-        
+
         while !referencesToExplore.isEmpty {
             let currentRef = referencesToExplore.removeFirst()
-            
+
             if exploredRefs.contains(currentRef) {
                 continue
             }
             exploredRefs.insert(currentRef)
-            
+
             if let payload = resultFile.getPayload(id: currentRef) {
                 if let text = String(data: payload, encoding: .utf8) {
                     let lines = text.components(separatedBy: .newlines)
-                    
+
                     for line in lines {
                         if line.contains("emittedOutput") {
                             if let emittedContent = extractEmittedOutput(from: line) {
@@ -599,7 +617,7 @@ public struct XCResultService: XCResultServicing {
                                 allDurations.append(contentsOf: consoleDurations)
                             }
                         }
-                        
+
                         if line.contains("✓") || line.contains("✘") || (line.contains("test") && line.contains("seconds")) {
                             let consoleDurations = parseSwiftTestingFromConsoleOutput(line)
                             allDurations.append(contentsOf: consoleDurations)
@@ -607,47 +625,58 @@ public struct XCResultService: XCResultServicing {
                     }
                 }
             }
-            
+
             if let testPlanSummaries = resultFile.getTestPlanRunSummaries(id: currentRef) {
                 for summary in testPlanSummaries.summaries {
                     for testableSummary in summary.testableSummaries {
-                        extractReferencesFromTestGroups(testableSummary.tests, newReferences: &referencesToExplore, exploredRefs: exploredRefs)
+                        extractReferencesFromTestGroups(
+                            testableSummary.tests,
+                            newReferences: &referencesToExplore,
+                            exploredRefs: exploredRefs
+                        )
                     }
                 }
             }
         }
-        
+
         return allDurations
     }
-    
-    private func extractReferencesFromTestGroups(_ groups: [ActionTestSummaryGroup], newReferences: inout [String], exploredRefs: Set<String>) {
+
+    private func extractReferencesFromTestGroups(
+        _ groups: [ActionTestSummaryGroup],
+        newReferences: inout [String],
+        exploredRefs: Set<String>
+    ) {
         for group in groups {
             for subtest in group.subtests {
                 if let summaryRef = subtest.summaryRef, !exploredRefs.contains(summaryRef.id) {
                     newReferences.append(summaryRef.id)
                 }
             }
-            
+
             extractReferencesFromTestGroups(group.subtestGroups, newReferences: &newReferences, exploredRefs: exploredRefs)
         }
     }
-    
-    private func updateTestCasesWithSwiftTestingDurations(testCases: [TestCase], swiftTestingDurations: [SwiftTestingDurationInfo]) -> [TestCase] {
+
+    private func updateTestCasesWithSwiftTestingDurations(
+        testCases: [TestCase],
+        swiftTestingDurations: [SwiftTestingDurationInfo]
+    ) -> [TestCase] {
         var durationMap: [String: Int] = [:]
         for swiftTestingDuration in swiftTestingDurations {
             let testName = swiftTestingDuration.testName
             let durationMs = Int(swiftTestingDuration.duration * 1000)
-            
+
             if !swiftTestingDuration.logContent.contains("Suite") {
                 if durationMap[testName] == nil {
                     durationMap[testName] = durationMs
                 }
             }
         }
-        
+
         return testCases.map { testCase in
             let testNameWithoutParens = testCase.name.replacingOccurrences(of: "()", with: "")
-            
+
             if testCase.duration == nil || testCase.duration == 0 {
                 if let swiftTestingDuration = durationMap[testNameWithoutParens] ?? durationMap[testCase.name] {
                     var testCase = testCase
@@ -655,7 +684,7 @@ public struct XCResultService: XCResultServicing {
                     return testCase
                 }
             }
-            
+
             return testCase
         }
     }

@@ -58,10 +58,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="dashboard"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
         selected={
-        String.starts_with?(
-          @current_path,
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
-        )
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
+          )
         }
       />
       <.sidebar_group

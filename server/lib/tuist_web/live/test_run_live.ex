@@ -42,9 +42,10 @@ defmodule TuistWeb.TestRunLive do
       |> Map.put(:ran_by_account, ran_by_account)
       |> Map.put(:project, project)
 
-      dbg(run.id)
+    dbg(run.id)
+
     command_event =
-      case CommandEvents.get_command_event_by_test_run_id(run.id) |> dbg do
+      case run.id |> CommandEvents.get_command_event_by_test_run_id() |> dbg() do
         {:ok, event} -> event
         {:error, :not_found} -> nil
       end
@@ -509,13 +510,14 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)
   defp ensure_allowed_test_cases_sort_params(_value), do: :name
 
-  defp ensure_allowed_test_suites_sort_params(value) when value in ["name", "duration", "avg_test_case_duration", "test_case_count"],
-    do: String.to_existing_atom(value)
+  defp ensure_allowed_test_suites_sort_params(value)
+       when value in ["name", "duration", "avg_test_case_duration", "test_case_count"], do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_suites_sort_params(_value), do: :name
 
-  defp ensure_allowed_test_modules_sort_params(value) when value in ["name", "duration", "avg_test_case_duration", "test_case_count", "test_suite_count"],
-    do: String.to_existing_atom(value)
+  defp ensure_allowed_test_modules_sort_params(value)
+       when value in ["name", "duration", "avg_test_case_duration", "test_case_count", "test_suite_count"],
+       do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_modules_sort_params(_value), do: :name
 
@@ -526,9 +528,10 @@ defmodule TuistWeb.TestRunLive do
     {failures, meta} = Runs.list_test_run_failures(run.id, page, page_size)
 
     # Group failures by test case
-    failures_grouped = Enum.group_by(failures, fn failure ->
-      failure.test_case_run_id
-    end)
+    failures_grouped =
+      Enum.group_by(failures, fn failure ->
+        failure.test_case_run_id
+      end)
 
     {failures_grouped, meta}
   end
@@ -680,15 +683,25 @@ defmodule TuistWeb.TestRunLive do
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
   defp remap_test_case_filter_fields(filter), do: filter
 
-  defp remap_test_suite_filter_fields(%{field: :test_suite_test_case_count} = filter), do: %{filter | field: :test_case_count}
-  defp remap_test_suite_filter_fields(%{field: :test_suite_avg_test_case_duration} = filter), do: %{filter | field: :avg_test_case_duration}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_test_case_count} = filter),
+    do: %{filter | field: :test_case_count}
+
+  defp remap_test_suite_filter_fields(%{field: :test_suite_avg_test_case_duration} = filter),
+    do: %{filter | field: :avg_test_case_duration}
+
   defp remap_test_suite_filter_fields(%{field: :test_suite_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_suite_filter_fields(%{field: :test_suite_status} = filter), do: %{filter | field: :status}
   defp remap_test_suite_filter_fields(filter), do: filter
 
-  defp remap_test_module_filter_fields(%{field: :test_module_test_suite_count} = filter), do: %{filter | field: :test_suite_count}
-  defp remap_test_module_filter_fields(%{field: :test_module_test_case_count} = filter), do: %{filter | field: :test_case_count}
-  defp remap_test_module_filter_fields(%{field: :test_module_avg_test_case_duration} = filter), do: %{filter | field: :avg_test_case_duration}
+  defp remap_test_module_filter_fields(%{field: :test_module_test_suite_count} = filter),
+    do: %{filter | field: :test_suite_count}
+
+  defp remap_test_module_filter_fields(%{field: :test_module_test_case_count} = filter),
+    do: %{filter | field: :test_case_count}
+
+  defp remap_test_module_filter_fields(%{field: :test_module_avg_test_case_duration} = filter),
+    do: %{filter | field: :avg_test_case_duration}
+
   defp remap_test_module_filter_fields(%{field: :test_module_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_module_filter_fields(%{field: :test_module_status} = filter), do: %{filter | field: :status}
   defp remap_test_module_filter_fields(filter), do: filter
@@ -838,21 +851,25 @@ defmodule TuistWeb.TestRunLive do
         # Has path cases
         {path, "assertion_failure", nil} ->
           gettext("Expectation failed at %{location}",
-            location: "#{path}:#{failure.line_number}")
+            location: "#{path}:#{failure.line_number}"
+          )
 
         {path, "assertion_failure", message} ->
           gettext("Expectation failed at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
-            message: message)
+            message: message
+          )
 
         {path, "error_thrown", nil} ->
           gettext("Caught error at %{location}",
-            location: "#{path}:#{failure.line_number}")
+            location: "#{path}:#{failure.line_number}"
+          )
 
         {path, "error_thrown", message} ->
           gettext("Caught error at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
-            message: message)
+            message: message
+          )
 
         {path, _, nil} ->
           "#{path}:#{failure.line_number}"

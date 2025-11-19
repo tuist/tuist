@@ -7,7 +7,7 @@ public class Framework1File {
     public init() {}
 
     public func hello() -> String {
-        "Framework1File2.hello()"
+        "Framework1File.hello()"
     }
 
     public func helloFromFramework2() -> String {

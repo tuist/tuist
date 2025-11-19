@@ -570,7 +570,7 @@ test_case_names = [
 ]
 
 failure_messages = [
-  "XCTAssertEqual failed: (\"expected\") is not equal to (\"actual\")",
+  ~s{XCTAssertEqual failed: ("expected") is not equal to ("actual")},
   "XCTAssertTrue failed",
   "XCTAssertNotNil failed",
   "Asynchronous wait failed: Exceeded timeout of 10 seconds",
@@ -643,7 +643,11 @@ test_suite_runs =
           Enum.random([0, 0, 1, 2])
         end
 
-      case_count = Enum.random(div(module_run.test_case_count, suite_count) - 2..div(module_run.test_case_count, suite_count) + 2)
+      case_count =
+        Enum.random(
+          (div(module_run.test_case_count, suite_count) - 2)..(div(module_run.test_case_count, suite_count) + 2)
+        )
+
       suite_duration = Enum.random(500..div(module_run.duration, suite_count))
       avg_duration = if case_count > 0, do: div(suite_duration, case_count), else: 0
 
@@ -684,7 +688,7 @@ test_case_runs =
           Enum.random([0, 0, 1, 2])
         end
 
-      case_duration = Enum.random(10..div(suite_run.duration, max(case_count, 1)) * 2)
+      case_duration = Enum.random(10..(div(suite_run.duration, max(case_count, 1)) * 2))
 
       %{
         id: UUIDv7.generate(),

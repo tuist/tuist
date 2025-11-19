@@ -119,7 +119,7 @@ public enum EnvKey: String, CaseIterable {
     case inspectBundle = "TUIST_INSPECT_BUNDLE"
     case inspectBundleJSON = "TUIST_INSPECT_BUNDLE_JSON"
     case inspectBundlePath = "TUIST_INSPECT_BUNDLE_PATH"
-    
+
     // INSPECT TEST
 
     case inspectTestPath = "TUIST_INSPECT_TEST_PATH"

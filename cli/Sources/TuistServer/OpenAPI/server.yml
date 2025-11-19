@@ -248,6 +248,7 @@ components:
         id: 123e4567-e89b-12d3-a456-426614174000
         name: build
         project_id: 123
+        test_run_url: https://tuist.dev/my-account/my-project/test-runs/123e4567-e89b-12d3-a456-426614174000
         url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
         id:
@@ -264,6 +265,12 @@ components:
         project_id:
           description: The project identifier
           type: integer
+          x-struct:
+          x-validate:
+        test_run_url:
+          description: The URL to the test run, if available
+          nullable: true
+          type: string
           x-struct:
           x-validate:
         url:

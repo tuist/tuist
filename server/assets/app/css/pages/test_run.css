@@ -164,9 +164,9 @@
     gap: var(--noora-spacing-8);
     & [data-part="active-filters"] {
       display: flex;
-      gap: var(--noora-spacing-3);
       flex-wrap: wrap;
       align-items: flex-start;
+      gap: var(--noora-spacing-3);
     }
     & > [data-part="filters"] {
       display: flex;

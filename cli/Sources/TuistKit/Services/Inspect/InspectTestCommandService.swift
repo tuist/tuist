@@ -38,7 +38,6 @@ struct InspectTestCommandService {
     private let gitController: GitControlling
     private let configLoader: ConfigLoading
 
-
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
@@ -77,7 +76,8 @@ struct InspectTestCommandService {
         guard let rootDirectory = try await rootDirectory() else {
             fatalError()
         }
-        let mostRecentXCResultFile = try await xcResultService.mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
+        let mostRecentXCResultFile = try await xcResultService
+            .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
         guard let xcResultFile = mostRecentXCResultFile else {
             fatalError()
         }

@@ -71,7 +71,7 @@ import OpenAPIURLSession
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
-            
+
             let status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.statusPayload? =
                 switch testSummary.status {
                 case .passed:
@@ -86,53 +86,62 @@ import OpenAPIURLSession
             let testCasesByModule = Dictionary(grouping: testSummary.testCases) { testCase in
                 testCase.module ?? "Unknown"
             }
-            
-            let testModules = testCasesByModule.map { (moduleName, testCases) in
+
+            let testModules = testCasesByModule.map { moduleName, testCases in
                 // Calculate module status and duration
-                let moduleStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.statusPayload = 
+                let moduleStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                    .statusPayload =
                     testCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
-                let moduleDuration = testCases.compactMap { $0.duration }.reduce(0, +)
-                
+                let moduleDuration = testCases.compactMap(\.duration).reduce(0, +)
+
                 // Group test cases by test suite within this module
                 let testCasesBySuite = Dictionary(grouping: testCases) { testCase in
                     testCase.testSuite
                 }
-                
+
                 // Create test suites with their test cases
-                let testSuites = testCasesBySuite.compactMap { (suiteName, suiteTestCases) -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload? in
-                    guard let suiteName = suiteName else { return nil }
-                    let suiteStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload =
-                        suiteTestCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
-                    let suiteDuration = suiteTestCases.compactMap { $0.duration }.reduce(0, +)
-                    
-                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload(
-                        duration: suiteDuration,
-                        name: suiteName,
-                        status: suiteStatus
-                    )
-                }
-                
+                let testSuites = testCasesBySuite
+                    .compactMap { suiteName, suiteTestCases -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload? in
+                        guard let suiteName else { return nil }
+                        let suiteStatus: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                            .test_suitesPayloadPayload.statusPayload =
+                            suiteTestCases.contains { testCaseStatusToServerStatus($0.status) == .failure } ? .failure : .success
+                        let suiteDuration = suiteTestCases.compactMap(\.duration).reduce(0, +)
+
+                        return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                            .test_suitesPayloadPayload(
+                                duration: suiteDuration,
+                                name: suiteName,
+                                status: suiteStatus
+                            )
+                    }
+
                 // Create all test cases for this module
                 let moduleTestCases = testCases.map { testCase in
                     // Map test case failures to API format
-                    let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload]? = testCase.failures.isEmpty ? nil : testCase.failures.map { failure in
-                        Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload(
-                            issue_type: mapIssueType(failure.issueType),
-                            line_number: failure.lineNumber,
-                            message: failure.message,
-                            path: failure.path?.pathString
-                        )
-                    }
+                    let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                        .test_casesPayloadPayload.failuresPayloadPayload
+                    ]? = testCase.failures.isEmpty ? nil : testCase.failures
+                        .map { failure in
+                            Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                                .test_casesPayloadPayload.failuresPayloadPayload(
+                                    issue_type: mapIssueType(failure.issueType),
+                                    line_number: failure.lineNumber,
+                                    message: failure.message,
+                                    path: failure.path?.pathString
+                                )
+                        }
 
-                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload(
-                        duration: testCase.duration ?? 0,
-                        failures: failures,
-                        name: testCase.name,
-                        status: testCaseStatusToServerStatus(testCase.status),
-                        test_suite_name: testCase.testSuite
-                    )
+                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                        .test_casesPayloadPayload(
+                            duration: testCase.duration ?? 0,
+                            failures: failures,
+                            name: testCase.name,
+                            status: testCaseStatusToServerStatus(testCase.status),
+                            test_suite_name: testCase.testSuite
+                        )
                 }
-                
+
                 return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload(
                     duration: moduleDuration,
                     name: moduleName,
@@ -170,7 +179,7 @@ import OpenAPIURLSession
                     )
                 )
             )
-            
+
             switch response {
             case let .ok(okResponse):
                 switch okResponse.body {
@@ -206,8 +215,10 @@ import OpenAPIURLSession
                 }
             }
         }
-        
-        private func testCaseStatusToServerStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload.Element.test_casesPayloadPayload.statusPayload {
+
+        private func testCaseStatusToServerStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
+        {
             switch status {
             case .passed:
                 return .success
@@ -218,8 +229,10 @@ import OpenAPIURLSession
             }
         }
 
-        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload? {
-            guard let issueType = issueType else { return nil }
+        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun.Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload?
+        {
+            guard let issueType else { return nil }
             switch issueType {
             case .errorThrown:
                 return .error_thrown

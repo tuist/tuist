@@ -13,18 +13,18 @@
 
   <div data-part="header">
     <div data-part="title">
-      <div :if={@run.status == 0} data-part="badge-success">
+      <div :if={@run.status == "success"} data-part="badge-success">
         <div data-part="icon">
           <.circle_check />
         </div>
       </div>
-      <div :if={@run.status == 1} data-part="badge-failure">
+      <div :if={@run.status == "failure"} data-part="badge-failure">
         <div data-part="icon">
           <.alert_circle />
         </div>
       </div>
       <h1 data-part="label">
-        Test Run
+        {@run.scheme || gettext("Unknown")}
       </h1>
     </div>
     <.button
@@ -107,7 +107,7 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Source")}</div>
+              <div data-part="title">{gettext("Branch")}</div>
               <span data-part="value">
                 <.git_branch />
                 {if @run.git_branch == "", do: gettext("Unknown"), else: @run.git_branch}
@@ -140,45 +140,45 @@
           </div>
         </div>
         <div data-part="widgets">
-        <.widget
-          title={gettext("Test cases")}
-          description={gettext("Total number of test cases executed.")}
-          value={@test_metrics.total_count}
-          id="widget-test-cases"
-        />
-        <.widget
-          title={gettext("Failed test cases")}
-          description={gettext("Number of test cases that failed.")}
-          value={@test_metrics.failed_count}
-          id="widget-failed-test-cases"
-        />
-        <.widget
-          title={gettext("Avg. test case duration")}
-          description={gettext("Average duration of all test cases.")}
-          value={
-            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-              @test_metrics.avg_duration
-            )
-          }
-          id="widget-avg-test-case-duration"
-        />
+          <.widget
+            title={gettext("Test cases")}
+            description={gettext("Total number of test cases executed.")}
+            value={@test_metrics.total_count}
+            id="widget-test-cases"
+          />
+          <.widget
+            title={gettext("Failed test cases")}
+            description={gettext("Number of test cases that failed.")}
+            value={@test_metrics.failed_count}
+            id="widget-failed-test-cases"
+          />
+          <.widget
+            title={gettext("Avg. test case duration")}
+            description={gettext("Average duration of all test cases.")}
+            value={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_metrics.avg_duration
+              )
+            }
+            id="widget-avg-test-case-duration"
+          />
         </div>
       </.card_section>
-      <.card_section data-part="command-card-section" :if={@command_event}>
+      <.card_section :if={@command_event} data-part="command-card-section">
         <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Command")}</div>
-            <span data-part="command">
-              {if @command_event.command_arguments,
-                do:
-                  ("tuist " <> @command_event.command_arguments)
-                  |> String.split(" ")
-                  |> Enum.join(" "),
-                else: "tuist #{@command_event.name}"}
-            </span>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command")}</div>
+              <span data-part="command">
+                {if @command_event.command_arguments,
+                  do:
+                    ("tuist " <> @command_event.command_arguments)
+                    |> String.split(" ")
+                    |> Enum.join(" "),
+                  else: "tuist #{@command_event.name}"}
+              </span>
+            </div>
           </div>
-        </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{gettext("Tuist version")}</div>
@@ -192,14 +192,15 @@
               <span data-part="value">
                 <.history />
                 {gettext("%{duration}s",
-                  duration: (@command_event.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+                  duration:
+                    (@command_event.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
                 )}
               </span>
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Ran at")}</div>
               <span data-part="value">
-              {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
+                {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
               </span>
             </div>
           </div>
@@ -268,10 +269,18 @@
                       size="small"
                     />
                   </div>
-                  <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="small"
+                  >
                     <.chevron_down />
                   </.neutral_button>
-                  <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="small"
+                  >
                     <.chevron_up />
                   </.neutral_button>
                 </div>
@@ -312,7 +321,7 @@
     </.tab_menu_horizontal>
 
     <%= if @selected_test_tab == "test-cases" do %>
-      <.card title={gettext("Test cases")} icon="subtask" data-part="test-cases-card">
+      <.card title={gettext("Test Cases")} icon="exchange" data-part="test-cases-card">
         <.card_section data-part="test-cases-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
@@ -446,7 +455,7 @@
     <% end %>
 
     <%= if @selected_test_tab == "test-suites" do %>
-      <.card title={gettext("Test suites")} icon="exchange" data-part="test-suites-card">
+      <.card title={gettext("Test Suites")} icon="exchange" data-part="test-suites-card">
         <.card_section data-part="test-suites-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-suites" phx-debounce="200">
@@ -620,7 +629,7 @@
     <% end %>
 
     <%= if @selected_test_tab == "test-modules" do %>
-      <.card title={gettext("Test modules")} icon="apps" data-part="test-modules-card">
+      <.card title={gettext("Test Modules")} icon="apps" data-part="test-modules-card">
         <.card_section data-part="test-modules-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-modules" phx-debounce="200">
@@ -1076,10 +1085,18 @@
                       size="small"
                     />
                   </div>
-                  <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="small"
+                  >
                     <.chevron_down />
                   </.neutral_button>
-                  <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="small"
+                  >
                     <.chevron_up />
                   </.neutral_button>
                 </div>

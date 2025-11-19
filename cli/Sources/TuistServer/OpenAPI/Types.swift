@@ -1716,6 +1716,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/project_id`.
             public var project_id: Swift.Int
+            /// The URL to the test run, if available
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEvent/test_run_url`.
+            public var test_run_url: Swift.String?
             /// The URL to the command event
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/url`.
@@ -1726,22 +1730,26 @@ public enum Components {
             ///   - id: The unique identifier of the command event.
             ///   - name: The name of the command
             ///   - project_id: The project identifier
+            ///   - test_run_url: The URL to the test run, if available
             ///   - url: The URL to the command event
             public init(
                 id: Swift.String,
                 name: Swift.String,
                 project_id: Swift.Int,
+                test_run_url: Swift.String? = nil,
                 url: Swift.String
             ) {
                 self.id = id
                 self.name = name
                 self.project_id = project_id
+                self.test_run_url = test_run_url
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case project_id
+                case test_run_url
                 case url
             }
         }

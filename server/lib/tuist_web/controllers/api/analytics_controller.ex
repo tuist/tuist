@@ -317,7 +317,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) do
-        case create_test_run_from_command_event(body_params, selected_project, user_id) do
+        case create_test_run_from_command_event(body_params, selected_project) do
           {:ok, test_run} -> test_run.id
           {:error, _} -> nil
         end
@@ -389,13 +389,21 @@ defmodule TuistWeb.API.AnalyticsController do
         )
       end
 
+    test_run_url =
+      if is_nil(test_run_id) do
+        nil
+      else
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
+      end
+
     conn
     |> put_status(:ok)
     |> json(%{
       id: get_id_field(command_event),
       project_id: command_event.project_id,
       name: command_event.name,
-      url: url
+      url: url,
+      test_run_url: test_run_url
     })
   end
 
@@ -461,7 +469,7 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp create_test_run_from_command_event(body_params, project, user_id) do
+  defp create_test_run_from_command_event(body_params, project) do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
     Runs.create_test(%{
@@ -473,7 +481,7 @@ defmodule TuistWeb.API.AnalyticsController do
       model_identifier: "",
       scheme: scheme,
       project_id: project.id,
-      account_id: user_id,
+      account_id: project.account_id,
       status: Map.get(body_params, :status, :success),
       git_branch: Map.get(body_params, :git_branch),
       git_commit_sha: Map.get(body_params, :git_commit_sha),
@@ -484,8 +492,7 @@ defmodule TuistWeb.API.AnalyticsController do
     })
   end
 
-  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest])
-       when is_binary(scheme_or_flag) do
+  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do
     if String.starts_with?(scheme_or_flag, "-") do
       nil
     else
@@ -881,7 +888,7 @@ defmodule TuistWeb.API.AnalyticsController do
       object_key =
         case type do
           "result_bundle" ->
-            CommandEvents.get_result_bundle_key(run_id, project)
+            run_id |> CommandEvents.get_result_bundle_key(project) |> dbg()
 
           "invocation_record" ->
             CommandEvents.get_result_bundle_invocation_record_key(
@@ -902,7 +909,7 @@ defmodule TuistWeb.API.AnalyticsController do
       # Newer CLI versions send UUIDs which can be converted to integer IDs,
       # but older versions send integer IDs which cannot be converted back to UUIDs.
       # Due to this one-way conversion, we must use the legacy_id for object keys.
-      {:ok, Tuist.UUIDv7.to_int64(run_id)}
+      {:ok, run_id}
     else
       case CommandEvents.get_command_event_by_id(run_id) do
         {:ok, command_event} ->

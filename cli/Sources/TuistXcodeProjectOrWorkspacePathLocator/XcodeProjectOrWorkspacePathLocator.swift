@@ -6,7 +6,7 @@ import TuistSupport
 
 public enum XcodeProjectOrWorkspacePathLocatingError: Equatable, LocalizedError {
     case xcodeProjectOrWorkspaceNotFound(AbsolutePath)
-    
+
     public var errorDescription: String? {
         switch self {
         case let .xcodeProjectOrWorkspaceNotFound(path):
@@ -22,11 +22,11 @@ public protocol XcodeProjectOrWorkspacePathLocating {
 
 public struct XcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating {
     private let fileSystem: FileSysteming
-    
+
     public init(fileSystem: FileSysteming = FileSystem()) {
         self.fileSystem = fileSystem
     }
-    
+
     public func locate(from path: AbsolutePath) async throws -> AbsolutePath {
         if let workspacePath = Environment.current.workspacePath {
             if workspacePath.parentDirectory.extension == "xcodeproj" {

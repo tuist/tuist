@@ -72,7 +72,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             commandEvent.resultBundlePath
                 ?? runDirectory
                 .appending(component: "\(Constants.resultBundleName).xcresult")
-        
+
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
             projectId: fullHandle,

@@ -8,8 +8,8 @@ import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import TuistXCResultService
+import XcodeGraph
 
 import struct TSCUtility.Version
 
@@ -880,7 +880,7 @@ final class TestService { // swiftlint:disable:this type_body_length
               try await fileSystem.exists(resultBundlePath)
         else { return }
 
-        let rootDirectory = try await self.rootDirectory()
+        let rootDirectory = try await rootDirectory()
         guard let rootDirectory else { return }
 
         let test = try await inspectResultBundleService.inspectResultBundle(

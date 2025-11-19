@@ -132,7 +132,7 @@ struct InspectBuildCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
         mockedEnvironment.variables["CONFIGURATION"] = "Debug"
-        
+
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
             .willReturn(projectPath)
@@ -241,7 +241,7 @@ struct InspectBuildCommandServiceTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
-        
+
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
             .willReturn(projectPath)
@@ -351,7 +351,7 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.makeDirectory(at: projectPath)
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = nil
-        
+
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .value(temporaryDirectory))
             .willReturn(projectPath)
@@ -405,11 +405,11 @@ struct InspectBuildCommandServiceTests {
             try await fileSystem.makeDirectory(at: projectPath)
             let mockedEnvironment = try #require(Environment.mocked)
             mockedEnvironment.workspacePath = nil
-            
+
             given(xcodeProjectOrWorkspacePathLocator)
                 .locate(from: .value(temporaryDirectory))
                 .willReturn(workspacePath)
-            
+
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -462,7 +462,7 @@ struct InspectBuildCommandServiceTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
-        
+
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
             .willReturn(projectPath)
@@ -496,7 +496,7 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.makeDirectory(at: projectPath)
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = nil
-        
+
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .value(projectPath.parentDirectory))
             .willReturn(projectPath)

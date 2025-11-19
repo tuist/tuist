@@ -140,10 +140,17 @@ public class TrackableCommand {
             Logger.current.info("Uploading run metadata...")
             do {
                 let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
-                Logger.current
-                    .info(
-                        "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
-                    )
+                if let testRunURL = serverCommandEvent.testRunURL {
+                    Logger.current
+                        .info(
+                            "You can view a detailed test report at: \(testRunURL.absoluteString)"
+                        )
+                } else {
+                    Logger.current
+                        .info(
+                            "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
+                        )
+                }
             } catch let error as ClientError {
                 Logger.current
                     .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")

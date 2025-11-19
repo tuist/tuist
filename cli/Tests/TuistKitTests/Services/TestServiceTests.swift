@@ -7,8 +7,8 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import TuistXCResultService
+import XcodeGraph
 import XCTest
 
 @testable import TuistKit
