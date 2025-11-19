@@ -160,7 +160,7 @@ import OpenAPIURLSession
                                 is_ci: isCI,
                                 macos_version: macOSVersion,
                                 model_identifier: modelIdentifier,
-                                scheme: testSummary.scheme,
+                                scheme: testSummary.testPlanName,
                                 status: status,
                                 test_modules: testModules,
                                 _type: .test,

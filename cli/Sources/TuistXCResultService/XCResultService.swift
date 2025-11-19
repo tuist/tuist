@@ -14,13 +14,13 @@ public protocol XCResultServicing {
 }
 
 public struct TestSummary {
-    public let scheme: String?
+    public let testPlanName: String?
     public let status: TestStatus
     public let duration: Int?
     public let testCases: [TestCase]
-    
-    public init(scheme: String?, status: TestStatus, duration: Int?, testCases: [TestCase]) {
-        self.scheme = scheme
+
+    public init(testPlanName: String?, status: TestStatus, duration: Int?, testCases: [TestCase]) {
+        self.testPlanName = testPlanName
         self.status = status
         self.duration = duration
         self.testCases = testCases
@@ -111,17 +111,20 @@ public struct InvocationRecord {
         public let actionResult: Result
         public let startedTime: Date
         public let endedTime: Date
+        public let testPlanName: String?
 
-        public init(actionResult: Result, startedTime: Date, endedTime: Date) {
+        public init(actionResult: Result, startedTime: Date, endedTime: Date, testPlanName: String?) {
             self.actionResult = actionResult
             self.startedTime = startedTime
             self.endedTime = endedTime
+            self.testPlanName = testPlanName
         }
 
         init(result: XCResultKit.ActionRecord) {
-            actionResult = .init(result: result.actionResult)
+            actionResult = Result(result: result.actionResult)
             startedTime = result.startedTime
             endedTime = result.endedTime
+            testPlanName = result.testPlanName
         }
     }
 
@@ -357,7 +360,7 @@ public struct XCResultService: XCResultServicing {
         let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
 
-        return .init(resultFile: resultFile, invocationRecord: invocationRecord, rootDirectory: rootDirectory)
+        return InvocationRecord(resultFile: resultFile, invocationRecord: invocationRecord, rootDirectory: rootDirectory)
     }
 
     public func successfulTestTargets(invocationRecord: InvocationRecord) -> Set<String> {
@@ -380,7 +383,9 @@ public struct XCResultService: XCResultServicing {
         var allTestCases: [TestCase] = []
         var hasFailedTests = false
         var hasSkippedTests = false
-        
+
+        let testPlanName = invocationRecord.actions.first?.testPlanName
+
         // Extract test cases from all test summaries
         for testSummary in invocationRecord.testSummaries {
             for summary in testSummary.summaries {
@@ -427,7 +432,7 @@ public struct XCResultService: XCResultServicing {
         let totalDuration = calculateOverallDuration(from: invocationRecord.actions)
         
         return TestSummary(
-            scheme: nil,
+            testPlanName: testPlanName,
             status: overallStatus,
             duration: totalDuration > 0 ? totalDuration : nil,
             testCases: allTestCases

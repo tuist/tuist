@@ -24,7 +24,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let resultBundlePath: AbsolutePath?
     public let ranAt: Date
     public let buildRunId: String?
-    public let testRunId: String?
+    public var testRunId: String?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)

@@ -207,7 +207,7 @@
         >
           <:col :let={test_run} label={gettext("Scheme")}>
             <.text_and_description_cell label={
-              (test_run.scheme && test_run.scheme != "") || "Unknown"
+              (test_run.scheme !== "" && test_run.scheme) || "Unknown"
             } />
           </:col>
           <:col :let={test_run} label="Status">
