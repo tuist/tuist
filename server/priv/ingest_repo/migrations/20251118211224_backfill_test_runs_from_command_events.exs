@@ -121,7 +121,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
         macos_version: e.macos_version,
         swift_version: e.swift_version,
         is_ci: e.is_ci,
-        subcommand: e.subcommand,
+        command_arguments: e.command_arguments,
         status: e.status,
         git_branch: e.git_branch,
         git_commit_sha: e.git_commit_sha,
@@ -137,6 +137,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   end
 
   defp create_test_run_from_event(event) do
+    scheme = extract_scheme_from_command_arguments(event.command_arguments || [])
+
     %{
       id: Ecto.UUID.generate(),
       project_id: event.project_id,
@@ -145,7 +147,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
       xcode_version: event.swift_version,
       is_ci: event.is_ci,
       model_identifier: "",
-      scheme: event.subcommand,
+      scheme: scheme,
       status: event.status,
       git_branch: event.git_branch,
       git_commit_sha: event.git_commit_sha,
@@ -155,6 +157,17 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
       inserted_at: event.created_at
     }
   end
+
+  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest])
+       when is_binary(scheme_or_flag) do
+    if String.starts_with?(scheme_or_flag, "-") do
+      nil
+    else
+      scheme_or_flag
+    end
+  end
+
+  defp extract_scheme_from_command_arguments(_), do: nil
 
   defp throttle_change_in_batches(
          query_fun,

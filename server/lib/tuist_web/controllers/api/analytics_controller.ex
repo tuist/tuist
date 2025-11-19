@@ -4,6 +4,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias Tuist.Storage
   alias Tuist.VCS
   alias Tuist.Xcode
@@ -314,6 +315,16 @@ defmodule TuistWeb.API.AnalyticsController do
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
 
+    test_run_id =
+      if body_params.name == "test" and is_nil(test_run_id) do
+        case create_test_run_from_command_event(body_params, selected_project, user_id) do
+          {:ok, test_run} -> test_run.id
+          {:error, _} -> nil
+        end
+      else
+        test_run_id
+      end
+
     cache_metadata = cache_metadata(body_params)
     selective_testing_metadata = selective_testing_metadata(body_params)
 
@@ -449,6 +460,40 @@ defmodule TuistWeb.API.AnalyticsController do
       }
     end
   end
+
+  defp create_test_run_from_command_event(body_params, project, user_id) do
+    scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
+
+    Runs.create_test(%{
+      id: Ecto.UUID.generate(),
+      duration: body_params.duration,
+      macos_version: body_params.macos_version,
+      xcode_version: body_params.swift_version,
+      is_ci: body_params.is_ci,
+      model_identifier: "",
+      scheme: scheme,
+      project_id: project.id,
+      account_id: user_id,
+      status: Map.get(body_params, :status, :success),
+      git_branch: Map.get(body_params, :git_branch),
+      git_commit_sha: Map.get(body_params, :git_commit_sha),
+      git_ref: Map.get(body_params, :git_ref),
+      ran_at: date(body_params),
+      test_modules: [],
+      test_cases: []
+    })
+  end
+
+  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest])
+       when is_binary(scheme_or_flag) do
+    if String.starts_with?(scheme_or_flag, "-") do
+      nil
+    else
+      scheme_or_flag
+    end
+  end
+
+  defp extract_scheme_from_command_arguments(_), do: nil
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a run artifact",
