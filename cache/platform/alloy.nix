@@ -49,17 +49,39 @@
       }
     }
 
-     prometheus.scrape "cache_promex" {
-       targets = [
-         {
-           __address__ = "127.0.0.1:80",
-           __scheme__ = "http",
-           __metrics_path__ = "/metrics",
-           instance = "${config.networking.hostName}",
-         },
-       ]
+    prometheus.exporter.unix "default" {
+      include_exporter_metrics = true
+      disable_collectors = []
+    }
+
+    prometheus.scrape "cache_promex" {
+      targets = [
+        {
+          __address__ = "127.0.0.1:80",
+          __scheme__ = "http",
+          __metrics_path__ = "/metrics",
+          instance = "${config.networking.hostName}",
+        },
+      ]
 
       scrape_interval = "15s"
+
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+    }
+
+    prometheus.scrape "unix_exporter" {
+      targets = prometheus.exporter.unix.default.targets
+
+      scrape_interval = "15s"
+
+      forward_to = [prometheus.relabel.unix_exporter.receiver]
+    }
+
+    prometheus.relabel "unix_exporter" {
+      rule {
+        target_label = "instance"
+        replacement  = "${config.networking.hostName}"
+      }
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
@@ -68,29 +90,29 @@
       host = "unix:///var/run/docker.sock"
     }
 
-     loki.source.docker "default" {
-       host       = "unix:///var/run/docker.sock"
-       targets    = discovery.docker.linux.targets
-       labels     = {
-         app = "docker",
-         instance = "${config.networking.hostName}",
-       }
-       forward_to = [loki.write.grafana_cloud.receiver]
-     }
+    loki.source.docker "default" {
+      host       = "unix:///var/run/docker.sock"
+      targets    = discovery.docker.linux.targets
+      labels     = {
+        app = "docker",
+        instance = "${config.networking.hostName}",
+      }
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
 
-     loki.source.file "nginx_error" {
-       targets    = [
-         {
-           __path__ = "/var/log/nginx/error.log",
-           labels   = {
-             job     = "nginx",
-             stream   = "error",
-             instance = "${config.networking.hostName}",
-           },
-         },
-       ]
-       forward_to = [loki.write.grafana_cloud.receiver]
-     }
+    loki.source.file "nginx_error" {
+      targets    = [
+        {
+          __path__ = "/var/log/nginx/error.log",
+          labels   = {
+            job     = "nginx",
+            stream   = "error",
+            instance = "${config.networking.hostName}",
+          },
+        },
+      ]
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
 
     loki.write "grafana_cloud" {
       endpoint {

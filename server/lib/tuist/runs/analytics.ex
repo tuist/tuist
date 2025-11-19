@@ -809,6 +809,12 @@ defmodule Tuist.Runs.Analytics do
   defp normalize_result(float) when is_float(float), do: float
   defp normalize_result(int) when is_integer(int), do: int * 1.0
 
+  # Calculates hit rate as a percentage, handling division by zero.
+  # Returns the hit rate as a percentage rounded to 1 decimal place.
+  # Returns 0.0 if total is 0.
+  defp calculate_hit_rate_percentage(_hits, total) when total == 0, do: 0.0
+  defp calculate_hit_rate_percentage(hits, total), do: Float.round(hits / total * 100.0, 1)
+
   @doc """
   Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
 
@@ -1570,6 +1576,310 @@ defmodule Tuist.Runs.Analytics do
           failed_count: result.failed_count,
           avg_duration: if(is_nil(result.avg_duration), do: 0, else: round(result.avg_duration))
         }
+    end
+  end
+
+  @doc """
+  Gets module cache hit rate analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:avg_hit_rate` - Average hit rate as a percentage
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of hit rate values (as percentages)
+  """
+  def module_cache_hit_rate_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    # Get current period data
+    hit_rate_result = CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
+
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    # Calculate current hit rate
+    cacheable = hit_rate_result.cacheable_targets_count || 0
+    local_hits = hit_rate_result.local_cache_hits_count || 0
+    remote_hits = hit_rate_result.remote_cache_hits_count || 0
+    total_hits = local_hits + remote_hits
+    avg_hit_rate = calculate_hit_rate_percentage(total_hits, cacheable)
+
+    # Calculate trend (compare with previous period)
+    previous_start = Date.add(start_date, -days_delta)
+    previous_result = CommandEvents.cache_hit_rate(project_id, previous_start, start_date, opts)
+    previous_cacheable = previous_result.cacheable_targets_count || 0
+    previous_hits = (previous_result.local_cache_hits_count || 0) + (previous_result.remote_cache_hits_count || 0)
+
+    previous_hit_rate = calculate_hit_rate_percentage(previous_hits, previous_cacheable)
+
+    hit_rate_trend = trend(previous_value: previous_hit_rate, current_value: avg_hit_rate)
+
+    # Process hit rate time series
+    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+
+    hit_rate_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        local = item.local_cache_target_hits || 0
+        remote = item.remote_cache_target_hits || 0
+        calculate_hit_rate_percentage(local + remote, cacheable)
+      end)
+
+    %{
+      avg_hit_rate: avg_hit_rate,
+      trend: hit_rate_trend,
+      dates: hit_rate_dates,
+      values: hit_rate_values
+    }
+  end
+
+  @doc """
+  Gets module cache hits analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:total_count` - Total number of cache hits
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of hit count values
+  """
+  def module_cache_hits_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    # Get current period data
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+
+    hits_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+      end)
+
+    total_hits_count = Enum.sum(hits_values)
+
+    # Get previous period data for trend
+    previous_start = Date.add(start_date, -days_delta)
+
+    previous_hits_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        previous_start,
+        start_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    previous_total_hits =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        acc + (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+      end)
+
+    hits_trend = trend(previous_value: previous_total_hits, current_value: total_hits_count)
+
+    %{
+      total_count: total_hits_count,
+      trend: hits_trend,
+      dates: hit_rate_dates,
+      values: hits_values
+    }
+  end
+
+  @doc """
+  Gets module cache misses analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:total_count` - Total number of cache misses
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of miss count values
+  """
+  def module_cache_misses_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    # Get current period data
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+
+    misses_values =
+      Enum.map(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        max(0, cacheable - hits)
+      end)
+
+    total_misses_count = Enum.sum(misses_values)
+
+    # Get previous period data for trend
+    previous_start = Date.add(start_date, -days_delta)
+
+    previous_hits_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        previous_start,
+        start_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    previous_total_misses =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        acc + max(0, cacheable - hits)
+      end)
+
+    misses_trend = trend(previous_value: previous_total_misses, current_value: total_misses_count)
+
+    %{
+      total_count: total_misses_count,
+      trend: misses_trend,
+      dates: hit_rate_dates,
+      values: misses_values
+    }
+  end
+
+  @doc """
+  Gets module cache hit rate percentile analytics for a project over a time period.
+
+  This function calculates percentile-based hit rates by analyzing individual runs
+  and determining what percentage of runs achieved a certain hit rate or better.
+
+  Note: For cache hit rate, higher values are better, so percentiles are calculated
+  in descending order. For example, p99 = 60% means that 99% of runs achieved
+  a hit rate of 60% or better (not 60% or worse).
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `percentile` - The percentile to calculate (e.g., 0.5, 0.9, 0.99)
+    * `opts` - Options including:
+      * `:start_date` - Start date for the analytics period
+      * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:avg_hit_rate` - The percentile hit rate as a percentage
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of percentile hit rate values (as percentages)
+  """
+  def module_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    # Calculate current period percentile
+    current_period_percentile =
+      module_cache_hit_rate_period_percentile(project_id, percentile, start_date, end_date, opts)
+
+    # Calculate previous period percentile for trend
+    previous_start = Date.add(start_date, -days_delta)
+
+    previous_period_percentile =
+      module_cache_hit_rate_period_percentile(project_id, percentile, previous_start, start_date, opts)
+
+    # Get percentile data over time
+    percentile_time_series =
+      CommandEvents.cache_hit_rate_percentiles(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        percentile,
+        opts
+      )
+
+    percentile_dates = Enum.map(percentile_time_series, & &1.date)
+
+    percentile_values =
+      Enum.map(percentile_time_series, fn item ->
+        if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+      end)
+
+    %{
+      avg_hit_rate: current_period_percentile,
+      trend: trend(previous_value: previous_period_percentile, current_value: current_period_percentile),
+      dates: percentile_dates,
+      values: percentile_values
+    }
+  end
+
+  defp module_cache_hit_rate_period_percentile(project_id, percentile, start_date, end_date, opts) do
+    result = CommandEvents.cache_hit_rate_period_percentile(project_id, start_date, end_date, percentile, opts)
+
+    case result do
+      nil -> 0.0
+      value when is_float(value) -> Float.round(value, 1)
+      value -> Float.round(value * 1.0, 1)
     end
   end
 end

@@ -154,4 +154,38 @@ defmodule Tuist.EnvironmentTest do
       assert is_nil(result)
     end
   end
+
+  describe "s3_ca_cert_pem/1" do
+    test "returns PEM content from secrets" do
+      # Given
+      pem_content = """
+      -----BEGIN CERTIFICATE-----
+      MIIDXTCCAkWgAwIBAgIJAKL0UG+mRKqzMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+      -----END CERTIFICATE-----
+      """
+
+      secrets = %{
+        "s3" => %{
+          "ca_cert_pem" => pem_content
+        }
+      }
+
+      # When
+      result = Environment.s3_ca_cert_pem(secrets)
+
+      # Then
+      assert result == pem_content
+    end
+
+    test "returns nil when not configured" do
+      # Given
+      secrets = %{}
+
+      # When
+      result = Environment.s3_ca_cert_pem(secrets)
+
+      # Then
+      assert is_nil(result)
+    end
+  end
 end

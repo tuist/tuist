@@ -216,10 +216,10 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert length(got) == 2
 
-      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      day1 = Enum.find(got, &(&1.date == ~D[2024-04-29]))
       assert day1.cache_hit_rate == 0.5
 
-      day2 = Enum.find(got, &(&1.date == "2024-04-30"))
+      day2 = Enum.find(got, &(&1.date == ~D[2024-04-30]))
       assert day2.cache_hit_rate == 0.5
     end
 
@@ -237,7 +237,11 @@ defmodule Tuist.Cache.AnalyticsTest do
           []
         )
 
-      assert got == []
+      assert got == [
+               %{date: ~D[2024-04-28], cache_hit_rate: 0.0},
+               %{date: ~D[2024-04-29], cache_hit_rate: 0.0},
+               %{date: ~D[2024-04-30], cache_hit_rate: 0.0}
+             ]
     end
 
     test "handles monthly aggregation" do
@@ -273,11 +277,88 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert length(got) == 2
 
-      march = Enum.find(got, &(&1.date == "2024-03"))
+      march = Enum.find(got, &(&1.date == ~D[2024-03-01]))
       assert march.cache_hit_rate == 0.5
 
-      april = Enum.find(got, &(&1.date == "2024-04"))
+      april = Enum.find(got, &(&1.date == ~D[2024-04-01]))
       assert april.cache_hit_rate == 1.0
+    end
+
+    test "handles 12 month range with missing months in ascending order" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-12-15 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Data only for January, April, and October
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-01-15 03:00:00]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-15 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-10-15 03:00:00]
+      )
+
+      got =
+        Analytics.cache_hit_rates(
+          project.id,
+          ~D[2024-01-01],
+          ~D[2024-12-31],
+          :month,
+          "1 month",
+          []
+        )
+
+      assert length(got) == 12
+      dates = Enum.map(got, & &1.date)
+
+      assert dates == [
+               ~D[2024-01-01],
+               ~D[2024-02-01],
+               ~D[2024-03-01],
+               ~D[2024-04-01],
+               ~D[2024-05-01],
+               ~D[2024-06-01],
+               ~D[2024-07-01],
+               ~D[2024-08-01],
+               ~D[2024-09-01],
+               ~D[2024-10-01],
+               ~D[2024-11-01],
+               ~D[2024-12-01]
+             ]
+
+      values = Enum.map(got, & &1.cache_hit_rate)
+
+      assert values == [
+               0.5,
+               0.0,
+               0.0,
+               1.0,
+               0.0,
+               0.0,
+               0.0,
+               0.0,
+               0.0,
+               0.5,
+               0.0,
+               0.0
+             ]
     end
   end
 
@@ -331,10 +412,10 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert got.cache_hit_rate == 0.5
       assert got.trend == 0.0
-      assert length(got.dates) == 1
-      assert length(got.values) == 1
-      assert List.first(got.dates) == "2024-04-29"
-      assert List.first(got.values) == 0.5
+      assert length(got.dates) == 3
+      assert length(got.values) == 3
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.values == [0.0, 0.5, 0.0]
     end
 
     test "calculates positive trend when cache hit rate improves" do
@@ -452,8 +533,8 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert got.cache_hit_rate == 0.0
       assert got.trend == 0.0
-      assert got.dates == []
-      assert got.values == []
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.values == [0.0, 0.0, 0.0]
     end
 
     test "works with only module cache data" do
@@ -487,8 +568,10 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert got.cache_hit_rate == 0.5
       assert got.trend == 0.0
-      assert length(got.dates) == 1
-      assert length(got.values) == 1
+      assert length(got.dates) == 3
+      assert length(got.values) == 3
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.values == [0.0, 0.5, 0.0]
     end
 
     test "works with only Xcode cache data" do
@@ -524,8 +607,11 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert_in_delta got.cache_hit_rate, 0.6666, 0.01
       assert got.trend > 0
-      assert length(got.dates) == 1
-      assert length(got.values) == 1
+      assert length(got.values) == 3
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert Enum.at(got.values, 0) == 0.0
+      assert_in_delta Enum.at(got.values, 1), 0.6666, 0.01
+      assert Enum.at(got.values, 2) == 0.0
     end
 
     test "filters by is_ci when specified" do
@@ -632,8 +718,8 @@ defmodule Tuist.Cache.AnalyticsTest do
 
       assert length(got.dates) == 2
       assert length(got.values) == 2
-      assert "2024-03" in got.dates
-      assert "2024-04" in got.dates
+      assert ~D[2024-03-01] in got.dates
+      assert ~D[2024-04-01] in got.dates
     end
   end
 end

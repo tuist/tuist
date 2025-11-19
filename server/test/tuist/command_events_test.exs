@@ -1389,4 +1389,444 @@ defmodule Tuist.CommandEventsTest do
       assert count == 2
     end
   end
+
+  describe "cache_hit_rate_percentiles/6" do
+    test "returns percentile hit rates grouped by date" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Day 1: Multiple runs with different hit rates
+      # Run 1: 50% hit rate (1 hit out of 2 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # Run 2: 75% hit rate (3 hits out of 4 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        ran_at: ~U[2024-04-29 12:00:00Z]
+      )
+
+      # Run 3: 100% hit rate (2 hits out of 2 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        ran_at: ~U[2024-04-29 14:00:00Z]
+      )
+
+      # Day 2: Different hit rates
+      # Run 4: 25% hit rate (1 hit out of 4 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run 5: 60% hit rate (3 hits out of 5 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D", "E"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When - p50 (median)
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          :day,
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 2
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      # p50 of [50%, 75%, 100%] = 75%
+      assert day1.percentile_hit_rate == 75.0
+
+      day2 = Enum.find(got, &(&1.date == "2024-04-30"))
+      # p50 of [25%, 60%] = 42.5%
+      assert day2.percentile_hit_rate == 42.5
+    end
+
+    test "returns p90 percentile for high percentile queries" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create runs with hit rates: 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%
+      for i <- 1..10 do
+        hit_count = i
+        total_count = 10
+
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: List.duplicate("T", total_count),
+          local_cache_target_hits: List.duplicate("T", hit_count),
+          remote_cache_target_hits: [],
+          ran_at: ~U[2024-04-30 10:00:00Z]
+        )
+      end
+
+      # When - p90 (90th percentile)
+      # With flipped percentile, p90 means 90% of runs achieved this hit rate or BETTER
+      # So we want the 10th percentile in ascending order
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          :day,
+          "1 day",
+          0.9,
+          []
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # p90 should be a lower value since 90% of runs are at or above this
+      assert day.percentile_hit_rate <= 20.0
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # CI runs with high hit rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: [],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B", "C"],
+        remote_cache_target_hits: ["D"],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # Local runs with low hit rates (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        is_ci: false,
+        ran_at: ~U[2024-04-30 12:00:00Z]
+      )
+
+      # When - filter for CI only
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          :day,
+          "1 day",
+          0.5,
+          is_ci: true
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # p50 of [100%, 100%] = 100%
+      assert day.percentile_hit_rate == 100.0
+    end
+
+    test "only includes events with cacheable_targets_count > 0" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Run with cacheable targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run without cacheable targets (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          :day,
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # Only one event with 50% hit rate
+      assert day.percentile_hit_rate == 50.0
+    end
+
+    test "groups by hour when using hour bucket" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Hour 1
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:15:00Z]
+      )
+
+      # Hour 2
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B", "C", "D"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:30:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          :day,
+          "1 hour",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 2
+
+      hour1 = Enum.find(got, &(&1.date == "2024-04-30 10:00:00"))
+      assert hour1.percentile_hit_rate == 50.0
+
+      hour2 = Enum.find(got, &(&1.date == "2024-04-30 11:00:00"))
+      assert hour2.percentile_hit_rate == 100.0
+    end
+
+    test "returns empty list when no events exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        CommandEvents.cache_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          :day,
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert got == []
+    end
+  end
+
+  describe "cache_hit_rate_period_percentile/4" do
+    test "returns single percentile value for entire period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create runs with different hit rates: 25%, 50%, 75%, 100%
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 12:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When - p50 (median)
+      got =
+        CommandEvents.cache_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          0.5,
+          []
+        )
+
+      # Then - p50 of [25%, 50%, 75%, 100%] = 62.5%
+      assert got == 62.5
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # CI runs with high hit rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: [],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B", "C"],
+        remote_cache_target_hits: ["D"],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # Local runs with low hit rates (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        is_ci: false,
+        ran_at: ~U[2024-04-30 12:00:00Z]
+      )
+
+      # When - filter for CI only
+      got =
+        CommandEvents.cache_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          0.5,
+          is_ci: true
+        )
+
+      # Then - p50 of [100%, 100%] = 100%
+      assert got == 100.0
+    end
+
+    test "only includes events with cacheable_targets_count > 0" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Run with cacheable targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run without cacheable targets (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.cache_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          0.5,
+          []
+        )
+
+      # Then - Only one event with 50% hit rate
+      assert got == 50.0
+    end
+  end
 end

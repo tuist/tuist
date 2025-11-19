@@ -216,11 +216,12 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
+| `TUIST_S3_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 | `TUIST_S3_REGION` or `AWS_REGION` | The region where the bucket is located | No | `auto` | `us-west-2` |
 | `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
 | `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
+| `TUIST_S3_CA_CERT_PEM` | PEM-encoded CA certificate for verifying S3 HTTPS connections. Useful for air-gapped environments with self-signed certificates or internal Certificate Authorities. | No | System CA bundle | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
 | `TUIST_S3_CONNECT_TIMEOUT` | The timeout (in milliseconds) for establishing a connection to the storage provider | No | `3000` | `3000` |
 | `TUIST_S3_RECEIVE_TIMEOUT` | The timeout (in milliseconds) for receiving data from the storage provider | No | `5000` | `5000` |
 | `TUIST_S3_POOL_TIMEOUT` | The timeout (in milliseconds) for the connection pool to the storage provider. Use `infinity` for no timeout | No | `5000` | `5000` |

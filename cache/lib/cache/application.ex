@@ -10,6 +10,7 @@ defmodule Cache.Application do
     end
 
     Cache.Telemetry.attach()
+    Oban.Telemetry.attach_default_logger()
 
     children = [
       Cache.PromEx,
