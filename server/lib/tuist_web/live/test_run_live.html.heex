@@ -152,8 +152,7 @@
             </div>
           </div>
         </div>
-      </.card_section>
-      <.card_section data-part="widgets-card-section">
+        <div data-part="widgets">
         <.widget
           title={gettext("Test cases")}
           description={gettext("Total number of test cases executed.")}
@@ -176,6 +175,48 @@
           }
           id="widget-avg-test-case-duration"
         />
+        </div>
+      </.card_section>
+      <.card_section data-part="command-card-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command")}</div>
+              <span data-part="command">
+                {if @command_event.command_arguments,
+                  do:
+                    ("tuist " <> @command_event.command_arguments)
+                    |> String.split(" ")
+                    |> Enum.join(" "),
+                  else: "tuist #{@command_event.name}"}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Tuist version")}</div>
+              <span data-part="value">
+                <.brand_tuist />
+                {@command_event.tuist_version}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command duration")}</div>
+              <span data-part="value">
+                <.history />
+                {gettext("%{duration}s",
+                  duration: (@command_event.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Ran at")}</div>
+              <span data-part="value">
+              {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
+              </span>
+            </div>
+          </div>
+        </div>
       </.card_section>
     </.card>
 

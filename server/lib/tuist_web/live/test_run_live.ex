@@ -42,8 +42,9 @@ defmodule TuistWeb.TestRunLive do
       |> Map.put(:ran_by_account, ran_by_account)
       |> Map.put(:project, project)
 
+      dbg(run.id)
     command_event =
-      case CommandEvents.get_command_event_by_test_run_id(run.id) do
+      case CommandEvents.get_command_event_by_test_run_id(run.id) |> dbg do
         {:ok, event} -> event
         {:error, :not_found} -> nil
       end

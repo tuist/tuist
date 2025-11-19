@@ -72,11 +72,6 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             commandEvent.resultBundlePath
                 ?? runDirectory
                 .appending(component: "\(Constants.resultBundleName).xcresult")
-        let resultBundleExists = try await fileSystem.exists(resultBundlePath)
-        var commandEvent = commandEvent
-        if resultBundleExists {
-            commandEvent.testRunId = UUID().uuidString
-        }
         
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
