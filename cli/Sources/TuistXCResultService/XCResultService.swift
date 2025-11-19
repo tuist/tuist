@@ -7,9 +7,7 @@ import XCResultKit
 
 @Mockable
 public protocol XCResultServicing {
-    func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> InvocationRecord?
-    func successfulTestTargets(invocationRecord: InvocationRecord) -> Set<String>
-    func testSummary(invocationRecord: InvocationRecord) -> TestSummary
+    func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> TestSummary?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> XCResultFile?
 }
 
@@ -361,30 +359,19 @@ public struct XCResultService: XCResultServicing {
         return XCResultFile(url: logsBuildDirectoryPath.appending(component: latestLog.fileName).url)
     }
 
-    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> InvocationRecord? {
+    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) -> TestSummary? {
         let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
 
-        return InvocationRecord(resultFile: resultFile, invocationRecord: invocationRecord, rootDirectory: rootDirectory)
+        let parsedRecord = InvocationRecord(
+            resultFile: resultFile,
+            invocationRecord: invocationRecord,
+            rootDirectory: rootDirectory
+        )
+        return testSummary(invocationRecord: parsedRecord)
     }
 
-    public func successfulTestTargets(invocationRecord: InvocationRecord) -> Set<String> {
-        var passingTargets = [String]()
-
-        for testSummary in invocationRecord.testSummaries {
-            for summary in testSummary.summaries {
-                for testableSummary in summary.testableSummaries {
-                    if testableSummary.tests.allSatisfy({ !$0.hasFailedTests }), let targetName = testableSummary.targetName {
-                        passingTargets.append(targetName)
-                    }
-                }
-            }
-        }
-
-        return Set(passingTargets)
-    }
-
-    public func testSummary(invocationRecord: InvocationRecord) -> TestSummary {
+    private func testSummary(invocationRecord: InvocationRecord) -> TestSummary {
         var allTestCases: [TestCase] = []
         var hasFailedTests = false
         var hasSkippedTests = false

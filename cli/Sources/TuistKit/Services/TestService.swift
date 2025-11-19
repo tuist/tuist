@@ -487,15 +487,21 @@ final class TestService { // swiftlint:disable:this type_body_length
             // Check the test results and store successful test hashes for any targets that passed
             let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
-                  let invocationRecord = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+                  let testSummary = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             else { throw error }
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
             )
 
-            let passingTestTargetNames = xcResultService.successfulTestTargets(
-                invocationRecord: invocationRecord
+            // Compute passing test target names from the test summary
+            // A target is passing if none of its tests failed
+            let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
+            let passingTestTargetNames = Set(
+                testCasesByModule.compactMap { module, testCases -> String? in
+                    guard let module else { return nil }
+                    return testCases.allSatisfy { $0.status != .failed } ? module : nil
+                }
             )
             let passingTestTargets = testTargets.filter {
                 passingTestTargetNames.contains($0.target.name)

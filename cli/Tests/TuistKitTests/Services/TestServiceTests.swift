@@ -1156,11 +1156,31 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(xcResultService)
             .parse(path: .value(xcresultPath), rootDirectory: .any)
-            .willReturn(InvocationRecord(actions: [], testSummaries: [], path: URL.test()))
-
-        given(xcResultService)
-            .successfulTestTargets(invocationRecord: .any)
-            .willReturn(["FrameworkBTests"])
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .failed,
+                    duration: nil,
+                    testCases: [
+                        TestCase(
+                            name: "testA",
+                            testSuite: nil,
+                            module: "FrameworkATests",
+                            duration: nil,
+                            status: .failed,
+                            failures: []
+                        ),
+                        TestCase(
+                            name: "testB",
+                            testSuite: nil,
+                            module: "FrameworkBTests",
+                            duration: nil,
+                            status: .passed,
+                            failures: []
+                        ),
+                    ]
+                )
+            )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))

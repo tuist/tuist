@@ -16,8 +16,7 @@ struct XCResultServiceTests {
         let got = try #require(subject.parse(path: xcresult, rootDirectory: nil))
 
         // Then
-        let tests = got.testSummaries.flatMap(\.summaries).flatMap(\.testableSummaries).flatMap(\.tests).flatMap(\.subtests)
-        #expect(tests.filter(\.isSuccessful).count == 2)
-        #expect(tests.filter { $0.isSuccessful == false }.count == 1)
+        #expect(got.testCases.filter { $0.status == .passed }.count == 2)
+        #expect(got.testCases.filter { $0.status == .failed }.count == 1)
     }
 }
