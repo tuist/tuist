@@ -39,6 +39,8 @@ defmodule Tuist.Runs.Test do
     field :account_id, Ch, type: "Int64"
     # has_many :test_cases, Tuist.Runs.TestCase, foreign_key: :test_run_id
 
+    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 

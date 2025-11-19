@@ -35,7 +35,7 @@ defmodule Tuist.Runs do
   def list_test_runs(attrs) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
 
-    results = attach_user_account_names(results)
+    results = Repo.preload(results, :ran_by_account)
 
     {results, meta}
   end
@@ -722,14 +722,5 @@ defmodule Tuist.Runs do
 
     Logger.info("Legacy test_cases format received - consider using test_modules instead")
     :ok
-  end
-
-  defp attach_user_account_names(runs) do
-    # Test runs use account_id instead of user_id
-    # For now, we'll set user_account_name to nil since we don't have user info
-    # This field will be populated by the command events if needed
-    Enum.map(runs, fn run ->
-      Map.put(run, :user_account_name, nil)
-    end)
   end
 end
