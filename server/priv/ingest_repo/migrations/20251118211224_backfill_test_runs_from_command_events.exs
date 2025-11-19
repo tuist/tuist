@@ -137,7 +137,14 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   end
 
   defp create_test_run_from_event(event) do
-    scheme = extract_scheme_from_command_arguments(event.command_arguments || [])
+    command_arguments =
+      case event.command_arguments do
+        nil -> []
+        "" -> []
+        args when is_binary(args) -> String.split(args)
+      end
+
+    scheme = extract_scheme_from_command_arguments(command_arguments)
 
     %{
       id: Ecto.UUID.generate(),
