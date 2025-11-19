@@ -1601,16 +1601,18 @@ defmodule Tuist.Runs.Analytics do
 
     hit_rate_trend = trend(previous_value: previous_hit_rate, current_value: avg_hit_rate)
 
-    # Process hit rate time series
-    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+    all_dates = generate_date_range(start_date, end_date, date_period)
 
-    hit_rate_values =
-      Enum.map(hit_rate_time_series, fn item ->
+    hit_rate_map =
+      Map.new(hit_rate_time_series, fn item ->
         cacheable = item.cacheable_targets || 0
         local = item.local_cache_target_hits || 0
         remote = item.remote_cache_target_hits || 0
-        calculate_hit_rate_percentage(local + remote, cacheable)
+        {item.date, calculate_hit_rate_percentage(local + remote, cacheable)}
       end)
+
+    {hit_rate_dates, hit_rate_values} =
+      fill_date_range_with_values(all_dates, date_period, hit_rate_map, 0.0)
 
     %{
       avg_hit_rate: avg_hit_rate,
@@ -1656,12 +1658,16 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+    all_dates = generate_date_range(start_date, end_date, date_period)
 
-    hits_values =
-      Enum.map(hit_rate_time_series, fn item ->
-        (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+    hits_map =
+      Map.new(hit_rate_time_series, fn item ->
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        {item.date, hits}
       end)
+
+    {hit_rate_dates, hits_values} =
+      fill_date_range_with_values(all_dates, date_period, hits_map, 0)
 
     total_hits_count = Enum.sum(hits_values)
 
@@ -1729,14 +1735,17 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    hit_rate_dates = Enum.map(hit_rate_time_series, & &1.date)
+    all_dates = generate_date_range(start_date, end_date, date_period)
 
-    misses_values =
-      Enum.map(hit_rate_time_series, fn item ->
+    misses_map =
+      Map.new(hit_rate_time_series, fn item ->
         cacheable = item.cacheable_targets || 0
         hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-        max(0, cacheable - hits)
+        {item.date, max(0, cacheable - hits)}
       end)
+
+    {hit_rate_dates, misses_values} =
+      fill_date_range_with_values(all_dates, date_period, misses_map, 0)
 
     total_misses_count = Enum.sum(misses_values)
 
@@ -1825,12 +1834,17 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    percentile_dates = Enum.map(percentile_time_series, & &1.date)
+    # Process time series with full date range
+    all_dates = generate_date_range(start_date, end_date, date_period)
 
-    percentile_values =
-      Enum.map(percentile_time_series, fn item ->
-        if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+    percentile_map =
+      Map.new(percentile_time_series, fn item ->
+        value = if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+        {item.date, value}
       end)
+
+    {percentile_dates, percentile_values} =
+      fill_date_range_with_values(all_dates, date_period, percentile_map, 0.0)
 
     %{
       avg_hit_rate: current_period_percentile,
@@ -1848,5 +1862,36 @@ defmodule Tuist.Runs.Analytics do
       value when is_float(value) -> Float.round(value, 1)
       value -> Float.round(value * 1.0, 1)
     end
+  end
+
+  defp generate_date_range(start_date, end_date, :day) do
+    start_date
+    |> Date.range(end_date)
+    |> Enum.to_list()
+  end
+
+  defp generate_date_range(start_date, end_date, :month) do
+    start_date
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(end_date))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp fill_date_range_with_values(all_dates, date_period, value_map, default_value) do
+    all_dates
+    |> Enum.map(fn date ->
+      lookup_key = date_to_string(date, date_period)
+      value = Map.get(value_map, lookup_key, default_value)
+      {lookup_key, value}
+    end)
+    |> Enum.unzip()
+  end
+
+  defp date_to_string(date, :day) do
+    Timex.format!(date, "%Y-%m-%d", :strftime)
+  end
+
+  defp date_to_string(date, :month) do
+    Timex.format!(date, "%Y-%m", :strftime)
   end
 end
