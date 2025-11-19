@@ -1749,11 +1749,15 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Total: 24 targets, 13 hits = 54.2%
       assert_in_delta got.avg_hit_rate, 54.2, 0.1
       assert_in_delta got.trend, 62.8, 0.1
-      assert length(got.dates) == 3
-      assert got.dates == ["2024-04-01", "2024-04-15", "2024-04-30"]
+      assert length(got.dates) == 30
+      assert Enum.at(got.dates, 0) == "2024-04-01"
+      assert Enum.at(got.dates, 14) == "2024-04-15"
+      assert Enum.at(got.dates, 29) == "2024-04-30"
       assert_in_delta Enum.at(got.values, 0), 30.0, 0.1
-      assert_in_delta Enum.at(got.values, 1), 71.4, 0.1
-      assert_in_delta Enum.at(got.values, 2), 71.4, 0.1
+      assert_in_delta Enum.at(got.values, 14), 71.4, 0.1
+      assert_in_delta Enum.at(got.values, 29), 71.4, 0.1
+      assert Enum.at(got.values, 1) == 0.0
+      assert Enum.at(got.values, 13) == 0.0
     end
 
     test "returns zero hit rate when no cacheable targets exist" do
@@ -1826,8 +1830,13 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.total_count == 12
       assert_in_delta got.trend, 140.0, 0.1
-      assert length(got.dates) == 3
-      assert got.values == [3, 4, 5]
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 4, April 30 = 5
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 4
+      assert Enum.at(got.values, 29) == 5
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
     end
 
     test "returns zero when no hits exist" do
@@ -1900,8 +1909,13 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.total_count == 7
       assert_in_delta got.trend, 75.0, 0.1
-      assert length(got.dates) == 3
-      assert got.values == [3, 2, 2]
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 2, April 30 = 2
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 2
+      assert Enum.at(got.values, 29) == 2
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
     end
 
     test "returns zero when no misses exist" do
@@ -1928,7 +1942,8 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.total_count == 0
-      assert got.values == [0]
+      assert length(got.values) == 30
+      assert Enum.all?(got.values, &(&1 == 0))
     end
   end
 
@@ -1988,7 +2003,11 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert_in_delta got.avg_hit_rate, 75.0, 0.1
       assert_in_delta got.trend, 12.5, 0.1
-      assert length(got.dates) == 3
+      assert length(got.dates) == 30
+      assert Enum.at(got.values, 0) != 0.0
+      assert Enum.at(got.values, 14) != 0.0
+      assert Enum.at(got.values, 29) != 0.0
+      assert Enum.at(got.values, 1) == 0.0
     end
 
     test "returns zero percentile when no data exists" do
