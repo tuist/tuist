@@ -55,68 +55,72 @@ public struct XCResultService: XCResultServicing {
         let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
 
-        let parsedRecord = InvocationRecord(
+        return testSummary(
             resultFile: resultFile,
             invocationRecord: invocationRecord,
             rootDirectory: rootDirectory
         )
-        return testSummary(invocationRecord: parsedRecord)
     }
 
-    private func testSummary(invocationRecord: InvocationRecord) -> TestSummary {
+    private func testSummary(
+        resultFile: XCResultFile,
+        invocationRecord: ActionsInvocationRecord,
+        rootDirectory: AbsolutePath?
+    ) -> TestSummary {
         var allTestCases: [TestCase] = []
-        var hasFailedTests = false
-        var hasSkippedTests = false
 
         let testPlanName = invocationRecord.actions.first?.testPlanName
 
-        for testSummary in invocationRecord.testSummaries {
-            for summary in testSummary.summaries {
+        let testSummaries = invocationRecord.actions
+            .compactMap(\.actionResult.testsRef?.id)
+            .compactMap { resultFile.getTestPlanRunSummaries(id: $0) }
+
+        for testPlanSummaries in testSummaries {
+            for summary in testPlanSummaries.summaries {
                 for testableSummary in summary.testableSummaries {
                     let module = testableSummary.targetName
-                    let testCases = extractTestCases(from: testableSummary.tests, module: module)
+                    let testCases = extractTestCases(
+                        resultFile: resultFile,
+                        from: testableSummary.tests,
+                        module: module,
+                        rootDirectory: rootDirectory
+                    )
                     allTestCases.append(contentsOf: testCases)
+
+                    let globalTestCases = extractTestCasesFromMetadata(
+                        resultFile: resultFile,
+                        from: testableSummary.globalTests,
+                        module: module,
+                        rootDirectory: rootDirectory
+                    )
+                    allTestCases.append(contentsOf: globalTestCases)
                 }
             }
         }
 
-        let resultFile = XCResultFile(url: invocationRecord.path)
-        if let actionsInvocationRecord = resultFile.getInvocationRecord() {
-            let swiftTestingDurations = extractSwiftTestingDurationsFromLogs(
-                resultFile: resultFile,
-                invocationRecord: actionsInvocationRecord
+        let swiftTestingDurations = extractSwiftTestingDurationsFromLogs(
+            resultFile: resultFile,
+            invocationRecord: invocationRecord
+        )
+
+        if !swiftTestingDurations.isEmpty {
+            allTestCases = updateTestCasesWithSwiftTestingDurations(
+                testCases: allTestCases,
+                swiftTestingDurations: swiftTestingDurations
             )
-
-            if !swiftTestingDurations.isEmpty {
-                allTestCases = updateTestCasesWithSwiftTestingDurations(
-                    testCases: allTestCases,
-                    swiftTestingDurations: swiftTestingDurations
-                )
-            }
-        }
-
-        for testCase in allTestCases {
-            switch testCase.status {
-            case .failed:
-                hasFailedTests = true
-            case .skipped:
-                hasSkippedTests = true
-            case .passed:
-                break
-            }
         }
 
         let overallStatus: TestStatus
-        if hasFailedTests {
+        if allTestCases.contains(where: { $0.status == .failed }) {
             overallStatus = .failed
-        } else if hasSkippedTests, allTestCases.allSatisfy({ $0.status == .skipped }) {
+        } else if allTestCases.allSatisfy({ $0.status == .skipped }) {
             overallStatus = .skipped
         } else {
             overallStatus = .passed
         }
 
         let totalDuration = calculateOverallDuration(from: invocationRecord.actions)
-        let testModules = buildTestModules(from: allTestCases)
+        let testModules = testModules(from: allTestCases)
 
         return TestSummary(
             testPlanName: testPlanName,
@@ -126,7 +130,7 @@ public struct XCResultService: XCResultServicing {
         )
     }
 
-    private func buildTestModules(from testCases: [TestCase]) -> [TestModule] {
+    private func testModules(from testCases: [TestCase]) -> [TestModule] {
         let testCasesByModule = Dictionary(grouping: testCases) { testCase in
             testCase.module ?? "Unknown"
         }
@@ -156,7 +160,7 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    private func calculateOverallDuration(from actions: [InvocationRecord.ActionRecord]) -> Int {
+    private func calculateOverallDuration(from actions: [ActionRecord]) -> Int {
         guard !actions.isEmpty else { return 0 }
 
         let startTime = actions.map(\.startedTime).min() ?? Date()
@@ -166,28 +170,91 @@ public struct XCResultService: XCResultServicing {
         return Int(duration * 1000)
     }
 
-    private func extractTestCases(from testGroups: [InvocationRecord.TestSummaryGroup], module: String?) -> [TestCase] {
+    private func extractTestCases(
+        resultFile: XCResultFile,
+        from testGroups: [ActionTestSummaryGroup],
+        module: String?,
+        rootDirectory: AbsolutePath?
+    ) -> [TestCase] {
         var testCases: [TestCase] = []
 
         for group in testGroups {
-            for testMetadata in group.subtests {
-                if let testName = testMetadata.name {
-                    let testCase = TestCase(
-                        name: testName,
-                        testSuite: testMetadata.suiteName,
-                        module: module,
-                        duration: testMetadata.duration,
-                        status: testStatusFromString(testMetadata.testStatus),
-                        failures: testMetadata.failures
-                    )
-                    testCases.append(testCase)
-                }
-            }
+            testCases.append(contentsOf: extractTestCasesFromMetadata(
+                resultFile: resultFile,
+                from: group.subtests,
+                module: module,
+                rootDirectory: rootDirectory
+            ))
 
-            testCases.append(contentsOf: extractTestCases(from: group.subtestGroups, module: module))
+            testCases.append(contentsOf: extractTestCases(
+                resultFile: resultFile,
+                from: group.subtestGroups,
+                module: module,
+                rootDirectory: rootDirectory
+            ))
         }
 
         return testCases
+    }
+
+    private func extractTestCasesFromMetadata(
+        resultFile: XCResultFile,
+        from testMetadataList: [ActionTestMetadata],
+        module: String?,
+        rootDirectory: AbsolutePath?
+    ) -> [TestCase] {
+        var testCases: [TestCase] = []
+
+        for testMetadata in testMetadataList {
+            if let testName = testMetadata.name {
+                let suiteName = suiteName(from: testMetadata.identifier)
+                let duration = testMetadata.duration.map { Int($0 * 1000) }
+                let failures = extractFailures(
+                    resultFile: resultFile,
+                    testMetadata: testMetadata,
+                    rootDirectory: rootDirectory
+                )
+
+                let testCase = TestCase(
+                    name: testName,
+                    testSuite: suiteName,
+                    module: module,
+                    duration: duration,
+                    status: testStatusFromString(testMetadata.testStatus),
+                    failures: failures
+                )
+                testCases.append(testCase)
+            }
+        }
+
+        return testCases
+    }
+
+    private func suiteName(from testIdentifier: String?) -> String? {
+        guard let testIdentifier else { return nil }
+        let components = testIdentifier.split(separator: "/")
+
+        if components.count == 2 {
+            return String(components[0])
+        } else {
+            return nil
+        }
+    }
+
+    private func extractFailures(
+        resultFile: XCResultFile,
+        testMetadata: ActionTestMetadata,
+        rootDirectory: AbsolutePath?
+    ) -> [TestCaseFailure] {
+        guard let summaryRef = testMetadata.summaryRef,
+              let summary = resultFile.getActionTestSummary(id: summaryRef.id)
+        else {
+            return []
+        }
+
+        return summary.failureSummaries.map {
+            TestCaseFailure($0, rootDirectory: rootDirectory)
+        }
     }
 
     private func testStatusFromString(_ statusString: String) -> TestStatus {

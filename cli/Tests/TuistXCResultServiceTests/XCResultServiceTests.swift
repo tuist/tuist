@@ -16,6 +16,7 @@ struct XCResultServiceTests {
         let got = try #require(subject.parse(path: xcresult, rootDirectory: nil))
 
         // Then
+        #expect(got.status == .failed)
         #expect(got.testModules.map(\.name) == ["AppTests"])
         #expect(got.testModules.map(\.status) == [.failed])
         #expect(got.testCases.compactMap(\.duration).sorted() == [0, 1, 2])
