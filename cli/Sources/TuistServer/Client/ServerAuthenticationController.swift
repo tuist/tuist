@@ -198,7 +198,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
@@ -209,7 +209,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
