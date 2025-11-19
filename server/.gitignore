@@ -43,8 +43,6 @@ node_modules/
 .DS_Store
 priv/secrets/*.key
 
-priv/static/marketing/images/og/generated/
-
 .elixir_ls/
 ~/.pnpm/store
 
