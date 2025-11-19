@@ -77,6 +77,7 @@
     pkgs.gitMinimal
     pkgs.parted
     pkgs.gptfdisk
+		pkgs.sqlite
   ];
 
   systemd.tmpfiles.rules = [
