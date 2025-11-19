@@ -220,9 +220,6 @@
           <:col :let={test_run} label={gettext("Branch")}>
             <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />
           </:col>
-          <:col :let={test_run} label={gettext("Commit SHA")}>
-            <.text_cell label={SHA.format_commit_sha(test_run.git_commit_sha)} />
-          </:col>
           <:col :let={test_run} label={gettext("Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
           </:col>
@@ -233,12 +230,6 @@
               }
               icon="history"
             />
-          </:col>
-          <:col :let={test_run} label={gettext("Xcode version")}>
-            <.text_cell label={test_run.xcode_version || gettext("Unknown")} />
-          </:col>
-          <:col :let={test_run} label={gettext("macOS version")}>
-            <.text_cell label={test_run.macos_version || gettext("Unknown")} />
           </:col>
           <:col :let={test_run} label={gettext("Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
