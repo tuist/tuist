@@ -41,7 +41,9 @@ RUN mkdir config
 # Only runner's mix.exs needed for deps.get to work
 COPY runner/mix.exs runner/mix.exs
 
-RUN mix deps.get --only $MIX_ENV
+RUN --mount=type=cache,target=/app/deps \
+    --mount=type=cache,target=/app/_build \
+    mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
 COPY config/config.exs config/${MIX_ENV}.exs config/
@@ -49,7 +51,9 @@ COPY config/config.exs config/${MIX_ENV}.exs config/
 # Minimal runner source needed for compilation
 COPY runner/lib runner/lib
 
-RUN mix deps.compile
+RUN --mount=type=cache,target=/app/deps \
+    --mount=type=cache,target=/app/_build \
+    mix deps.compile
 
 # ========================================
 # Stage 3: Runner binary builder
