@@ -49,7 +49,7 @@ jobs:
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.event.pull_request.head.repo.fork != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache
