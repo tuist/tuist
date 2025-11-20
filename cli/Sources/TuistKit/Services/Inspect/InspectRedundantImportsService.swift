@@ -33,10 +33,7 @@ final class InspectRedundantImportsService {
             ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
         )
         if !issues.isEmpty {
-            Logger.current.info(
-                "The following redundant dependencies were found:"
-            )
-            try issues.printAndThrowErrorsIfNeeded()
+            throw InspectImportsServiceError.redundantImportsFound(issues)
         }
         Logger.current.log(
             level: .info,
