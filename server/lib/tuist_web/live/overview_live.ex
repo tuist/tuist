@@ -8,7 +8,6 @@ defmodule TuistWeb.OverviewLive do
 
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.CommandEvents
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query

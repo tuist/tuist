@@ -12,7 +12,6 @@ defmodule TuistWeb.TestRunsLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
-  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"

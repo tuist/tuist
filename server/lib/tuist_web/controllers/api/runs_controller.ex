@@ -754,7 +754,7 @@ defmodule TuistWeb.API.RunsController do
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")
             })
 
-          {:error, changeset} ->
+          {:error, _changeset} ->
             conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
         end
 

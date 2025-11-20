@@ -447,7 +447,6 @@ defmodule Tuist.Runs do
          |> IngestRepo.insert() do
       {:ok, test} ->
         create_test_modules(test, Map.get(attrs, :test_modules, []))
-        create_test_cases(test, Map.get(attrs, :test_cases, []))
 
         project = Tuist.Projects.get_project_by_id(test.project_id)
 
@@ -468,11 +467,9 @@ defmodule Tuist.Runs do
     Enum.each(test_modules, fn module_attrs ->
       module_id = Ecto.UUID.generate()
 
-      # Get test suites and test cases
       test_suites = Map.get(module_attrs, :test_suites, [])
       test_cases = Map.get(module_attrs, :test_cases, [])
 
-      # Compute statistics
       test_suite_count = length(test_suites)
       test_case_count = length(test_cases)
 
@@ -488,7 +485,6 @@ defmodule Tuist.Runs do
           0
         end
 
-      # Create test module run
       module_run_attrs = %{
         id: module_id,
         name: Map.get(module_attrs, :name),
@@ -501,41 +497,24 @@ defmodule Tuist.Runs do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      case %TestModuleRun{}
-           |> TestModuleRun.create_changeset(module_run_attrs)
-           |> IngestRepo.insert() do
-        {:ok, _module_run} ->
-          # Create test suites if present and get suite name to ID mapping
-          suite_name_to_id =
-            if Map.has_key?(module_attrs, :test_suites) do
-              create_test_suites(test, module_id, test_suites, test_cases)
-            else
-              %{}
-            end
+      {:ok, _module_run} =
+        %TestModuleRun{}
+        |> TestModuleRun.create_changeset(module_run_attrs)
+        |> IngestRepo.insert do
+          suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases)
 
-          # Create test cases if present
-          if Map.has_key?(module_attrs, :test_cases) do
-            module_name = Map.get(module_attrs, :name)
-
-            create_test_cases_for_module(
-              test,
-              module_id,
-              test_cases,
-              suite_name_to_id,
-              module_name
-            )
-          end
-
-        {:error, changeset} ->
-          require Logger
-
-          Logger.error("Failed to create test module run: #{inspect(changeset.errors)}")
-      end
+          create_test_cases_for_module(
+            test,
+            module_id,
+            test_cases,
+            suite_name_to_id,
+            Map.get(module_attrs, :name)
+          )
+        end
     end)
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases) do
-    # Group test cases by suite name to compute statistics
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
         Map.get(case_attrs, :test_suite_name, "")
@@ -546,7 +525,6 @@ defmodule Tuist.Runs do
         suite_id = Ecto.UUID.generate()
         suite_name = Map.get(suite_attrs, :name)
 
-        # Compute test case statistics for this suite
         suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
         test_case_count = length(suite_test_cases)
 
@@ -583,21 +561,11 @@ defmodule Tuist.Runs do
   end
 
   defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
-    now = NaiveDateTime.utc_now()
-
-    # Create test case runs and collect failure data
     {test_case_runs, all_failures} =
       Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
-        # Try to find the test suite this test case belongs to
-        # Match by test suite name within this specific module
         suite_name = Map.get(case_attrs, :test_suite_name, "")
 
-        test_suite_run_id =
-          case suite_name do
-            "" -> nil
-            nil -> nil
-            suite_name -> Map.get(suite_name_to_id, suite_name)
-          end
+        test_suite_run_id = Map.get(suite_name_to_id, suite_name)
 
         test_case_run_id = Ecto.UUID.generate()
 
@@ -609,12 +577,11 @@ defmodule Tuist.Runs do
           test_suite_run_id: test_suite_run_id,
           status: Map.get(case_attrs, :status),
           duration: Map.get(case_attrs, :duration, 0),
-          inserted_at: now,
+          inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
           suite_name: suite_name || ""
         }
 
-        # Process failures if present
         failures = Map.get(case_attrs, :failures, [])
 
         test_case_failures =
@@ -626,27 +593,14 @@ defmodule Tuist.Runs do
               path: Map.get(failure_attrs, :path),
               line_number: Map.get(failure_attrs, :line_number),
               issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
-              inserted_at: now
+              inserted_at: NaiveDateTime.utc_now()
             }
           end)
 
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc}
       end)
 
-    # Insert test case runs
     IngestRepo.insert_all(TestCaseRun, test_case_runs)
-
-    # Insert test case failures if any
-    if length(all_failures) > 0 do
-      IngestRepo.insert_all(TestCaseFailure, all_failures)
-    end
-  end
-
-  defp create_test_cases(_test, _test_cases) do
-    # Legacy support for old API format - for now just log
-    require Logger
-
-    Logger.info("Legacy test_cases format received - consider using test_modules instead")
-    :ok
+    IngestRepo.insert_all(TestCaseFailure, all_failures)
   end
 end

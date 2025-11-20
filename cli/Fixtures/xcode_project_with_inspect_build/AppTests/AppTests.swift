@@ -6,6 +6,10 @@ struct AppTests {
     @Test func example() async throws {
         #expect(true == true)
     }
+
+    @Test func failingExample() async throws {
+        #expect(true == false)
+    }
 }
 
 @Test func topLevelTest() async throws {
