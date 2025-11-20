@@ -11,6 +11,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Runs.Test
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
 
@@ -1091,45 +1092,34 @@ defmodule Tuist.Runs.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    is_ci_filter =
-      case is_ci do
-        nil -> ""
-        true -> "AND is_ci = 1"
-        false -> "AND is_ci = 0"
-      end
-
-    status_filter =
-      case status do
-        nil -> ""
-        "failure" -> "AND status = 'failure'"
-        "success" -> "AND status = 'success'"
-      end
-
-    result =
-      ClickHouseRepo.query!(
-        """
-        SELECT
-          formatDateTime(toStartOfInterval(ran_at, INTERVAL #{time_bucket}), '#{date_format}') as date,
-          count(*) as count
-        FROM test_runs
-        WHERE project_id = {project_id:Int64}
-          AND ran_at >= {start_dt:DateTime64(6)}
-          AND ran_at <= {end_dt:DateTime64(6)}
-          #{is_ci_filter}
-          #{status_filter}
-        GROUP BY date
-        ORDER BY date
-        """,
-        %{
-          project_id: project_id,
-          start_dt: start_dt,
-          end_dt: end_dt
-        }
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          count: count(t.id)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
       )
 
-    Enum.map(result.rows, fn [date, count] ->
-      %{date: date, count: count}
-    end)
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [t], t.status == "failure")
+        "success" -> where(query, [t], t.status == "success")
+      end
+
+    ClickHouseRepo.all(query)
   end
 
   defp test_run_total_count(project_id, start_date, end_date, opts) do
@@ -1139,42 +1129,29 @@ defmodule Tuist.Runs.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    is_ci_filter =
-      case is_ci do
-        nil -> ""
-        true -> "AND is_ci = 1"
-        false -> "AND is_ci = 0"
-      end
-
-    status_filter =
-      case status do
-        nil -> ""
-        "failure" -> "AND status = 'failure'"
-        "success" -> "AND status = 'success'"
-      end
-
-    result =
-      ClickHouseRepo.query!(
-        """
-        SELECT count(*) as count
-        FROM test_runs
-        WHERE project_id = {project_id:Int64}
-          AND ran_at >= {start_dt:DateTime64(6)}
-          AND ran_at <= {end_dt:DateTime64(6)}
-          #{is_ci_filter}
-          #{status_filter}
-        """,
-        %{
-          project_id: project_id,
-          start_dt: start_dt,
-          end_dt: end_dt
-        }
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: count(t.id)
       )
 
-    case result.rows do
-      [[count]] -> count
-      _ -> 0
-    end
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [t], t.status == "failure")
+        "success" -> where(query, [t], t.status == "success")
+      end
+
+    ClickHouseRepo.one(query) || 0
   end
 
   def test_run_duration_analytics(project_id, opts \\ []) do
@@ -1224,35 +1201,27 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
-      case is_ci do
-        nil -> ""
-        true -> "AND is_ci = 1"
-        false -> "AND is_ci = 0"
-      end
-
-    result =
-      ClickHouseRepo.query!(
-        """
-        SELECT avg(duration) as average_duration
-        FROM test_runs
-        WHERE project_id = {project_id:Int64}
-          AND ran_at >= {start_dt:DateTime64(6)}
-          AND ran_at <= {end_dt:DateTime64(6)}
-          #{is_ci_filter}
-        """,
-        %{
-          project_id: project_id,
-          start_dt: start_dt,
-          end_dt: end_dt
-        }
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: avg(t.duration)
       )
 
-    case result.rows do
-      [[nil]] -> 0.0
-      [[avg]] when is_float(avg) -> avg
-      [[avg]] -> avg * 1.0
-      _ -> 0.0
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      nil -> 0.0
+      avg when is_float(avg) -> avg
+      avg -> avg * 1.0
     end
   end
 
@@ -1263,37 +1232,27 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
-      case is_ci do
-        nil -> ""
-        true -> "AND is_ci = 1"
-        false -> "AND is_ci = 0"
-      end
-
-    result =
-      ClickHouseRepo.query!(
-        """
-        SELECT
-          formatDateTime(toStartOfInterval(ran_at, INTERVAL #{time_bucket}), '#{date_format}') as date,
-          avg(duration) as value
-        FROM test_runs
-        WHERE project_id = {project_id:Int64}
-          AND ran_at >= {start_dt:DateTime64(6)}
-          AND ran_at <= {end_dt:DateTime64(6)}
-          #{is_ci_filter}
-        GROUP BY date
-        ORDER BY date
-        """,
-        %{
-          project_id: project_id,
-          start_dt: start_dt,
-          end_dt: end_dt
-        }
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          value: avg(t.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
       )
 
-    Enum.map(result.rows, fn [date, value] ->
-      %{date: date, value: value}
-    end)
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    ClickHouseRepo.all(query)
   end
 
   @doc """
