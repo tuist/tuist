@@ -1,14 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.104.6<!-- RELEASE NOTES START -->
+## What's Changed in 4.105.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve error message of tuist inspect implicit-imports by [@n-zaitsev](https://github.com/n-zaitsev) in [#8604](https://github.com/tuist/tuist/pull/8604)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.7...4.105.0
+
+## What's Changed in 4.104.7<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * resolve token refresh data race in ServerAuthenticationController by [@fortmarek](https://github.com/fortmarek) in [#8692](https://github.com/tuist/tuist/pull/8692)
 * skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.6
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.7
 
 ## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
 
@@ -157,9 +165,6 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
-
-## New Contributors
-* [@n-zaitsev](https://github.com/n-zaitsev) made their first contribution in [#8540](https://github.com/tuist/tuist/pull/8540)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
 
