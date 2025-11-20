@@ -8,7 +8,9 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
@@ -2350,6 +2352,60 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert got == :ok
+    end
+  end
+
+  describe "add_user_to_organization/3" do
+    test "does not create duplicate roles when called twice with same role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user to organization twice with :user role
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then - Should only have one role/user_role for this user+organization
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      assert length(roles) == 1
+      assert hd(roles).name == "user"
+    end
+
+    test "does not create duplicate roles when called twice with different roles" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user as :user, then try to add again as :admin (should not create duplicate)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # Then - Should only have one role (the first one created)
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      # The second call should be a no-op if a role already exists
+      assert length(roles) == 1
     end
   end
 
