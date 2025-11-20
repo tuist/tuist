@@ -14,6 +14,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestSuiteRunsTable do
       add :test_module_run_id, :uuid, null: false
       add :status, :"Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)", null: false
       add :duration, :Int32, null: false
+      add :test_case_count, :Int32, default: 0
+      add :avg_test_case_duration, :Int32, default: 0
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end
 
