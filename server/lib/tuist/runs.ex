@@ -26,7 +26,7 @@ defmodule Tuist.Runs do
   end
 
   def get_test(id) do
-    case IngestRepo.get(Test, id) do
+    case ClickHouseRepo.get(Test, id) do
       nil -> {:error, :not_found}
       test -> {:ok, test}
     end
@@ -232,15 +232,12 @@ defmodule Tuist.Runs do
     ClickHouseRepo.one(query) || 0
   end
 
-  def list_test_run_failures(test_run_id, page, page_size) do
+  def list_test_run_failures(test_run_id, attrs) do
     query =
       from f in TestCaseFailure,
         join: tcr in TestCaseRun,
         on: f.test_case_run_id == tcr.id,
         where: tcr.test_run_id == ^test_run_id,
-        order_by: [desc: f.inserted_at],
-        limit: ^page_size,
-        offset: ^((page - 1) * page_size),
         select: %{
           id: f.id,
           test_case_run_id: f.test_case_run_id,
@@ -254,18 +251,7 @@ defmodule Tuist.Runs do
           test_suite_name: tcr.suite_name
         }
 
-    failures = ClickHouseRepo.all(query)
-    total_count = get_test_run_failures_count(test_run_id)
-    total_pages = ceil(total_count / page_size)
-
-    meta = %{
-      current_page: page,
-      page_size: page_size,
-      total_pages: total_pages,
-      total_count: total_count
-    }
-
-    {failures, meta}
+    Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
   end
 
   def list_test_suite_runs(attrs) do

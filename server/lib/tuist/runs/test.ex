@@ -47,6 +47,7 @@ defmodule Tuist.Runs.Test do
   def create_changeset(test_run, attrs) do
     test_run
     |> cast(attrs, [
+      :id,
       :duration,
       :macos_version,
       :xcode_version,
@@ -63,6 +64,7 @@ defmodule Tuist.Runs.Test do
       :inserted_at
     ])
     |> validate_required([
+      :id,
       :duration,
       :macos_version,
       :xcode_version,

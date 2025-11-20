@@ -683,7 +683,6 @@ defmodule TuistWeb.API.RunsController do
              },
              required: [
                :type,
-               :id,
                :duration,
                :is_ci
              ]
@@ -800,12 +799,15 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_test(params) do
-    case Runs.get_test(params.id) do
+    test_id = Map.get(params, :id, Ecto.UUID.generate())
+
+    case Runs.get_test(test_id) do
       {:ok, test_run} ->
         {:ok, test_run}
 
       {:error, :not_found} ->
         Runs.create_test(%{
+          id: test_id,
           duration: params.duration,
           macos_version: Map.get(params, :macos_version),
           xcode_version: Map.get(params, :xcode_version),

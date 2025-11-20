@@ -1432,7 +1432,6 @@ components:
               x-validate:
           required:
             - type
-            - id
             - duration
             - is_ci
           title: TestRun
@@ -1858,7 +1857,6 @@ components:
           x-validate:
       required:
         - type
-        - id
         - duration
         - is_ci
       title: TestRun
@@ -7464,7 +7462,6 @@ paths:
                       x-validate:
                   required:
                     - type
-                    - id
                     - duration
                     - is_ci
                   title: TestRun

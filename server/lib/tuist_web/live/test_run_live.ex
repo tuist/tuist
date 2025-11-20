@@ -525,7 +525,14 @@ defmodule TuistWeb.TestRunLive do
     page = String.to_integer(params["failures-page"] || "1")
     page_size = 30
 
-    {failures, meta} = Runs.list_test_run_failures(run.id, page, page_size)
+    attrs = %{
+      page: page,
+      page_size: page_size,
+      order_by: [:inserted_at],
+      order_directions: [:desc]
+    }
+
+    {failures, meta} = Runs.list_test_run_failures(run.id, attrs)
 
     # Group failures by test case
     failures_grouped =
