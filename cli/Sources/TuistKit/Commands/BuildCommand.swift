@@ -131,7 +131,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
-            abstract: "Builds a project"
+            abstract: "Builds a project (deprecated: Use 'tuist xcodebuild' instead)"
         )
     }
 
