@@ -40,6 +40,7 @@ jobs:
   test-docker-compose:
     name: Test Docker Compose
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +50,7 @@ jobs:
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26
+    timeout-minutes: 40
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4

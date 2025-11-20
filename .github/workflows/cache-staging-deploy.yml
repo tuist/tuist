@@ -20,6 +20,7 @@ env:
 jobs:
   deploy:
     runs-on: namespace-profile-default
+    timeout-minutes: 30
     environment: cache-staging
     steps:
       - uses: actions/checkout@v4

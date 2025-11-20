@@ -24,6 +24,7 @@ jobs:
   check-releases:
     name: Check for releasable changes
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       cli-should-release: ${{ steps.cli-check.outputs.should-release }}
       cli-next-version: ${{ steps.cli-check.outputs.next-version }}
@@ -507,6 +508,7 @@ jobs:
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}
       cancel-in-progress: false
