@@ -184,7 +184,7 @@ defmodule TuistWeb.TestRunsLive do
           Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
           Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
         ],
-        :infinity
+        30_000
       )
 
     analytics_selected_widget = analytics_selected_widget(params)
