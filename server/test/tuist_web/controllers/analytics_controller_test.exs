@@ -669,15 +669,15 @@ defmodule TuistWeb.AnalyticsControllerTest do
   describe "POST /api/runs/:run_id/start" do
     test "starts multipart upload - postgres", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      account = project.account
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       upload_id = "12344"
 
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 
@@ -700,15 +700,15 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
     test "starts multipart upload for a result_bundle_object - postgres", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      account = project.account
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       upload_id = "12344"
 
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 
@@ -747,11 +747,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
-                                                  _actor,
+                                                  ^account,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
 
+      project = Repo.preload(project, :account)
       conn = Authentication.put_current_project(conn, project)
       conn = assign(conn, :selected_project, project)
 
@@ -795,12 +796,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_complete_upload, fn object_key,
                                                      ^upload_id,
                                                      [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
-                                                     _actor ->
+                                                     ^account ->
         assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
         assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
       end)
 
+      project = Repo.preload(project, :account)
       conn = Authentication.put_current_project(conn, project)
       conn = assign(conn, :selected_project, project)
 
@@ -898,6 +900,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
+      project = Repo.preload(project, :account)
       conn = Authentication.put_current_project(conn, project)
       conn = assign(conn, :selected_project, project)
 
@@ -1002,6 +1005,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
+      project = Repo.preload(project, :account)
       conn = Authentication.put_current_project(conn, project)
       conn = assign(conn, :selected_project, project)
 
@@ -1118,7 +1122,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 
@@ -1150,7 +1154,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 
@@ -1188,7 +1192,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
       object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 
@@ -1263,7 +1267,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
-                                                  _actor,
+                                                  _account,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -1311,7 +1315,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
-                                                  _actor,
+                                                  ^account,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -1400,7 +1404,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
                                                      [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
-                                                     _actor ->
+                                                     _account ->
         :ok
       end)
 
@@ -1479,15 +1483,15 @@ defmodule TuistWeb.AnalyticsControllerTest do
   describe "Backward compatibility" do
     test "old routes still work with project-scoped authentication", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      account = project.account
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       upload_id = "12344"
 
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
       end)
 

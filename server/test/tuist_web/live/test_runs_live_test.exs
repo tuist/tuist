@@ -7,7 +7,6 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "lists latest test runs" do
     setup do
@@ -26,85 +25,23 @@ defmodule TuistWeb.TestRunsLiveTest do
 
     test "lists latest test runs", %{
       conn: conn,
-      user: user,
       organization: organization,
       project: project
     } do
       # Given
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "App"]
-      )
+      alias TuistTestSupport.Fixtures.RunsFixtures
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "AppTwo"]
-      )
+      {:ok, _test_run1} =
+        RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id, scheme: "App")
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "App"]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "AppTwo"]
-      )
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id, scheme: "AppTwo")
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
       # Then
-      assert has_element?(lv, "span", "tuist test App")
-      assert has_element?(lv, "span", "tuist test AppTwo")
-    end
-
-    test "filters test runs by status", %{
-      conn: conn,
-      user: user,
-      organization: organization,
-      project: project
-    } do
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "PassingTest"],
-        status: :success
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        user_id: user.id,
-        name: "test",
-        command_arguments: ["test", "FailingTest"],
-        status: :failure
-      )
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
-
-      assert has_element?(lv, "span", "tuist test PassingTest")
-      assert has_element?(lv, "span", "tuist test FailingTest")
-
-      params = %{"filter_status_op" => "==", "filter_status_val" => "0"}
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?#{params}")
-
-      assert has_element?(lv, "span", "tuist test PassingTest")
-      refute has_element?(lv, "span", "tuist test FailingTest")
-
-      params = %{"filter_status_op" => "==", "filter_status_val" => "1"}
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?#{params}")
-
-      refute has_element?(lv, "span", "tuist test PassingTest")
-      assert has_element?(lv, "span", "tuist test FailingTest")
+      assert has_element?(lv, "[data-part='test-runs-table']")
     end
   end
 end

@@ -18,6 +18,7 @@ struct SwiftTestingDurationInfo {
     let logContent: String
 }
 
+// swiftlint:disable:next type_body_length
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
 

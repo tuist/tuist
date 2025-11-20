@@ -890,7 +890,7 @@ defmodule TuistWeb.API.AnalyticsController do
       object_key =
         case type do
           "result_bundle" ->
-            run_id |> CommandEvents.get_result_bundle_key(project) |> dbg()
+            CommandEvents.get_result_bundle_key(run_id, project)
 
           "invocation_record" ->
             CommandEvents.get_result_bundle_invocation_record_key(

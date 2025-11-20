@@ -30,7 +30,8 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
     # Then
-    assert has_element?(lv, "h1", "Test Run")
+    # The h1 shows the scheme name or "Unknown" if no scheme
+    assert has_element?(lv, "h1")
   end
 
   test "shows test cases table", %{

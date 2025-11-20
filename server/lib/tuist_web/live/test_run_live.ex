@@ -6,7 +6,6 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
-  alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Runs
