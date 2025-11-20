@@ -1101,10 +1101,8 @@ defmodule Tuist.Runs.Analytics do
     status_filter =
       case status do
         nil -> ""
-        :failure -> "AND status = 1"
-        :success -> "AND status = 0"
-        1 -> "AND status = 1"
-        0 -> "AND status = 0"
+        "failure" -> "AND status = 'failure'"
+        "success" -> "AND status = 'success'"
       end
 
     result =
@@ -1151,10 +1149,8 @@ defmodule Tuist.Runs.Analytics do
     status_filter =
       case status do
         nil -> ""
-        :failure -> "AND status = 1"
-        :success -> "AND status = 0"
-        1 -> "AND status = 1"
-        0 -> "AND status = 0"
+        "failure" -> "AND status = 'failure'"
+        "success" -> "AND status = 'success'"
       end
 
     result =

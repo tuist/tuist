@@ -211,11 +211,16 @@
             } />
           </:col>
           <:col :let={test_run} label="Status">
-            <%= if test_run.status == 0 do %>
-              <.status_badge_cell label={gettext("Passed")} status="success" />
-            <% else %>
-              <.status_badge_cell label={gettext("Failed")} status="error" />
-            <% end %>
+            <.status_badge_cell
+              :if={test_run.status == "success"}
+              label={gettext("Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "failure"}
+              label={gettext("Failed")}
+              status="error"
+            />
           </:col>
           <:col :let={test_run} label={gettext("Branch")}>
             <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />

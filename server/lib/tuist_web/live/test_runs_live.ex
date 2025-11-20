@@ -182,7 +182,7 @@ defmodule TuistWeb.TestRunsLive do
       Task.await_many(
         [
           Task.async(fn -> Analytics.test_run_analytics(project.id, opts) end),
-          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, :failure)) end),
+          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
           Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
         ],
         :infinity

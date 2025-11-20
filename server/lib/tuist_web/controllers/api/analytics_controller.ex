@@ -162,7 +162,7 @@ defmodule TuistWeb.API.AnalyticsController do
            status: %Schema{
              type: :string,
              description: "The status of the command.",
-             enum: [:success, :failure]
+             enum: ["success", "failure"]
            },
            error_message: %Schema{
              type: :string,
@@ -482,7 +482,7 @@ defmodule TuistWeb.API.AnalyticsController do
       scheme: scheme,
       project_id: project.id,
       account_id: project.account_id,
-      status: Map.get(body_params, :status, :success),
+      status: Map.get(body_params, :status),
       git_branch: Map.get(body_params, :git_branch),
       git_commit_sha: Map.get(body_params, :git_commit_sha),
       git_ref: Map.get(body_params, :git_ref),

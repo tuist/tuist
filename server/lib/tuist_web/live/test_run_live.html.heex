@@ -427,11 +427,11 @@
             </:col>
             <:col :let={test_case} label="Status">
               <%= case test_case.status do %>
-                <% :success -> %>
+                <% "success" -> %>
                   <.status_badge_cell label={gettext("Passed")} status="success" />
-                <% :failure -> %>
+                <% "failure" -> %>
                   <.status_badge_cell label={gettext("Failed")} status="error" />
-                <% :skipped -> %>
+                <% "skipped" -> %>
                   <.status_badge_cell label={gettext("Skipped")} status="warning" />
               <% end %>
             </:col>
@@ -580,11 +580,11 @@
             </:col>
             <:col :let={test_suite} label={gettext("Status")}>
               <%= case test_suite.status do %>
-                <% :success -> %>
+                <% "success" -> %>
                   <.status_badge_cell label={gettext("Passed")} status="success" />
-                <% :failure -> %>
+                <% "failure" -> %>
                   <.status_badge_cell label={gettext("Failed")} status="error" />
-                <% :skipped -> %>
+                <% "skipped" -> %>
                   <.status_badge_cell label={gettext("Skipped")} status="warning" />
               <% end %>
             </:col>
@@ -777,9 +777,9 @@
             </:col>
             <:col :let={test_module} label={gettext("Status")}>
               <%= case test_module.status do %>
-                <% :success -> %>
+                <% "success" -> %>
                   <.status_badge_cell label={gettext("Passed")} status="success" />
-                <% :failure -> %>
+                <% "failure" -> %>
                   <.status_badge_cell label={gettext("Failed")} status="error" />
               <% end %>
             </:col>

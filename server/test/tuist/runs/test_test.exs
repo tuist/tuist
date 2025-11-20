@@ -12,7 +12,7 @@ defmodule Tuist.Runs.TestTest do
       is_ci: true,
       project_id: 123,
       account_id: 456,
-      status: :success,
+      status: "success",
       ran_at: ~N[2024-01-01 12:00:00.000000]
     }
 
@@ -27,52 +27,44 @@ defmodule Tuist.Runs.TestTest do
       assert changeset.changes.is_ci == true
       assert changeset.changes.project_id == 123
       assert changeset.changes.account_id == 456
-      assert changeset.changes.status == 0
+      assert changeset.changes.status == "success"
       assert changeset.changes.ran_at == ~N[2024-01-01 12:00:00.000000]
     end
 
-    test "maps :success status to 0" do
-      attrs = Map.put(@valid_attrs, :status, :success)
+    test "accepts string status 'success'" do
+      attrs = Map.put(@valid_attrs, :status, "success")
       changeset = Test.create_changeset(%Test{}, attrs)
 
       assert changeset.valid?
-      assert changeset.changes.status == 0
+      assert changeset.changes.status == "success"
     end
 
-    test "maps :failure status to 1" do
-      attrs = Map.put(@valid_attrs, :status, :failure)
+    test "accepts string status 'failure'" do
+      attrs = Map.put(@valid_attrs, :status, "failure")
       changeset = Test.create_changeset(%Test{}, attrs)
 
       assert changeset.valid?
-      assert changeset.changes.status == 1
+      assert changeset.changes.status == "failure"
     end
 
-    test "accepts numeric status 0" do
-      attrs = Map.put(@valid_attrs, :status, 0)
-      changeset = Test.create_changeset(%Test{}, attrs)
-
-      assert changeset.valid?
-      assert changeset.changes.status == 0
-    end
-
-    test "accepts numeric status 1" do
-      attrs = Map.put(@valid_attrs, :status, 1)
-      changeset = Test.create_changeset(%Test{}, attrs)
-
-      assert changeset.valid?
-      assert changeset.changes.status == 1
-    end
-
-    test "rejects invalid status values" do
-      attrs = Map.put(@valid_attrs, :status, 2)
+    test "rejects invalid status string" do
+      attrs = Map.put(@valid_attrs, :status, "unknown")
       changeset = Test.create_changeset(%Test{}, attrs)
 
       refute changeset.valid?
       assert "is invalid" in errors_on(changeset).status
     end
 
-    test "rejects invalid atom status" do
-      attrs = Map.put(@valid_attrs, :status, :unknown)
+    test "rejects atom status" do
+      attrs = Map.put(@valid_attrs, :status, :success)
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).status
+    end
+
+    test "rejects numeric status" do
+      attrs = Map.put(@valid_attrs, :status, 0)
       changeset = Test.create_changeset(%Test{}, attrs)
 
       refute changeset.valid?

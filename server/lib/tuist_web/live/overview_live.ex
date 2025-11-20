@@ -55,12 +55,12 @@ defmodule TuistWeb.OverviewLive do
 
   defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
-      CommandEvents.list_test_runs(%{
+      Runs.list_test_runs(%{
         last: 40,
         filters: [
           %{field: :project_id, op: :==, value: project.id}
         ],
-        order_by: [:created_at],
+        order_by: [:ran_at],
         order_directions: [:asc]
       })
 
@@ -68,19 +68,19 @@ defmodule TuistWeb.OverviewLive do
       Enum.map(recent_test_runs, fn run ->
         color =
           case run.status do
-            :success -> "var:noora-chart-primary"
-            :failure -> "var:noora-chart-destructive"
+            "success" -> "var:noora-chart-primary"
+            "failure" -> "var:noora-chart-destructive"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-        %{value: value, itemStyle: %{color: color}, date: run.created_at}
+        %{value: value, itemStyle: %{color: color}, date: run.ran_at}
       end)
 
-    failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == :failure end)
+    failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
 
     passed_test_runs_count =
-      Enum.count(recent_test_runs, fn run -> run.status == :success end)
+      Enum.count(recent_test_runs, fn run -> run.status == "success" end)
 
     socket
     |> assign(

@@ -562,7 +562,7 @@ defmodule TuistWeb.API.RunsController do
                status: %Schema{
                  type: :string,
                  description: "The status of the test run.",
-                 enum: [:success, :failure]
+                 enum: ["success", "failure"]
                },
                git_commit_sha: %Schema{
                  type: :string,
@@ -593,7 +593,7 @@ defmodule TuistWeb.API.RunsController do
                      status: %Schema{
                        type: :string,
                        description: "The status of the test module.",
-                       enum: [:success, :failure]
+                       enum: ["success", "failure"]
                      },
                      duration: %Schema{
                        type: :integer,
@@ -612,7 +612,7 @@ defmodule TuistWeb.API.RunsController do
                            status: %Schema{
                              type: :string,
                              description: "The status of the test suite.",
-                             enum: [:success, :failure, :skipped]
+                             enum: ["success", "failure", "skipped"]
                            },
                            duration: %Schema{
                              type: :integer,
@@ -639,7 +639,7 @@ defmodule TuistWeb.API.RunsController do
                            status: %Schema{
                              type: :string,
                              description: "The status of the test case.",
-                             enum: [:success, :failure, :skipped]
+                             enum: ["success", "failure", "skipped"]
                            },
                            duration: %Schema{
                              type: :integer,
@@ -816,7 +816,7 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, :success),
+          status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),

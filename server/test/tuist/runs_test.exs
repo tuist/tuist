@@ -24,7 +24,7 @@ defmodule Tuist.RunsTest do
           scheme: "App",
           project_id: project_id,
           account_id: account_id,
-          status: :success,
+          status: "success",
           issues: [],
           files: [],
           targets: []
@@ -67,7 +67,7 @@ defmodule Tuist.RunsTest do
           scheme: "App",
           project_id: project_id,
           account_id: account_id,
-          status: :success,
+          status: "success",
           issues: [],
           files: [],
           targets: [],
@@ -97,7 +97,7 @@ defmodule Tuist.RunsTest do
           scheme: "App",
           project_id: project_id,
           account_id: account_id,
-          status: :success,
+          status: "success",
           issues: [],
           files: [],
           targets: [],
@@ -212,13 +212,13 @@ defmodule Tuist.RunsTest do
       {:ok, _success_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          status: :success
+          status: "success"
         )
 
       {:ok, failure_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          status: :failure
+          status: "failure"
         )
 
       # When
@@ -226,7 +226,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_runs(%{
           filters: [
             %{field: :project_id, op: :==, value: project.id},
-            %{field: :status, op: :==, value: 1}
+            %{field: :status, op: :==, value: "failure"}
           ]
         })
 
@@ -259,12 +259,12 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_cases: [
-                %{name: "testCase1", status: :success, duration: 100},
-                %{name: "testCase2", status: :failure, duration: 200},
-                %{name: "testCase3", status: :success, duration: 300}
+                %{name: "testCase1", status: "success", duration: 100},
+                %{name: "testCase2", status: "failure", duration: 200},
+                %{name: "testCase3", status: "success", duration: 300}
               ]
             }
           ]
@@ -295,12 +295,12 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_cases: [
-                %{name: "successTest", status: :success, duration: 100},
-                %{name: "failureTest", status: :failure, duration: 200},
-                %{name: "skippedTest", status: :skipped, duration: 0}
+                %{name: "successTest", status: "success", duration: 100},
+                %{name: "failureTest", status: "failure", duration: 200},
+                %{name: "skippedTest", status: "skipped", duration: 0}
               ]
             }
           ]
@@ -311,7 +311,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{
           filters: [
             %{field: :test_run_id, op: :==, value: test.id},
-            %{field: :status, op: :==, value: 1}
+            %{field: :status, op: :==, value: "failure"}
           ]
         })
 
@@ -327,7 +327,7 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "EmptyModule",
-              status: :success,
+              status: "success",
               duration: 0,
               test_cases: []
             }
@@ -354,12 +354,12 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :failure,
+              status: "failure",
               duration: 1000,
               test_cases: [
                 %{
                   name: "testWithFailure",
-                  status: :failure,
+                  status: "failure",
                   duration: 200,
                   failures: [
                     %{
@@ -378,7 +378,7 @@ defmodule Tuist.RunsTest do
                 },
                 %{
                   name: "testWithSingleFailure",
-                  status: :failure,
+                  status: "failure",
                   duration: 100,
                   failures: [
                     %{
@@ -408,10 +408,10 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_cases: [
-                %{name: "successTest", status: :success, duration: 100}
+                %{name: "successTest", status: "success", duration: 100}
               ]
             }
           ]
@@ -433,12 +433,12 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :failure,
+              status: "failure",
               duration: 1000,
               test_cases: [
                 %{
                   name: "testCase1",
-                  status: :failure,
+                  status: "failure",
                   duration: 200,
                   failures: [
                     %{
@@ -451,7 +451,7 @@ defmodule Tuist.RunsTest do
                 },
                 %{
                   name: "testCase2",
-                  status: :failure,
+                  status: "failure",
                   duration: 300,
                   failures: [
                     %{
@@ -495,10 +495,10 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_cases: [
-                %{name: "successTest", status: :success, duration: 100}
+                %{name: "successTest", status: "success", duration: 100}
               ]
             }
           ]
@@ -521,12 +521,12 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_suites: [
-                %{name: "Suite1", status: :success, duration: 300},
-                %{name: "Suite2", status: :failure, duration: 400},
-                %{name: "Suite3", status: :success, duration: 300}
+                %{name: "Suite1", status: "success", duration: 300},
+                %{name: "Suite2", status: "failure", duration: 400},
+                %{name: "Suite3", status: "success", duration: 300}
               ],
               test_cases: []
             }
@@ -558,11 +558,11 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_suites: [
-                %{name: "SuccessSuite", status: :success, duration: 200},
-                %{name: "FailureSuite", status: :failure, duration: 300}
+                %{name: "SuccessSuite", status: "success", duration: 200},
+                %{name: "FailureSuite", status: "failure", duration: 300}
               ],
               test_cases: []
             }
@@ -574,14 +574,14 @@ defmodule Tuist.RunsTest do
         Runs.list_test_suite_runs(%{
           filters: [
             %{field: :test_run_id, op: :==, value: test.id},
-            %{field: :status, op: :==, value: 1}
+            %{field: :status, op: :==, value: "failure"}
           ]
         })
 
       # Then
       assert length(suites) == 1
       assert hd(suites).name == "FailureSuite"
-      assert hd(suites).status == :failure
+      assert hd(suites).status == "failure"
     end
 
     test "returns empty list when no test suites exist for test run" do
@@ -591,7 +591,7 @@ defmodule Tuist.RunsTest do
           test_modules: [
             %{
               name: "TestModule",
-              status: :success,
+              status: "success",
               duration: 1000,
               test_cases: []
             }
@@ -621,7 +621,7 @@ defmodule Tuist.RunsTest do
         project_id: project.id,
         account_id: account.id,
         duration: 1500,
-        status: :success,
+        status: "success",
         model_identifier: "Mac15,6",
         macos_version: "14.0",
         xcode_version: "15.0",
@@ -639,7 +639,7 @@ defmodule Tuist.RunsTest do
       assert test.project_id == project.id
       assert test.account_id == account.id
       assert test.duration == 1500
-      assert test.status == 0
+      assert test.status == "success"
       assert test.model_identifier == "Mac15,6"
       assert test.macos_version == "14.0"
       assert test.xcode_version == "15.0"
@@ -658,7 +658,7 @@ defmodule Tuist.RunsTest do
         project_id: project.id,
         account_id: account.id,
         duration: 2000,
-        status: :success,
+        status: "success",
         model_identifier: "Mac15,6",
         macos_version: "14.0",
         xcode_version: "15.0",
@@ -669,11 +669,11 @@ defmodule Tuist.RunsTest do
         test_modules: [
           %{
             name: "MyTestModule",
-            status: :success,
+            status: "success",
             duration: 1000,
             test_cases: [
-              %{name: "testExample1", status: :success, duration: 300},
-              %{name: "testExample2", status: :success, duration: 700}
+              %{name: "testExample1", status: "success", duration: 300},
+              %{name: "testExample2", status: "success", duration: 700}
             ]
           }
         ]
@@ -694,7 +694,7 @@ defmodule Tuist.RunsTest do
       assert length(modules) == 1
       module = hd(modules)
       assert module.name == "MyTestModule"
-      assert module.status == :success
+      assert module.status == "success"
       assert module.test_case_count == 2
 
       {test_cases, _meta} =
@@ -718,7 +718,7 @@ defmodule Tuist.RunsTest do
         project_id: project.id,
         account_id: account.id,
         duration: 3000,
-        status: :success,
+        status: "success",
         model_identifier: "Mac15,6",
         macos_version: "14.0",
         xcode_version: "15.0",
@@ -729,23 +729,23 @@ defmodule Tuist.RunsTest do
         test_modules: [
           %{
             name: "TestModuleWithSuites",
-            status: :success,
+            status: "success",
             duration: 2000,
             test_suites: [
-              %{name: "UnitTests", status: :success, duration: 1000},
-              %{name: "IntegrationTests", status: :success, duration: 1000}
+              %{name: "UnitTests", status: "success", duration: 1000},
+              %{name: "IntegrationTests", status: "success", duration: 1000}
             ],
             test_cases: [
               %{
                 name: "testUnit1",
                 test_suite_name: "UnitTests",
-                status: :success,
+                status: "success",
                 duration: 500
               },
               %{
                 name: "testIntegration1",
                 test_suite_name: "IntegrationTests",
-                status: :success,
+                status: "success",
                 duration: 800
               }
             ]
@@ -795,7 +795,7 @@ defmodule Tuist.RunsTest do
         project_id: project.id,
         account_id: account.id,
         duration: 1000,
-        status: :failure,
+        status: "failure",
         model_identifier: "Mac15,6",
         macos_version: "14.0",
         xcode_version: "15.0",
@@ -806,12 +806,12 @@ defmodule Tuist.RunsTest do
         test_modules: [
           %{
             name: "FailingTestModule",
-            status: :failure,
+            status: "failure",
             duration: 1000,
             test_cases: [
               %{
                 name: "testThatFails",
-                status: :failure,
+                status: "failure",
                 duration: 500,
                 failures: [
                   %{
@@ -832,7 +832,7 @@ defmodule Tuist.RunsTest do
 
       # Then
       # Verify test was created with failure status
-      assert test.status == 1
+      assert test.status == "failure"
 
       # Verify failure was recorded
       count = Runs.get_test_run_failures_count(test.id)
@@ -857,9 +857,9 @@ defmodule Tuist.RunsTest do
       {:ok, test} =
         RunsFixtures.test_fixture(
           test_modules: [
-            %{name: "ModuleA", status: :success, duration: 300, test_cases: []},
-            %{name: "ModuleB", status: :failure, duration: 400, test_cases: []},
-            %{name: "ModuleC", status: :success, duration: 500, test_cases: []}
+            %{name: "ModuleA", status: "success", duration: 300, test_cases: []},
+            %{name: "ModuleB", status: "failure", duration: 400, test_cases: []},
+            %{name: "ModuleC", status: "success", duration: 500, test_cases: []}
           ]
         )
 
@@ -886,8 +886,8 @@ defmodule Tuist.RunsTest do
       {:ok, test} =
         RunsFixtures.test_fixture(
           test_modules: [
-            %{name: "SuccessModule", status: :success, duration: 200, test_cases: []},
-            %{name: "FailureModule", status: :failure, duration: 300, test_cases: []}
+            %{name: "SuccessModule", status: "success", duration: 200, test_cases: []},
+            %{name: "FailureModule", status: "failure", duration: 300, test_cases: []}
           ]
         )
 
@@ -896,14 +896,14 @@ defmodule Tuist.RunsTest do
         Runs.list_test_module_runs(%{
           filters: [
             %{field: :test_run_id, op: :==, value: test.id},
-            %{field: :status, op: :==, value: 1}
+            %{field: :status, op: :==, value: "failure"}
           ]
         })
 
       # Then
       assert length(modules) == 1
       assert hd(modules).name == "FailureModule"
-      assert hd(modules).status == :failure
+      assert hd(modules).status == "failure"
     end
 
     test "returns empty list when no test modules exist for test run" do
@@ -1139,31 +1139,31 @@ defmodule Tuist.RunsTest do
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 01:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 02:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 04:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: other_project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 05:00:00Z]
       )
 
@@ -1237,19 +1237,19 @@ defmodule Tuist.RunsTest do
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 01:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 02:00:00Z]
       )
 
@@ -1269,31 +1269,31 @@ defmodule Tuist.RunsTest do
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 01:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 02:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 03:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 04:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: other_project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 05:00:00Z]
     )
 
@@ -1333,19 +1333,19 @@ defmodule Tuist.RunsTest do
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 03:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 01:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 02:00:00Z]
     )
 

@@ -212,9 +212,7 @@ defmodule Tuist.Runs do
   end
 
   def list_test_case_runs(attrs) do
-    {test_case_runs, meta} = Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
-    normalized_test_case_runs = Enum.map(test_case_runs, &TestCaseRun.normalize_enums/1)
-    {normalized_test_case_runs, meta}
+    Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
   end
 
   def get_test_run_failures_count(test_run_id) do
@@ -251,15 +249,11 @@ defmodule Tuist.Runs do
   end
 
   def list_test_suite_runs(attrs) do
-    {test_suite_runs, meta} = Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
-    normalized_test_suite_runs = Enum.map(test_suite_runs, &TestSuiteRun.normalize_enums/1)
-    {normalized_test_suite_runs, meta}
+    Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
   end
 
   def list_test_module_runs(attrs) do
-    {test_module_runs, meta} = Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
-    normalized_test_module_runs = Enum.map(test_module_runs, &TestModuleRun.normalize_enums/1)
-    {normalized_test_module_runs, meta}
+    Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
   end
 
   def list_cacheable_tasks(attrs) do
@@ -472,16 +466,6 @@ defmodule Tuist.Runs do
 
   defp create_test_modules(test, test_modules) do
     Enum.each(test_modules, fn module_attrs ->
-      # Map status to raw enum value for ClickHouse
-      module_status =
-        case Map.get(module_attrs, :status) do
-          :success -> 0
-          :failure -> 1
-          status when status in [0, 1] -> status
-          # default to success
-          _ -> 0
-        end
-
       module_id = Ecto.UUID.generate()
 
       # Get test suites and test cases
@@ -509,7 +493,7 @@ defmodule Tuist.Runs do
         id: module_id,
         name: Map.get(module_attrs, :name),
         test_run_id: test.id,
-        status: module_status,
+        status: Map.get(module_attrs, :status),
         duration: Map.get(module_attrs, :duration, 0),
         test_suite_count: test_suite_count,
         test_case_count: test_case_count,
@@ -559,17 +543,6 @@ defmodule Tuist.Runs do
 
     {test_suite_runs, suite_name_to_id} =
       Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
-        # Map status to raw enum value for ClickHouse
-        suite_status =
-          case Map.get(suite_attrs, :status) do
-            :success -> 0
-            :failure -> 1
-            :skipped -> 2
-            status when status in [0, 1, 2] -> status
-            # default to success
-            _ -> 0
-          end
-
         suite_id = Ecto.UUID.generate()
         suite_name = Map.get(suite_attrs, :name)
 
@@ -594,7 +567,7 @@ defmodule Tuist.Runs do
           name: suite_name,
           test_run_id: test.id,
           test_module_run_id: module_id,
-          status: suite_status,
+          status: Map.get(suite_attrs, :status),
           duration: Map.get(suite_attrs, :duration, 0),
           test_case_count: test_case_count,
           avg_test_case_duration: avg_test_case_duration,
@@ -615,17 +588,6 @@ defmodule Tuist.Runs do
     # Create test case runs and collect failure data
     {test_case_runs, all_failures} =
       Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
-        # Map status to raw enum value for ClickHouse
-        case_status =
-          case Map.get(case_attrs, :status) do
-            :success -> 0
-            :failure -> 1
-            :skipped -> 2
-            status when status in [0, 1, 2] -> status
-            # default to success
-            _ -> 0
-          end
-
         # Try to find the test suite this test case belongs to
         # Match by test suite name within this specific module
         suite_name = Map.get(case_attrs, :test_suite_name, "")
@@ -645,7 +607,7 @@ defmodule Tuist.Runs do
           test_run_id: test.id,
           test_module_run_id: module_id,
           test_suite_run_id: test_suite_run_id,
-          status: case_status,
+          status: Map.get(case_attrs, :status),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: now,
           module_name: module_name,

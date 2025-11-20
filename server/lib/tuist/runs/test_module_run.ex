@@ -53,19 +53,6 @@ defmodule Tuist.Runs.TestModuleRun do
       :status,
       :duration
     ])
-    |> validate_inclusion(:status, [0, 1, :success, :failure])
+    |> validate_inclusion(:status, ["success", "failure"])
   end
-
-  def normalize_enums(test_module_run) do
-    %{
-      test_module_run
-      | status: status_int_to_atom(test_module_run.status)
-    }
-  end
-
-  defp status_int_to_atom(0), do: :success
-  defp status_int_to_atom(1), do: :failure
-  defp status_int_to_atom("success"), do: :success
-  defp status_int_to_atom("failure"), do: :failure
-  defp status_int_to_atom(atom) when is_atom(atom), do: atom
 end

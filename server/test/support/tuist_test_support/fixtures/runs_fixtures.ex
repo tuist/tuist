@@ -61,17 +61,17 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       Keyword.get(attrs, :test_modules, [
         %{
           name: "TestModuleExample",
-          status: :success,
+          status: "success",
           duration: 1000,
           test_cases: [
             %{
               name: "testExample",
-              status: :success,
+              status: "success",
               duration: 500
             },
             %{
               name: "testAnotherExample",
-              status: :failure,
+              status: "failure",
               duration: 300
             }
           ]
@@ -83,7 +83,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       project_id: project_id,
       account_id: account_id,
       duration: Keyword.get(attrs, :duration, 2000),
-      status: Keyword.get(attrs, :status, :success),
+      status: Keyword.get(attrs, :status, "success"),
       model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
       macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
       xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
