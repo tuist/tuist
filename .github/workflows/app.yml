@@ -33,6 +33,7 @@ jobs:
   check-team-membership:
     name: Check Team Membership
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.event_name == 'pull_request'
     outputs:
       is-team-member: ${{ steps.check.outputs.is-member }}
@@ -70,6 +71,7 @@ jobs:
   app-build:
     name: Build
     runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
@@ -112,6 +114,7 @@ jobs:
   app-test:
     name: Test
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
@@ -146,6 +149,7 @@ jobs:
   app-device-build:
     name: Device Build
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
