@@ -473,17 +473,7 @@ defmodule Tuist.Runs do
       test_suite_count = length(test_suites)
       test_case_count = length(test_cases)
 
-      avg_test_case_duration =
-        if test_case_count > 0 do
-          total_duration =
-            Enum.reduce(test_cases, 0, fn case_attrs, acc ->
-              acc + Map.get(case_attrs, :duration, 0)
-            end)
-
-          round(total_duration / test_case_count)
-        else
-          0
-        end
+      avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
       module_run_attrs = %{
         id: module_id,
@@ -528,17 +518,7 @@ defmodule Tuist.Runs do
         suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
         test_case_count = length(suite_test_cases)
 
-        avg_test_case_duration =
-          if test_case_count > 0 do
-            total_duration =
-              Enum.reduce(suite_test_cases, 0, fn case_attrs, acc ->
-                acc + Map.get(case_attrs, :duration, 0)
-              end)
-
-            round(total_duration / test_case_count)
-          else
-            0
-          end
+        avg_test_case_duration = calculate_avg_test_case_duration(suite_test_cases)
 
         suite_run = %{
           id: suite_id,
@@ -602,5 +582,20 @@ defmodule Tuist.Runs do
 
     IngestRepo.insert_all(TestCaseRun, test_case_runs)
     IngestRepo.insert_all(TestCaseFailure, all_failures)
+  end
+
+  defp calculate_avg_test_case_duration(test_cases) do
+    test_case_count = length(test_cases)
+
+    if test_case_count > 0 do
+      total_duration =
+        Enum.reduce(test_cases, 0, fn case_attrs, acc ->
+          acc + Map.get(case_attrs, :duration, 0)
+        end)
+
+      round(total_duration / test_case_count)
+    else
+      0
+    end
   end
 end
