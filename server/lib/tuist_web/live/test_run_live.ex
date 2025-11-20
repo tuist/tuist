@@ -18,7 +18,7 @@ defmodule TuistWeb.TestRunLive do
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Runs.get_test(params["test_run_id"]) do
+      case Runs.get_test(params["test_run_id"], preload: [:ran_by_account]) do
         {:ok, test} ->
           test
 
@@ -26,33 +26,21 @@ defmodule TuistWeb.TestRunLive do
           raise NotFoundError, gettext("Test run not found.")
       end
 
-    slug = Projects.get_project_slug_from_id(project.id)
-
-    # Load VCS connection on the selected project
-    project = Tuist.Repo.preload(project, :vcs_connection)
-
-    # Fetch the account that ran this test and put it into the run
-    ran_by_account =
-      if run.account_id do
-        Accounts.get_account_by_id(run.account_id)
-      end
-
-    run =
-      run
-      |> Map.put(:ran_by_account, ran_by_account)
-      |> Map.put(:project, project)
-
-    dbg(run.id)
-
-    command_event =
-      case run.id |> CommandEvents.get_command_event_by_test_run_id() |> dbg() do
-        {:ok, event} -> event
-        {:error, :not_found} -> nil
-      end
-
     if run.project_id != project.id do
       raise NotFoundError, gettext("Test run not found.")
     end
+
+    slug = Projects.get_project_slug_from_id(project.id)
+
+    project = Tuist.Repo.preload(project, :vcs_connection)
+
+    run = Map.put(run, :project, project)
+
+    command_event =
+      case CommandEvents.get_command_event_by_test_run_id(run.id) do
+        {:ok, event} -> event
+        {:error, :not_found} -> nil
+      end
 
     test_metrics = Runs.Analytics.get_test_run_metrics(run.id)
     failures_count = Runs.get_test_run_failures_count(run.id)
@@ -83,7 +71,6 @@ defmodule TuistWeb.TestRunLive do
     selected_tab = selected_tab(params)
     selected_test_tab = params["test-tab"] || "test-cases"
 
-    # Determine which filters to use based on the current tab
     {available_filters, active_filters} =
       case {selected_tab, selected_test_tab} do
         {"overview", "test-cases"} ->
@@ -674,17 +661,12 @@ defmodule TuistWeb.TestRunLive do
   defp map_filter_status_value(filters) do
     Enum.map(filters, fn filter ->
       if filter.field == :status do
-        %{filter | value: status_string_to_int(filter.value)}
+        %{filter | value: filter.value}
       else
         filter
       end
     end)
   end
-
-  defp status_string_to_int("success"), do: 0
-  defp status_string_to_int("failure"), do: 1
-  defp status_string_to_int("skipped"), do: 2
-  defp status_string_to_int(value) when is_integer(value), do: value
 
   defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}

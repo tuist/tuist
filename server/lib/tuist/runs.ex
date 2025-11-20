@@ -25,10 +25,12 @@ defmodule Tuist.Runs do
     Repo.get(Build, id)
   end
 
-  def get_test(id) do
+  def get_test(id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
     case ClickHouseRepo.get(Test, id) do
       nil -> {:error, :not_found}
-      test -> {:ok, test}
+      test -> {:ok, Repo.preload(test, preload)}
     end
   end
 
