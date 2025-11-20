@@ -139,7 +139,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Run tests
-        run: mise x -- tuist test TuistUnitTests
+        run: mise x -- tuist test TuistUnitTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -171,7 +171,7 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistAutomationAcceptanceTests
-        run: mise x -- tuist test TuistAutomationAcceptanceTests
+        run: mise x -- tuist test TuistAutomationAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -210,7 +210,7 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run TuistDependenciesAcceptanceTests
-        run: mise x -- tuist test TuistDependenciesAcceptanceTests
+        run: mise x -- tuist test TuistDependenciesAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -242,7 +242,7 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistGeneratorAcceptanceTests
-        run: mise x -- tuist test TuistGeneratorAcceptanceTests
+        run: mise x -- tuist test TuistGeneratorAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -272,7 +272,7 @@ jobs:
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistKitAcceptanceTests
-        run: mise x -- tuist test TuistKitAcceptanceTests
+        run: mise x -- tuist test TuistKitAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

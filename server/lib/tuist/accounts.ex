@@ -793,7 +793,7 @@ defmodule Tuist.Accounts do
         join: r in Role,
         on: u.role_id == r.id,
         where:
-          u.user_id == ^user_id and r.name == ^~s(role) and r.resource_type == "Organization" and
+          u.user_id == ^user_id and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
       )
 
