@@ -45,6 +45,8 @@ defmodule Tuist.Runs.Test do
   end
 
   def create_changeset(test_run, attrs) do
+    attrs = map_status(attrs)
+
     test_run
     |> cast(attrs, [
       :id,
@@ -74,6 +76,14 @@ defmodule Tuist.Runs.Test do
       :status,
       :ran_at
     ])
-    |> validate_inclusion(:status, [0, 1, :success, :failure])
+    |> validate_inclusion(:status, [0, 1])
+  end
+
+  defp map_status(attrs) do
+    case Map.get(attrs, :status) do
+      :success -> Map.put(attrs, :status, 0)
+      :failure -> Map.put(attrs, :status, 1)
+      _ -> attrs
+    end
   end
 end

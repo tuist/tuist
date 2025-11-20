@@ -217,10 +217,6 @@ defmodule Tuist.Runs do
     {normalized_test_case_runs, meta}
   end
 
-  def list_test_case_failures(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestCaseFailure, attrs, for: TestCaseFailure)
-  end
-
   def get_test_run_failures_count(test_run_id) do
     query =
       from f in TestCaseFailure,
@@ -452,31 +448,13 @@ defmodule Tuist.Runs do
   end
 
   def create_test(attrs) do
-    # Map status to raw enum value for ClickHouse
-    attrs_with_mapped_status =
-      case Map.get(attrs, :status) do
-        :success -> Map.put(attrs, :status, 0)
-        :failure -> Map.put(attrs, :status, 1)
-        status when status in [0, 1] -> attrs
-        # default to success
-        _ -> Map.put(attrs, :status, 0)
-      end
-
     case %Test{}
-         |> Test.create_changeset(attrs_with_mapped_status)
+         |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        # Handle test modules, suites, and cases if present
-        if Map.has_key?(attrs, :test_modules) and length(Map.get(attrs, :test_modules, [])) > 0 do
-          create_test_modules(test, Map.get(attrs, :test_modules))
-        end
+        create_test_modules(test, Map.get(attrs, :test_modules, []))
+        create_test_cases(test, Map.get(attrs, :test_cases, []))
 
-        # Handle test cases if present (legacy support)
-        if Map.has_key?(attrs, :test_cases) and length(Map.get(attrs, :test_cases, [])) > 0 do
-          create_test_cases(test, Map.get(attrs, :test_cases))
-        end
-
-        # Load project with account from PostgreSQL for PubSub broadcast
         project = Tuist.Projects.get_project_by_id(test.project_id)
 
         Tuist.PubSub.broadcast(

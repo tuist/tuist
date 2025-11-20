@@ -138,6 +138,790 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "get_test/1" do
+    test "returns test when it exists" do
+      # Given
+      {:ok, test} = RunsFixtures.test_fixture()
+      test_id = test.id
+
+      # When
+      result = Runs.get_test(test_id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == test_id
+    end
+
+    test "returns error when test does not exist" do
+      # Given
+      non_existent_test_id = UUIDv7.generate()
+
+      # When
+      result = Runs.get_test(non_existent_test_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "list_test_runs/1" do
+    test "lists test runs with pagination" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      {:ok, test_one} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          duration: 1000,
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      RunsFixtures.test_fixture(project_id: project_two.id)
+
+      {:ok, test_two} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          duration: 2000,
+          ran_at: ~N[2024-03-04 02:00:00]
+        )
+
+      # When
+      {got_tests_first_page, got_meta_first_page} =
+        Runs.list_test_runs(%{
+          page_size: 1,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:ran_at],
+          order_directions: [:desc]
+        })
+
+      {got_tests_second_page, _meta} =
+        Runs.list_test_runs(Flop.to_next_page(got_meta_first_page.flop))
+
+      # Then
+      assert length(got_tests_first_page) == 1
+      assert length(got_tests_second_page) == 1
+      assert hd(got_tests_first_page).id == test_two.id
+      assert hd(got_tests_second_page).id == test_one.id
+    end
+
+    test "filters by status" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _success_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          status: :success
+        )
+
+      {:ok, failure_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          status: :failure
+        )
+
+      # When
+      {tests, _meta} =
+        Runs.list_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :status, op: :==, value: 1}
+          ]
+        })
+
+      # Then
+      assert length(tests) == 1
+      assert hd(tests).id == failure_test.id
+    end
+
+    test "returns empty list when no tests exist for project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {tests, meta} =
+        Runs.list_test_runs(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}]
+        })
+
+      # Then
+      assert tests == []
+      assert meta.total_count == 0
+    end
+  end
+
+  describe "list_test_case_runs/1" do
+    test "lists test case runs with pagination" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_cases: [
+                %{name: "testCase1", status: :success, duration: 100},
+                %{name: "testCase2", status: :failure, duration: 200},
+                %{name: "testCase3", status: :success, duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {test_cases_first_page, meta_first_page} =
+        Runs.list_test_case_runs(%{
+          page_size: 2,
+          filters: [%{field: :test_run_id, op: :==, value: test.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      {test_cases_second_page, _meta} =
+        Runs.list_test_case_runs(Flop.to_next_page(meta_first_page.flop))
+
+      # Then
+      assert length(test_cases_first_page) == 2
+      assert length(test_cases_second_page) == 1
+      assert meta_first_page.total_count == 3
+    end
+
+    test "filters by status" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_cases: [
+                %{name: "successTest", status: :success, duration: 100},
+                %{name: "failureTest", status: :failure, duration: 200},
+                %{name: "skippedTest", status: :skipped, duration: 0}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test.id},
+            %{field: :status, op: :==, value: 1}
+          ]
+        })
+
+      # Then
+      assert length(test_cases) == 1
+      assert hd(test_cases).name == "failureTest"
+    end
+
+    test "returns empty list when no test cases exist for test run" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "EmptyModule",
+              status: :success,
+              duration: 0,
+              test_cases: []
+            }
+          ]
+        )
+
+      # When
+      {test_cases, meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      # Then
+      assert test_cases == []
+      assert meta.total_count == 0
+    end
+  end
+
+  describe "get_test_run_failures_count/1" do
+    test "returns count of failures for a test run" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :failure,
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testWithFailure",
+                  status: :failure,
+                  duration: 200,
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion"
+                    },
+                    %{
+                      message: "Another failure",
+                      path: "/path/to/test.swift",
+                      line_number: 50,
+                      issue_type: "assertion"
+                    }
+                  ]
+                },
+                %{
+                  name: "testWithSingleFailure",
+                  status: :failure,
+                  duration: 100,
+                  failures: [
+                    %{
+                      message: "Test failed",
+                      path: "/path/to/test.swift",
+                      line_number: 30,
+                      issue_type: "error"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      count = Runs.get_test_run_failures_count(test.id)
+
+      # Then
+      assert count == 3
+    end
+
+    test "returns 0 when no failures exist for test run" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_cases: [
+                %{name: "successTest", status: :success, duration: 100}
+              ]
+            }
+          ]
+        )
+
+      # When
+      count = Runs.get_test_run_failures_count(test.id)
+
+      # Then
+      assert count == 0
+    end
+  end
+
+  describe "list_test_run_failures/2" do
+    test "lists failures for a test run with pagination" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :failure,
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testCase1",
+                  status: :failure,
+                  duration: 200,
+                  failures: [
+                    %{
+                      message: "Failure 1",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ]
+                },
+                %{
+                  name: "testCase2",
+                  status: :failure,
+                  duration: 300,
+                  failures: [
+                    %{
+                      message: "Failure 2",
+                      path: "/path/to/test.swift",
+                      line_number: 20,
+                      issue_type: "error"
+                    },
+                    %{
+                      message: "Failure 3",
+                      path: "/path/to/test.swift",
+                      line_number: 30,
+                      issue_type: "assertion"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      {failures_page1, meta_page1} =
+        Runs.list_test_run_failures(test.id, %{
+          page_size: 2
+        })
+
+      {failures_page2, _meta} =
+        Runs.list_test_run_failures(test.id, Flop.to_next_page(meta_page1.flop))
+
+      # Then
+      assert length(failures_page1) == 2
+      assert length(failures_page2) == 1
+      assert meta_page1.total_count == 3
+    end
+
+    test "returns empty list when no failures exist for test run" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_cases: [
+                %{name: "successTest", status: :success, duration: 100}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {failures, meta} = Runs.list_test_run_failures(test.id, %{})
+
+      # Then
+      assert failures == []
+      assert meta.total_count == 0
+    end
+  end
+
+  describe "list_test_suite_runs/1" do
+    test "lists test suite runs with pagination" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_suites: [
+                %{name: "Suite1", status: :success, duration: 300},
+                %{name: "Suite2", status: :failure, duration: 400},
+                %{name: "Suite3", status: :success, duration: 300}
+              ],
+              test_cases: []
+            }
+          ]
+        )
+
+      # When
+      {suites_page1, meta_page1} =
+        Runs.list_test_suite_runs(%{
+          page_size: 2,
+          filters: [%{field: :test_run_id, op: :==, value: test.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      {suites_page2, _meta} =
+        Runs.list_test_suite_runs(Flop.to_next_page(meta_page1.flop))
+
+      # Then
+      assert length(suites_page1) == 2
+      assert length(suites_page2) == 1
+      assert meta_page1.total_count == 3
+    end
+
+    test "filters by status" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_suites: [
+                %{name: "SuccessSuite", status: :success, duration: 200},
+                %{name: "FailureSuite", status: :failure, duration: 300}
+              ],
+              test_cases: []
+            }
+          ]
+        )
+
+      # When
+      {suites, _meta} =
+        Runs.list_test_suite_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test.id},
+            %{field: :status, op: :==, value: 1}
+          ]
+        })
+
+      # Then
+      assert length(suites) == 1
+      assert hd(suites).name == "FailureSuite"
+      assert hd(suites).status == :failure
+    end
+
+    test "returns empty list when no test suites exist for test run" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: :success,
+              duration: 1000,
+              test_cases: []
+            }
+          ]
+        )
+
+      # When
+      {suites, meta} =
+        Runs.list_test_suite_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      # Then
+      assert suites == []
+      assert meta.total_count == 0
+    end
+  end
+
+  describe "create_test/1" do
+    test "creates a test with basic attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: :success,
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123def456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      assert test.id == test_attrs.id
+      assert test.project_id == project.id
+      assert test.account_id == account.id
+      assert test.duration == 1500
+      assert test.status == 0
+      assert test.model_identifier == "Mac15,6"
+      assert test.macos_version == "14.0"
+      assert test.xcode_version == "15.0"
+      assert test.git_branch == "main"
+      assert test.git_commit_sha == "abc123def456"
+      assert test.is_ci == true
+    end
+
+    test "creates a test with test modules and test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: :success,
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "develop",
+        git_commit_sha: "xyz789",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "MyTestModule",
+            status: :success,
+            duration: 1000,
+            test_cases: [
+              %{name: "testExample1", status: :success, duration: 300},
+              %{name: "testExample2", status: :success, duration: 700}
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      assert test.id == test_attrs.id
+
+      # Verify test module was created
+      {modules, _meta} =
+        Runs.list_test_module_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(modules) == 1
+      module = hd(modules)
+      assert module.name == "MyTestModule"
+      assert module.status == :success
+      assert module.test_case_count == 2
+
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 2
+      case_names = Enum.map(test_cases, & &1.name)
+      assert "testExample1" in case_names
+      assert "testExample2" in case_names
+    end
+
+    test "creates a test with test suites" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 3000,
+        status: :success,
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "feature",
+        git_commit_sha: "feature123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "TestModuleWithSuites",
+            status: :success,
+            duration: 2000,
+            test_suites: [
+              %{name: "UnitTests", status: :success, duration: 1000},
+              %{name: "IntegrationTests", status: :success, duration: 1000}
+            ],
+            test_cases: [
+              %{
+                name: "testUnit1",
+                test_suite_name: "UnitTests",
+                status: :success,
+                duration: 500
+              },
+              %{
+                name: "testIntegration1",
+                test_suite_name: "IntegrationTests",
+                status: :success,
+                duration: 800
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      # Verify test suites were created
+      {suites, _meta} =
+        Runs.list_test_suite_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(suites) == 2
+      suite_names = Enum.map(suites, & &1.name)
+      assert "UnitTests" in suite_names
+      assert "IntegrationTests" in suite_names
+
+      # Verify test cases are linked to suites
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 2
+
+      unit_test_case = Enum.find(test_cases, &(&1.name == "testUnit1"))
+      assert unit_test_case.suite_name == "UnitTests"
+      assert unit_test_case.test_suite_run_id
+
+      integration_test_case = Enum.find(test_cases, &(&1.name == "testIntegration1"))
+      assert integration_test_case.suite_name == "IntegrationTests"
+      assert integration_test_case.test_suite_run_id
+    end
+
+    test "creates a test with failures" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: :failure,
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "bugfix",
+        git_commit_sha: "bugfix456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FailingTestModule",
+            status: :failure,
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testThatFails",
+                status: :failure,
+                duration: 500,
+                failures: [
+                  %{
+                    message: "Expected true but was false",
+                    path: "/path/to/test.swift",
+                    line_number: 42,
+                    issue_type: "assertion"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      # Verify test was created with failure status
+      assert test.status == 1
+
+      # Verify failure was recorded
+      count = Runs.get_test_run_failures_count(test.id)
+      assert count == 1
+
+      {failures, _meta} = Runs.list_test_run_failures(test.id, %{})
+      assert length(failures) == 1
+
+      failure = hd(failures)
+      assert failure.message == "Expected true but was false"
+      assert failure.path == "/path/to/test.swift"
+      assert failure.line_number == 42
+      assert failure.issue_type == "assertion"
+      assert failure.test_case_name == "testThatFails"
+      assert failure.test_module_name == "FailingTestModule"
+    end
+  end
+
+  describe "list_test_module_runs/1" do
+    test "lists test module runs with pagination" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{name: "ModuleA", status: :success, duration: 300, test_cases: []},
+            %{name: "ModuleB", status: :failure, duration: 400, test_cases: []},
+            %{name: "ModuleC", status: :success, duration: 500, test_cases: []}
+          ]
+        )
+
+      # When
+      {modules_page1, meta_page1} =
+        Runs.list_test_module_runs(%{
+          page_size: 2,
+          filters: [%{field: :test_run_id, op: :==, value: test.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      {modules_page2, _meta} =
+        Runs.list_test_module_runs(Flop.to_next_page(meta_page1.flop))
+
+      # Then
+      assert length(modules_page1) == 2
+      assert length(modules_page2) == 1
+      assert meta_page1.total_count == 3
+    end
+
+    test "filters by status" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{name: "SuccessModule", status: :success, duration: 200, test_cases: []},
+            %{name: "FailureModule", status: :failure, duration: 300, test_cases: []}
+          ]
+        )
+
+      # When
+      {modules, _meta} =
+        Runs.list_test_module_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test.id},
+            %{field: :status, op: :==, value: 1}
+          ]
+        })
+
+      # Then
+      assert length(modules) == 1
+      assert hd(modules).name == "FailureModule"
+      assert hd(modules).status == :failure
+    end
+
+    test "returns empty list when no test modules exist for test run" do
+      # Given
+      non_existent_test_id = UUIDv7.generate()
+
+      # When
+      {modules, meta} =
+        Runs.list_test_module_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: non_existent_test_id}]
+        })
+
+      # Then
+      assert modules == []
+      assert meta.total_count == 0
+    end
+  end
+
   describe "list_build_runs/1" do
     test "lists build runs" do
       # Given
