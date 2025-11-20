@@ -675,7 +675,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
@@ -706,7 +706,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
@@ -742,7 +742,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_url = "https://url.com"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -1120,7 +1120,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
@@ -1152,7 +1152,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
@@ -1188,9 +1188,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       # The endpoint should construct the object key even without the run existing
-      # It converts the UUID to an integer ID for the object key
-      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
-      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+      # It uses the UUID directly for the object key
+      object_key = "#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
@@ -1262,7 +1261,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_url = "https://url.com"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -1308,9 +1307,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_url = "https://url.com"
 
       # The endpoint should construct the object key even without the run existing
-      # It converts the UUID to an integer ID for the object key
-      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
-      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+      # It uses the UUID directly for the object key
+      object_key = "#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/result_bundle.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -1393,7 +1391,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "1234"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -1489,7 +1487,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
         upload_id
