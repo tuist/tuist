@@ -8,7 +8,9 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
@@ -2366,8 +2368,8 @@ defmodule Tuist.AccountsTest do
       # Then - Should only have one role/user_role for this user+organization
       roles =
         Tuist.Repo.all(
-          from(ur in Tuist.Accounts.UserRole,
-            join: r in Tuist.Accounts.Role,
+          from(ur in UserRole,
+            join: r in Role,
             on: ur.role_id == r.id,
             where:
               ur.user_id == ^user.id and r.resource_type == "Organization" and
@@ -2392,8 +2394,8 @@ defmodule Tuist.AccountsTest do
       # Then - Should only have one role (the first one created)
       roles =
         Tuist.Repo.all(
-          from(ur in Tuist.Accounts.UserRole,
-            join: r in Tuist.Accounts.Role,
+          from(ur in UserRole,
+            join: r in Role,
             on: ur.role_id == r.id,
             where:
               ur.user_id == ^user.id and r.resource_type == "Organization" and
