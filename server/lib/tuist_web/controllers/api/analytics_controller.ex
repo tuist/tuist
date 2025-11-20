@@ -315,6 +315,7 @@ defmodule TuistWeb.API.AnalyticsController do
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
 
+    # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) do
         case create_test_run_from_command_event(body_params, selected_project) do
@@ -375,6 +376,7 @@ defmodule TuistWeb.API.AnalyticsController do
         preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
         preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
         command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
         bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
         build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
       })

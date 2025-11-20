@@ -17,6 +17,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Authentication
 
@@ -111,7 +112,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "generate",
                "id" => command_event.legacy_id,
                "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}"),
+               "test_run_url" => nil
              }
 
       assert command_event.is_ci == false
@@ -159,7 +161,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}"),
+               "test_run_url" => nil
              }
 
       assert command_event.status == :failure
@@ -211,7 +214,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "id" => response["id"],
                "name" => "generate",
                "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}"),
+               "test_run_url" => nil
              }
 
       assert command_event.is_ci == true
@@ -276,7 +280,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}"),
+               "test_run_url" => nil
              }
 
       assert command_event.cacheable_targets == ["TargetA"]
@@ -513,6 +518,151 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Tuist.UUIDv7.valid?(id)
       assert project_id == project.id
       assert String.contains?(url, "/runs/")
+    end
+
+    test "creates test run automatically when command is test and no test_run_id provided", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "MyScheme"],
+            duration: 5000,
+            tuist_version: "4.56.0",
+            swift_version: "5.9",
+            macos_version: "14.0",
+            is_ci: true,
+            client_id: "client-id",
+            status: "success"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.name == "test"
+      assert command_event.test_run_id
+
+      # Verify the test run was created
+      {:ok, test_run} = Tuist.Runs.get_test(command_event.test_run_id)
+      assert test_run.duration == 5000
+      assert test_run.macos_version == "14.0"
+      assert test_run.xcode_version == "5.9"
+      assert test_run.is_ci == true
+      assert test_run.project_id == project.id
+      assert test_run.account_id == account.id
+      assert test_run.scheme == "MyScheme"
+      assert test_run.status == "success"
+
+      assert response["test_run_url"] ==
+               url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{command_event.test_run_id}")
+    end
+
+    test "uses provided test_run_id when test command includes test_run_id", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # Create a test run first
+      {:ok, existing_test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          status: "success"
+        )
+
+      # When - send test command with existing test_run_id
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "MyScheme"],
+            duration: 3000,
+            tuist_version: "4.56.0",
+            swift_version: "5.9",
+            macos_version: "14.0",
+            is_ci: true,
+            client_id: "client-id",
+            test_run_id: existing_test_run.id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.test_run_id == existing_test_run.id
+
+      assert response["test_run_url"] ==
+               url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
+    end
+
+    test "does not create test run for non-test commands when test_run_id not provided", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When - send generate command without test_run_id
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            command_arguments: ["generate", "App"],
+            duration: 1000,
+            tuist_version: "4.56.0",
+            swift_version: "5.9",
+            macos_version: "14.0",
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.test_run_id == nil
+      assert command_event.name == "generate"
     end
   end
 

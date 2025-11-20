@@ -98,6 +98,8 @@ defmodule Tuist.CommandEvents.Event do
       Map.update!(attrs, :status, fn
         :success -> 0
         :failure -> 1
+        "success" -> 0
+        "failure" -> 1
         other -> other
       end)
     else

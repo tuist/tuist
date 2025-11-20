@@ -12,6 +12,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
 
@@ -1755,8 +1756,6 @@ defmodule Tuist.Runs.Analytics do
   - avg_duration: Average test case duration in milliseconds
   """
   def get_test_run_metrics(test_run_id) do
-    alias Tuist.Runs.TestCaseRun
-
     query =
       from t in TestCaseRun,
         where: t.test_run_id == ^test_run_id,
@@ -1777,6 +1776,66 @@ defmodule Tuist.Runs.Analytics do
           avg_duration: if(is_nil(result.avg_duration), do: 0, else: round(result.avg_duration))
         }
     end
+  end
+
+  @doc """
+  Fetches metrics for multiple test runs with precomputed values.
+
+  Returns a list of maps with:
+  - test_run_id: The test run ID
+  - total_tests: Total number of test cases
+  - cache_hit_rate: Cache hit rate as a string (e.g., "50 %")
+  - skipped_tests: Number of skipped test targets
+  - ran_tests: Number of test cases that actually ran
+  """
+  def test_runs_metrics(test_runs) when is_list(test_runs) do
+    test_run_ids = Enum.map(test_runs, & &1.id)
+
+    results =
+      ClickHouseRepo.all(
+        from(t in TestCaseRun,
+          left_join: e in Event,
+          on: t.test_run_id == e.test_run_id,
+          where: t.test_run_id in ^test_run_ids,
+          group_by: t.test_run_id,
+          select: %{
+            test_run_id: t.test_run_id,
+            total_count: count(t.id),
+            cacheable_targets: fragment("any(?)", e.cacheable_targets),
+            local_cache_target_hits: fragment("any(?)", e.local_cache_target_hits),
+            remote_cache_target_hits: fragment("any(?)", e.remote_cache_target_hits),
+            local_test_target_hits: fragment("any(?)", e.local_test_target_hits),
+            remote_test_target_hits: fragment("any(?)", e.remote_test_target_hits)
+          }
+        )
+      )
+
+    Enum.map(results, fn result ->
+      cacheable_targets = length(result.cacheable_targets || [])
+      local_cache_hits = length(result.local_cache_target_hits || [])
+      remote_cache_hits = length(result.remote_cache_target_hits || [])
+      total_cache_hits = local_cache_hits + remote_cache_hits
+
+      cache_hit_rate =
+        if cacheable_targets == 0 do
+          "0 %"
+        else
+          "#{(total_cache_hits / cacheable_targets * 100) |> Float.floor() |> round()} %"
+        end
+
+      local_test_hits = length(result.local_test_target_hits || [])
+      remote_test_hits = length(result.remote_test_target_hits || [])
+      skipped_tests = local_test_hits + remote_test_hits
+      ran_tests = result.total_count - skipped_tests
+
+      %{
+        test_run_id: result.test_run_id,
+        total_tests: result.total_count,
+        cache_hit_rate: cache_hit_rate,
+        skipped_tests: skipped_tests,
+        ran_tests: ran_tests
+      }
+    end)
   end
 
   @doc """
