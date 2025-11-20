@@ -47,14 +47,11 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 WORKDIR "/app"
-RUN chown nobody /app
-
-RUN mkdir -p /data && chown nobody:nogroup /data
 
 ENV MIX_ENV="prod"
 
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/cache ./
+COPY --from=builder --chown=cache:cache /app/_build/${MIX_ENV}/rel/cache ./
 
-USER nobody
+USER cache
 
 CMD ["/app/bin/server"]

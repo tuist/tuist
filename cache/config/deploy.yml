@@ -38,5 +38,6 @@ env:
 
 volumes:
   - /cas:/cas:rw
+  - /var/lib/cache:/data:rw
   - /run/cache:/run/cache:rw
   - /etc/hostname:/etc/host_hostname:ro

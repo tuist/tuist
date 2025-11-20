@@ -35,7 +35,7 @@ if config_env() == :prod do
     env: System.get_env("APPSIGNAL_ENV")
 
   config :cache, Cache.Repo,
-    database: "/cas/repo.sqlite",
+    database: "/data/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     show_sensitive_data_on_connection_error: false
 
