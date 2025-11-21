@@ -65,5 +65,44 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       assert has_element?(lv, "span", "generate App")
       assert has_element?(lv, "span", "generate AppTwo")
     end
+
+    test "handles cursor mismatch when sort order changes", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      for i <- 1..25 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "App-#{i}"],
+          duration: i * 1000
+        )
+      end
+
+      # Generate a cursor with created_at sorting
+      {_events, %{end_cursor: cursor}} =
+        Tuist.CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :in, value: ["generate"]}
+          ],
+          order_by: [:created_at],
+          order_directions: [:desc],
+          first: 20
+        })
+
+      # Navigate with duration sorting but use the cursor from created_at sorting
+      # Before the fix, this would raise Flop.InvalidParamsError
+      assert {:ok, lv, _html} =
+               live(
+                 conn,
+                 ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs?generate_runs_sort_by=duration&generate_runs_sort_order=asc&after=#{cursor}"
+               )
+
+      assert has_element?(lv, "span", "generate App-1")
+    end
   end
 end

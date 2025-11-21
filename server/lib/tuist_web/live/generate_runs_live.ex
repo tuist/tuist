@@ -32,6 +32,18 @@ defmodule TuistWeb.GenerateRunsLive do
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
 
+    params =
+      cond do
+        Query.sort_changed?(socket, generate_runs_sort_by, generate_runs_sort_order, :generate_runs) ->
+          Query.clear_cursors(params)
+
+        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :generate_runs) ->
+          Query.clear_cursors(params)
+
+        true ->
+          params
+      end
+
     {
       :noreply,
       socket
@@ -53,7 +65,10 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -66,7 +81,10 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -217,8 +235,7 @@ defmodule TuistWeb.GenerateRunsLive do
       |> URI.decode_query()
       |> Map.put("generate_runs_sort_by", column_value)
       |> Map.put("generate_runs_sort_order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
@@ -228,8 +245,7 @@ defmodule TuistWeb.GenerateRunsLive do
       uri.query
       |> URI.decode_query()
       |> Map.put("generate_runs_sort_by", generate_runs_sort_by)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
       |> Map.delete("generate_runs_sort_order")
 
     "?#{URI.encode_query(query_params)}"
