@@ -5,7 +5,7 @@ struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
-            abstract: "Inspects the latest test."
+            abstract: "Inspects the latest test results."
         )
     }
 
