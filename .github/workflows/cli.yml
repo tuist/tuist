@@ -87,7 +87,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
       - name: Build
-        run: swift build --configuration debug
+        run: swift build --configuration debug --force-resolved-versions
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
