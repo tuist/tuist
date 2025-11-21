@@ -1,5 +1,9 @@
 import Config
 
+config :cache, Cache.Guardian,
+  issuer: "tuist",
+  secret_key: "development_guardian_secret_key_at_least_64_characters_long_for_dev"
+
 config :cache, Cache.Repo,
   database: "dev.sqlite3",
   pool_size: 10,

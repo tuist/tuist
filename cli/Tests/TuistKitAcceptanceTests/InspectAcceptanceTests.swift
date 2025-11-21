@@ -140,11 +140,21 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies() async throws {
         try await withMockedDependencies {
             try await setUpFixture(.iosAppWithImplicitDependencies)
-            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
-            XCTAssertStandardOutput(pattern: """
-             - App implicitly depends on: ClassModule, EnumModule, FuncModule, LetModule, ProtocolModule, StructModule, TypeAliasModule, VarModule
-             - FrameworkA implicitly depends on: FrameworkB
-            """)
+            let appDependencies: Set<String> = [
+                "ClassModule",
+                "EnumModule",
+                "FuncModule",
+                "LetModule",
+                "ProtocolModule",
+                "StructModule",
+                "TypeAliasModule",
+                "VarModule",
+            ]
+            let expectedAppIssue = InspectImportsIssue(target: "App", dependencies: appDependencies)
+            let expectedFrameworkIssue = InspectImportsIssue(target: "FrameworkA", dependencies: ["FrameworkB"])
+            let expectedError = InspectImportsServiceError.implicitImportsFound([expectedAppIssue, expectedFrameworkIssue])
+
+            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), expectedError)
         }
     }
 

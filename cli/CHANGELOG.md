@@ -1,13 +1,45 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.104.6<!-- RELEASE NOTES START -->
+## What's Changed in 4.106.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* open registry by [@fortmarek](https://github.com/fortmarek) in [#8708](https://github.com/tuist/tuist/pull/8708)
+### 🐛 Bug Fixes
+
+* external dependency case insensitive lookup by [@fortmarek](https://github.com/fortmarek) in [#8714](https://github.com/tuist/tuist/pull/8714)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.0
+
+## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* fix false negative implicit import detection of transitive local dependencies by [@Kolos65](https://github.com/Kolos65) in [#8665](https://github.com/tuist/tuist/pull/8665)
+* refreshing token data race by [@fortmarek](https://github.com/fortmarek) in [#8706](https://github.com/tuist/tuist/pull/8706)
+
+## New Contributors
+* [@Kolos65](https://github.com/Kolos65) made their first contribution in [#8665](https://github.com/tuist/tuist/pull/8665)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.0...4.105.1
+
+## What's Changed in 4.105.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve error message of tuist inspect implicit-imports by [@n-zaitsev](https://github.com/n-zaitsev) in [#8604](https://github.com/tuist/tuist/pull/8604)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.7...4.105.0
+
+## What's Changed in 4.104.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resolve token refresh data race in ServerAuthenticationController by [@fortmarek](https://github.com/fortmarek) in [#8692](https://github.com/tuist/tuist/pull/8692)
 * skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.6
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.7
 
 ## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
 
@@ -156,9 +188,6 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
-
-## New Contributors
-* [@n-zaitsev](https://github.com/n-zaitsev) made their first contribution in [#8540](https://github.com/tuist/tuist/pull/8540)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
 

@@ -30,7 +30,7 @@ defmodule TuistWeb.Router do
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
@@ -117,6 +117,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.RateLimit.Registry
   end
 
   pipeline :authenticated_api do
@@ -200,6 +201,15 @@ defmodule TuistWeb.Router do
         get Path.join(locale_path_prefix, blog_post_slug),
             MarketingController,
             :blog_post,
+            metadata: %{type: :marketing},
+            private: private
+
+        # Add iframe route for each blog post
+        iframe_path = Path.join([locale_path_prefix, blog_post_slug, "iframe.html"])
+
+        get iframe_path,
+            TuistWeb.Marketing.MarketingBlogIframeController,
+            :show,
             metadata: %{type: :marketing},
             private: private
       end
@@ -410,6 +420,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/api", TuistWeb.API do
+    # Deprecated Swift package registry endpoints
     scope "/accounts/:account_handle/registry", Registry do
       scope "/swift" do
         pipe_through [:api_registry_swift]
@@ -421,6 +432,18 @@ defmodule TuistWeb.Router do
         get "/availability", SwiftController, :availability
         post "/login", SwiftController, :login
       end
+    end
+
+    # Swift package registry endpoints
+    scope "/registry/swift", Registry do
+      pipe_through [:api_registry_swift]
+
+      get "/identifiers", SwiftController, :identifiers
+      get "/:scope/:name", SwiftController, :list_releases
+      get "/:scope/:name/:version", SwiftController, :show_release
+      get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+      get "/availability", SwiftController, :availability
+      post "/login", SwiftController, :login
     end
   end
 

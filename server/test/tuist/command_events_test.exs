@@ -1860,4 +1860,45 @@ defmodule Tuist.CommandEventsTest do
       assert got == 50.0
     end
   end
+
+  describe "get_project_last_interaction_data/1" do
+    test "returns last interaction time for specified projects only" do
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+      project3 = ProjectsFixtures.project_fixture()
+
+      now = DateTime.utc_now()
+      CommandEventsFixtures.command_event_fixture(project_id: project1.id, ran_at: DateTime.add(now, -5, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: project2.id, ran_at: DateTime.add(now, -3, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: project3.id, ran_at: DateTime.add(now, -1, :day))
+
+      result = CommandEvents.get_project_last_interaction_data([project1.id, project3.id])
+
+      assert map_size(result) == 2
+      assert Map.has_key?(result, project1.id)
+      assert Map.has_key?(result, project3.id)
+      refute Map.has_key?(result, project2.id)
+    end
+
+    test "returns most recent interaction when multiple events exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      now = DateTime.utc_now()
+      CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -10, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -5, :day))
+      most_recent = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -1, :day))
+
+      result = CommandEvents.get_project_last_interaction_data([project.id])
+
+      assert result[project.id] == most_recent.ran_at
+    end
+
+    test "returns empty map when no interactions found" do
+      project = ProjectsFixtures.project_fixture()
+
+      result = CommandEvents.get_project_last_interaction_data([project.id])
+
+      assert result == %{}
+    end
+  end
 end

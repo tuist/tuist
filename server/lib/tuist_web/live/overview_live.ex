@@ -161,7 +161,7 @@ defmodule TuistWeb.OverviewLive do
     recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
 
     %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
-      Runs.recent_build_status_counts(project.id, limit: 30, order: :asc)
+      Runs.recent_build_status_counts(project.id, limit: 30)
 
     socket
     |> assign(

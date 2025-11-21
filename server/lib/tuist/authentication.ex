@@ -65,7 +65,7 @@ defmodule Tuist.Authentication do
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
            |> Map.put("preferred_username", preferred_username),
-         {:ok, new_token, new_claims} <- Tuist.Guardian.encode_and_sign(user, new_claims, opts) do
+         {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(user, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     else
@@ -82,6 +82,12 @@ defmodule Tuist.Authentication do
   end
 
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
+    projects =
+      resource
+      |> Projects.get_all_project_accounts(recent: 5)
+      |> Enum.map(& &1.handle)
+
+    claims = Map.put(claims, "projects", projects)
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
   end
 

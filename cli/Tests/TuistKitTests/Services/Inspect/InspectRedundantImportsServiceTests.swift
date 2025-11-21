@@ -60,9 +60,11 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
             given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
+            let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [framework.productName])
+            let expectedError = InspectImportsServiceError.redundantImportsFound([expectedIssue])
+
             // When
-            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
-            XCTAssertStandardError(pattern: "App redundantly depends on: Framework")
+            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
         }
     }
 
@@ -103,9 +105,11 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
             given(targetScanner).imports(for: .value(framework2)).willReturn(Set([]))
 
+            let expectedIssue = InspectImportsIssue(target: framework2.productName, dependencies: [framework.productName])
+            let expectedError = InspectImportsServiceError.redundantImportsFound([expectedIssue])
+
             // When
-            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
-            XCTAssertStandardError(pattern: "Framework2 redundantly depends on: Framework")
+            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
         }
     }
 

@@ -1,9 +1,11 @@
 defmodule Cache.Authentication do
   @moduledoc """
-  Authentication for CAS operations using the /api/projects endpoint.
+  Authentication for CAS operations.
 
   This module validates that a request has proper authorization to access a project
-  by calling the server's /api/projects endpoint and caching the results.
+  by first attempting to decode JWT tokens locally and extract the projects claim.
+  For non-JWT tokens (e.g., project tokens), it falls back to calling the server's
+  /api/projects endpoint and caching the results.
   """
 
   require Logger
@@ -45,11 +47,65 @@ defmodule Cache.Authentication do
     cache_key = {generate_cache_key(auth_header), requested_handle}
 
     case Cachex.get(cache_name(), cache_key) do
-      {:ok, nil} -> fetch_and_cache_projects(auth_header, cache_key, conn)
+      {:ok, nil} -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
       {:ok, result} -> result
-      _ -> fetch_and_cache_projects(auth_header, cache_key, conn)
+      _ -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
     end
   end
+
+  defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn) do
+    token = extract_token(auth_header)
+
+    case verify_jwt(token, requested_handle) do
+      {:ok, ttl} ->
+        cache_result(cache_key, :ok, ttl)
+
+      {:error, :not_jwt} ->
+        fetch_and_cache_projects(auth_header, cache_key, conn)
+
+      {:error, :project_not_in_jwt} ->
+        fetch_and_cache_projects(auth_header, cache_key, conn)
+
+      {:error, _reason} ->
+        fetch_and_cache_projects(auth_header, cache_key, conn)
+    end
+  end
+
+  defp extract_token("Bearer " <> token), do: token
+  defp extract_token(token), do: token
+
+  defp verify_jwt(token, requested_handle) do
+    case Cache.Guardian.decode_and_verify(token) do
+      {:ok, claims} ->
+        projects = Map.get(claims, "projects", [])
+        exp = Map.get(claims, "exp")
+
+        if requested_handle in projects do
+          ttl = calculate_ttl(exp)
+          {:ok, ttl}
+        else
+          {:error, :project_not_in_jwt}
+        end
+
+      {:error, _reason} ->
+        {:error, :not_jwt}
+    end
+  end
+
+  defp calculate_ttl(nil), do: success_ttl()
+
+  defp calculate_ttl(exp) when is_integer(exp) do
+    now = System.system_time(:second)
+    seconds_until_expiry = exp - now
+
+    if seconds_until_expiry > 0 do
+      to_timeout(second: min(seconds_until_expiry, @success_cache_ttl))
+    else
+      to_timeout(second: 0)
+    end
+  end
+
+  defp calculate_ttl(_), do: success_ttl()
 
   defp fetch_and_cache_projects(auth_header, cache_key, conn) do
     headers = build_headers(auth_header, conn)

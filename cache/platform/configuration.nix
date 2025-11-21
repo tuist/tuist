@@ -77,11 +77,12 @@
     pkgs.gitMinimal
     pkgs.parted
     pkgs.gptfdisk
-		pkgs.sqlite
+    pkgs.sqlite
   ];
 
   systemd.tmpfiles.rules = [
-    "Z /cas 0755 nobody nogroup - -"
+    "Z /cas 0755 cache cache - -"
+    "d /var/lib/cache 0755 cache cache - -"
     "d /run/cache 0777 root root - -"
   ];
 }

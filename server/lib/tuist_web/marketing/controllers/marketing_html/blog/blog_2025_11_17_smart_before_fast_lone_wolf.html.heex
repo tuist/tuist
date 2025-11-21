@@ -1,0 +1,579 @@
+<% custom_head =
+  ~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>
+    <script nonce="#{get_csp_nonce()}" src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script nonce="#{get_csp_nonce()}" src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>|
+
+custom_styles = """
+  #viz-container {
+    width: 100%;
+    height: 400px;
+    position: relative;
+    background: transparent;
+    margin: 0;
+    padding: 0 15px;
+    box-sizing: border-box;
+  }
+
+  #sankey {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #viz-3d-container {
+    width: 100%;
+    height: 500px;
+    position: relative;
+    background: transparent;
+    border-top: 1px solid var(--noora-border-secondary, #e5e7eb);
+    padding-top: 40px;
+  }
+
+  .viz-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--noora-surface-label-primary, #111827);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .viz-subtitle {
+    font-size: 12px;
+    color: var(--noora-surface-label-secondary, #6b7280);
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  #three-canvas {
+    display: block;
+    border-radius: 8px;
+  }
+"""
+
+custom_script = """
+    document.addEventListener('DOMContentLoaded', function() {
+      const container = document.getElementById('viz-container');
+      if (!container) {
+        console.error('viz-container not found');
+        return;
+      }
+
+      const width = container.clientWidth;
+      const height = 400;
+      // Calculate margins for responsive layout - ensure enough space for labels
+      const isMobile = width < 768;
+      // On mobile, use smaller fixed margins; on desktop, use percentage-based
+      const leftLabelSpace = isMobile ? 95 : Math.max(170, width * 0.22);
+      const rightLabelSpace = isMobile ? 85 : Math.max(120, width * 0.17);
+      const margin = {
+        top: 20,
+        right: rightLabelSpace,
+        bottom: 20,
+        left: leftLabelSpace
+      };
+
+      // Colors
+      const colors = {
+        developer: "#3b82f6",
+        codexLocal: "#8b5cf6",
+        codexRemote: "#ec4899",
+        main: "#10b981"
+      };
+
+      // State
+      let commitsToday = 0;
+      let codexLocalInstances = 1;
+      let codexRemoteInstances = 2;
+      let svg, graph, nodes;
+      let isUpdating = false;
+      let lastCommitTime = new Map(); // Track last commit time per source
+
+      // Commit rates (average seconds between commits) - slowed down
+      const commitRates = {
+        developer: 12,
+        codexLocal: 16,
+        codexRemote: 20
+      };
+
+      function updateVisualization() {
+        if (isUpdating) return; // Prevent overlapping updates
+        isUpdating = true;
+
+        // Define the data structure
+        const nodeData = [
+          { id: "developer", label: "Developer", color: colors.developer },
+          { id: "main", label: "main", color: colors.main }
+        ];
+
+        const links = [];
+
+        // Developer always present
+        links.push({ source: "developer", target: "main", value: 2 });
+
+        // Add local codex instances
+        for (let i = 0; i < codexLocalInstances; i++) {
+          nodeData.push({
+            id: `codex-local-${i}`,
+            label: `Codex (local)`,
+            color: colors.codexLocal
+          });
+          links.push({
+            source: `codex-local-${i}`,
+            target: "main",
+            value: 2
+          });
+        }
+
+        // Add remote codex instances
+        for (let i = 0; i < codexRemoteInstances; i++) {
+          nodeData.push({
+            id: `codex-remote-${i}`,
+            label: `Codex (remote)`,
+            color: colors.codexRemote
+          });
+          links.push({
+            source: `codex-remote-${i}`,
+            target: "main",
+            value: 2
+          });
+        }
+
+        const data = { nodes: nodeData, links };
+
+        // Clear previous visualization
+        d3.select("#sankey").selectAll("*").remove();
+
+        // Create SVG
+        svg = d3.select("#sankey")
+          .attr("width", width)
+          .attr("height", height)
+          .attr("viewBox", [0, 0, width, height])
+          .style("background", "transparent");
+
+        // Add subtle grid
+        const gridGroup = svg.append("g").attr("class", "grid");
+        for (let i = margin.top; i < height - margin.bottom; i += 40) {
+          gridGroup.append("line")
+            .attr("class", "grid-line")
+            .attr("x1", margin.left)
+            .attr("y1", i)
+            .attr("x2", width - margin.right)
+            .attr("y2", i);
+        }
+
+        // Create Sankey generator
+        const sankey = d3.sankey()
+          .nodeId(d => d.id)
+          .nodeWidth(16)
+          .nodePadding(25)
+          .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
+
+        // Process the data
+        graph = sankey({
+          nodes: data.nodes.map(d => Object.assign({}, d)),
+          links: data.links.map(d => Object.assign({}, d))
+        });
+
+        // Draw links (connection lines)
+        const linkGroups = svg.append("g")
+          .selectAll("path")
+          .data(graph.links)
+          .join("path")
+          .attr("class", "link")
+          .attr("d", d3.sankeyLinkHorizontal())
+          .attr("stroke", d => {
+            const sourceNode = data.nodes.find(n => n.id === d.source.id);
+            return sourceNode.color;
+          });
+
+        // Draw nodes
+        const nodeGroups = svg.append("g")
+          .selectAll("g")
+          .data(graph.nodes)
+          .join("g");
+
+        // Node rectangles
+        nodeGroups.append("rect")
+          .attr("class", d => d.id !== "main" ? "node-rect coding" : "node-rect")
+          .attr("x", d => d.x0)
+          .attr("y", d => d.y0)
+          .attr("height", d => d.y1 - d.y0)
+          .attr("width", d => d.x1 - d.x0)
+          .attr("fill", d => d.color)
+          .attr("rx", 2);
+
+        // Add labels - position them safely within margins
+        const labelOffset = 8;
+        const diagramCenter = margin.left + (width - margin.left - margin.right) / 2;
+
+        nodeGroups.append("text")
+          .attr("class", "node-label")
+          .attr("x", d => {
+            if (d.x0 < diagramCenter) {
+              // Left side - position at margin edge
+              return margin.left - labelOffset;
+            } else {
+              // Right side
+              return d.x1 + labelOffset;
+            }
+          })
+          .attr("y", d => (d.y0 + d.y1) / 2)
+          .attr("text-anchor", d => d.x0 < diagramCenter ? "end" : "start")
+          .attr("dy", "0.35em")
+          .style("font-size", isMobile ? "11px" : null)
+          .text(d => {
+            // Shorten labels on mobile
+            if (isMobile) {
+              if (d.label.includes("Codex (local)")) return "Codex (L)";
+              if (d.label.includes("Codex (remote)")) return "Codex (R)";
+            }
+            return d.label;
+          });
+
+        // Add commit counter below main label
+        const mainNode = graph.nodes.find(n => n.id === "main");
+        if (mainNode) {
+          svg.append("text")
+            .attr("id", "commits-counter-text")
+            .attr("class", "commit-counter")
+            .attr("x", mainNode.x1 + labelOffset)
+            .attr("y", (mainNode.y0 + mainNode.y1) / 2 + 20)
+            .attr("text-anchor", "start")
+            .style("font-size", isMobile ? "11px" : null)
+            .text("0 commits");
+        }
+
+        // Schedule commits for all sources
+        const sourceNodes = graph.nodes.filter(d => d.id !== "main");
+        sourceNodes.forEach(node => {
+          scheduleCommit(node);
+        });
+
+        isUpdating = false;
+      }
+
+      function scheduleCommit(sourceNode) {
+        // Determine commit rate based on source type
+        let rate;
+        if (sourceNode.id === "developer") {
+          rate = commitRates.developer;
+        } else if (sourceNode.id.includes("local")) {
+          rate = commitRates.codexLocal;
+        } else {
+          rate = commitRates.codexRemote;
+        }
+
+        // Ensure minimum time between commits from same source
+        const now = Date.now();
+        const lastTime = lastCommitTime.get(sourceNode.id) || 0;
+        const timeSinceLastCommit = now - lastTime;
+        const minDelay = rate * 1000 * 0.8;
+
+        let delay = (rate * 1000) * (0.8 + Math.random() * 0.4); // ±20% variation
+
+        // If too soon since last commit, add extra delay
+        if (timeSinceLastCommit < minDelay) {
+          delay += (minDelay - timeSinceLastCommit);
+        }
+
+        setTimeout(() => {
+          if (isUpdating) {
+            // Skip this commit if graph is updating
+            scheduleCommit(sourceNode);
+            return;
+          }
+
+          // Find the link for this source
+          const link = graph.links.find(l => l.source.id === sourceNode.id);
+          if (link) {
+            lastCommitTime.set(sourceNode.id, Date.now());
+            animateCommit(sourceNode, link);
+          }
+
+          // Schedule next commit
+          scheduleCommit(sourceNode);
+        }, delay);
+      }
+
+      function animateCommit(sourceNode, link) {
+        // Get the path element for this link
+        const pathElement = svg.selectAll(".link")
+          .filter(d => d.source.id === sourceNode.id)
+          .node();
+
+        if (!pathElement) return;
+
+        const pathLength = pathElement.getTotalLength();
+        const startPoint = pathElement.getPointAtLength(0);
+
+        // Create commit dot
+        const commitDot = svg.append("circle")
+          .attr("class", "commit-dot")
+          .attr("cx", startPoint.x)
+          .attr("cy", startPoint.y)
+          .attr("r", 6)
+          .attr("fill", sourceNode.color);
+
+        // Animate along the path
+        commitDot
+          .transition()
+          .duration(1500)
+          .ease(d3.easeCubicInOut)
+          .tween("pathTween", function() {
+            return function(t) {
+              const point = pathElement.getPointAtLength(t * pathLength);
+              d3.select(this)
+                .attr("cx", point.x)
+                .attr("cy", point.y);
+            };
+          })
+          .on("end", () => {
+            // Flash effect on arrival
+            commitDot
+              .transition()
+              .duration(200)
+              .attr("r", 10)
+              .attr("opacity", 0.5)
+              .transition()
+              .duration(200)
+              .attr("r", 0)
+              .attr("opacity", 0)
+              .remove();
+
+            // Update counter
+            commitsToday++;
+            const counterText = svg.select("#commits-counter-text");
+            if (counterText.node()) {
+              counterText.text(`${commitsToday} commits`);
+            }
+          });
+      }
+
+      function randomlyAdjustAgents() {
+        // Randomly add/remove local codex
+        if (Math.random() > 0.5 && codexLocalInstances < 2) {
+          codexLocalInstances++;
+          updateVisualization();
+        } else if (Math.random() > 0.7 && codexLocalInstances > 1) {
+          codexLocalInstances--;
+          updateVisualization();
+        }
+
+        // Randomly add/remove remote codex
+        if (Math.random() > 0.6 && codexRemoteInstances < 3) {
+          codexRemoteInstances++;
+          updateVisualization();
+        } else if (Math.random() > 0.8 && codexRemoteInstances > 1) {
+          codexRemoteInstances--;
+          updateVisualization();
+        }
+
+        // Schedule next adjustment
+        setTimeout(randomlyAdjustAgents, 8000 + Math.random() * 7000);
+      }
+
+      // Initial render
+      updateVisualization();
+
+      // Redraw on window resize for responsive behavior
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          updateVisualization();
+        }, 250);
+      });
+
+      // Start random agent adjustments
+      setTimeout(randomlyAdjustAgents, 5000);
+
+      // ========== 3D VISUALIZATION ==========
+      const canvas3DWrapper = document.getElementById('three-canvas-wrapper');
+      if (!canvas3DWrapper) return;
+
+      // Three.js setup
+      const scene = new THREE.Scene();
+      scene.background = null;
+
+      const camera = new THREE.PerspectiveCamera(60, canvas3DWrapper.clientWidth / 500, 0.1, 1000);
+      camera.position.set(15, 15, 15);
+      camera.lookAt(0, 5, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(canvas3DWrapper.clientWidth, 500);
+      canvas3DWrapper.appendChild(renderer.domElement);
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+      directionalLight.position.set(10, 20, 10);
+      scene.add(directionalLight);
+
+      // Grid to show XY plane (codebase space)
+      const gridHelper = new THREE.GridHelper(20, 20, 0xe5e7eb, 0xf3f4f6);
+      gridHelper.position.y = 0;
+      scene.add(gridHelper);
+
+      // Axis helpers
+      const axesHelper = new THREE.AxesHelper(12);
+      scene.add(axesHelper);
+
+      // Labels for axes (using sprites would be better but keeping simple)
+      const addAxisLabel = (text, position) => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 64;
+        context.font = '32px monospace';
+        context.fillStyle = '#6b7280';
+        context.fillText(text, 10, 40);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.position.copy(position);
+        sprite.scale.set(2, 0.5, 1);
+        scene.add(sprite);
+      };
+
+      addAxisLabel('X (Codebase)', new THREE.Vector3(12, 0, 0));
+      addAxisLabel('Y (Codebase)', new THREE.Vector3(0, 0, -12));
+      addAxisLabel('Time →', new THREE.Vector3(0, 12, 0));
+
+      // Track active commits in 3D space
+      const activeCommits3D = [];
+      const codebaseAreas = [
+        { name: 'Developer', color: 0x3b82f6, x: -5, y: -5 },
+        { name: 'Codex-Local', color: 0x8b5cf6, x: 5, y: -5 },
+        { name: 'Codex-Remote', color: 0xec4899, x: -5, y: 5 }
+      ];
+
+      // Create commit in 3D space
+      function create3DCommit() {
+        const area = codebaseAreas[Math.floor(Math.random() * codebaseAreas.length)];
+
+        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const material = new THREE.MeshStandardMaterial({
+          color: area.color,
+          emissive: area.color,
+          emissiveIntensity: 0.3
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+
+        // Start at origin (z=0) at the area's XY position
+        sphere.position.set(
+          area.x + (Math.random() - 0.5) * 2,
+          0,
+          area.y + (Math.random() - 0.5) * 2
+        );
+
+        scene.add(sphere);
+
+        // Create trail line
+        const trailGeometry = new THREE.BufferGeometry();
+        const trailMaterial = new THREE.LineBasicMaterial({
+          color: area.color,
+          opacity: 0.4,
+          transparent: true
+        });
+        const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+        scene.add(trailLine);
+
+        activeCommits3D.push({
+          mesh: sphere,
+          trail: trailLine,
+          trailPoints: [sphere.position.clone()],
+          targetHeight: 10, // Height when merged to main
+          speed: 0.02 + Math.random() * 0.02,
+          startTime: Date.now()
+        });
+      }
+
+      // Mouse controls for rotation
+      let isDragging = false;
+      let previousMousePosition = { x: 0, y: 0 };
+
+      renderer.domElement.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      });
+
+      renderer.domElement.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const deltaX = e.clientX - previousMousePosition.x;
+        const deltaY = e.clientY - previousMousePosition.y;
+
+        const rotationSpeed = 0.005;
+        camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX * rotationSpeed);
+
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+        camera.lookAt(0, 5, 0);
+      });
+
+      renderer.domElement.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+
+      // Animation loop
+      function animate3D() {
+        requestAnimationFrame(animate3D);
+
+        // Update commits
+        for (let i = activeCommits3D.length - 1; i >= 0; i--) {
+          const commit = activeCommits3D[i];
+
+          // Move up (through time)
+          if (commit.mesh.position.y < commit.targetHeight) {
+            commit.mesh.position.y += commit.speed;
+
+            // Update trail
+            commit.trailPoints.push(commit.mesh.position.clone());
+            if (commit.trailPoints.length > 30) commit.trailPoints.shift();
+
+            const positions = new Float32Array(commit.trailPoints.length * 3);
+            commit.trailPoints.forEach((p, idx) => {
+              positions[idx * 3] = p.x;
+              positions[idx * 3 + 1] = p.y;
+              positions[idx * 3 + 2] = p.z;
+            });
+            commit.trail.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          } else {
+            // Reached main - remove
+            scene.remove(commit.mesh);
+            scene.remove(commit.trail);
+            activeCommits3D.splice(i, 1);
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      animate3D();
+
+      // Create commits periodically
+      setInterval(() => {
+        if (Math.random() > 0.3) {
+          create3DCommit();
+        }
+      }, 2000);
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        camera.aspect = canvas3DWrapper.clientWidth / 500;
+        camera.updateProjectionMatrix();
+        renderer.setSize(canvas3DWrapper.clientWidth, 500);
+      });
+    });
+""" %>
+
+<TuistWeb.Marketing.Components.BlogIframeLayout.base
+  custom_styles={custom_styles}
+  custom_script={custom_script}
+  custom_head={custom_head}
+>
+  <div id="viz-container" phx-update="ignore">
+    <svg id="sankey"></svg>
+  </div>
+</TuistWeb.Marketing.Components.BlogIframeLayout.base>
