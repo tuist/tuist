@@ -83,7 +83,7 @@ To quickly access the dashboard, run `tuist project show --web` from the CLI.
 
 ## Tests {#tests}
 
-In addition to tracking build times, you can also monitor your tests. Test insights help you identify slow tests or quickly understand failed CI runs.
+In addition to tracking builds, you can also monitor your tests. Test insights help you identify slow tests or quickly understand failed CI runs.
 
 To start tracking your tests, you can leverage the `tuist inspect test` command by adding it to your scheme's test post-action:
 
@@ -95,6 +95,14 @@ In case you're using [Mise](https://mise.jdx.dev/), your script will need to act
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
+
+::: tip MISE & PROJECT PATHS
+<!-- -->
+Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
+which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
+can run Mise from the directory pointed to by $SRCROOT.
+<!-- -->
+:::
 
 Your test runs are now tracked as long as you are logged in to your Tuist account. You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
@@ -149,7 +157,8 @@ let project = Project(
                         title: "Inspect Test",
                         scriptText: """
                         $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-                        """
+                        """,
+                        target: "MyAppTests"
                     )
                 ]
             ),
