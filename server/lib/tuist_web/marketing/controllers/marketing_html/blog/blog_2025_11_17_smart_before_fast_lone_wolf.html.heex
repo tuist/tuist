@@ -10,7 +10,14 @@ custom_styles = """
     position: relative;
     background: transparent;
     margin: 0;
-    padding: 0;
+    padding: 0 15px;
+    box-sizing: border-box;
+  }
+
+  #sankey {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 
   #viz-3d-container {
@@ -53,13 +60,15 @@ custom_script = """
 
       const width = container.clientWidth;
       const height = 400;
-      // Calculate margins for responsive layout
+      // Calculate margins for responsive layout - ensure enough space for labels
       const isMobile = width < 768;
+      const leftLabelSpace = Math.max(170, width * 0.22);
+      const rightLabelSpace = Math.max(120, width * 0.17);
       const margin = {
         top: 20,
-        right: isMobile ? 80 : 120,
+        right: rightLabelSpace,
         bottom: 20,
-        left: isMobile ? 100 : 120
+        left: leftLabelSpace
       };
 
       // Colors
@@ -192,14 +201,23 @@ custom_script = """
           .attr("fill", d => d.color)
           .attr("rx", 2);
 
-        // Add labels with responsive offsets
-        const labelOffset = isMobile ? 6 : 12;
+        // Add labels - position them safely within margins
+        const labelOffset = 8;
+        const diagramCenter = margin.left + (width - margin.left - margin.right) / 2;
 
         nodeGroups.append("text")
           .attr("class", "node-label")
-          .attr("x", d => d.x0 < width / 2 ? d.x0 - labelOffset : d.x1 + labelOffset)
+          .attr("x", d => {
+            if (d.x0 < diagramCenter) {
+              // Left side - position at margin edge
+              return margin.left - labelOffset;
+            } else {
+              // Right side
+              return d.x1 + labelOffset;
+            }
+          })
           .attr("y", d => (d.y0 + d.y1) / 2)
-          .attr("text-anchor", d => d.x0 < width / 2 ? "end" : "start")
+          .attr("text-anchor", d => d.x0 < diagramCenter ? "end" : "start")
           .attr("dy", "0.35em")
           .text(d => d.label);
 

@@ -9,6 +9,8 @@ custom_styles = """
     background: transparent;
     display: flex;
     flex-direction: column;
+    padding: 0 15px;
+    box-sizing: border-box;
   }
 
   #sankey {
@@ -96,13 +98,15 @@ custom_script = """
 
       const width = container.clientWidth;
       const height = 500;
-      // Calculate margins for responsive layout
+      // Calculate margins for responsive layout - ensure enough space for labels
       const isMobile = width < 768;
+      const leftLabelSpace = Math.max(170, width * 0.22);
+      const rightLabelSpace = Math.max(120, width * 0.17);
       const margin = {
         top: 30,
-        right: isMobile ? 80 : 120,
+        right: rightLabelSpace,
         bottom: 120,
-        left: isMobile ? 100 : 120
+        left: leftLabelSpace
       };
 
       // Colors - expanded palette
@@ -234,14 +238,27 @@ custom_script = """
           .attr("rx", 2);
 
         // Add labels with responsive offsets
-        const labelOffset = isMobile ? 6 : 12;
+        const labelOffset = 8;
+        const diagramLeft = margin.left + (width - margin.left - margin.right) / 3;
+        const diagramRight = margin.left + 2 * (width - margin.left - margin.right) / 3;
 
         nodeGroups.append("text")
           .attr("class", "node-label")
-          .attr("x", d => d.x0 < width / 3 ? d.x0 - labelOffset : (d.x0 > width * 2/3 ? d.x1 + labelOffset : (d.x0 + d.x1) / 2))
-          .attr("y", d => d.x0 >= width / 3 && d.x0 <= width * 2/3 ? d.y0 - 8 : (d.y0 + d.y1) / 2)
-          .attr("text-anchor", d => d.x0 < width / 3 ? "end" : (d.x0 > width * 2/3 ? "start" : "middle"))
-          .attr("dy", d => d.x0 >= width / 3 && d.x0 <= width * 2/3 ? "0" : "0.35em")
+          .attr("x", d => {
+            if (d.x0 < diagramLeft) {
+              // Left side - position at margin edge
+              return margin.left - labelOffset;
+            } else if (d.x0 > diagramRight) {
+              // Right side
+              return d.x1 + labelOffset;
+            } else {
+              // Middle
+              return (d.x0 + d.x1) / 2;
+            }
+          })
+          .attr("y", d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? d.y0 - 8 : (d.y0 + d.y1) / 2)
+          .attr("text-anchor", d => d.x0 < diagramLeft ? "end" : (d.x0 > diagramRight ? "start" : "middle"))
+          .attr("dy", d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? "0" : "0.35em")
           .text(d => d.label);
 
         // Add commits counter under main
