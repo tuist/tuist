@@ -26,7 +26,7 @@ struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
     var derivedDataPath: String?
 
     @Argument(
-        help: "The path to the result bundle (.xcresult) to inspect. If not provided, the most recent result bundle from derived data will be used.",
+        help: "The path to the result bundle (.xcresult) to inspect. If not provided, the most recent result bundle from the derived data directory will be used.",
         completion: .file(extensions: ["xcresult"]),
         envKey: .inspectTestResultBundlePath
     )
