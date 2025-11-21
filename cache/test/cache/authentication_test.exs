@@ -224,7 +224,7 @@ defmodule Cache.AuthenticationTest do
       assert {:ok, ^auth_header} = result
     end
 
-    test "returns error when project not in JWT claims" do
+    test "falls back to API call when project not in JWT claims (may be outside top 5)" do
       projects = ["other-account/other-project"]
       exp = System.system_time(:second) + 3600
 
@@ -236,11 +236,15 @@ defmodule Cache.AuthenticationTest do
       }
 
       {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
-      conn = build_conn([{"authorization", "Bearer #{jwt_token}"}])
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      api_projects = [%{"full_name" => "account/project"}]
+      stub_api_call(200, %{"projects" => api_projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project")
 
-      assert result == {:error, 404, "Unauthorized or not found"}
+      assert {:ok, ^auth_header} = result
     end
 
     test "caches JWT authorization result", %{jwt_token: jwt_token} do
@@ -253,9 +257,12 @@ defmodule Cache.AuthenticationTest do
       {:ok, :ok} = Cachex.get(@cache_name, cache_key)
     end
 
-    test "caches JWT rejection when project not found", %{jwt_token: jwt_token} do
+    test "falls back to API and caches rejection when project not found in API either", %{jwt_token: jwt_token} do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
+
+      api_projects = [%{"full_name" => "other/project"}]
+      stub_api_call(200, %{"projects" => api_projects})
 
       result = Authentication.ensure_project_accessible(conn, "nonexistent", "project")
 

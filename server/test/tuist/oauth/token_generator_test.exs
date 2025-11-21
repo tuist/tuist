@@ -6,11 +6,13 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture()
     project = ProjectsFixtures.project_fixture(account: user.account)
+    CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     client = %{
       id: "test-client-id",
