@@ -106,7 +106,7 @@ extension XcodeGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name, condition):
-            guard let dependencies = normalizedExternalDependencies[name.lowercased()] else {
+            guard let dependencies = externalDependencies[name] ?? normalizedExternalDependencies[name.lowercased()] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
 
