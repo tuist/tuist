@@ -226,6 +226,7 @@ struct InspectTestCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.variables = [:]
         mockedEnvironment.workspacePath = "/tmp/path"
+        mockedEnvironment.currentExecutablePathStub = "/usr/bin/tuist"
 
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
@@ -237,7 +238,7 @@ struct InspectTestCommandServiceTests {
         // Then
         verify(backgroundProcessRunner)
             .runInBackground(
-                .any,
+                .value(["/usr/bin/tuist", "inspect", "test"]),
                 environment: .matching {
                     $0["TUIST_INSPECT_TEST_WAIT"] == "YES"
                 }

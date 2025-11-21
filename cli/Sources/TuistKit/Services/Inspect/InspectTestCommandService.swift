@@ -62,31 +62,30 @@ struct InspectTestCommandService {
         derivedDataPath: String? = nil,
         resultBundlePath: String? = nil
     ) async throws {
-        guard let executablePath = Bundle.main.executablePath else {
-            throw InspectTestCommandServiceError.executablePathMissing
-        }
-
         if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
            Environment.current.workspacePath != nil
         {
+            guard let executablePath = Environment.current.currentExecutablePath() else {
+                throw InspectTestCommandServiceError.executablePathMissing
+            }
             var environment = Environment.current.variables
             environment["TUIST_INSPECT_TEST_WAIT"] = "YES"
             try backgroundProcessRunner.runInBackground(
-                [executablePath, "inspect", "test"],
+                [executablePath.pathString, "inspect", "test"],
                 environment: environment
             )
             return
         }
 
-        let basePath = try await self.path(path)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let resolvedResultBundlePath = try await resolveResultBundlePath(
             resultBundlePath: resultBundlePath,
-            basePath: basePath,
+            basePath: path,
             derivedDataPath: derivedDataPath
         )
 
-        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
         let config = try await configLoader.loadConfig(path: projectPath)
         let test = try await inspectResultBundleService.inspectResultBundle(
             resultBundlePath: resolvedResultBundlePath,
@@ -128,16 +127,5 @@ struct InspectTestCommandService {
             throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
         }
         return try AbsolutePath(validating: xcResultFile.url.path)
-    }
-
-    private func path(_ path: String?) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        if let path {
-            return try AbsolutePath(
-                validating: path, relativeTo: currentWorkingDirectory
-            )
-        } else {
-            return currentWorkingDirectory
-        }
     }
 }
