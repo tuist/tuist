@@ -41,12 +41,12 @@ defmodule TuistWeb.RateLimit.Registry do
       if authenticated? do
         {
           "registry:auth:#{get_subject_id(conn)}",
-          Environment.registry_rate_limit_authenticated_bucket_size()
+          100
         }
       else
         {
           "registry:unauth:#{TuistWeb.RemoteIp.get(conn)}",
-          Environment.registry_rate_limit_unauthenticated_bucket_size()
+          1
         }
       end
 
