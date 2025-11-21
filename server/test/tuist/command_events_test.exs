@@ -1886,7 +1886,9 @@ defmodule Tuist.CommandEventsTest do
       now = DateTime.utc_now()
       CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -10, :day))
       CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -5, :day))
-      most_recent = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -1, :day))
+
+      most_recent =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -1, :day))
 
       result = CommandEvents.get_project_last_interaction_data([project.id])
 
