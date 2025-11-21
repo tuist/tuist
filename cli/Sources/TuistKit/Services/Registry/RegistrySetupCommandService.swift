@@ -72,27 +72,27 @@ struct RegistrySetupCommandService {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        try await Noora.current.progressStep(
-            message: "Logging into the registry...",
-            successMessage: "Logged in to the \(accountHandle) registry",
-            errorMessage: nil,
-            showSpinner: true
-        ) { _ in
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let registryURL = serverURL.appending(
-                path: "api/accounts/\(accountHandle)/registry/swift"
-            )
-
-            let token = try await createAccountTokenService.createAccountToken(
-                accountHandle: accountHandle,
-                scopes: [.accountRegistryRead],
-                serverURL: serverURL
-            )
-            try await swiftPackageManagerController.packageRegistryLogin(
-                token: token,
-                registryURL: registryURL
-            )
-        }
+//        try await Noora.current.progressStep(
+//            message: "Logging into the registry...",
+//            successMessage: "Logged in to the \(accountHandle) registry",
+//            errorMessage: nil,
+//            showSpinner: true
+//        ) { _ in
+//            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+//            let registryURL = serverURL.appending(
+//                path: "api/accounts/\(accountHandle)/registry/swift"
+//            )
+//
+//            let token = try await createAccountTokenService.createAccountToken(
+//                accountHandle: accountHandle,
+//                scopes: [.accountRegistryRead],
+//                serverURL: serverURL
+//            )
+//            try await swiftPackageManagerController.packageRegistryLogin(
+//                token: token,
+//                registryURL: registryURL
+//            )
+//        }
 
         let swiftPackageManagerPath: AbsolutePath
 
@@ -164,19 +164,25 @@ struct RegistrySetupCommandService {
           },
           "authentication": {
             "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/accounts/\(accountHandle)/registry/swift/login",
+              "loginAPIPath": "/api/registry/swift/login",
               "type": "token"
             }
           },
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/accounts/\(accountHandle)/registry/swift"
+              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
             }
           },
           "version": 1
         }
 
         """
+//        "authentication": {
+//          "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
+//            "loginAPIPath": "/api/accounts/\(accountHandle)/registry/swift/login",
+//            "type": "token"
+//          }
+//        },
     }
 }
