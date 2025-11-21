@@ -7,7 +7,7 @@
     }
   },
   "authentication": {
-    "staging.tuist.dev": {
+    "canary.tuist.dev": {
       "loginAPIPath": "/api/registry/swift/login",
       "type": "token"
     }
@@ -15,7 +15,7 @@
   "registries": {
     "[default]": {
       "supportsAvailability": false,
-      "url": "https://staging.tuist.dev/api/registry/swift"
+      "url": "https://canary.tuist.dev/api/registry/swift"
     }
   },
   "version": 1
