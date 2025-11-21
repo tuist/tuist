@@ -650,6 +650,48 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns the rate limit bucket size for unauthenticated registry requests.
+
+  The bucket size determines how many requests an unauthenticated user can make
+  to the Swift package registry before rate limiting kicks in.
+
+  The default values are:
+  - 1000 requests for canary environments
+  - 100 requests for other environments
+
+  This can be overridden via:
+  - Environment variable: TUIST_REGISTRY_RATE_LIMIT_UNAUTHENTICATED_BUCKET_SIZE
+  - Secrets configuration: registry_rate_limit.unauthenticated_bucket_size
+  """
+  def registry_rate_limit_unauthenticated_bucket_size(secrets \\ secrets()) do
+    case get([:registry_rate_limit, :unauthenticated_bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 1000, else: 100
+    end
+  end
+
+  @doc """
+  Returns the rate limit bucket size for authenticated registry requests.
+
+  The bucket size determines how many requests an authenticated user can make
+  to the Swift package registry before rate limiting kicks in.
+
+  The default values are:
+  - 100000 requests for canary environments
+  - 10000 requests for other environments
+
+  This can be overridden via:
+  - Environment variable: TUIST_REGISTRY_RATE_LIMIT_AUTHENTICATED_BUCKET_SIZE
+  - Secrets configuration: registry_rate_limit.authenticated_bucket_size
+  """
+  def registry_rate_limit_authenticated_bucket_size(secrets \\ secrets()) do
+    case get([:registry_rate_limit, :authenticated_bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 100_000, else: 10_000
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

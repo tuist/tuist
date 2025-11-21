@@ -117,6 +117,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.RateLimit.Registry
   end
 
   pipeline :authenticated_api do
