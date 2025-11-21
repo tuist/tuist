@@ -26,7 +26,7 @@ defmodule Cache.MixProject do
   defp deps do
     [
       {:appsignal, "~> 2.8"},
-      {:appsignal_phoenix, "~> 2.0"},
+      {:appsignal_phoenix, "~> 2.7.0"},
       {:bandit, "~> 1.8"},
       {:briefly, "~> 0.5", only: :test},
       {:broadway, "~> 1.0"},
@@ -37,8 +37,10 @@ defmodule Cache.MixProject do
       {:ecto_sqlite3, "~> 0.17"},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
+      {:guardian, "~> 2.3"},
       {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
+      {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.17"},
       {:phoenix, "~> 1.7.12"},

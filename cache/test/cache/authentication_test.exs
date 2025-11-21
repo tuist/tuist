@@ -189,6 +189,179 @@ defmodule Cache.AuthenticationTest do
     end
   end
 
+  describe "JWT verification" do
+    setup do
+      projects = ["account/project", "other-account/other-project"]
+      exp = System.system_time(:second) + 3600
+
+      claims = %{
+        "projects" => projects,
+        "exp" => exp,
+        "iat" => System.system_time(:second),
+        "sub" => "user-123"
+      }
+
+      {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
+
+      {:ok, jwt_token: jwt_token, projects: projects, exp: exp}
+    end
+
+    test "successfully authorizes with valid JWT containing requested project", %{jwt_token: jwt_token} do
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      assert {:ok, ^auth_header} = result
+    end
+
+    test "handles case-insensitive project handles with JWT", %{jwt_token: jwt_token} do
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      result = Authentication.ensure_project_accessible(conn, "ACCOUNT", "PROJECT")
+
+      assert {:ok, ^auth_header} = result
+    end
+
+    test "returns error when project not in JWT claims" do
+      projects = ["other-account/other-project"]
+      exp = System.system_time(:second) + 3600
+
+      claims = %{
+        "projects" => projects,
+        "exp" => exp,
+        "iat" => System.system_time(:second),
+        "sub" => "user-123"
+      }
+
+      {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
+      conn = build_conn([{"authorization", "Bearer #{jwt_token}"}])
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      assert result == {:error, 404, "Unauthorized or not found"}
+    end
+
+    test "caches JWT authorization result", %{jwt_token: jwt_token} do
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      {:ok, _} = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      cache_key = {generate_cache_key(auth_header), "account/project"}
+      {:ok, :ok} = Cachex.get(@cache_name, cache_key)
+    end
+
+    test "caches JWT rejection when project not found", %{jwt_token: jwt_token} do
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      result = Authentication.ensure_project_accessible(conn, "nonexistent", "project")
+
+      assert result == {:error, 404, "Unauthorized or not found"}
+
+      cache_key = {generate_cache_key(auth_header), "nonexistent/project"}
+      {:ok, cached_result} = Cachex.get(@cache_name, cache_key)
+      assert cached_result == {:error, 404, "Unauthorized or not found"}
+    end
+
+    test "falls back to API call when JWT verification fails" do
+      invalid_token = "invalid.jwt.token"
+      auth_header = "Bearer #{invalid_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      projects = [%{"full_name" => "account/project"}]
+      stub_api_call(200, %{"projects" => projects})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      assert {:ok, ^auth_header} = result
+    end
+
+    test "falls back to API call for non-JWT tokens (project tokens)" do
+      project_token = "tuist_prj_abc123def456"
+      auth_header = "Bearer #{project_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      projects = [%{"full_name" => "account/project"}]
+      stub_api_call(200, %{"projects" => projects})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      assert {:ok, ^auth_header} = result
+    end
+  end
+
+  describe "JWT cache TTL based on exp claim" do
+    test "uses token expiration time for cache TTL when exp is present" do
+      exp_time = System.system_time(:second) + 300
+
+      claims = %{
+        "projects" => ["account/project"],
+        "exp" => exp_time,
+        "iat" => System.system_time(:second),
+        "sub" => "user-123"
+      }
+
+      {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      Authentication.ensure_project_accessible(conn, "account", "project")
+
+      cache_key = {generate_cache_key(auth_header), "account/project"}
+      {:ok, ttl} = Cachex.ttl(@cache_name, cache_key)
+
+      assert ttl > 0
+      assert ttl <= 300_000
+    end
+
+    test "uses default TTL when exp is greater than max cache TTL" do
+      exp_time = System.system_time(:second) + 3600
+
+      claims = %{
+        "projects" => ["account/project"],
+        "exp" => exp_time,
+        "iat" => System.system_time(:second),
+        "sub" => "user-123"
+      }
+
+      {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      Authentication.ensure_project_accessible(conn, "account", "project")
+
+      cache_key = {generate_cache_key(auth_header), "account/project"}
+      {:ok, ttl} = Cachex.ttl(@cache_name, cache_key)
+
+      assert ttl <= 600_000
+    end
+
+    test "does not cache when token is already expired" do
+      exp_time = System.system_time(:second) - 100
+
+      claims = %{
+        "projects" => ["account/project"],
+        "exp" => exp_time,
+        "iat" => System.system_time(:second) - 200,
+        "sub" => "user-123"
+      }
+
+      {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
+      auth_header = "Bearer #{jwt_token}"
+      conn = build_conn([{"authorization", auth_header}])
+
+      projects = [%{"full_name" => "account/project"}]
+      stub_api_call(200, %{"projects" => projects})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+      assert {:ok, ^auth_header} = result
+    end
+  end
+
   defp build_conn(headers) do
     %Plug.Conn{
       req_headers: headers,
