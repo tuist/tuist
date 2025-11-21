@@ -70,8 +70,9 @@ custom_script = """
     const height = 400;
     // Calculate margins for responsive layout - ensure enough space for labels
     const isMobile = width < 768;
-    const leftLabelSpace = Math.max(170, width * 0.22);
-    const rightLabelSpace = Math.max(120, width * 0.17);
+    // On mobile, use smaller fixed margins; on desktop, use percentage-based
+    const leftLabelSpace = isMobile ? 95 : Math.max(170, width * 0.22);
+    const rightLabelSpace = isMobile ? 85 : Math.max(120, width * 0.17);
     const margin = {
       top: 30,
       right: rightLabelSpace,
@@ -203,7 +204,17 @@ custom_script = """
         .attr('y', d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? d.y0 - 8 : (d.y0 + d.y1) / 2)
         .attr('text-anchor', d => d.x0 < diagramLeft ? 'end' : (d.x0 > diagramRight ? 'start' : 'middle'))
         .attr('dy', d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? '0' : '0.35em')
-        .text(d => d.label);
+        .style('font-size', isMobile ? '11px' : null)
+        .text(d => {
+          // Shorten labels on mobile
+          if (isMobile) {
+            if (d.label.includes('Developer (you)')) return 'Dev (you)';
+            if (d.label.includes('Developer (Marcus)')) return 'Dev (M)';
+            if (d.label.includes('Codex (local)')) return 'Codex (L)';
+            if (d.label.includes('Codex (remote)')) return 'Codex (R)';
+          }
+          return d.label;
+        });
 
       nodeGroups
         .filter(d => d.id === 'main')
@@ -213,6 +224,7 @@ custom_script = """
         .attr('x', d => d.x1 + labelOffset)
         .attr('y', d => (d.y0 + d.y1) / 2 + 20)
         .attr('text-anchor', 'start')
+        .style('font-size', isMobile ? '11px' : null)
         .text('0 commits');
 
       const sourceNodes = graph.nodes.filter(d => d.id.includes('developer') || d.id.includes('codex'));

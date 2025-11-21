@@ -62,8 +62,9 @@ custom_script = """
       const height = 400;
       // Calculate margins for responsive layout - ensure enough space for labels
       const isMobile = width < 768;
-      const leftLabelSpace = Math.max(170, width * 0.22);
-      const rightLabelSpace = Math.max(120, width * 0.17);
+      // On mobile, use smaller fixed margins; on desktop, use percentage-based
+      const leftLabelSpace = isMobile ? 95 : Math.max(170, width * 0.22);
+      const rightLabelSpace = isMobile ? 85 : Math.max(120, width * 0.17);
       const margin = {
         top: 20,
         right: rightLabelSpace,
@@ -219,7 +220,15 @@ custom_script = """
           .attr("y", d => (d.y0 + d.y1) / 2)
           .attr("text-anchor", d => d.x0 < diagramCenter ? "end" : "start")
           .attr("dy", "0.35em")
-          .text(d => d.label);
+          .style("font-size", isMobile ? "11px" : null)
+          .text(d => {
+            // Shorten labels on mobile
+            if (isMobile) {
+              if (d.label.includes("Codex (local)")) return "Codex (L)";
+              if (d.label.includes("Codex (remote)")) return "Codex (R)";
+            }
+            return d.label;
+          });
 
         // Add commit counter below main label
         const mainNode = graph.nodes.find(n => n.id === "main");
@@ -230,6 +239,7 @@ custom_script = """
             .attr("x", mainNode.x1 + labelOffset)
             .attr("y", (mainNode.y0 + mainNode.y1) / 2 + 20)
             .attr("text-anchor", "start")
+            .style("font-size", isMobile ? "11px" : null)
             .text("0 commits");
         }
 
