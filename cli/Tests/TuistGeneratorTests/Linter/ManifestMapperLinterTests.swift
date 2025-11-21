@@ -30,7 +30,7 @@ final class ManifestMapperLinterTests {
         let issues = try await subject.lint(workspace: workspace, fileSystem: fileSystem)
 
         #expect(issues.count == 1)
-        #expect(issues.first?.reason == "No projects found at: \(temporaryDirectory.pathString)")
+        #expect(issues.first?.reason == "The workspace at '\(temporaryDirectory.pathString)' has no projects")
         #expect(issues.first?.severity == .warning)
     }
 
@@ -61,7 +61,10 @@ final class ManifestMapperLinterTests {
         let issues = try await subject.lint(workspace: workspace, fileSystem: fileSystem)
 
         #expect(issues.count == 1)
-        #expect(issues.first?.reason == "No files found at: \(missingFile.pathString)")
+        #expect(
+            issues.first?.reason ==
+                "The workspace references a file at path '\(missingFile.pathString)' that doesn't exist"
+        )
         #expect(issues.first?.severity == .warning)
     }
 
@@ -71,13 +74,17 @@ final class ManifestMapperLinterTests {
         let missingFile = temporaryDirectory.appending(component: "missing.txt")
         let project = Project.test(
             path: temporaryDirectory,
+            name: "App",
             fileElements: [.file(path: missingFile)]
         )
 
         let issues = try await subject.lint(project: project, fileSystem: fileSystem)
 
         #expect(issues.count == 1)
-        #expect(issues.first?.reason == "No files found at: \(missingFile.pathString)")
+        #expect(
+            issues.first?.reason ==
+                "The project 'App' references a file at path '\(missingFile.pathString)' that doesn't exist"
+        )
         #expect(issues.first?.severity == .warning)
     }
 
@@ -90,6 +97,7 @@ final class ManifestMapperLinterTests {
 
         let project = Project.test(
             path: temporaryDirectory,
+            name: "App",
             fileElements: [.folderReference(path: filePath)]
         )
 
@@ -98,7 +106,7 @@ final class ManifestMapperLinterTests {
         #expect(issues.count == 1)
         #expect(
             issues.first?.reason ==
-                "\(filePath.pathString) is not a directory - folder reference paths need to point to directories"
+                "The project 'App' references '\(filePath.pathString)' as a folder but it is not a directory"
         )
         #expect(issues.first?.severity == .warning)
     }
@@ -123,7 +131,10 @@ final class ManifestMapperLinterTests {
         let issues = try await subject.lint(project: project, fileSystem: fileSystem)
 
         #expect(issues.count == 1)
-        #expect(issues.first?.reason == "No files found at: \(missingResource.pathString)")
+        #expect(
+            issues.first?.reason ==
+                "The target 'App' references a resource file at path '\(missingResource.pathString)' that doesn't exist"
+        )
         #expect(issues.first?.severity == .warning)
     }
 
@@ -151,7 +162,10 @@ final class ManifestMapperLinterTests {
         let issues = try await subject.lint(project: project, fileSystem: fileSystem)
 
         #expect(issues.count == 1)
-        #expect(issues.first?.reason == "No files found at: \(missingFile.pathString)")
+        #expect(
+            issues.first?.reason ==
+                "The target 'App' references a copy file at path '\(missingFile.pathString)' that doesn't exist"
+        )
         #expect(issues.first?.severity == .warning)
     }
 

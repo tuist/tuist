@@ -16,19 +16,17 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
     public func lint(workspace: Workspace, fileSystem: FileSysteming) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        // Validate workspace projects
         if workspace.projects.isEmpty {
             issues.append(
                 LintingIssue(
-                    reason: "No projects found at: \(workspace.path.pathString)",
+                    reason: "The workspace at '\(workspace.path.pathString)' has no projects",
                     severity: .warning
                 )
             )
         }
 
-        // Validate workspace additional files
         for file in workspace.additionalFiles {
-            issues.append(contentsOf: try await validateFileElement(file, fileSystem: fileSystem))
+            issues.append(contentsOf: try await validateFileElement(file, context: "workspace", fileSystem: fileSystem))
         }
 
         return issues
@@ -37,12 +35,16 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
     public func lint(project: Project, fileSystem: FileSysteming) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        // Validate project file elements
         for fileElement in project.fileElements {
-            issues.append(contentsOf: try await validateFileElement(fileElement, fileSystem: fileSystem))
+            issues.append(
+                contentsOf: try await validateFileElement(
+                    fileElement,
+                    context: "project '\(project.name)'",
+                    fileSystem: fileSystem
+                )
+            )
         }
 
-        // Validate resources in targets
         for target in project.targets.values {
             issues.append(contentsOf: try await validateTargetResources(target, fileSystem: fileSystem))
         }
@@ -50,7 +52,11 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
         return issues
     }
 
-    private func validateFileElement(_ element: FileElement, fileSystem: FileSysteming) async throws -> [LintingIssue] {
+    private func validateFileElement(
+        _ element: FileElement,
+        context: String,
+        fileSystem: FileSysteming
+    ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         switch element {
@@ -58,7 +64,7 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "No files found at: \(path.pathString)",
+                        reason: "The \(context) references a file at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
@@ -68,14 +74,14 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) does not exist",
+                        reason: "The \(context) references a folder at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
-            } else if !FileHandler.shared.isFolder(path) {
+            } else if !(try await fileSystem.isDirectory(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) is not a directory - folder reference paths need to point to directories",
+                        reason: "The \(context) references '\(path.pathString)' as a folder but it is not a directory",
                         severity: .warning
                     )
                 )
@@ -88,15 +94,25 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
     private func validateTargetResources(_ target: Target, fileSystem: FileSysteming) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        // Validate resource file elements
         for resource in target.resources.resources {
-            issues.append(contentsOf: try await validateResourceFileElement(resource, fileSystem: fileSystem))
+            issues.append(
+                contentsOf: try await validateResourceFileElement(
+                    resource,
+                    targetName: target.name,
+                    fileSystem: fileSystem
+                )
+            )
         }
 
-        // Validate copy files
         for copyFile in target.copyFiles {
             for element in copyFile.files {
-                issues.append(contentsOf: try await validateCopyFileElement(element, fileSystem: fileSystem))
+                issues.append(
+                    contentsOf: try await validateCopyFileElement(
+                        element,
+                        targetName: target.name,
+                        fileSystem: fileSystem
+                    )
+                )
             }
         }
 
@@ -105,6 +121,7 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
 
     private func validateResourceFileElement(
         _ element: ResourceFileElement,
+        targetName: String,
         fileSystem: FileSysteming
     ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
@@ -114,7 +131,7 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "No files found at: \(path.pathString)",
+                        reason: "The target '\(targetName)' references a resource file at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
@@ -124,14 +141,14 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) does not exist",
+                        reason: "The target '\(targetName)' references a resource folder at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
-            } else if !FileHandler.shared.isFolder(path) {
+            } else if !(try await fileSystem.isDirectory(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) is not a directory - folder reference paths need to point to directories",
+                        reason: "The target '\(targetName)' references '\(path.pathString)' as a resource folder but it is not a directory",
                         severity: .warning
                     )
                 )
@@ -143,6 +160,7 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
 
     private func validateCopyFileElement(
         _ element: CopyFileElement,
+        targetName: String,
         fileSystem: FileSysteming
     ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
@@ -152,7 +170,7 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "No files found at: \(path.pathString)",
+                        reason: "The target '\(targetName)' references a copy file at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
@@ -162,14 +180,14 @@ public final class ManifestMapperLinter: ManifestMapperLinting {
             if !(try await fileSystem.exists(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) does not exist",
+                        reason: "The target '\(targetName)' references a copy folder at path '\(path.pathString)' that doesn't exist",
                         severity: .warning
                     )
                 )
-            } else if !FileHandler.shared.isFolder(path) {
+            } else if !(try await fileSystem.isDirectory(path)) {
                 issues.append(
                     LintingIssue(
-                        reason: "\(path.pathString) is not a directory - folder reference paths need to point to directories",
+                        reason: "The target '\(targetName)' references '\(path.pathString)' as a copy folder but it is not a directory",
                         severity: .warning
                     )
                 )

@@ -42,19 +42,17 @@ extension XcodeGraph.ResourceFileElement {
                 files = []
             }
 
-            // File validation moved to ManifestMapperLinter
             return files
                 .compactMap { $0.opaqueParentDirectory() ?? $0 }
                 .uniqued()
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
-            // Validation moved to ManifestMapperLinter
             guard try await fileSystem.exists(path) else {
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
+            guard try await fileSystem.isDirectory(path) else {
                 return []
             }
 

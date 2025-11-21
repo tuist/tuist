@@ -32,7 +32,6 @@ extension XcodeGraph.Workspace {
             .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
             .uniqued()
 
-            // Validation moved to ManifestMapperLinter
             return Array(projects)
         }
 

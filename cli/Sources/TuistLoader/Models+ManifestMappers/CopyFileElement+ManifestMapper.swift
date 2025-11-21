@@ -35,17 +35,15 @@ extension XcodeGraph.CopyFileElement {
                 files = []
             }
 
-            // File validation moved to ManifestMapperLinter
             return files
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
-            // Validation moved to ManifestMapperLinter
             guard try await fileSystem.exists(path) else {
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
+            guard try await fileSystem.isDirectory(path) else {
                 return []
             }
 
