@@ -32,7 +32,7 @@ defmodule TuistWeb.RateLimit.Registry do
     {key, bucket_size} =
       if authenticated? do
         {
-          "registry:auth:#{get_subject_id(conn)}",
+          "registry:auth:#{get_subject_key(conn)}",
           20_000
         }
       else
@@ -45,10 +45,10 @@ defmodule TuistWeb.RateLimit.Registry do
     InMemory.hit(key, to_timeout(minute: 1), bucket_size)
   end
 
-  defp get_subject_id(conn) do
+  defp get_subject_key(conn) do
     case Authentication.authenticated_subject(conn) do
-      %Project{id: id} -> id
-      %AuthenticatedAccount{account: %{id: id}} -> id
+      %Project{id: id} -> "project:#{id}"
+      %AuthenticatedAccount{account: %{id: id}} -> "account:#{id}"
     end
   end
 end

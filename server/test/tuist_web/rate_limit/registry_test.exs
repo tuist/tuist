@@ -17,7 +17,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       ip = "127.0.0.1"
       stub(TuistWeb.RemoteIp, :get, fn ^conn -> ip end)
       stub(Authentication, :authenticated_subject, fn ^conn -> %Project{id: project_id} end)
-      hit_key = "registry:auth:#{project_id}"
+      hit_key = "registry:auth:project:#{project_id}"
       timeout = to_timeout(minute: 1)
 
       expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
@@ -43,7 +43,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
         authenticated_account
       end)
 
-      hit_key = "registry:auth:#{account_id}"
+      hit_key = "registry:auth:account:#{account_id}"
       timeout = to_timeout(minute: 1)
 
       expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
@@ -84,7 +84,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       ip = "127.0.0.1"
       stub(TuistWeb.RemoteIp, :get, fn ^conn -> ip end)
       stub(Authentication, :authenticated_subject, fn ^conn -> %Project{id: project_id} end)
-      hit_key = "registry:auth:#{project_id}"
+      hit_key = "registry:auth:project:#{project_id}"
       timeout = to_timeout(minute: 1)
 
       expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
