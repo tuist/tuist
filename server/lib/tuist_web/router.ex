@@ -117,6 +117,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.RateLimit.Registry
   end
 
   pipeline :authenticated_api do
@@ -410,6 +411,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/api", TuistWeb.API do
+    # Deprecated Swift package registry endpoints
     scope "/accounts/:account_handle/registry", Registry do
       scope "/swift" do
         pipe_through [:api_registry_swift]
@@ -421,6 +423,18 @@ defmodule TuistWeb.Router do
         get "/availability", SwiftController, :availability
         post "/login", SwiftController, :login
       end
+    end
+
+    # Swift package registry endpoints
+    scope "/registry/swift", Registry do
+      pipe_through [:api_registry_swift]
+
+      get "/identifiers", SwiftController, :identifiers
+      get "/:scope/:name", SwiftController, :list_releases
+      get "/:scope/:name/:version", SwiftController, :show_release
+      get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+      get "/availability", SwiftController, :availability
+      post "/login", SwiftController, :login
     end
   end
 

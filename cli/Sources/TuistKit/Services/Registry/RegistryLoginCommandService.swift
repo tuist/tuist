@@ -85,7 +85,7 @@ struct RegistryLoginCommandService {
         ) { _ in
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let registryURL = serverURL.appending(
-                path: "api/accounts/\(accountHandle)/registry/swift"
+                path: "api/registry/swift"
             )
 
             if Environment.current.isCI {
