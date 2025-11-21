@@ -107,10 +107,18 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(testTarget)).willReturn(Set())
         given(targetScanner).imports(for: .value(testTargetDependency)).willReturn(Set())
 
-        let expectedError = LintingError()
-
         // When / Then
-        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: path.pathString),
+            InspectImportsServiceError.implicitImportsFound(
+                [
+                    InspectImportsIssue(
+                        target: "App",
+                        dependencies: ["TestTargetDependency"]
+                    ),
+                ]
+            )
+        )
     }
 
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
