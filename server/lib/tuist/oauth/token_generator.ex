@@ -7,7 +7,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.User
-  alias Tuist.Guardian
+  alias Tuist.Authentication
   alias Tuist.OAuth.Clients
   alias Tuist.Repo
 
@@ -24,7 +24,7 @@ defmodule Tuist.OAuth.TokenGenerator do
         end
 
       {:ok, jwt_token, _claims} =
-        Guardian.encode_and_sign(user, %{"preferred_username" => user.account.name, "email" => user.email},
+        Authentication.encode_and_sign(user, %{"preferred_username" => user.account.name, "email" => user.email},
           token_type: Atom.to_string(token_type),
           ttl: {ttl, :second}
         )

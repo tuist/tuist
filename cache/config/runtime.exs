@@ -34,6 +34,10 @@ if config_env() == :prod do
     push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
     env: System.get_env("APPSIGNAL_ENV")
 
+  config :cache, Cache.Guardian,
+    issuer: "tuist",
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY") || raise("environment variable GUARDIAN_SECRET_KEY is missing")
+
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),

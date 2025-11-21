@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix false negative implicit import detection of transitive local dependencies by [@Kolos65](https://github.com/Kolos65) in [#8665](https://github.com/tuist/tuist/pull/8665)
+* refreshing token data race by [@fortmarek](https://github.com/fortmarek) in [#8706](https://github.com/tuist/tuist/pull/8706)
+
+## New Contributors
+* [@Kolos65](https://github.com/Kolos65) made their first contribution in [#8665](https://github.com/tuist/tuist/pull/8665)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.0...4.105.1
+
 ## What's Changed in 4.105.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
