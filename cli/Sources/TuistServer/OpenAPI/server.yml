@@ -1433,6 +1433,8 @@ components:
           required:
             - type
             - duration
+            - test_modules
+            - macos_version
             - is_ci
           title: TestRun
           type: object
@@ -1858,6 +1860,8 @@ components:
       required:
         - type
         - duration
+        - test_modules
+        - macos_version
         - is_ci
       title: TestRun
       type: object
@@ -7463,6 +7467,8 @@ paths:
                   required:
                     - type
                     - duration
+                    - test_modules
+                    - macos_version
                     - is_ci
                   title: TestRun
                   type: object

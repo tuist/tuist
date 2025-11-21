@@ -3165,7 +3165,7 @@ public enum Components {
                 /// The version of macOS used during the run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case2/macos_version`.
-                public var macos_version: Swift.String?
+                public var macos_version: Swift.String
                 /// Identifier for the model where the run was executed, such as MacBookAir10,1.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case2/model_identifier`.
@@ -3414,7 +3414,7 @@ public enum Components {
                 /// The test modules associated with the test run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modules`.
-                public var test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload?
+                public var test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload
                 /// The type of the run, which is 'test' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case2/type`.
@@ -3452,11 +3452,11 @@ public enum Components {
                     git_ref: Swift.String? = nil,
                     git_remote_url_origin: Swift.String? = nil,
                     is_ci: Swift.Bool,
-                    macos_version: Swift.String? = nil,
+                    macos_version: Swift.String,
                     model_identifier: Swift.String? = nil,
                     scheme: Swift.String? = nil,
                     status: Components.Schemas.RunParams.Case2Payload.statusPayload? = nil,
-                    test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload? = nil,
+                    test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload,
                     _type: Components.Schemas.RunParams.Case2Payload._typePayload,
                     xcode_version: Swift.String? = nil
                 ) {
@@ -3925,7 +3925,7 @@ public enum Components {
             /// The version of macOS used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestRun/macos_version`.
-            public var macos_version: Swift.String?
+            public var macos_version: Swift.String
             /// Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///
             /// - Remark: Generated from `#/components/schemas/TestRun/model_identifier`.
@@ -4174,7 +4174,7 @@ public enum Components {
             /// The test modules associated with the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestRun/test_modules`.
-            public var test_modules: Components.Schemas.TestRun.test_modulesPayload?
+            public var test_modules: Components.Schemas.TestRun.test_modulesPayload
             /// The type of the run, which is 'test' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/TestRun/type`.
@@ -4212,11 +4212,11 @@ public enum Components {
                 git_ref: Swift.String? = nil,
                 git_remote_url_origin: Swift.String? = nil,
                 is_ci: Swift.Bool,
-                macos_version: Swift.String? = nil,
+                macos_version: Swift.String,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.TestRun.statusPayload? = nil,
-                test_modules: Components.Schemas.TestRun.test_modulesPayload? = nil,
+                test_modules: Components.Schemas.TestRun.test_modulesPayload,
                 _type: Components.Schemas.TestRun._typePayload,
                 xcode_version: Swift.String? = nil
             ) {
@@ -23536,7 +23536,7 @@ public enum Operations {
                         /// The version of macOS used during the run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/macos_version`.
-                        public var macos_version: Swift.String?
+                        public var macos_version: Swift.String
                         /// Identifier for the model where the run was executed, such as MacBookAir10,1.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/model_identifier`.
@@ -23785,7 +23785,7 @@ public enum Operations {
                         /// The test modules associated with the test run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modules`.
-                        public var test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload?
+                        public var test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload
                         /// The type of the run, which is 'test' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/type`.
@@ -23823,11 +23823,11 @@ public enum Operations {
                             git_ref: Swift.String? = nil,
                             git_remote_url_origin: Swift.String? = nil,
                             is_ci: Swift.Bool,
-                            macos_version: Swift.String? = nil,
+                            macos_version: Swift.String,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
                             status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.statusPayload? = nil,
-                            test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload? = nil,
+                            test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload,
                             _type: Operations.createRun.Input.Body.jsonPayload.Case2Payload._typePayload,
                             xcode_version: Swift.String? = nil
                         ) {

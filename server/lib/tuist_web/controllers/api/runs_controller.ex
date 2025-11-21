@@ -684,6 +684,8 @@ defmodule TuistWeb.API.RunsController do
              required: [
                :type,
                :duration,
+               :test_modules,
+               :macos_version,
                :is_ci
              ]
            }
