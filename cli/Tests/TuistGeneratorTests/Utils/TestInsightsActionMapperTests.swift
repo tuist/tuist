@@ -21,6 +21,7 @@ struct TestInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             testAction,
+            target: nil,
             testInsightsDisabled: true
         )
 
@@ -32,6 +33,7 @@ struct TestInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             nil,
+            target: nil,
             testInsightsDisabled: false
         )
 
@@ -42,22 +44,24 @@ struct TestInsightsActionMapperTests {
     @Test(.withMockedEnvironment()) func map() async throws {
         // Given
         let testAction: TestAction = .test()
+        let target = TargetReference(projectPath: "/tmp/project", name: "AppTests")
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.currentExecutablePathStub = "/mise/tuist"
 
         // When
         let got = try await subject.map(
             testAction,
+            target: target,
             testInsightsDisabled: false
         )
 
         // Then
-        var expectedTestAction: TestAction = .test(
+        let expectedTestAction: TestAction = .test(
             postActions: [
                 ExecutionAction(
                     title: "Push test insights",
                     scriptText: "/mise/tuist inspect test",
-                    target: nil,
+                    target: target,
                     shellPath: nil
                 ),
             ]
