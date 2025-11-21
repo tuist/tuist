@@ -83,6 +83,8 @@ let targets: [Target] = [
             "FileSystem",
             "TuistCache",
             "TuistRootDirectoryLocator",
+            "TuistXcodeProjectOrWorkspacePathLocator",
+            "TuistXCResultService",
             "TuistCI",
             "TuistCAS",
             "TuistLaunchctl",
@@ -354,6 +356,7 @@ let targets: [Target] = [
             "TuistSupport",
             "TuistCache",
             "TuistXCActivityLog",
+            "TuistXCResultService",
             "FileSystem",
             "XcodeGraph",
             "Mockable",
@@ -435,6 +438,20 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistXCResultService",
+        dependencies: [
+            "TuistXCActivityLog",
+            "FileSystem",
+            "Mockable",
+            pathDependency,
+            .product(name: "XCResultKit", package: "XCResultKit"),
+        ],
+        path: "cli/Sources/TuistXCResultService",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistGit",
         dependencies: [
             "TuistSupport",
@@ -456,6 +473,19 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistXcodeProjectOrWorkspacePathLocator",
+        dependencies: [
+            "TuistSupport",
+            "FileSystem",
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]

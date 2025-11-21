@@ -667,7 +667,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Mockable"),
                 ]
             case .xcResultService:
                 [
