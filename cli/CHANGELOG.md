@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.106.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.106.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.106.2
+
+## What's Changed in 4.106.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -10,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 * external dependency case insensitive lookup by [@fortmarek](https://github.com/fortmarek) in [#8714](https://github.com/tuist/tuist/pull/8714)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.1
 
 ## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
 
