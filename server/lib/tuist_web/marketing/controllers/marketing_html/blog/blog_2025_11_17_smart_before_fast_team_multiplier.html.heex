@@ -136,7 +136,7 @@ custom_script = """
       };
 
       // CI and review settings - higher rejection rate
-      const ciDuration = 5000; // 5 seconds for CI to run
+      const ciDuration = 7000; // 7 seconds for CI to run - increased so commits spend more time at the gate
       const conflictProbability = 0.25; // 25% chance - more conflicts with more people
       const ciFailureProbability = 0.15; // 15% chance - more failures
 

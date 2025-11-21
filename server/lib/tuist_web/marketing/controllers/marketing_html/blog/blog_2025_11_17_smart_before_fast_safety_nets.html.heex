@@ -96,15 +96,15 @@ custom_script = """
     let ciQueue = [];
     let runningJobs = [];
 
-    // Commit rates (average seconds between commits)
+    // Commit rates (average seconds between commits) - faster to show more activity
     const commitRates = {
-      developer: 10,
-      codexLocal: 14,
-      codexRemote: 18
+      developer: 5,
+      codexLocal: 7,
+      codexRemote: 9
     };
 
     // CI and review settings
-    const ciDuration = 1500;
+    const ciDuration = 3000; // Increased to 3 seconds so commits spend more time at the gate
     const conflictProbability = 0.15;
     const ciFailureProbability = 0.10;
 
@@ -281,39 +281,61 @@ custom_script = """
           };
         })
         .on('end', () => {
-          const hasConflict = Math.random() < conflictProbability;
-          const ciFailure = Math.random() < ciFailureProbability;
-          const rejected = hasConflict || ciFailure;
-
-          if (rejected) {
-            // Animate back to source
-            setTimeout(() => {
-              commitDot
-                .transition()
-                .duration(800)
-                .ease(d3.easeCubicInOut)
-                .tween('pathTweenBack', function() {
-                  return function(t) {
-                    // Animate backwards along the path (1 - t)
-                    const point = pathToGate.getPointAtLength((1 - t) * pathLength);
-                    d3.select(this)
-                      .attr('cx', point.x)
-                      .attr('cy', point.y);
-                  };
-                })
-                .on('end', () => {
-                  // Fade out at source
-                  commitDot
-                    .transition()
-                    .duration(300)
-                    .attr('r', 0)
-                    .attr('opacity', 0)
-                    .remove();
-                });
-            }, 300);
-          } else {
-            ciQueue.push({ dot: commitDot, sourceNode });
+          // Find and reserve a CI environment immediately when commit arrives at gate
+          const envIndex = findAvailableEnv();
+          if (envIndex !== -1) {
+            const env = document.getElementById(`ci-env-${envIndex}`);
+            const color = sourceNode.color;
+            env.classList.add('running');
+            env.style.color = color;
+            env.style.background = `${color}15`;
           }
+
+          // All commits spend time at the gate before being processed
+          setTimeout(() => {
+            const hasConflict = Math.random() < conflictProbability;
+            const ciFailure = Math.random() < ciFailureProbability;
+            const rejected = hasConflict || ciFailure;
+
+            if (rejected) {
+              // Release the CI environment if commit is rejected
+              if (envIndex !== -1) {
+                const env = document.getElementById(`ci-env-${envIndex}`);
+                env.classList.remove('running');
+                env.style.color = '';
+                env.style.background = '';
+              }
+
+              // Animate back to source
+              setTimeout(() => {
+                commitDot
+                  .transition()
+                  .duration(800)
+                  .ease(d3.easeCubicInOut)
+                  .tween('pathTweenBack', function() {
+                    return function(t) {
+                      // Animate backwards along the path (1 - t)
+                      const point = pathToGate.getPointAtLength((1 - t) * pathLength);
+                      d3.select(this)
+                        .attr('cx', point.x)
+                        .attr('cy', point.y);
+                    };
+                  })
+                  .on('end', () => {
+                    // Fade out at source
+                    commitDot
+                      .transition()
+                      .duration(300)
+                      .attr('r', 0)
+                      .attr('opacity', 0)
+                      .remove();
+                  });
+              }, 300);
+            } else {
+              // Push to queue with the reserved environment
+              ciQueue.push({ dot: commitDot, sourceNode, envIndex });
+            }
+          }, 2000); // Wait 2 seconds at the gate before processing
         });
     }
 
@@ -322,7 +344,8 @@ custom_script = """
 
       while (runningJobs.length < maxRunners && ciQueue.length > 0) {
         const job = ciQueue.shift();
-        const envIndex = findAvailableEnv();
+        // Use the pre-reserved environment index
+        const envIndex = job.envIndex;
 
         if (envIndex !== -1) {
           startCIJob(job, envIndex);
@@ -341,13 +364,7 @@ custom_script = """
     }
 
     function startCIJob(job, envIndex) {
-      const env = document.getElementById(`ci-env-${envIndex}`);
-      const color = job.sourceNode.color;
-
-      env.classList.add('running');
-      env.style.color = color;
-      env.style.background = `${color}15`;
-
+      // Environment is already highlighted, just register the job as running
       runningJobs.push({ job, envIndex });
 
       const pathToMain = svg.selectAll('.link')
