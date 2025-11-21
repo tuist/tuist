@@ -108,6 +108,39 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def cache_endpoints(secrets \\ secrets()) do
+    case get([:cache, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+
+      _ ->
+        cond do
+          prod?() ->
+            [
+              "https://cache-eu-central.tuist.dev",
+              "https://cache-us-east.tuist.dev",
+              "https://cache-us-west.tuist.dev",
+              "https://cache-ap-southeast.tuist.dev"
+            ]
+
+          stag?() ->
+            ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
+
+          can?() ->
+            ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
+
+          dev?() ->
+            ["http://localhost:8087"]
+
+          test?() ->
+            ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+
+          true ->
+            []
+        end
+    end
+  end
+
   def plain_authentication_secret(secrets \\ secrets()) do
     get([:plain, :authentication_secret], secrets)
   end
@@ -360,6 +393,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def s3_ca_cert_pem(secrets \\ secrets()) do
+    System.get_env("TUIST_S3_CA_CERT_PEM") || get([:s3, :ca_cert_pem], secrets)
+  end
+
   def slack_tuist_token(secrets \\ secrets()) do
     get([:slack, :tuist, :token], secrets)
   end
@@ -564,6 +601,10 @@ defmodule Tuist.Environment do
 
   def openai_api_key(secrets \\ secrets()) do
     get([:openai, :api_key], secrets)
+  end
+
+  def cache_api_key(secrets \\ secrets()) do
+    get([:cache_api_key], secrets)
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do

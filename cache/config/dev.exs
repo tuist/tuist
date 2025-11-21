@@ -1,5 +1,9 @@
 import Config
 
+config :cache, Cache.Guardian,
+  issuer: "tuist",
+  secret_key: "development_guardian_secret_key_at_least_64_characters_long_for_dev"
+
 config :cache, Cache.Repo,
   database: "dev.sqlite3",
   pool_size: 10,
@@ -15,7 +19,8 @@ config :cache, CacheWeb.Endpoint,
 
 config :cache, :cas,
   server_url: "http://localhost:8080",
-  storage_dir: "tmp/cas"
+  storage_dir: "tmp/cas",
+  api_key: System.get_env("TUIST_CACHE_API_KEY")
 
 config :logger, :console, format: "[$level] $message\n"
 

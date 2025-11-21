@@ -1,6 +1,7 @@
 defmodule CacheWeb.CASControllerTest do
   use CacheWeb.ConnCase, async: true
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog
 
@@ -35,8 +36,6 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      expect(Oban, :insert, fn changeset -> {:ok, changeset} end)
-
       capture_log(fn ->
         conn =
           conn
@@ -47,6 +46,8 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.status == 204
         assert conn.resp_body == ""
       end)
+
+      assert_enqueued(worker: Cache.S3UploadWorker, args: %{key: "#{account_handle}/#{project_handle}/cas/#{id}"})
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -70,8 +71,6 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      expect(Oban, :insert, fn changeset -> {:ok, changeset} end)
-
       capture_log(fn ->
         conn =
           conn
@@ -83,6 +82,8 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.status == 204
         assert conn.resp_body == ""
       end)
+
+      assert_enqueued(worker: Cache.S3UploadWorker, args: %{key: "#{account_handle}/#{project_handle}/cas/#{id}"})
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -221,8 +222,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        true
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -253,8 +254,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -291,45 +292,8 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
-      end)
-
-      expect(CASArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        :ok
-      end)
-
-      expect(Cache.S3, :presign_download_url, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        {:error, :s3_not_configured}
-      end)
-
-      capture_log(fn ->
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
-        |> then(&send(self(), {:returned_conn, &1}))
-      end)
-
-      assert_receive {:returned_conn, conn}
-
-      assert conn.status == 404
-      assert get_resp_header(conn, "x-accel-redirect") == []
-      assert conn.resp_body == ""
-    end
-
-    test "spawns download worker when file not on disk and S3 presign succeeds", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      id = "abc123"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
+      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
@@ -340,16 +304,6 @@ defmodule CacheWeb.CASControllerTest do
       expect(Cache.S3, :presign_download_url, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
-      end)
-
-      expect(Oban, :insert, fn changeset ->
-        assert changeset.changes.worker == "Cache.S3DownloadWorker"
-
-        assert changeset.changes.args == %{
-                 key: "#{account_handle}/#{project_handle}/cas/#{id}"
-               }
-
-        {:ok, changeset}
       end)
 
       capture_log(fn ->
@@ -366,49 +320,11 @@ defmodule CacheWeb.CASControllerTest do
 
         assert conn.resp_body == ""
       end)
-    end
 
-    test "continues normally even if download worker enqueue fails", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      id = "abc123"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
-        false
-      end)
-
-      expect(CASArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        :ok
-      end)
-
-      expect(Cache.S3, :presign_download_url, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
-      end)
-
-      expect(Oban, :insert, fn _changeset ->
-        {:error, %Ecto.Changeset{}}
-      end)
-
-      capture_log(fn ->
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer valid-token")
-          |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
-
-        assert conn.status == 200
-
-        assert get_resp_header(conn, "x-accel-redirect") == [
-                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
-               ]
-
-        assert conn.resp_body == ""
-      end)
+      assert_enqueued(
+        worker: Cache.S3DownloadWorker,
+        args: %{account_handle: account_handle, project_handle: project_handle, id: id}
+      )
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do

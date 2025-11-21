@@ -2,6 +2,10 @@ import Config
 
 config :appsignal, :config, active: false
 
+config :cache, Cache.Guardian,
+  issuer: "tuist",
+  secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
+
 config :cache, Cache.Repo,
   database: Path.expand("../test.sqlite3", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,
@@ -16,11 +20,12 @@ config :cache, CacheWeb.Endpoint,
 config :cache, Oban,
   queues: false,
   plugins: false,
-  testing: :inline
+  testing: :manual
 
 config :cache, :cas,
   server_url: "http://localhost:8080",
-  storage_dir: "/tmp/test_cas"
+  storage_dir: "/tmp/test_cas",
+  api_key: "test-secret-key"
 
 config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
 config :cache, :s3, bucket: "test-bucket"

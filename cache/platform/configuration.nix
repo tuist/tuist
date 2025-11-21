@@ -9,6 +9,8 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     ./disk-config.nix
     ./nginx.nix
+    ./secrets.nix
+    ./alloy.nix
   ];
   system.stateVersion = "25.11";
 
@@ -73,12 +75,14 @@
   environment.systemPackages = map lib.lowPrio [
     pkgs.curl
     pkgs.gitMinimal
-		pkgs.fio
-		pkgs.ioping
+    pkgs.parted
+    pkgs.gptfdisk
+    pkgs.sqlite
   ];
 
   systemd.tmpfiles.rules = [
-    "Z /cas 0755 nobody nogroup - -"
+    "Z /cas 0755 cache cache - -"
+    "d /var/lib/cache 0755 cache cache - -"
     "d /run/cache 0777 root root - -"
   ];
 }

@@ -743,6 +743,15 @@ components:
               description: Cacheable tasks associated with the build run.
               items:
                 properties:
+                  cas_output_node_ids:
+                    description: Array of CAS output node IDs associated with this cacheable task.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   description:
                     description: Optional description of the cacheable task.
                     type: string
@@ -881,6 +890,9 @@ components:
                       - remap
                       - localization-strings
                       - clang-header
+                      - swiftsourceinfo
+                      - assembly
+                      - unknown
                     type: string
                     x-struct:
                     x-validate:
@@ -1552,6 +1564,23 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CacheEndpoints:
+      description: List of available cache endpoints
+      properties:
+        endpoints:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - endpoints
+      title: CacheEndpoints
+      type: object
+      x-struct:
+      x-validate:
     Run:
       description: The schema for a Tuist run.
       properties:
@@ -1846,6 +1875,15 @@ components:
           description: Cacheable tasks associated with the build run.
           items:
             properties:
+              cas_output_node_ids:
+                description: Array of CAS output node IDs associated with this cacheable task.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
               description:
                 description: Optional description of the cacheable task.
                 type: string
@@ -1984,6 +2022,9 @@ components:
                   - remap
                   - localization-strings
                   - clang-header
+                  - swiftsourceinfo
+                  - assembly
+                  - unknown
                 type: string
                 x-struct:
                 x-validate:
@@ -4782,6 +4823,7 @@ paths:
           name: bundle_id
           required: true
           schema:
+            format: uuid
             type: string
             x-struct:
             x-validate:
@@ -4810,6 +4852,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Bundle not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
       summary: Get a single bundle by ID
       tags:
         - Bundles
@@ -5435,7 +5483,7 @@ paths:
       tags:
         - Cache
   /api/cache/keyvalue/{cas_id}:
-    put:
+    get:
       callbacks: {}
       operationId: getCacheValue
       parameters:
@@ -5518,6 +5566,37 @@ paths:
       summary: Get cache value.
       tags:
         - KeyValue
+  /api/cache/endpoints:
+    get:
+      callbacks: {}
+      description: This endpoint returns a list of available cache endpoints.
+      operationId: getCacheEndpoints
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: List of available cache endpoints
+                properties:
+                  endpoints:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoints
+                title: CacheEndpoints
+                type: object
+                x-struct:
+                x-validate:
+          description: List of cache endpoints
+      summary: Get cache endpoints.
+      tags:
+        - Cache
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}
@@ -6214,6 +6293,15 @@ paths:
                       description: Cacheable tasks associated with the build run.
                       items:
                         properties:
+                          cas_output_node_ids:
+                            description: Array of CAS output node IDs associated with this cacheable task.
+                            items:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
                           description:
                             description: Optional description of the cacheable task.
                             type: string
@@ -6352,6 +6440,9 @@ paths:
                               - remap
                               - localization-strings
                               - clang-header
+                              - swiftsourceinfo
+                              - assembly
+                              - unknown
                             type: string
                             x-struct:
                             x-validate:

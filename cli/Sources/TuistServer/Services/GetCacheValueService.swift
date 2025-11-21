@@ -8,7 +8,8 @@ public protocol GetCacheValueServicing: Sendable {
     func getCacheValue(
         casId: String,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        authenticationURL: URL
     ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload?
 }
 
@@ -46,9 +47,10 @@ public final class GetCacheValueService: GetCacheValueServicing {
     public func getCacheValue(
         casId: String,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        authenticationURL: URL
     ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload? {
-        let client = Client.authenticated(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
         let handles = try fullHandleService.parse(fullHandle)
 
         let response = try await client.getCacheValue(

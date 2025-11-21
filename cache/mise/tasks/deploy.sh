@@ -6,4 +6,4 @@
 #USAGE }
 set -euo pipefail
 
-op run -- kamal deploy -d "${usage_environment?}"
+kamal deploy -d "${usage_environment?}"

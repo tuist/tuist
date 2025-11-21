@@ -34,8 +34,12 @@ if config_env() == :prod do
     push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
     env: System.get_env("APPSIGNAL_ENV")
 
+  config :cache, Cache.Guardian,
+    issuer: "tuist",
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY") || raise("environment variable GUARDIAN_SECRET_KEY is missing")
+
   config :cache, Cache.Repo,
-    database: "/cas/repo.sqlite",
+    database: "/data/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     show_sensitive_data_on_connection_error: false
 
@@ -49,7 +53,8 @@ if config_env() == :prod do
     server_url: System.get_env("SERVER_URL") || raise("environment variable SERVER_URL is missing"),
     storage_dir: System.get_env("CAS_STORAGE_DIR") || raise("environment variable CAS_STORAGE_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("CAS_DISK_HIGH_WATERMARK_PERCENT", 85.0),
-    disk_usage_target_percent: Cache.Config.float_env("CAS_DISK_TARGET_PERCENT", 70.0)
+    disk_usage_target_percent: Cache.Config.float_env("CAS_DISK_TARGET_PERCENT", 70.0),
+    api_key: System.get_env("TUIST_CACHE_API_KEY")
 
   config :cache, :s3, bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing")
 

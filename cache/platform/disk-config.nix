@@ -21,7 +21,7 @@
               };
             };
             root = {
-              size = "40G";
+              size = "100%";
               content = {
                 type = "filesystem";
                 format = "ext4";
@@ -34,6 +34,15 @@
                 ];
               };
             };
+          };
+        };
+      };
+      sdb = {
+        type = "disk";
+        device = "/dev/sdb";
+        content = {
+          type = "gpt";
+          partitions = {
             cas = {
               size = "100%";
               content = {

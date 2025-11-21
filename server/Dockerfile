@@ -108,9 +108,6 @@ COPY rel rel
 COPY --from=npm-deps /app/node_modules /app/node_modules
 RUN mix assets.deploy
 
-# Generate OG images for marketing pages
-RUN mix marketing.gen.og_images
-
 RUN mix release
 
 # ========================================

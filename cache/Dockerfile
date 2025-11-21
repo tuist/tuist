@@ -40,19 +40,20 @@ RUN apt-get update -y && \
 	apt-get install -y libstdc++6 openssl locales ca-certificates \
 	&& apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
-WORKDIR "/app"
-RUN chown nobody /app
+RUN groupadd -g 990 cache && useradd -u 990 -g cache cache
 
-RUN mkdir -p /data && chown nobody:nogroup /data
+WORKDIR "/app"
 
 ENV MIX_ENV="prod"
 
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/cache ./
+COPY --from=builder --chown=cache:cache /app/_build/${MIX_ENV}/rel/cache ./
 
-USER nobody
+USER cache
 
 CMD ["/app/bin/server"]

@@ -81,5 +81,39 @@ defmodule Tuist.IncidentsTest do
       assert first_result == true
       assert second_result == true
     end
+
+    test "returns false when request fails with error response" do
+      # Given
+      stub(
+        Req,
+        :get,
+        fn "https://status.tuist.dev/proxy/status.tuist.dev", [finch: Tuist.Finch] ->
+          {:ok, %Req.Response{status: 500, body: "error code: 500"}}
+        end
+      )
+
+      # When
+      result = Tuist.Incidents.any_ongoing_incident?()
+
+      # Then
+      assert result == false
+    end
+
+    test "returns false when request fails with error tuple" do
+      # Given
+      stub(
+        Req,
+        :get,
+        fn "https://status.tuist.dev/proxy/status.tuist.dev", [finch: Tuist.Finch] ->
+          {:error, %Req.TransportError{reason: :timeout}}
+        end
+      )
+
+      # When
+      result = Tuist.Incidents.any_ongoing_incident?()
+
+      # Then
+      assert result == false
+    end
   end
 end

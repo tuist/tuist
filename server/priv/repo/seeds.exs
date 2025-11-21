@@ -59,6 +59,26 @@ organization =
     organization
   end
 
+# Create additional organization member
+member_email = "member@tuist.dev"
+
+_member_user =
+  if is_nil(Accounts.get_user_by_email(member_email)) do
+    {:ok, member} =
+      Accounts.create_user(member_email,
+        password: password,
+        confirmed_at: NaiveDateTime.utc_now(),
+        setup_billing: false
+      )
+
+    # Add member to the organization
+    :ok = Accounts.add_user_to_organization(member, organization)
+
+    member
+  else
+    Accounts.get_user_by_email(member_email)
+  end
+
 Accounts.update_okta_configuration(organization.id, %{
   okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
   okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
@@ -221,7 +241,7 @@ generate_task_description = fn task_type ->
     "Emitting module for"
   ]
 
-  clang_actions = [
+  _clang_actions = [
     "Compiling"
   ]
 
@@ -305,6 +325,29 @@ cas_outputs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
+end)
+
+# Generate CAS events based on CAS outputs
+# CAS events track upload/download actions for analytics
+cas_events =
+  Enum.map(cas_outputs, fn cas_output ->
+    # Use the operation from CAS output (upload or download) as the action
+    action = cas_output.operation
+
+    %{
+      id: Ecto.UUID.generate(),
+      action: action,
+      size: cas_output.size,
+      cas_id: cas_output.node_id,
+      project_id: tuist_project.id,
+      inserted_at: cas_output.inserted_at
+    }
+  end)
+
+cas_events
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Cache.CASEvent, chunk)
 end)
 
 # Group CAS outputs by build_id for later use
@@ -556,6 +599,50 @@ test_command_events
       test_case
     end
 
+  target_names = [
+    "App",
+    "AppKit",
+    "AppUI",
+    "AppCore",
+    "Authentication",
+    "Networking",
+    "DataLayer",
+    "Analytics",
+    "Settings",
+    "Profile",
+    "UIComponents",
+    "DesignSystem",
+    "Utilities",
+    "Extensions",
+    "UserManagement",
+    "ContentDelivery",
+    "PaymentProcessing",
+    "Notifications",
+    "CacheManager",
+    "LoggingFramework"
+  ]
+
+  generate_sha1_hash = fn ->
+    1..40
+    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+    |> List.to_string()
+  end
+
+  targets =
+    target_names
+    |> Enum.take(Enum.random(15..20))
+    |> Enum.map(fn target_name ->
+      hit_status = Enum.random(["local", "local", "remote", "remote", "remote", "miss"])
+
+      %{
+        "name" => target_name,
+        "binary_cache_metadata" => %{
+          "hash" => generate_sha1_hash.(),
+          "hit" => hit_status
+        }
+      }
+    end)
+
   {:ok, _graph} =
     Xcode.create_xcode_graph(%{
       command_event: command_event,
@@ -566,15 +653,7 @@ test_command_events
           %{
             "name" => name,
             "path" => module_name,
-            "targets" => [
-              %{
-                "name" => "target-#{System.unique_integer([:positive])}",
-                "binary_cache_metadata" => %{
-                  "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
-                  "hit" => "miss"
-                }
-              }
-            ]
+            "targets" => targets
           }
         ]
       }

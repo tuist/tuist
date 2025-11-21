@@ -2,6 +2,9 @@ name: Cache Deploy
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -16,9 +19,10 @@ env:
 jobs:
   deploy:
     runs-on: namespace-profile-default
+    timeout-minutes: 30
     strategy:
       matrix:
-        environment: [canary, staging, production]
+        environment: [canary, production]
     environment: cache-${{ matrix.environment }}
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +31,10 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
       - name: Deploy with Kamal
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}

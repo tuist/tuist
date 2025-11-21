@@ -3,6 +3,15 @@
     <channel>
         <title>Tuist</title>
         <item>
+            <title>0.23.0</title>
+            <pubDate>Thu, 20 Nov 2025 22:03:18 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>9127</sparkle:version>
+            <sparkle:shortVersionString>0.23.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.23.0/Tuist.dmg" length="32163959" type="application/octet-stream" sparkle:edSignature="toBXipgbofTyZq6ChqXnd2rkEeVT8BApl/WDWcBhPYczWGVO9d6xLSF3aJwh99epGIt5lZA+NEHRmzUGBIFZAA=="/>
+        </item>
+        <item>
             <title>0.22.7</title>
             <pubDate>Mon, 29 Sep 2025 08:36:51 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>

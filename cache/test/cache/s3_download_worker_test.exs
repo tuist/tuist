@@ -1,6 +1,7 @@
 defmodule Cache.Workers.S3DownloadWorkerTest do
   use ExUnit.Case, async: false
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog
 
@@ -21,43 +22,27 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
       project_handle = "test_project"
       id = "test_hash"
 
-      expect(Oban, :insert, fn changeset ->
-        {:ok,
-         %{
-           changeset
-           | changes:
-               Map.put(changeset.changes, :args, %{
-                 "key" => "test_account/test_project/cas/test_hash",
-                 "account_handle" => "test_account",
-                 "project_handle" => "test_project",
-                 "id" => "test_hash"
-               })
-         }}
-      end)
+      {:ok, _job} = S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
 
-      capture_log(fn ->
-        {:ok, changeset} = S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
-
-        assert changeset.changes.args == %{
-                 "key" => "test_account/test_project/cas/test_hash",
-                 "account_handle" => "test_account",
-                 "project_handle" => "test_project",
-                 "id" => "test_hash"
-               }
-
-        assert changeset.changes.worker == "Cache.S3DownloadWorker"
-      end)
+      assert_enqueued(
+        worker: S3DownloadWorker,
+        args: %{account_handle: "test_account", project_handle: "test_project", id: "test_hash"}
+      )
     end
   end
 
   describe "perform/1" do
     test "successfully downloads file from S3 when it exists" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      id = "test_hash"
       key = "test_account/test_project/cas/test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
       local_path = Path.join(tmp_dir, "test_hash")
 
       expect(Cache.S3, :exists?, fn ^key -> true end)
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^id -> key end)
 
       expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
         {:download_operation, "test-bucket", key, local_path}
@@ -65,32 +50,56 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
         File.write!(local_path, "test downloaded content")
-        {:ok, %{status_code: 200}}
+        {:ok, :done}
+      end)
+
+      expect(Cache.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %{size: 24}}
       end)
 
       job = %Oban.Job{
         args: %{
-          "key" => key
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "id" => id
         }
       }
+
+      :telemetry.attach(
+        "test-download-handler",
+        [:cache, :cas, :download, :s3_hit],
+        fn event, measurements, metadata, _config ->
+          send(self(), {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
 
       result = S3DownloadWorker.perform(job)
 
       assert result == :ok
       assert File.exists?(local_path)
+
+      assert_receive {:telemetry_event, [:cache, :cas, :download, :s3_hit], %{size: 24},
+                      %{
+                        cas_id: ^id,
+                        account_handle: ^account_handle,
+                        project_handle: ^project_handle
+                      }}
+
+      :telemetry.detach("test-download-handler")
     end
 
     test "skips download when file does not exist in S3" do
-      key = "test_account/test_project/cas/test_hash"
       account_handle = "test_account"
       project_handle = "test_project"
       id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
 
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^id -> key end)
       expect(Cache.S3, :exists?, fn ^key -> false end)
 
       job = %Oban.Job{
         args: %{
-          "key" => key,
           "account_handle" => account_handle,
           "project_handle" => project_handle,
           "id" => id
@@ -104,10 +113,14 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
     end
 
     test "handles S3 download failure" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      id = "test_hash"
       key = "test_account/test_project/cas/test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
       local_path = Path.join(tmp_dir, "test_hash")
 
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^id -> key end)
       expect(Cache.S3, :exists?, fn ^key -> true end)
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
@@ -121,26 +134,27 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       job = %Oban.Job{
         args: %{
-          "key" => key
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "id" => id
         }
       }
 
-      assert_raise MatchError, fn ->
-        S3DownloadWorker.perform(job)
-      end
+      result = S3DownloadWorker.perform(job)
+      assert result == {:error, :timeout}
     end
 
     test "handles S3 exists? error" do
-      key = "test_account/test_project/cas/test_hash"
       account_handle = "test_account"
       project_handle = "test_project"
       id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
 
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^id -> key end)
       expect(Cache.S3, :exists?, fn ^key -> false end)
 
       job = %Oban.Job{
         args: %{
-          "key" => key,
           "account_handle" => account_handle,
           "project_handle" => project_handle,
           "id" => id

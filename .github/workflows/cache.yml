@@ -33,6 +33,7 @@ jobs:
   format:
     name: Format
     runs-on: namespace-profile-default
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -54,6 +55,7 @@ jobs:
   credo:
     name: Credo
     runs-on: namespace-profile-default
+    timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +78,7 @@ jobs:
   test:
     name: Test
     runs-on: namespace-profile-default
+    timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4

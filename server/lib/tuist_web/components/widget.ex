@@ -120,6 +120,8 @@ defmodule TuistWeb.Widget do
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
 
+  attr(:empty_label, :string, default: nil, doc: "Custom label to display when widget is empty")
+
   attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
 
   attr(:phx_value_widget, :string, default: nil, doc: "Widget ID value to pass with phx-click event")
@@ -129,7 +131,7 @@ defmodule TuistWeb.Widget do
   def widget(assigns) do
     ~H"""
     <%= if @empty do %>
-      <.card_section class="tuist-widget" id={@id}>
+      <.card_section class="tuist-widget" id={@id} data-empty="true">
         <div data-part="background">
           <.empty_state_background />
         </div>
@@ -137,7 +139,7 @@ defmodule TuistWeb.Widget do
           <span data-part="title">{@title}</span>
         </div>
         <span data-part="empty-label">
-          {gettext("No data yet")}
+          {if @empty_label, do: @empty_label, else: gettext("No data yet")}
         </span>
       </.card_section>
     <% else %>
@@ -168,10 +170,19 @@ defmodule TuistWeb.Widget do
           data-part="legend"
         >
         </div>
-        <div data-part="title">
-          <span data-part="label">{@title}</span>
-          {render_slot(@select)}
-        </div>
+        <%= if @select != [] do %>
+          <.dropdown
+            id={"#{@id}-dropdown"}
+            label={@title}
+            phx-click={Phoenix.LiveView.JS.exec("event.stopPropagation()", to: "window")}
+          >
+            {render_slot(@select)}
+          </.dropdown>
+        <% else %>
+          <div data-part="title">
+            <span data-part="label">{@title}</span>
+          </div>
+        <% end %>
         <.tooltip
           :if={@description}
           id={@id <> "-tooltip"}

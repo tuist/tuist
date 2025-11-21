@@ -371,7 +371,7 @@ defmodule TuistWeb.Router do
     scope "/cache" do
       scope "/keyvalue" do
         put "/", Cache.KeyValueController, :put_value
-        put "/:cas_id", Cache.KeyValueController, :get_value
+        get "/:cas_id", Cache.KeyValueController, :get_value
       end
 
       scope "/cas" do
@@ -379,6 +379,7 @@ defmodule TuistWeb.Router do
         post "/:id", CASController, :save
       end
 
+      get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -692,8 +693,10 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user}
       ] do
       live "/tests/test-runs", TestRunsLive
-      live "/binary-cache/cache-runs", CacheRunsLive
-      live "/binary-cache/generate-runs", GenerateRunsLive
+      live "/module-cache", ModuleCacheLive
+      live "/module-cache/cache-runs", CacheRunsLive
+      live "/module-cache/generate-runs", GenerateRunsLive
+      live "/xcode-cache", XcodeCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
@@ -711,6 +714,10 @@ defmodule TuistWeb.Router do
       live "/settings", ProjectSettingsLive
       live "/settings/qa", QASettingsLive
     end
+
+    # Redirects for renamed routes
+    get "/binary-cache/cache-runs", RedirectPlug, to: "/module-cache/cache-runs"
+    get "/binary-cache/generate-runs", RedirectPlug, to: "/module-cache/generate-runs"
   end
 
   def assign_current_path(conn, _params) do

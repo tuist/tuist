@@ -174,5 +174,38 @@ defmodule Tuist.Runs.CASOutputTest do
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).operation
     end
+
+    test "accepts valid type values" do
+      build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
+
+      # Test with a few different valid types
+      for type <- ["swift", "swiftsourceinfo", "assembly", "unknown"] do
+        attrs = Map.put(@valid_attrs, :type, type)
+        changeset = CASOutput.changeset(build_run_id, attrs)
+
+        assert changeset.valid?, "Expected #{type} to be valid"
+        assert changeset.changes.type == type
+      end
+    end
+
+    test "rejects invalid type values" do
+      build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
+      attrs = Map.put(@valid_attrs, :type, "invalid-type")
+
+      changeset = CASOutput.changeset(build_run_id, attrs)
+
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).type
+    end
+
+    test "defaults to unknown when type is not provided" do
+      build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
+      attrs = Map.delete(@valid_attrs, :type)
+
+      changeset = CASOutput.changeset(build_run_id, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.type == "unknown"
+    end
   end
 end

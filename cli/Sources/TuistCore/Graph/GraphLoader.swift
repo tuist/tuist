@@ -260,8 +260,10 @@ public final class GraphLoader: GraphLoading {
         cache: Cache,
         status: LinkingStatus
     ) async throws -> GraphDependency {
-        if let loaded = cache.xcframeworks[path] {
-            return loaded
+        if case var .xcframework(xcframework) = cache.xcframeworks[path] {
+            xcframework.status = status
+            xcframework.expectedSignature = expectedSignature?.signatureString()
+            return .xcframework(xcframework)
         }
 
         let metadata = try await xcframeworkMetadataProvider.loadMetadata(
@@ -276,7 +278,6 @@ public final class GraphLoader: GraphLoading {
                 linking: metadata.linking,
                 mergeable: metadata.mergeable,
                 status: metadata.status,
-                macroPath: metadata.macroPath,
                 swiftModules: metadata.swiftModules,
                 moduleMaps: metadata.moduleMaps,
                 expectedSignature: metadata.expectedSignature?.signatureString()

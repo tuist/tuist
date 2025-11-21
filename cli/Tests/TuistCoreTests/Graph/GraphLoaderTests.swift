@@ -380,8 +380,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     infoPlist: .test(),
                     linking: .dynamic,
                     mergeable: false,
-                    status: .required,
-                    macroPath: nil
+                    status: .required
                 ),
             ]),
         ])
@@ -425,8 +424,66 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     infoPlist: .test(),
                     linking: .dynamic,
                     mergeable: true,
-                    status: .required,
-                    macroPath: nil
+                    status: .required
+                ),
+            ]),
+        ])
+    }
+
+    func test_loadWorkspace_xcframeworkDependencyWithDifferentStatusPerTarget() async throws {
+        // Given
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.xcframework(path: "/XCFrameworks/XF.xcframework", expectedSignature: nil, status: .required)]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [.xcframework(path: "/XCFrameworks/XF.xcframework", expectedSignature: nil, status: .optional)]
+        )
+        let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
+        let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B"])
+
+        stubXCFramework(
+            metadata: .init(
+                path: "/XCFrameworks/XF.xcframework",
+                infoPlist: .test(),
+                linking: .dynamic,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
+        )
+
+        let subject = makeSubject()
+
+        // When
+        let graph = try await subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(graph.dependencies, [
+            .target(name: "A", path: "/A"): Set([
+                .testXCFramework(
+                    path: "/XCFrameworks/XF.xcframework",
+                    infoPlist: .test(),
+                    linking: .dynamic,
+                    mergeable: false,
+                    status: .required
+                ),
+            ]),
+            .target(name: "B", path: "/B"): Set([
+                .testXCFramework(
+                    path: "/XCFrameworks/XF.xcframework",
+                    infoPlist: .test(),
+                    linking: .dynamic,
+                    mergeable: false,
+                    status: .optional
                 ),
             ]),
         ])

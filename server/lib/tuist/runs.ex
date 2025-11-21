@@ -5,6 +5,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -151,6 +152,8 @@ defmodule Tuist.Runs do
           build_run_id: struct.build_run_id,
           read_duration: struct.read_duration,
           write_duration: struct.write_duration,
+          description: struct.description,
+          cas_output_node_ids: struct.cas_output_node_ids,
           inserted_at: struct.inserted_at
         }
       end)
@@ -196,11 +199,22 @@ defmodule Tuist.Runs do
     Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
-  def get_cas_outputs_by_node_ids(build_run_id, node_ids) when is_list(node_ids) do
+  def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
+    distinct = Keyword.get(opts, :distinct, false)
+
     if Enum.empty?(node_ids) do
       []
     else
-      IngestRepo.all(from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids))
+      query = from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids)
+
+      query =
+        if distinct do
+          from(c in query, distinct: c.node_id)
+        else
+          query
+        end
+
+      ClickHouseRepo.all(query)
     end
   end
 
@@ -229,7 +243,7 @@ defmodule Tuist.Runs do
            time_weighted_avg_upload_throughput
          ]
        ]
-     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
 
     %{
       download_count: download_count,
@@ -271,7 +285,7 @@ defmodule Tuist.Runs do
            p50_write_duration
          ]
        ]
-     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
 
     %{
       avg_read_duration: avg_read_duration || 0,

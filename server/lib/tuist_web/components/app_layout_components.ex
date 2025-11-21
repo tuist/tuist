@@ -62,24 +62,63 @@ defmodule TuistWeb.AppLayoutComponents do
             (not is_nil(@selected_run) and not Enum.empty?(@selected_run.test_targets))
         }
       />
-      <.sidebar_item
-        label={gettext("Cache Runs")}
-        icon="schema"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs"}
-        selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs" ==
-            @current_path or
-            (not is_nil(@selected_run) and @selected_run.name == "cache")
+      <.sidebar_group
+        id="sidebar-module-cache"
+        label={gettext("Module Cache")}
+        icon="database"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
         }
-      />
-      <.sidebar_item
-        label={gettext("Generate Runs")}
-        icon="filters"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs"}
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs" ==
-            @current_path or
-            (not is_nil(@selected_run) and @selected_run.name == "generate")
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
+        disabled={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+          ) or
+            (not is_nil(@selected_run) and
+               (@selected_run.name == "generate" or @selected_run.name == "cache"))
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={gettext("Cache Runs")}
+          icon="schema"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"
+            ) or
+              (not is_nil(@selected_run) and @selected_run.name == "cache")
+          }
+        />
+        <.sidebar_item
+          label={gettext("Generate Runs")}
+          icon="filters"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+          }
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+            ) or
+              (not is_nil(@selected_run) and @selected_run.name == "generate")
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_item
+        label={gettext("Xcode Cache")}
+        icon="cube_send"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
         }
       />
       <.sidebar_item

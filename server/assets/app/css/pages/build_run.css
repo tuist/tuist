@@ -364,6 +364,10 @@
         }
 
         & #cacheable-tasks-table {
+          & td:nth-child(1) {
+            max-width: 500px;
+          }
+
           & td:nth-child(2),
           & td:nth-child(3) {
             width: 12%;
@@ -402,12 +406,13 @@
                   flex-direction: column;
                   align-items: flex-end;
                   gap: var(--noora-spacing-1);
-                  padding: var(--noora-spacing-3);
+                  padding: var(--noora-spacing-4);
 
                   & [data-part="hash-tooltip-text"] {
                     max-width: 356px;
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                    word-break: break-all;
                   }
                 }
               }

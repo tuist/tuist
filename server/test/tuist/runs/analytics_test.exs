@@ -331,7 +331,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         inserted_at: ~U[2024-04-27 03:00:00Z]
       )
 
-      # Current period (2024-04-28 to 2024-04-30): builds with p50 of 2000
+      # Current period (2024-04-28 to 2024-04-30)
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
@@ -607,39 +607,29 @@ defmodule Tuist.Runs.AnalyticsTest do
   end
 
   describe "cache_hit_rate_analytics/4" do
-    test "returns cache hit rates for the last three days" do
-      # Given
+    test "returns cache hit rates for Xcode builds for the last three days" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.build_fixture(
         project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00]
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote},
+          %{key: "task3_key", type: :swift, status: :miss},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.build_fixture(
         project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["E", "F"],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00]
+        inserted_at: ~U[2024-04-27 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task5_key", type: :swift, status: :hit_local}
+        ]
       )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: ["B"],
-        created_at: ~N[2024-04-27 03:00:00]
-      )
-
-      # When
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
@@ -647,47 +637,43 @@ defmodule Tuist.Runs.AnalyticsTest do
           end_date: DateTime.to_date(DateTime.utc_now())
         )
 
-      # Then
-      assert got.values == [0, 0, 0.5]
       assert got.cache_hit_rate == 0.5
+      assert List.last(got.values) == 0.5
     end
 
-    test "returns cache hit rates for the last three days for ci only" do
-      # Given
+    test "returns cache hit rates for ci builds only" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.build_fixture(
         project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00],
-        is_ci: true
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.build_fixture(
         project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A", "B", "C"],
-        remote_cache_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00],
-        is_ci: false
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :clang, status: :hit_remote}
+        ]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.build_fixture(
         project_id: project.id,
-        name: "generate",
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: [],
-        remote_cache_target_hits: ["B"],
-        created_at: ~N[2024-04-29 03:00:00],
-        is_ci: true
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task5_key", type: :swift, status: :hit_remote}
+        ]
       )
 
-      # When
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
@@ -696,9 +682,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           is_ci: true
         )
 
-      # Then
-      assert got.values == [0, 0.5, 0.5]
-      assert got.cache_hit_rate == 0.5
+      assert_in_delta got.cache_hit_rate, 0.6666, 0.01
     end
   end
 
@@ -1435,6 +1419,615 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.actual_build_time == 0
       assert got.total_time_saved == 1500
       assert got.total_build_time == 1500
+    end
+  end
+
+  describe "build_cache_hit_rate/4" do
+    test "returns Xcode build cache metrics" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote},
+          %{key: "task3_key", type: :swift, status: :miss},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task5_key", type: :swift, status: :hit_local},
+          %{key: "task6_key", type: :clang, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          Date.add(DateTime.utc_now(), -2),
+          DateTime.to_date(DateTime.utc_now()),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 6
+      assert got.cacheable_task_local_hits_count == 2
+      assert got.cacheable_task_remote_hits_count == 1
+    end
+
+    test "returns zero counts when no builds exist" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          Date.add(DateTime.utc_now(), -2),
+          DateTime.to_date(DateTime.utc_now()),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 0
+      assert got.cacheable_task_local_hits_count == 0
+      assert got.cacheable_task_remote_hits_count == 0
+    end
+
+    test "filters by is_ci when specified" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :clang, status: :hit_remote}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          Date.add(DateTime.utc_now(), -2),
+          DateTime.to_date(DateTime.utc_now()),
+          is_ci: true
+        )
+
+      assert got.cacheable_tasks_count == 2
+      assert got.cacheable_task_local_hits_count == 1
+      assert got.cacheable_task_remote_hits_count == 0
+    end
+
+    test "only includes builds with cacheable_tasks_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 05:00:00Z],
+        cacheable_tasks: []
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          Date.add(DateTime.utc_now(), -2),
+          DateTime.to_date(DateTime.utc_now()),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 1
+      assert got.cacheable_task_local_hits_count == 1
+    end
+  end
+
+  describe "build_cache_hit_rates/5" do
+    test "returns Xcode build cache metrics over time" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_remote},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          "1 day",
+          []
+        )
+
+      assert length(got) == 2
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      assert day1.cacheable_tasks == 2
+      assert day1.cacheable_task_local_hits == 1
+      assert day1.cacheable_task_remote_hits == 0
+
+      day2 = Enum.find(got, &(&1.date == "2024-04-30"))
+      assert day2.cacheable_tasks == 2
+      assert day2.cacheable_task_local_hits == 0
+      assert day2.cacheable_task_remote_hits == 1
+    end
+
+    test "returns empty list when no builds exist" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          "1 day",
+          []
+        )
+
+      assert got == []
+    end
+
+    test "groups by month when using month bucket" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-05-15 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-03-15 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-03-20 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task2_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-10 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~D[2024-03-01],
+          ~D[2024-04-30],
+          "1 month",
+          []
+        )
+
+      assert length(got) == 2
+
+      march = Enum.find(got, &(&1.date == "2024-03"))
+      assert march.cacheable_tasks == 2
+      assert march.cacheable_task_local_hits == 1
+      assert march.cacheable_task_remote_hits == 1
+
+      april = Enum.find(got, &(&1.date == "2024-04"))
+      assert april.cacheable_tasks == 1
+      assert april.cacheable_task_local_hits == 0
+      assert april.cacheable_task_remote_hits == 0
+    end
+
+    test "filters by is_ci when specified" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task2_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          "1 day",
+          is_ci: true
+        )
+
+      assert length(got) == 1
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      assert day1.cacheable_tasks == 1
+      assert day1.cacheable_task_local_hits == 1
+      assert day1.cacheable_task_remote_hits == 0
+    end
+  end
+
+  describe "module_cache_hit_rate_analytics/1" do
+    test "returns module cache hit rate analytics with correct calculations" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period (2024-04-01 to 2024-04-30)
+      # Create events spread across the period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["K", "L", "M", "N", "O", "P", "Q"],
+        local_cache_target_hits: ["K", "L", "M"],
+        remote_cache_target_hits: ["N", "O"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["R", "S", "T", "U", "V", "W", "X"],
+        local_cache_target_hits: ["R", "S", "T"],
+        remote_cache_target_hits: ["U", "V"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period (2024-03-03 to 2024-04-01): 40% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["AA", "BB", "CC", "DD", "EE"],
+        local_cache_target_hits: ["AA"],
+        remote_cache_target_hits: ["BB"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      # Total: 24 targets, 13 hits = 54.2%
+      assert_in_delta got.avg_hit_rate, 54.2, 0.1
+      assert_in_delta got.trend, 62.8, 0.1
+      assert length(got.dates) == 30
+      assert Enum.at(got.dates, 0) == "2024-04-01"
+      assert Enum.at(got.dates, 14) == "2024-04-15"
+      assert Enum.at(got.dates, 29) == "2024-04-30"
+      assert_in_delta Enum.at(got.values, 0), 30.0, 0.1
+      assert_in_delta Enum.at(got.values, 14), 71.4, 0.1
+      assert_in_delta Enum.at(got.values, 29), 71.4, 0.1
+      assert Enum.at(got.values, 1) == 0.0
+      assert Enum.at(got.values, 13) == 0.0
+    end
+
+    test "returns zero hit rate when no cacheable targets exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no command events created
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+  end
+
+  describe "module_cache_hits_analytics/1" do
+    test "returns module cache hits analytics with correct totals" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period events
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D", "E", "F", "G"],
+        local_cache_target_hits: ["D", "E"],
+        remote_cache_target_hits: ["F", "G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["H", "I", "J", "K", "L"],
+        local_cache_target_hits: ["H", "I", "J"],
+        remote_cache_target_hits: ["K", "L"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period events
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["M", "N"],
+        local_cache_target_hits: ["M"],
+        remote_cache_target_hits: ["N"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 12
+      assert_in_delta got.trend, 140.0, 0.1
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 4, April 30 = 5
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 4
+      assert Enum.at(got.values, 29) == 5
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
+    end
+
+    test "returns zero when no hits exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no events created
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert got.trend == 0.0
+    end
+  end
+
+  describe "module_cache_misses_analytics/1" do
+    test "returns module cache misses analytics with correct calculations" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period: varying miss rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["F", "G", "H", "I"],
+        local_cache_target_hits: ["F"],
+        remote_cache_target_hits: ["G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["J", "K", "L", "M", "N", "O"],
+        local_cache_target_hits: ["J", "K"],
+        remote_cache_target_hits: ["L", "M"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["P", "Q", "R"],
+        local_cache_target_hits: ["P"],
+        remote_cache_target_hits: ["Q"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 7
+      assert_in_delta got.trend, 75.0, 0.1
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 2, April 30 = 2
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 2
+      assert Enum.at(got.values, 29) == 2
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
+    end
+
+    test "returns zero when no misses exist" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # All targets have cache hits
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert length(got.values) == 30
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+  end
+
+  describe "module_cache_hit_rate_percentile/3" do
+    test "returns module cache hit rate percentile analytics with descending order calculation" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period: Create multiple events with varying hit rates for p99 calculation
+      # Events on 2024-04-01
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A1", "A2", "A3", "A4"],
+        local_cache_target_hits: ["A1", "A2"],
+        remote_cache_target_hits: ["A3"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      # Events on 2024-04-15
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["B1", "B2", "B3", "B4"],
+        local_cache_target_hits: ["B1", "B2", "B3"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      # Events on 2024-04-30
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["C1", "C2", "C3", "C4"],
+        local_cache_target_hits: ["C1", "C2", "C3"],
+        remote_cache_target_hits: ["C4"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D1", "D2", "D3"],
+        local_cache_target_hits: ["D1"],
+        remote_cache_target_hits: ["D2"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert_in_delta got.avg_hit_rate, 75.0, 0.1
+      assert_in_delta got.trend, 12.5, 0.1
+      assert length(got.dates) == 30
+      assert Enum.at(got.values, 0) != 0.0
+      assert Enum.at(got.values, 14) != 0.0
+      assert Enum.at(got.values, 29) != 0.0
+      assert Enum.at(got.values, 1) == 0.0
+    end
+
+    test "returns zero percentile when no data exists" do
+      # Given
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no events created
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_date: ~D[2024-04-01],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
     end
   end
 end

@@ -8,7 +8,9 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
@@ -365,7 +367,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -398,7 +400,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -428,7 +430,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -516,7 +518,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -597,7 +599,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2126,12 +2128,12 @@ defmodule Tuist.AccountsTest do
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
     end
 
     test "creates a user from a google identity with a hosted domain" do
@@ -2144,7 +2146,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2156,7 +2158,7 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == "tuist.io"
     end
@@ -2171,7 +2173,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2183,20 +2185,20 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
@@ -2205,14 +2207,14 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new okta identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2322,7 +2324,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2353,6 +2355,60 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "add_user_to_organization/3" do
+    test "does not create duplicate roles when called twice with same role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user to organization twice with :user role
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then - Should only have one role/user_role for this user+organization
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      assert length(roles) == 1
+      assert hd(roles).name == "user"
+    end
+
+    test "does not create duplicate roles when called twice with different roles" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user as :user, then try to add again as :admin (should not create duplicate)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # Then - Should only have one role (the first one created)
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      # The second call should be a no-op if a role already exists
+      assert length(roles) == 1
+    end
+  end
+
   describe "update_user_role_in_organization/3" do
     test "Updates user role from user to admin" do
       # Given
@@ -2362,7 +2418,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :admin)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :admin)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == true
@@ -2376,7 +2432,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :admin)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :user)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :user)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == false
@@ -2448,7 +2504,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2500,7 +2556,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{

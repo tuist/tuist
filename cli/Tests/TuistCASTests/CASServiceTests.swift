@@ -13,22 +13,30 @@ import TuistSupport
 
 struct CASServiceTests {
     private let subject: CASService
+    private let cacheURLStore: MockCacheURLStoring
     private let saveCacheCASService: MockSaveCacheCASServicing
     private let loadCacheCASService: MockLoadCacheCASServicing
     private let dataCompressingService: MockDataCompressingServicing
     private let metadataStore: MockCASOutputMetadataStoring
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
+    private let cacheURL = URL(string: "https://cache.example.com")!
 
     init() {
+        cacheURLStore = .init()
         saveCacheCASService = .init()
         loadCacheCASService = .init()
         dataCompressingService = .init()
         metadataStore = .init()
 
+        given(cacheURLStore)
+            .getCacheURL(for: .any)
+            .willReturn(URL(string: "https://cache.example.com")!)
+
         subject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            cacheURLStore: cacheURLStore,
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
@@ -53,7 +61,8 @@ struct CASServiceTests {
             .loadCacheCAS(
                 casId: .any,
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                authenticationURL: .any
             )
             .willReturn(compressedData)
 
@@ -82,7 +91,8 @@ struct CASServiceTests {
             .loadCacheCAS(
                 casId: .value(casID),
                 fullHandle: .value(fullHandle),
-                serverURL: .value(serverURL)
+                serverURL: .any,
+                authenticationURL: .value(serverURL)
             )
             .called(1)
 
@@ -107,7 +117,7 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(loadCacheCASService)
-            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any)
+            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(expectedError)
 
         // When
@@ -145,7 +155,8 @@ struct CASServiceTests {
                 .any,
                 casId: .any,
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                authenticationURL: .any
             )
             .willReturn()
 
@@ -177,7 +188,8 @@ struct CASServiceTests {
                 .value(compressedData),
                 casId: .value(fingerprint),
                 fullHandle: .value(fullHandle),
-                serverURL: .value(serverURL)
+                serverURL: .any,
+                authenticationURL: .value(serverURL)
             )
             .called(1)
 
@@ -203,7 +215,7 @@ struct CASServiceTests {
             .willReturn(compressedData)
 
         given(saveCacheCASService)
-            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
+            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(expectedError)
 
         // When
@@ -238,7 +250,7 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(loadCacheCASService)
-            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any)
+            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(clientError)
 
         // When
@@ -266,7 +278,7 @@ struct CASServiceTests {
             .willReturn(compressedData)
 
         given(saveCacheCASService)
-            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
+            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(genericError)
 
         // When

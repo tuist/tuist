@@ -198,7 +198,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
@@ -209,7 +209,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
@@ -302,7 +302,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
 
         switch (
-            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inBackground,
+            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh),
+            inBackground,
             locking
         ) {
         case let (.valid(token), _, _):
@@ -316,15 +317,23 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             } else {
                 #if canImport(TuistSupport)
-                    return try await fileSystemLocked(
-                        serverURL: serverURL,
-                        action: { deleteLockfile in
-                            _ = try await executeRefresh(
-                                serverURL: serverURL, forceRefresh: forceRefresh
-                            )
-                            try await deleteLockfile()
-                        }, fetchActionResult: fetchActionResult
-                    )
+                    return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
+                        let token = try await fileSystemLocked(
+                            serverURL: serverURL,
+                            action: { deleteLockfile in
+                                _ = try await executeRefresh(
+                                    serverURL: serverURL, forceRefresh: forceRefresh
+                                )
+                                try await deleteLockfile()
+                            }, fetchActionResult: fetchActionResult
+                        )
+                        switch token {
+                        case .project:
+                            return (token, nil as Date?)
+                        case let .user(accessToken: _, refreshToken: refreshToken):
+                            return (token, refreshToken.expiryDate)
+                        }
+                    }
                 #else
                     return try await inProcessLockedRefresh(
                         serverURL: serverURL, forceRefresh: forceRefresh
@@ -335,14 +344,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
         case (.expired, true, true): // Background with locking
             #if canImport(TuistSupport)
-                return try await Self.fileSystemLockActor.withLock(
-                    lockfilePath: lockFilePath(serverURL: serverURL),
-                    serverURL: serverURL,
-                    action: { _ in
-                        try await spawnRefreshProcess(serverURL: serverURL)
-                    },
-                    fetchActionResult: fetchActionResult
-                )
+                return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
+                    let token = try await Self.fileSystemLockActor.withLock(
+                        lockfilePath: lockFilePath(serverURL: serverURL),
+                        serverURL: serverURL,
+                        action: { _ in
+                            try await spawnRefreshProcess(serverURL: serverURL)
+                        },
+                        fetchActionResult: fetchActionResult
+                    )
+                    switch token {
+                    case .project:
+                        return (token, nil as Date?)
+                    case let .user(accessToken: _, refreshToken: refreshToken):
+                        return (token, refreshToken.expiryDate)
+                    }
+                }
             #else
                 return nil
             #endif

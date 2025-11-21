@@ -7,13 +7,20 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
 
   def project_fixture(opts \\ []) do
     account_id =
-      Keyword.get_lazy(opts, :account_id, fn ->
-        organization_id = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture().id
+      cond do
+        Keyword.has_key?(opts, :account) ->
+          Keyword.get(opts, :account).id
 
-        Repo.get_by!(Tuist.Accounts.Account,
-          organization_id: organization_id
-        ).id
-      end)
+        Keyword.has_key?(opts, :account_id) ->
+          Keyword.get(opts, :account_id)
+
+        true ->
+          organization_id = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture().id
+
+          Repo.get_by!(Tuist.Accounts.Account,
+            organization_id: organization_id
+          ).id
+      end
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())

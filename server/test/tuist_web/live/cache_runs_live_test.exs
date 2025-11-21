@@ -44,7 +44,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs")
 
       # Then
       assert has_element?(lv, "span", "tuist cache App")

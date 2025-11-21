@@ -114,7 +114,7 @@ defmodule Tuist.ProjectsTest do
         provider: :google,
         uid: 123,
         info: %{
-          email: "tuist@tuist.io"
+          email: "tuist@tuist.dev"
         },
         extra: %{
           raw_info: %{
@@ -305,6 +305,106 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == project
+    end
+  end
+
+  describe "projects_by_full_handles/1" do
+    test "returns a map of full_handle to project for multiple projects" do
+      # Given
+      organization1 = AccountsFixtures.organization_fixture()
+      organization2 = AccountsFixtures.organization_fixture()
+      account1 = Accounts.get_account_from_organization(organization1)
+      account2 = Accounts.get_account_from_organization(organization2)
+
+      project1 = ProjectsFixtures.project_fixture(account_id: account1.id, name: "project1")
+      project2 = ProjectsFixtures.project_fixture(account_id: account1.id, name: "project2")
+      project3 = ProjectsFixtures.project_fixture(account_id: account2.id, name: "project3")
+
+      full_handles = [
+        "#{account1.name}/project1",
+        "#{account1.name}/project2",
+        "#{account2.name}/project3"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 3
+      assert got["#{account1.name}/project1"].id == project1.id
+      assert got["#{account1.name}/project2"].id == project2.id
+      assert got["#{account2.name}/project3"].id == project3.id
+    end
+
+    test "returns empty map when no full handles provided" do
+      # When
+      got = Projects.projects_by_full_handles([])
+
+      # Then
+      assert got == %{}
+    end
+
+    test "excludes non-existent projects from result" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: "existing-project")
+
+      full_handles = [
+        "#{account.name}/existing-project",
+        "#{account.name}/non-existent-project",
+        "non-existent-account/some-project"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/existing-project"].id == project.id
+      refute Map.has_key?(got, "#{account.name}/non-existent-project")
+      refute Map.has_key?(got, "non-existent-account/some-project")
+    end
+
+    test "handles duplicate full handles in input" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      full_handles = [
+        "#{account.name}/#{project.name}",
+        "#{account.name}/#{project.name}",
+        "#{account.name}/#{project.name}"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/#{project.name}"].id == project.id
+    end
+
+    test "handles malformed full handles gracefully" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      full_handles = [
+        "#{account.name}/#{project.name}",
+        "invalid-handle",
+        "too/many/parts",
+        ""
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/#{project.name}"].id == project.id
     end
   end
 

@@ -1,7 +1,87 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.102.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix false negative implicit import detection of transitive local dependencies by [@Kolos65](https://github.com/Kolos65) in [#8665](https://github.com/tuist/tuist/pull/8665)
+* refreshing token data race by [@fortmarek](https://github.com/fortmarek) in [#8706](https://github.com/tuist/tuist/pull/8706)
+
+## New Contributors
+* [@Kolos65](https://github.com/Kolos65) made their first contribution in [#8665](https://github.com/tuist/tuist/pull/8665)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.0...4.105.1
+
+## What's Changed in 4.105.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve error message of tuist inspect implicit-imports by [@n-zaitsev](https://github.com/n-zaitsev) in [#8604](https://github.com/tuist/tuist/pull/8604)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.7...4.105.0
+
+## What's Changed in 4.104.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resolve token refresh data race in ServerAuthenticationController by [@fortmarek](https://github.com/fortmarek) in [#8692](https://github.com/tuist/tuist/pull/8692)
+* skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.7
+
+## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add Emerge Tools SnapshottingTests to the list of targets that depend on XCTest by [@duarteich](https://github.com/duarteich) in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+## New Contributors
+* [@duarteich](https://github.com/duarteich) made their first contribution in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.4...4.104.5
+
+## What's Changed in 4.104.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* respect xcframework status by [@fortmarek](https://github.com/fortmarek) in [#8651](https://github.com/tuist/tuist/pull/8651)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.3...4.104.4
+
+## What's Changed in 4.104.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duplicate CAS outputs by [@fortmarek](https://github.com/fortmarek) in [#8646](https://github.com/tuist/tuist/pull/8646)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.2...4.104.3
+
+## What's Changed in 4.104.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip hashing lockfiles by [@fortmarek](https://github.com/fortmarek) in [#8650](https://github.com/tuist/tuist/pull/8650)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.1...4.104.2
+
+## What's Changed in 4.104.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* misreported Xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8638](https://github.com/tuist/tuist/pull/8638)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.0...4.104.1
+
+## What's Changed in 4.104.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* connect directly to the cache endpoint by [@fortmarek](https://github.com/fortmarek) in [#8628](https://github.com/tuist/tuist/pull/8628)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.103.0...4.104.0
+
+## What's Changed in 4.103.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -14,7 +94,7 @@ All notable changes to this project will be documented in this file.
 ## New Contributors
 * [@ast3150](https://github.com/ast3150) made their first contribution in [#8607](https://github.com/tuist/tuist/pull/8607)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.102.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.103.0
 
 ## What's Changed in 4.101.0<!-- RELEASE NOTES START -->
 
@@ -97,9 +177,6 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
-
-## New Contributors
-* [@n-zaitsev](https://github.com/n-zaitsev) made their first contribution in [#8540](https://github.com/tuist/tuist/pull/8540)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
 

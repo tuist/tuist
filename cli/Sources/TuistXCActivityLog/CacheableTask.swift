@@ -18,6 +18,7 @@ public struct CacheableTask: Equatable {
     public let readDuration: TimeInterval?
     public let writeDuration: TimeInterval?
     public let description: String?
+    public let nodeIDs: [String]
 
     public init(
         key: String,
@@ -25,7 +26,8 @@ public struct CacheableTask: Equatable {
         type: TaskType,
         readDuration: TimeInterval? = nil,
         writeDuration: TimeInterval? = nil,
-        description: String? = nil
+        description: String? = nil,
+        nodeIDs: [String] = []
     ) {
         self.key = key
         self.status = status
@@ -33,5 +35,6 @@ public struct CacheableTask: Equatable {
         self.readDuration = readDuration
         self.writeDuration = writeDuration
         self.description = description
+        self.nodeIDs = nodeIDs
     }
 }

@@ -12,7 +12,7 @@ defmodule TuistWeb.API.QAControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
     preview = AppBuildsFixtures.preview_fixture(project: project)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
