@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.106.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* open registry by [@fortmarek](https://github.com/fortmarek) in [#8708](https://github.com/tuist/tuist/pull/8708)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.0
+
 ## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
