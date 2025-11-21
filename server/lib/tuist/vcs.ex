@@ -573,9 +573,9 @@ defmodule Tuist.VCS do
 
     from(t in Runs.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> where([t], not is_nil(t.scheme) and t.scheme != "")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
-    |> Enum.filter(&(not is_nil(&1.scheme) and &1.scheme != ""))
     |> Enum.reduce(%{}, fn test_run, acc ->
       scheme = test_run.scheme
 
