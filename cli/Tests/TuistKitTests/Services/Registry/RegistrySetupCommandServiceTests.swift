@@ -32,9 +32,6 @@ struct RegistrySetupCommandServiceTests {
             defaultsController: defaultsController
         )
 
-        given(swiftPackageManagerController)
-            .packageRegistryLogin(token: .any, registryURL: .any)
-            .willReturn()
         given(createAccountTokenService)
             .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
             .willReturn("token")
@@ -82,14 +79,14 @@ struct RegistrySetupCommandServiceTests {
                       },
                       "authentication": {
                         "test.tuist.io": {
-                          "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
+                          "loginAPIPath": "/api/registry/swift/login",
                           "type": "token"
                         }
                       },
                       "registries": {
                         "[default]": {
                           "supportsAvailability": false,
-                          "url": "\(URL.test())/api/accounts/tuist/registry/swift"
+                          "url": "\(URL.test())/api/registry/swift"
                         }
                       },
                       "version": 1
@@ -97,12 +94,6 @@ struct RegistrySetupCommandServiceTests {
 
                     """
                 )
-                verify(createAccountTokenService)
-                    .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
-                    .called(1)
-                verify(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .any, registryURL: .any)
-                    .called(1)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(0)
@@ -148,11 +139,10 @@ struct RegistrySetupCommandServiceTests {
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(1)
-                #expect(ui().contains("Logged in to the tuist registry") == true)
                 #expect(
                     ui()
                         .contains(
-                            "Generated the tuist registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
+                            "Generated the registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
                         ) == true
                 )
             }
