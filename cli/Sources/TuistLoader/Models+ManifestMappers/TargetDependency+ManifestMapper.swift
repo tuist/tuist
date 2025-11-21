@@ -30,6 +30,12 @@ extension XcodeGraph.TargetDependency {
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [XcodeGraph.TargetDependency]]
     ) throws -> [XcodeGraph.TargetDependency] {
+        // Normalize dictionary keys to lowercase for case-insensitive lookup
+        let normalizedExternalDependencies = externalDependencies
+            .reduce(into: [String: [XcodeGraph.TargetDependency]]()) { result, entry in
+                result[entry.key.lowercased()] = entry.value
+            }
+
         switch manifest {
         case let .target(name, status, condition):
             return [.target(
@@ -100,7 +106,7 @@ extension XcodeGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name, condition):
-            guard let dependencies = externalDependencies[name] else {
+            guard let dependencies = normalizedExternalDependencies[name.lowercased()] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
 
