@@ -994,7 +994,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           status: "success",
           git_commit_sha: "abc123",
           git_branch: "main",
-          git_ref: "refs/heads/main"
+          git_ref: "refs/heads/main",
+          test_modules: []
         )
 
       # Then
