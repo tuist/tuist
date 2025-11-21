@@ -10,7 +10,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px 30px;
+      padding: 10px;
       box-sizing: border-box;
     }
 
@@ -101,10 +101,10 @@
         // Responsive margins based on container width
         const isMobile = width < 768;
         const margin = {
-          top: isMobile ? 30 : 50,
-          right: isMobile ? 20 : 40,
-          bottom: isMobile ? 70 : 80,
-          left: isMobile ? 45 : 65
+          top: isMobile ? 75 : 60, // More space between title/legend and graph
+          right: isMobile ? 15 : 140, // Less on mobile, legend moves below title
+          bottom: isMobile ? 110 : 100, // More space for phase labels on mobile
+          left: isMobile ? 50 : 65
         };
 
         const chartWidth = width - margin.left - margin.right;
@@ -200,16 +200,7 @@
           .attr("cy", d => yScale(d.actual))
           .attr("r", 5);
 
-        // Phase labels below x-axis - only show on wider screens to prevent overlap
-        if (!isMobile || width > 400) {
-          g.selectAll(".phase-label")
-            .data(data.slice(1)) // Skip solo
-            .join("text")
-            .attr("class", "phase-label")
-            .attr("x", d => xScale(d.size))
-            .attr("y", chartHeight + 25)
-            .text(d => isMobile ? d.phase.split(' ')[0] : d.phase); // Show first word only on mobile
-        }
+        // Phase labels are removed - they were redundant with the legend and cluttered the chart
 
         // Axes
         const xAxis = d3.axisBottom(xScale)
@@ -239,7 +230,7 @@
           .attr("text-anchor", "middle")
           .attr("transform", "rotate(-90)")
           .attr("x", -chartHeight / 2)
-          .attr("y", -50)
+          .attr("y", isMobile ? -40 : -50)
           .text("Commits Merged to Main per Day");
 
         // Title
@@ -252,37 +243,41 @@
 
         // Legend - position responsively
         const legendWidth = isMobile ? 100 : 120;
+        const legendX = isMobile ? margin.left : Math.max(margin.left, width - margin.right - legendWidth);
+        const legendY = isMobile ? 45 : margin.top; // Below title on mobile with more space, next to title on desktop
         const legend = svg.append("g")
-          .attr("transform", `translate(${Math.max(margin.left, width - margin.right - legendWidth)}, ${margin.top})`);
+          .attr("transform", `translate(${legendX}, ${legendY})`);
 
         // Expected legend
         legend.append("line")
           .attr("class", "expected-line legend-line")
           .attr("x1", 0)
-          .attr("x2", 30)
+          .attr("x2", isMobile ? 20 : 30)
           .attr("y1", 0)
           .attr("y2", 0);
 
         legend.append("text")
           .attr("class", "legend-text")
-          .attr("x", 35)
+          .attr("x", isMobile ? 25 : 35)
           .attr("y", 0)
           .attr("dy", "0.35em")
+          .style("font-size", isMobile ? "8px" : null)
           .text("Expected");
 
         // Actual legend
         legend.append("line")
           .attr("class", "actual-line legend-line")
-          .attr("x1", 0)
-          .attr("x2", 30)
-          .attr("y1", 20)
-          .attr("y2", 20);
+          .attr("x1", isMobile ? 80 : 0)
+          .attr("x2", isMobile ? 100 : 30)
+          .attr("y1", isMobile ? 0 : 20)
+          .attr("y2", isMobile ? 0 : 20);
 
         legend.append("text")
           .attr("class", "legend-text")
-          .attr("x", 35)
-          .attr("y", 20)
+          .attr("x", isMobile ? 105 : 35)
+          .attr("y", isMobile ? 0 : 20)
           .attr("dy", "0.35em")
+          .style("font-size", isMobile ? "8px" : null)
           .text("Actual");
       }
 
