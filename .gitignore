@@ -67,7 +67,7 @@ playground.xcworkspace
 # Packages/
 # Package.pins
 .build/
-.swiftpm
+.swiftpm/xcode
 
 # CocoaPods - Refactored to standalone file
 

@@ -1,0 +1,22 @@
+{
+  "security": {
+    "default": {
+      "signing": {
+        "onUnsigned": "silentAllow"
+      }
+    }
+  },
+  "authentication": {
+    "tuist.dev": {
+      "loginAPIPath": "/api/registry/swift/login",
+      "type": "token"
+    }
+  },
+  "registries": {
+    "[default]": {
+      "supportsAvailability": false,
+      "url": "https://tuist.dev/api/registry/swift"
+    }
+  },
+  "version": 1
+}
