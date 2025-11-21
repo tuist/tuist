@@ -63,8 +63,8 @@ defmodule Cache.Authentication do
       {:error, :not_jwt} ->
         fetch_and_cache_projects(auth_header, cache_key, conn)
 
-      {:error, :project_not_found} ->
-        cache_result(cache_key, {:error, 404, "Unauthorized or not found"}, failure_ttl())
+      {:error, :project_not_in_jwt} ->
+        fetch_and_cache_projects(auth_header, cache_key, conn)
 
       {:error, _reason} ->
         fetch_and_cache_projects(auth_header, cache_key, conn)
@@ -84,7 +84,7 @@ defmodule Cache.Authentication do
           ttl = calculate_ttl(exp)
           {:ok, ttl}
         else
-          {:error, :project_not_found}
+          {:error, :project_not_in_jwt}
         end
 
       {:error, _reason} ->

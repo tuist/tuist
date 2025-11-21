@@ -10,6 +10,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "authenticated_subject returns nil if the token associated subject doesn't exist" do
@@ -134,6 +135,8 @@ defmodule Tuist.AuthenticationTest do
       user = AccountsFixtures.user_fixture()
       project1 = ProjectsFixtures.project_fixture(account: user.account)
       project2 = ProjectsFixtures.project_fixture(account: user.account)
+      CommandEventsFixtures.command_event_fixture(project_id: project1.id)
+      CommandEventsFixtures.command_event_fixture(project_id: project2.id)
 
       # When
       {:ok, _token, claims} =
@@ -173,6 +176,7 @@ defmodule Tuist.AuthenticationTest do
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization, role: :admin)
       project = ProjectsFixtures.project_fixture(account: organization.account)
+      CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       # When
       {:ok, _token, claims} =

@@ -161,7 +161,9 @@ defmodule Tuist.Projects do
     end
   end
 
-  def get_all_project_accounts(%User{} = user) do
+  def get_all_project_accounts(resource, opts \\ [])
+
+  def get_all_project_accounts(%User{} = user, opts) do
     user_account = Accounts.get_account_from_user(user)
 
     organization_account_ids =
@@ -187,9 +189,10 @@ defmodule Tuist.Projects do
         account: account
       }
     end)
+    |> maybe_filter_recent(opts)
   end
 
-  def get_all_project_accounts(%Account{id: account_id} = account) do
+  def get_all_project_accounts(%Account{id: account_id} = account, opts) do
     query = from p in Project, where: p.account_id == ^account_id, select: p
 
     query
@@ -201,25 +204,37 @@ defmodule Tuist.Projects do
         account: account
       }
     end)
+    |> maybe_filter_recent(opts)
   end
 
-  def get_all_project_accounts(%AuthenticatedAccount{account: account}) do
-    get_all_project_accounts(account)
+  def get_all_project_accounts(%AuthenticatedAccount{account: account}, opts) do
+    get_all_project_accounts(account, opts)
   end
 
-  def get_all_project_accounts(%Project{} = project) do
+  def get_all_project_accounts(%Project{} = project, _opts) do
     project = Repo.preload(project, :account)
 
-    [
-      %ProjectAccount{
-        handle: "#{project.account.name}/#{project.name}",
-        project: project,
-        account: project.account
-      }
-    ]
+    [%ProjectAccount{handle: "#{project.account.name}/#{project.name}", project: project, account: project.account}]
   end
 
-  def get_all_project_accounts(_), do: []
+  def get_all_project_accounts(_, _opts), do: []
+
+  defp maybe_filter_recent(project_accounts, opts) do
+    if recent = Keyword.get(opts, :recent) do
+      project_ids = Enum.map(project_accounts, & &1.project.id)
+      interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
+
+      project_accounts
+      |> Enum.map(fn project_account ->
+        last_interacted_at = Map.get(interaction_data, project_account.project.id, project_account.project.updated_at)
+        %{project_account | project: %{project_account.project | last_interacted_at: last_interacted_at}}
+      end)
+      |> Enum.sort_by(& &1.project.last_interacted_at, {:desc, NaiveDateTime})
+      |> Enum.take(recent)
+    else
+      project_accounts
+    end
+  end
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())

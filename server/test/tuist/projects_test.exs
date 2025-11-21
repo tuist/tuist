@@ -287,6 +287,43 @@ defmodule Tuist.ProjectsTest do
                & &1.handle
              ) == Enum.sort_by(got, & &1.handle)
     end
+
+    test "filters to most recent projects when recent option is provided" do
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      projects =
+        for i <- 1..7 do
+          ProjectsFixtures.project_fixture(account_id: user_account.id, name: "project-#{i}")
+        end
+
+      [p1, p2, p3, p4, p5, p6, p7] = projects
+
+      now = DateTime.utc_now()
+      CommandEventsFixtures.command_event_fixture(project_id: p1.id, created_at: DateTime.add(now, -6, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p2.id, created_at: DateTime.add(now, -5, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p3.id, created_at: DateTime.add(now, -4, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p4.id, created_at: DateTime.add(now, -3, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p5.id, created_at: DateTime.add(now, -2, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p6.id, created_at: DateTime.add(now, -1, :hour))
+      CommandEventsFixtures.command_event_fixture(project_id: p7.id, created_at: now)
+
+      got = Projects.get_all_project_accounts(user, recent: 5)
+
+      assert length(got) == 5
+      handles = Enum.map(got, & &1.handle)
+
+      assert "#{user_account.name}/#{p7.name}" in handles
+      assert "#{user_account.name}/#{p6.name}" in handles
+      assert "#{user_account.name}/#{p5.name}" in handles
+      assert "#{user_account.name}/#{p4.name}" in handles
+      assert "#{user_account.name}/#{p3.name}" in handles
+
+      refute "#{user_account.name}/#{p2.name}" in handles
+      refute "#{user_account.name}/#{p1.name}" in handles
+
+      assert Enum.at(got, 0).handle == "#{user_account.name}/#{p7.name}"
+    end
   end
 
   describe "get_project_by_account_and_project_handles/2" do
