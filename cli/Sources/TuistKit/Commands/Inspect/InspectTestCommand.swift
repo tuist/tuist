@@ -11,7 +11,7 @@ struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project to inspect the latest test for.",
+        help: "The path to the directory that contains the project to inspect the latest test results for.",
         completion: .directory,
         envKey: .inspectTestPath
     )
