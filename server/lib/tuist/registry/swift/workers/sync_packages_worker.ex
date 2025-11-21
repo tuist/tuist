@@ -28,7 +28,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
   # Packages with git submodules are not supported to be automatically mirrored in our registry.
   @unsupported_packages [
     "monzo/nearby",
-    "awslabs/aws-crt-swift"
+    "awslabs/aws-crt-swift",
+    "apple/swift-protobuf"
   ]
 
   @impl Oban.Worker
