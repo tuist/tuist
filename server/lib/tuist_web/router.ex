@@ -30,7 +30,7 @@ defmodule TuistWeb.Router do
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
@@ -201,6 +201,15 @@ defmodule TuistWeb.Router do
         get Path.join(locale_path_prefix, blog_post_slug),
             MarketingController,
             :blog_post,
+            metadata: %{type: :marketing},
+            private: private
+
+        # Add iframe route for each blog post
+        iframe_path = Path.join([locale_path_prefix, blog_post_slug, "iframe.html"])
+
+        get iframe_path,
+            TuistWeb.Marketing.MarketingBlogIframeController,
+            :show,
             metadata: %{type: :marketing},
             private: private
       end

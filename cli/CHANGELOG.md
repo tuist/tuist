@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * open registry by [@fortmarek](https://github.com/fortmarek) in [#8708](https://github.com/tuist/tuist/pull/8708)
+### 🐛 Bug Fixes
+
+* external dependency case insensitive lookup by [@fortmarek](https://github.com/fortmarek) in [#8714](https://github.com/tuist/tuist/pull/8714)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.0
 

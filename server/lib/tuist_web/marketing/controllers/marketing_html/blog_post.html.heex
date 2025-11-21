@@ -44,6 +44,41 @@
       <.marketing_banner title={dgettext("marketing", "AI writes faster. So should your builds.")} />
     </section>
   </main>
+
+  <script nonce={@csp_nonce}>
+    // Generic Intersection Observer for iframe visualizations
+    // Automatically starts/pauses/resumes iframe animations based on visibility
+    (function() {
+      const observerOptions = {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+      };
+
+      const startedIframes = new WeakSet();
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const iframe = entry.target;
+          if (entry.isIntersecting) {
+            if (!startedIframes.has(iframe)) {
+              startedIframes.add(iframe);
+              iframe.contentWindow?.postMessage({ action: 'start' }, '*');
+            } else {
+              iframe.contentWindow?.postMessage({ action: 'resume' }, '*');
+            }
+          } else {
+            iframe.contentWindow?.postMessage({ action: 'pause' }, '*');
+          }
+        });
+      }, observerOptions);
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const iframes = document.querySelectorAll('iframe[data-visualization]');
+        iframes.forEach(iframe => observer.observe(iframe));
+      });
+    })();
+  </script>
 </TuistWeb.Marketing.Layouts.marketing>
 
 <%!-- <TuistWeb.Marketing.Layouts.marketing {assigns}>
