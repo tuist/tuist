@@ -32,6 +32,15 @@ defmodule Cache.CASArtifacts do
   end
 
   @doc """
+  Deletes metadata entries for multiple keys in a single query.
+  """
+
+  def delete_by_keys(keys) when is_list(keys) do
+    Repo.delete_all(from(a in CASArtifact, where: a.key in ^keys))
+    :ok
+  end
+
+  @doc """
   Tracks access to a CAS artifact by updating its metadata in the database.
 
   Creates or updates a CASArtifact record with the current file size and access time.
