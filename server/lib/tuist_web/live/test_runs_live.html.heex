@@ -223,7 +223,12 @@
             />
           </:col>
           <:col :let={test_run} label={gettext("Branch")}>
-            <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />
+            <.text_cell
+              icon="git_branch"
+              label={
+                if test_run.git_branch == "", do: gettext("Unknown"), else: test_run.git_branch
+              }
+            />
           </:col>
           <:col :let={test_run} label={gettext("Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
