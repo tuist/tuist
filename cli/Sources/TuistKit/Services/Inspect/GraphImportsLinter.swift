@@ -150,8 +150,12 @@ final class GraphImportsLinter: GraphImportsLinting {
                 }
             }
             .map { dependency in
-                if case .external = dependency.graphTarget.project.type { return graphTraverser
-                    .allTargetDependencies(path: target.project.path, name: target.target.name)
+                if case .external = dependency.graphTarget.project.type {
+                    let targets = [dependency.graphTarget] + graphTraverser.allTargetDependencies(
+                        path: dependency.graphTarget.project.path,
+                        name: dependency.graphTarget.target.name
+                    )
+                    return Set(targets)
                 } else {
                     return Set(arrayLiteral: dependency.graphTarget)
                 }

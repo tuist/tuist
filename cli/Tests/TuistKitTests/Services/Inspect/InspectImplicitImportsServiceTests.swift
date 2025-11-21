@@ -61,6 +61,58 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
     }
 
+    func test_run_throwsAnError_when_transitiveLocalDependencyIsImplicitlyImported() async throws {
+        // Given
+        let config = Tuist.test()
+
+        let path = try AbsolutePath(validating: "/project")
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+
+        let packageTarget = Target.test(name: "PackageTarget", product: .app)
+        let packageTargetPath = try AbsolutePath(validating: "/p")
+        let packageTargetProject = Project.test(path: packageTargetPath, targets: [packageTarget], type: .external(hash: "hash"))
+
+        let testTarget = Target.test(name: "TestTarget", product: .app)
+        let testTargetPath = try AbsolutePath(validating: "/a")
+        let testTargetProject = Project.test(path: testTargetPath, targets: [testTarget])
+
+        let testTargetDependency = Target.test(name: "TestTargetDependency", product: .app)
+        let testTargetDependencyPath = try AbsolutePath(validating: "/b")
+        let testTargetDependencyProject = Project.test(path: testTargetDependencyPath, targets: [testTargetDependency])
+
+        let graph = Graph.test(
+            path: path,
+            projects: [
+                path: project,
+                testTargetPath: testTargetProject,
+                testTargetDependencyPath: testTargetDependencyProject,
+                packageTargetPath: packageTargetProject,
+            ],
+            dependencies: [
+                .target(name: "App", path: path): [
+                    .target(name: "PackageTarget", path: packageTargetPath),
+                    .target(name: "TestTarget", path: testTargetPath),
+                ],
+                .target(name: "TestTarget", path: testTargetPath): [
+                    .target(name: "TestTargetDependency", path: testTargetDependencyPath),
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set(["TestTargetDependency"]))
+        given(targetScanner).imports(for: .value(testTarget)).willReturn(Set())
+        given(targetScanner).imports(for: .value(testTargetDependency)).willReturn(Set())
+
+        let expectedError = LintingError()
+
+        // When / Then
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
+    }
+
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
@@ -118,25 +170,25 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
-        let testTarget = Target.test(name: "PackageTarget", product: .app)
-        let externalTargetDependency = Target.test(name: "PackageTargetDependency", product: .app)
-        let externalProject = Project.test(
-            path: path,
-            targets: [testTarget, externalTargetDependency],
+
+        let packagePath = try AbsolutePath(validating: "/a")
+        let packageTarget = Target.test(name: "PackageTarget", product: .app)
+        let packageTargetDependency = Target.test(name: "PackageTargetDependency", product: .app)
+        let packageProject = Project.test(
+            path: packagePath,
+            targets: [packageTarget, packageTargetDependency],
             type: .external(hash: "hash")
         )
         let graph = Graph.test(
             path: path,
-            projects: [path: project, "/a": externalProject],
+            projects: [path: project, packagePath: packageProject],
             dependencies: [
                 GraphDependency.target(name: "App", path: path): Set([
-                    GraphDependency.target(name: "PackageTarget", path: "/a"),
+                    GraphDependency.target(name: "PackageTarget", path: packagePath),
                 ]),
-                GraphDependency
-                    .target(
-                        name: "PackageTarget",
-                        path: "/a"
-                    ): Set([GraphDependency.target(name: "PackageTargetDependency", path: "/a")]),
+                GraphDependency.target(name: "PackageTarget", path: packagePath): Set([
+                    GraphDependency.target(name: "PackageTargetDependency", path: packagePath),
+                ]),
             ]
         )
 
