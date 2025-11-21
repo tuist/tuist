@@ -1756,27 +1756,17 @@ defmodule Tuist.Runs.Analytics do
   - avg_duration: Average test case duration in milliseconds
   """
   def get_test_run_metrics(test_run_id) do
-    query =
-      from t in TestCaseRun,
-        where: t.test_run_id == ^test_run_id,
-        select: %{
-          total_count: count(t.id),
-          failed_count: fragment("countIf(? = 1)", t.status),
-          avg_duration: avg(t.duration)
-        }
+  query =
+    from t in TestCaseRun,
+      where: t.test_run_id == ^test_run_id,
+      select: %{
+        total_count: fragment("coalesce(count(?), 0)", t.id),
+        failed_count: fragment("coalesce(countIf(? = 1), 0)", t.status),
+        avg_duration: fragment("coalesce(round(avg(?)), 0)", t.duration)
+      }
 
-    case ClickHouseRepo.one(query) do
-      nil ->
-        %{total_count: 0, failed_count: 0, avg_duration: 0}
-
-      result ->
-        %{
-          total_count: result.total_count,
-          failed_count: result.failed_count,
-          avg_duration: if(is_nil(result.avg_duration), do: 0, else: round(result.avg_duration))
-        }
-    end
-  end
+  ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, avg_duration: 0}
+end
 
   @doc """
   Fetches metrics for multiple test runs with precomputed values.
