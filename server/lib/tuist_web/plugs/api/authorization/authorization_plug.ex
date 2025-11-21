@@ -54,7 +54,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     authorize_project(conn, :cache, opts)
   end
 
-  # For registry access without account context (public/unauthenticated access)
   defp authorize_account(%{assigns: assigns} = conn, :registry) when not is_map_key(assigns, :selected_account) do
     conn
   end
