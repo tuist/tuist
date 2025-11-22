@@ -6,7 +6,7 @@ defmodule TuistWeb.LayoutComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
-  attr :current_user, :map, default: nil
+  attr(:current_user, :map, default: nil)
 
   def head_plain_script(assigns) do
     current_user = Map.get(assigns, :current_user)
@@ -33,7 +33,10 @@ defmodule TuistWeb.LayoutComponents do
     assigns = assign(assigns, :plain_opts, plain_opts)
 
     ~H"""
-    <script :if={Tuist.Environment.analytics_enabled?()} nonce={get_csp_nonce()}>
+    <script
+      :if={Tuist.Environment.analytics_enabled?() and not Map.get(assigns, :plain_disabled?, false)}
+      nonce={get_csp_nonce()}
+    >
       (function(d, script) {
         script = d.createElement('script');
         script.async = false;
@@ -101,7 +104,7 @@ defmodule TuistWeb.LayoutComponents do
     """
   end
 
-  attr :page_section, :string, default: nil
+  attr(:page_section, :string, default: nil)
 
   def head_analytics_scripts(assigns) do
     posthog_opts =
