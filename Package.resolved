@@ -1,5 +1,5 @@
 {
-  "originHash" : "ecf88b876c20d0c35245bf8cbb75354e7501542f42624a5bdf6fbe27a89a5189",
+  "originHash" : "5b4e465e93c4a88e77276415461f9a32069965f8c835324d56b1a158d1c8266b",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -186,11 +186,19 @@
       }
     },
     {
+      "identity" : "CoreOffice.XMLCoder",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.17.1"
+      }
+    },
+    {
       "identity" : "cpisciotta.xcbeautify",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "3.1.0"
+        "version" : "3.1.1"
       }
     },
     {
@@ -599,7 +607,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.59"
+        "version" : "0.6.63"
       }
     },
     {
@@ -639,17 +647,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "b2ed9eabefe56202ee4939dd9fc46b6241c88317",
-        "version" : "1.6.1"
-      }
-    },
-    {
-      "identity" : "xmlcoder",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MaxDesiatov/XMLCoder.git",
-      "state" : {
-        "revision" : "b1e944cbd0ef33787b13f639a5418d55b3bed501",
-        "version" : "0.17.1"
+        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
+        "version" : "1.7.0"
       }
     }
   ],

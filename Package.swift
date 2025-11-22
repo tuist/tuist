@@ -12,6 +12,19 @@ let argumentParserDependency: Target.Dependency = .product(
 )
 let swiftGenKitDependency: Target.Dependency = .product(
     name: "SwiftGenKit", package: "swiftGen.SwiftGen")
+let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
+let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
+let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
+let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
+let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
+let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
+let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "stencilproject.Stencil")
+let stencilSwiftKitDependency: Target.Dependency = .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit")
+let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
+let queuerDependency: Target.Dependency = .product(name: "Queuer", package: "fabrizioBrancati.Queuer")
+let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
+let keychainAccessDependency: Target.Dependency = .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess")
+let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
 
 let targets: [Target] = [
     .executableTarget(
@@ -20,7 +33,7 @@ let targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
-            "FileSystem",
+            fileSystemDependency,
             "TuistSupport",
         ],
         path: "cli/Sources/tuistbenchmark"
@@ -42,13 +55,13 @@ let targets: [Target] = [
         dependencies: [
             pathDependency,
             "TuistSupport",
-            "XcodeGraph",
-            "XcodeProj",
-            "Mockable",
-            "FileSystem",
+            xcodeGraphDependency,
+            xcodeProjDependency,
+            mockableDependency,
+            fileSystemDependency,
             "TuistSimulator",
             .product(name: "XcodeMetadata", package: "tuist.XcodeGraph"),
-            .byName(name: "AnyCodable"),
+            anyCodableDependency,
         ],
         path: "cli/Sources/TuistCore",
         swiftSettings: [
@@ -58,7 +71,7 @@ let targets: [Target] = [
     .target(
         name: "TuistKit",
         dependencies: [
-            "XcodeProj",
+            xcodeProjDependency,
             pathDependency,
             argumentParserDependency,
             .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
@@ -72,16 +85,16 @@ let targets: [Target] = [
             "TuistHasher",
             "TuistScaffold",
             "TuistDependencies",
-            "GraphViz",
+            graphVizDependency,
             "TuistMigration",
             "TuistAsyncQueue",
             "TuistAnalytics",
             "TuistPlugin",
-            "XcodeGraph",
-            "Mockable",
+            xcodeGraphDependency,
+            mockableDependency,
             "TuistServer",
             "TuistSimulator",
-            "FileSystem",
+            fileSystemDependency,
             "TuistCache",
             "TuistRootDirectoryLocator",
             "TuistCI",
@@ -91,7 +104,7 @@ let targets: [Target] = [
             .product(name: "Command", package: "tuist.Command"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
-            .byName(name: "AnyCodable"),
+            anyCodableDependency,
             .product(name: "XCResultKit", package: "davidahouse.XCResultKit"),
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
@@ -132,10 +145,10 @@ let targets: [Target] = [
             pathDependency,
             loggingDependency,
             swiftToolsSupportDependency,
-            "ZIPFoundation",
-            "Mockable",
-            "FileSystem",
-            "Command",
+            zipFoundationDependency,
+            mockableDependency,
+            fileSystemDependency,
+            commandDependency,
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
             .product(name: "FileLogging", package: "crspybits.swift-log-file"),
@@ -152,10 +165,10 @@ let targets: [Target] = [
         dependencies: [
             "TuistSupport",
             "TuistServer",
-            "XcodeGraph",
+            xcodeGraphDependency,
             pathDependency,
-            "Difference",
-            "FileSystem",
+            differenceDependency,
+            fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             argumentParserDependency,
         ],
@@ -169,10 +182,10 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistTesting",
-            "XcodeProj",
-            "FileSystem",
+            xcodeProjDependency,
+            fileSystemDependency,
             "ProjectDescription",
-            "XcodeGraph",
+            xcodeGraphDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistAcceptanceTesting",
@@ -181,17 +194,17 @@ let targets: [Target] = [
     .target(
         name: "TuistGenerator",
         dependencies: [
-            "XcodeProj",
+            xcodeProjDependency,
             pathDependency,
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "GraphViz",
+            graphVizDependency,
             swiftGenKitDependency,
-            "StencilSwiftKit",
-            "Mockable",
-            "FileSystem",
-            "Stencil",
+            stencilSwiftKitDependency,
+            mockableDependency,
+            fileSystemDependency,
+            stencilDependency,
             "TuistRootDirectoryLocator",
         ],
         path: "cli/Sources/TuistGenerator",
@@ -204,12 +217,12 @@ let targets: [Target] = [
         dependencies: [
             pathDependency,
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "StencilSwiftKit",
-            "Stencil",
-            "Mockable",
-            "FileSystem",
+            stencilSwiftKitDependency,
+            stencilDependency,
+            mockableDependency,
+            fileSystemDependency,
             "TuistRootDirectoryLocator",
         ],
         path: "cli/Sources/TuistScaffold",
@@ -220,15 +233,15 @@ let targets: [Target] = [
     .target(
         name: "TuistAutomation",
         dependencies: [
-            "XcodeProj",
+            xcodeProjDependency,
             pathDependency,
             .product(name: "XcbeautifyLib", package: "cpisciotta.xcbeautify"),
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "Mockable",
-            "FileSystem",
-            "Command",
+            mockableDependency,
+            fileSystemDependency,
+            commandDependency,
         ],
         path: "cli/Sources/TuistAutomation",
         swiftSettings: [
@@ -240,10 +253,10 @@ let targets: [Target] = [
         dependencies: [
             "ProjectDescription",
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
             "TuistPlugin",
-            "Mockable",
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistDependencies",
@@ -255,11 +268,11 @@ let targets: [Target] = [
         name: "TuistMigration",
         dependencies: [
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "XcodeProj",
-            "Mockable",
-            "FileSystem",
+            xcodeProjDependency,
+            mockableDependency,
+            fileSystemDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistMigration",
@@ -271,13 +284,13 @@ let targets: [Target] = [
         name: "TuistAsyncQueue",
         dependencies: [
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "XcodeProj",
-            "Mockable",
+            xcodeProjDependency,
+            mockableDependency,
             pathDependency,
-            "Queuer",
-            "FileSystem",
+            queuerDependency,
+            fileSystemDependency,
         ],
         path: "cli/Sources/TuistAsyncQueue",
         swiftSettings: [
@@ -287,14 +300,14 @@ let targets: [Target] = [
     .target(
         name: "TuistLoader",
         dependencies: [
-            "XcodeProj",
+            xcodeProjDependency,
             pathDependency,
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistSupport",
-            "Mockable",
+            mockableDependency,
             "ProjectDescription",
-            "FileSystem",
+            fileSystemDependency,
             "TuistRootDirectoryLocator",
             "TuistGit",
         ],
@@ -306,7 +319,7 @@ let targets: [Target] = [
     .target(
         name: "TuistProcess",
         dependencies: [
-            "Mockable"
+            mockableDependency
         ],
         path: "cli/Sources/TuistProcess",
         swiftSettings: [
@@ -316,14 +329,14 @@ let targets: [Target] = [
     .target(
         name: "TuistAnalytics",
         dependencies: [
-            .byName(name: "AnyCodable"),
+            anyCodableDependency,
             "TuistAsyncQueue",
             "TuistServer",
             "TuistCore",
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistLoader",
             "TuistSupport",
-            "Mockable",
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistAnalytics",
@@ -334,13 +347,13 @@ let targets: [Target] = [
     .target(
         name: "TuistPlugin",
         dependencies: [
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistLoader",
             "TuistCore",
             "TuistSupport",
             "TuistScaffold",
-            "Mockable",
-            "FileSystem",
+            mockableDependency,
+            fileSystemDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistPlugin",
@@ -355,10 +368,10 @@ let targets: [Target] = [
             "TuistSupport",
             "TuistCache",
             "TuistXCActivityLog",
-            "FileSystem",
-            "XcodeGraph",
-            "Mockable",
-            "KeychainAccess",
+            fileSystemDependency,
+            xcodeGraphDependency,
+            mockableDependency,
+            keychainAccessDependency,
             .target(name: "TuistCI", condition: .when(platforms: [.macOS])),
             .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             pathDependency,
@@ -378,11 +391,11 @@ let targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
-            "FileSystem",
+            fileSystemDependency,
             "TuistRootDirectoryLocator",
             pathDependency,
-            "XcodeGraph",
-            "Mockable",
+            xcodeGraphDependency,
+            mockableDependency,
         ],
         path: "cli/Sources/TuistHasher",
         swiftSettings: [
@@ -394,10 +407,10 @@ let targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
-            "FileSystem",
-            "Mockable",
+            fileSystemDependency,
+            mockableDependency,
             pathDependency,
-            "XcodeGraph",
+            xcodeGraphDependency,
             "TuistHasher",
         ],
         path: "cli/Sources/TuistCache",
@@ -408,8 +421,8 @@ let targets: [Target] = [
     .target(
         name: "TuistSimulator",
         dependencies: [
-            "XcodeGraph",
-            "Mockable",
+            xcodeGraphDependency,
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistSimulator",
@@ -425,8 +438,8 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
             "TuistCASAnalytics",
             "TuistGit",
-            "FileSystem",
-            "XCLogParser",
+            fileSystemDependency,
+            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
             swiftToolsSupportDependency,
             pathDependency,
         ],
@@ -439,7 +452,7 @@ let targets: [Target] = [
         name: "TuistGit",
         dependencies: [
             "TuistSupport",
-            "FileSystem",
+            fileSystemDependency,
             swiftToolsSupportDependency,
             pathDependency,
         ],
@@ -453,7 +466,7 @@ let targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
-            "FileSystem",
+            fileSystemDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
@@ -465,7 +478,7 @@ let targets: [Target] = [
         name: "TuistCI",
         dependencies: [
             "TuistSupport",
-            "Mockable",
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistCI",
@@ -483,7 +496,7 @@ let targets: [Target] = [
             .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
             .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             .product(name: "libzstd", package: "facebook.zstd"),
-            "Mockable",
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistCAS",
@@ -496,9 +509,9 @@ let targets: [Target] = [
         name: "TuistCASAnalytics",
         dependencies: [
             "TuistSupport",
-            "FileSystem",
+            fileSystemDependency,
             pathDependency,
-            "Mockable",
+            mockableDependency,
         ],
         path: "cli/Sources/TuistCASAnalytics",
         swiftSettings: [
@@ -508,8 +521,8 @@ let targets: [Target] = [
     .target(
         name: "TuistLaunchctl",
         dependencies: [
-            "Command",
-            "Mockable",
+            commandDependency,
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistLaunchctl",
