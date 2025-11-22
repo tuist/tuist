@@ -653,7 +653,7 @@ let package = Package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.29.0")),
+        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.29.15")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.11.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
@@ -671,7 +671,7 @@ let package = Package(
             .upToNextMajor(from: "0.2.43")
         ),
         .package(id: "davidahouse.XCResultKit", .upToNextMajor(from: "1.2.2")),
-        .package(id: "tuist.Noora", .upToNextMajor(from: "0.45.0")),
+        .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
