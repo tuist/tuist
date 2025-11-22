@@ -28,6 +28,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         assert is_function(args.preview_url)
         assert is_function(args.preview_qr_code_url)
         assert is_function(args.command_run_url)
+        assert is_function(args.test_run_url)
         assert is_function(args.bundle_url)
         assert is_function(args.build_url)
         :ok
@@ -42,6 +43,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
         "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
         "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
         "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
         "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
@@ -61,6 +63,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
           project: %{account: %{name: "test-account"}, name: "test-project"},
           preview: %{id: 456},
           command_event: %{id: 789},
+          test_run: %{id: 303},
           bundle: %{id: 101},
           build: %{id: 202}
         }
@@ -73,6 +76,9 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
 
         command_url = args.command_run_url.(mock_data)
         assert command_url == "/test-account/test-project/runs/789"
+
+        test_run_url = args.test_run_url.(mock_data)
+        assert test_run_url == "/test-account/test-project/tests/test-runs/303"
 
         bundle_url = args.bundle_url.(mock_data)
         assert bundle_url == "/test-account/test-project/bundles/101"
@@ -92,6 +98,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
         "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
         "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
         "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
         "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
@@ -132,6 +139,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
         "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
         "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
         "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
         "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
@@ -154,6 +162,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
         "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
         "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
         "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
         "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }

@@ -225,7 +225,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(
-                    buildInsightsDisabled: false
+                    buildInsightsDisabled: false,
+                    testInsightsDisabled: false
                 ),
                 installOptions: .test(),
                 cacheOptions: .test()
@@ -259,7 +260,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(
-                    buildInsightsDisabled: false
+                    buildInsightsDisabled: false,
+                    testInsightsDisabled: false
                 ),
                 installOptions: .test(),
                 cacheOptions: .test()

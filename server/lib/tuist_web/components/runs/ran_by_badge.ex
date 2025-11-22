@@ -53,4 +53,31 @@ defmodule TuistWeb.Runs.RanByBadge do
     />
     """
   end
+
+  attr :test, :map, required: true
+
+  def test_ran_by_badge_cell(assigns) do
+    ~H"""
+    <.badge_cell
+      :if={@test.is_ci}
+      label={gettext("CI")}
+      icon="settings"
+      color="information"
+      style="light-fill"
+    />
+    <.badge_cell
+      :if={not @test.is_ci and not is_nil(@test.ran_by_account)}
+      label={@test.ran_by_account.name}
+      icon="user"
+      color="primary"
+      style="light-fill"
+    />
+    <.badge_cell
+      :if={!@test.is_ci and is_nil(@test.ran_by_account)}
+      label={gettext("Unknown")}
+      color="neutral"
+      style="light-fill"
+    />
+    """
+  end
 end

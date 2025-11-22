@@ -64,21 +64,20 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     }
 
     public func send(commandEvent: CommandEvent) async throws -> ServerCommandEvent {
+        let runsDirectory =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+        let runDirectory = runsDirectory.appending(component: commandEvent.runId)
+        let resultBundlePath =
+            commandEvent.resultBundlePath
+                ?? runDirectory
+                .appending(component: "\(Constants.resultBundleName).xcresult")
+
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
             projectId: fullHandle,
             serverURL: url
         )
-        let runsDirectory =
-            try cacheDirectoriesProvider
-                .cacheDirectory(for: .runs)
-
-        let runDirectory = runsDirectory.appending(component: commandEvent.runId)
-
-        let resultBundlePath =
-            commandEvent.resultBundlePath
-                ?? runDirectory
-                .appending(component: "\(Constants.resultBundleName).xcresult")
 
         let handles = fullHandle.split(separator: "/")
         guard handles.count == 2 else { throw TuistAnalyticsServerBackendError.invalidHandle(fullHandle) }

@@ -7194,7 +7194,7 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Create a new build.
+    /// Create a new run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)`.

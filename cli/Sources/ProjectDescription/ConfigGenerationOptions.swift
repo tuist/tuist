@@ -61,8 +61,11 @@ extension Tuist {
 
         /// When disabled, build insights are not collected. Build insights are never collected unless you are connected to a
         /// remote Tuist project.
-        /// Default value is `true`.
         public var buildInsightsDisabled: Bool
+
+        /// When disabled, test insights are not collected. Test insights are never collected unless you are connected to a
+        /// remote Tuist project.
+        public var testInsightsDisabled: Bool
 
         /// Disables building manifests in a sandboxed environment. This option is currently opt-in.
         ///
@@ -84,6 +87,7 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
+            testInsightsDisabled: Bool = false,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
@@ -99,6 +103,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching
@@ -108,7 +113,7 @@ extension Tuist {
         @available(
             *,
             deprecated,
-            message: "Use `options(disablePackageVersionLocking:staticSideEffectsWarningTargets:defaultConfiguration:optionalAuthentication:buildInsightsDisabled:disableSandbox:includeGenerateScheme:additionalPackageResolutionArguments)` instead."
+            message: "Use `options(disablePackageVersionLocking:staticSideEffectsWarningTargets:defaultConfiguration:optionalAuthentication:buildInsightsDisabled:testInsightsDisabled:disableSandbox:includeGenerateScheme:additionalPackageResolutionArguments)` instead."
         )
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
@@ -118,6 +123,7 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
+            testInsightsDisabled: Bool = false,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
@@ -132,6 +138,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching
@@ -162,6 +169,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
+                testInsightsDisabled: false,
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false

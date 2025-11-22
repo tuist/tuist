@@ -24,6 +24,7 @@ struct TuistGeneratedProjectOptionsTests {
                 defaultConfiguration: nil,
                 optionalAuthentication: false,
                 buildInsightsDisabled: false,
+                testInsightsDisabled: false,
                 disableSandbox: true,
                 includeGenerateScheme: false
             )
@@ -58,6 +59,7 @@ struct TuistGeneratedProjectOptionsTests {
                 defaultConfiguration: nil,
                 optionalAuthentication: false,
                 buildInsightsDisabled: false,
+                testInsightsDisabled: false,
                 disableSandbox: false,
                 includeGenerateScheme: false
             )
@@ -83,6 +85,7 @@ struct TuistGeneratedProjectOptionsTests {
             defaultConfiguration: nil,
             optionalAuthentication: false,
             buildInsightsDisabled: false,
+            testInsightsDisabled: false,
             disableSandbox: false,
             includeGenerateScheme: false
         )
@@ -109,6 +112,7 @@ struct TuistGeneratedProjectOptionsTests {
                 defaultConfiguration: "Release",
                 optionalAuthentication: true,
                 buildInsightsDisabled: true,
+                testInsightsDisabled: false,
                 disableSandbox: true,
                 includeGenerateScheme: true
             )
@@ -150,6 +154,7 @@ struct TuistGeneratedProjectOptionsTests {
                 defaultConfiguration: nil,
                 optionalAuthentication: false,
                 buildInsightsDisabled: false,
+                testInsightsDisabled: false,
                 disableSandbox: false,
                 includeGenerateScheme: false
             )

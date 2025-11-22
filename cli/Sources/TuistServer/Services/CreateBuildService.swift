@@ -45,6 +45,7 @@ import OpenAPIURLSession
         case unauthorized(String)
         case badRequest(String)
         case invalidURL(String)
+        case unexpectedResponseType
 
         var errorDescription: String? {
             switch self {
@@ -56,6 +57,8 @@ import OpenAPIURLSession
                 return message
             case let .invalidURL(url):
                 return "Invalid URL for the build: \(url)."
+            case .unexpectedResponseType:
+                return "The server returned an unexpected response type. Expected a build run but received a different type."
             }
         }
     }
@@ -175,6 +178,7 @@ import OpenAPIURLSession
                                 status: status,
                                 targets: targets
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.init),
+                                _type: .build,
                                 xcode_version: xcodeVersion
                             )
                         )
@@ -186,6 +190,8 @@ import OpenAPIURLSession
                 switch okResponse.body {
                 case let .json(run):
                     switch run {
+                    case .RunsTest:
+                        throw CreateBuildServiceError.unexpectedResponseType
                     case let .RunsBuild(build):
                         guard let build = ServerBuild(build) else { throw CreateBuildServiceError.invalidURL(build.url) }
                         return build

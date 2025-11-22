@@ -2,10 +2,10 @@ import Foundation
 
 public struct XCLogStoreManifestPlist: Codable {
     public struct ActivityLog: Codable {
-        let fileName: String
-        let timeStartedRecording: Double
-        let timeStoppedRecording: Double
-        let signature: String
+        public let fileName: String
+        public let timeStartedRecording: Double
+        public let timeStoppedRecording: Double
+        public let signature: String
 
         enum CodingKeys: String, CodingKey {
             case fileName

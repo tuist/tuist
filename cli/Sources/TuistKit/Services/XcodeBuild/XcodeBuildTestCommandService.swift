@@ -41,6 +41,7 @@ struct XcodeBuildTestCommandService {
     private let cacheStorageFactory: CacheStorageFactorying
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
     private let selectiveTestingService: SelectiveTestingServicing
+    private let inspectResultBundleService: InspectResultBundleServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -51,7 +52,8 @@ struct XcodeBuildTestCommandService {
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         cacheStorageFactory: CacheStorageFactorying,
         selectiveTestingGraphHasher: SelectiveTestingGraphHashing,
-        selectiveTestingService: SelectiveTestingServicing
+        selectiveTestingService: SelectiveTestingServicing,
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeGraphMapper = xcodeGraphMapper
@@ -62,6 +64,7 @@ struct XcodeBuildTestCommandService {
         self.cacheStorageFactory = cacheStorageFactory
         self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
         self.selectiveTestingService = selectiveTestingService
+        self.inspectResultBundleService = inspectResultBundleService
     }
 
     func run(
@@ -179,15 +182,18 @@ struct XcodeBuildTestCommandService {
             "-skip-testing:\($0.target)"
         }
 
+        let resultBundleArguments = try await resultBundlePathArguments(
+            passthroughXcodebuildArguments: passthroughXcodebuildArguments
+        )
+        let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
+
         do {
             try await xcodeBuildController
                 .run(
                     arguments: [
                         passthroughXcodebuildArguments,
                         skipTestingArguments,
-                        resultBundlePathArguments(
-                            passthroughXcodebuildArguments: passthroughXcodebuildArguments
-                        ),
+                        resultBundleArguments,
                     ]
                     .flatMap { $0 }
                 )
@@ -196,6 +202,10 @@ struct XcodeBuildTestCommandService {
                 with: testableGraphTargets,
                 selectiveTestingHashes: selectiveTestingHashes,
                 targetTestCacheItems: targetTestCacheItems
+            )
+            try? await inspectResultBundleIfNeeded(
+                resultBundlePath: resultBundlePath,
+                config: config
             )
             throw error
         }
@@ -211,6 +221,11 @@ struct XcodeBuildTestCommandService {
             selectiveTestingHashes: selectiveTestingHashes,
             targetTestCacheItems: targetTestCacheItems,
             cacheStorage: cacheStorage
+        )
+
+        try await inspectResultBundleIfNeeded(
+            resultBundlePath: resultBundlePath,
+            config: config
         )
     }
 
@@ -344,5 +359,19 @@ struct XcodeBuildTestCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    private func inspectResultBundleIfNeeded(
+        resultBundlePath: AbsolutePath?,
+        config: Tuist
+    ) async throws {
+        guard let resultBundlePath, config.fullHandle != nil,
+              try await fileSystem.exists(resultBundlePath)
+        else { return }
+
+        _ = try await inspectResultBundleService.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            config: config
+        )
     }
 }

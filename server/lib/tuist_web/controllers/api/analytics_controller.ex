@@ -4,6 +4,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias Tuist.Storage
   alias Tuist.VCS
   alias Tuist.Xcode
@@ -161,7 +162,7 @@ defmodule TuistWeb.API.AnalyticsController do
            status: %Schema{
              type: :string,
              description: "The status of the command.",
-             enum: [:success, :failure]
+             enum: ["success", "failure"]
            },
            error_message: %Schema{
              type: :string,
@@ -191,6 +192,10 @@ defmodule TuistWeb.API.AnalyticsController do
            build_run_id: %Schema{
              type: :string,
              description: "The build run identifier."
+           },
+           test_run_id: %Schema{
+             type: :string,
+             description: "The test run identifier."
            },
            xcode_graph: %Schema{
              type: :object,
@@ -308,6 +313,18 @@ defmodule TuistWeb.API.AnalyticsController do
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
+    test_run_id = Map.get(body_params, :test_run_id)
+
+    # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
+    test_run_id =
+      if body_params.name == "test" and is_nil(test_run_id) do
+        case create_test_run_from_command_event(body_params, selected_project) do
+          {:ok, test_run} -> test_run.id
+          {:error, _} -> nil
+        end
+      else
+        test_run_id
+      end
 
     cache_metadata = cache_metadata(body_params)
     selective_testing_metadata = selective_testing_metadata(body_params)
@@ -339,7 +356,8 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
         ran_at: date(body_params),
-        build_run_id: build_run_id
+        build_run_id: build_run_id,
+        test_run_id: test_run_id
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)
@@ -358,6 +376,7 @@ defmodule TuistWeb.API.AnalyticsController do
         preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
         preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
         command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
         bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
         build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
       })
@@ -372,13 +391,21 @@ defmodule TuistWeb.API.AnalyticsController do
         )
       end
 
+    test_run_url =
+      if is_nil(test_run_id) do
+        nil
+      else
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
+      end
+
     conn
     |> put_status(:ok)
     |> json(%{
       id: get_id_field(command_event),
       project_id: command_event.project_id,
       name: command_event.name,
-      url: url
+      url: url,
+      test_run_url: test_run_url
     })
   end
 
@@ -443,6 +470,39 @@ defmodule TuistWeb.API.AnalyticsController do
       }
     end
   end
+
+  defp create_test_run_from_command_event(body_params, project) do
+    scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
+
+    Runs.create_test(%{
+      id: Ecto.UUID.generate(),
+      duration: body_params.duration,
+      macos_version: body_params.macos_version,
+      xcode_version: body_params.swift_version,
+      is_ci: body_params.is_ci,
+      model_identifier: "",
+      scheme: scheme,
+      project_id: project.id,
+      account_id: project.account_id,
+      status: Map.get(body_params, :status),
+      git_branch: Map.get(body_params, :git_branch),
+      git_commit_sha: Map.get(body_params, :git_commit_sha),
+      git_ref: Map.get(body_params, :git_ref),
+      ran_at: date(body_params),
+      test_modules: [],
+      test_cases: []
+    })
+  end
+
+  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do
+    if String.starts_with?(scheme_or_flag, "-") do
+      nil
+    else
+      scheme_or_flag
+    end
+  end
+
+  defp extract_scheme_from_command_arguments(_), do: nil
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a run artifact",
@@ -851,7 +911,7 @@ defmodule TuistWeb.API.AnalyticsController do
       # Newer CLI versions send UUIDs which can be converted to integer IDs,
       # but older versions send integer IDs which cannot be converted back to UUIDs.
       # Due to this one-way conversion, we must use the legacy_id for object keys.
-      {:ok, Tuist.UUIDv7.to_int64(run_id)}
+      {:ok, run_id}
     else
       case CommandEvents.get_command_event_by_id(run_id) do
         {:ok, command_event} ->

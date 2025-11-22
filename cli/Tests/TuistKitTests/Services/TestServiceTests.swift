@@ -7,6 +7,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCResultService
 import XcodeGraph
 import XCTest
 
@@ -1154,12 +1155,48 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         given(xcResultService)
-            .parse(path: .value(xcresultPath))
-            .willReturn(InvocationRecord(actions: [], testSummaries: []))
-
-        given(xcResultService)
-            .successfulTestTargets(invocationRecord: .any)
-            .willReturn(["FrameworkBTests"])
+            .parse(path: .value(xcresultPath), rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .failed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "FrameworkATests",
+                            status: .failed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testA",
+                                    testSuite: nil,
+                                    module: "FrameworkATests",
+                                    duration: nil,
+                                    status: .failed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                        TestModule(
+                            name: "FrameworkBTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testB",
+                                    testSuite: nil,
+                                    module: "FrameworkBTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))

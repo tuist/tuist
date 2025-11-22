@@ -24,6 +24,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let resultBundlePath: AbsolutePath?
     public let ranAt: Date
     public let buildRunId: String?
+    public var testRunId: String?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -58,6 +59,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case resultBundlePath
         case ranAt
         case buildRunId
+        case testRunId
     }
 
     public init(
@@ -81,7 +83,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         previewId: String?,
         resultBundlePath: AbsolutePath?,
         ranAt: Date,
-        buildRunId: String?
+        buildRunId: String?,
+        testRunId: String?
     ) {
         self.runId = runId
         self.name = name
@@ -104,6 +107,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.resultBundlePath = resultBundlePath
         self.ranAt = ranAt
         self.buildRunId = buildRunId
+        self.testRunId = testRunId
     }
 }
 
@@ -129,7 +133,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             previewId: String? = nil,
             resultBundlePath: AbsolutePath? = nil,
             ranAt: Date = Date(),
-            buildRunId: String? = nil
+            buildRunId: String? = nil,
+            testRunId: String? = nil
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -152,7 +157,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 previewId: previewId,
                 resultBundlePath: resultBundlePath,
                 ranAt: ranAt,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                testRunId: testRunId
             )
         }
     }

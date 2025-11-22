@@ -9,10 +9,9 @@ defmodule TuistWeb.TestRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
-  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -32,9 +31,9 @@ defmodule TuistWeb.TestRunsLive do
   defp define_filters(project) do
     base = [
       %Filter.Filter{
-        id: "name",
-        field: :name,
-        display_name: gettext("Command"),
+        id: "scheme",
+        field: :scheme,
+        display_name: gettext("Scheme"),
         type: :text,
         operator: :=~,
         value: ""
@@ -143,7 +142,7 @@ defmodule TuistWeb.TestRunsLive do
     {:noreply, socket}
   end
 
-  def handle_info({:command_event_created, %{name: "test"}}, socket) do
+  def handle_info({:test_created, %{name: "test"}}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
@@ -179,7 +178,14 @@ defmodule TuistWeb.TestRunsLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
-      Analytics.combined_test_runs_analytics(project.id, opts)
+      Task.await_many(
+        [
+          Task.async(fn -> Analytics.test_run_analytics(project.id, opts) end),
+          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
+          Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
+        ],
+        30_000
+      )
 
     analytics_selected_widget = analytics_selected_widget(params)
 
@@ -322,7 +328,7 @@ defmodule TuistWeb.TestRunsLive do
 
     options = %{
       filters: flop_filters,
-      order_by: [:created_at],
+      order_by: [:ran_at],
       order_directions: [:desc]
     }
 
@@ -342,7 +348,7 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = CommandEvents.list_test_runs(options)
+    {test_runs, test_runs_meta} = Runs.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
@@ -360,7 +366,7 @@ defmodule TuistWeb.TestRunsLive do
           [%{field: :is_ci, op: op, value: true}]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :user_id, op: op, value: value}]
+          [%{field: :account_id, op: op, value: value}]
 
         _ ->
           []

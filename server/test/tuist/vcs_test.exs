@@ -8,6 +8,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.GitHub
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
+  alias Tuist.Runs
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
@@ -103,17 +104,64 @@ defmodule Tuist.VCSTest do
           display_name: "WatchApp"
         )
 
-      test_command_event_one =
+      {:ok, test_run_one} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          status: "success",
+          scheme: "test",
+          duration: 0,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: []
+        })
+
+      _test_command_event_one =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
           project_id: project.id,
           command_arguments: ["test"],
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          created_at: ~N[2024-04-30 03:00:00],
+          test_run_id: test_run_one.id
         )
 
-      test_command_event_two =
+      {:ok, test_run_two} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          status: "failure",
+          scheme: "test App",
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "test1", status: "success", duration: 250},
+                %{name: "test2", status: "success", duration: 250},
+                %{name: "test3", status: "success", duration: 250},
+                %{name: "test4", status: "failure", duration: 250}
+              ]
+            }
+          ]
+        })
+
+      _test_command_event_two =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
@@ -127,7 +175,8 @@ defmodule Tuist.VCSTest do
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
-          status: :failure
+          status: :failure,
+          test_run_id: test_run_two.id
         )
 
       stub(Req, :get, fn _opts ->
@@ -150,10 +199,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/runs/#{test_command_event_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/runs/#{test_command_event_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
 
         """
 
@@ -179,6 +228,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -269,6 +319,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -323,6 +374,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -377,6 +429,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -447,6 +500,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -478,6 +532,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -544,6 +599,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -576,6 +632,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -601,6 +658,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -632,6 +690,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -663,6 +722,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -694,6 +754,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -772,6 +833,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
@@ -835,6 +897,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn _ -> "" end,
         build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
       })
@@ -866,14 +929,32 @@ defmodule Tuist.VCSTest do
           display_name: "App"
         )
 
-      test_command_event =
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/pull/1/merge",
+          git_commit_sha: @git_commit_sha,
+          status: "success",
+          scheme: "test",
+          duration: 0,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: []
+        })
+
+      _test_command_event =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: "refs/pull/1/merge",
           project_id: project.id,
           command_arguments: ["test"],
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 04:00:00]
+          created_at: ~N[2024-04-30 04:00:00],
+          test_run_id: test_run.id
         )
 
       bundle =
@@ -915,9 +996,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/runs/#{test_command_event.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
 
 
         #### Builds 🔨
@@ -954,6 +1035,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
       })
@@ -1015,6 +1097,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
@@ -1076,6 +1159,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })

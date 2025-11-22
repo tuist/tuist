@@ -5,15 +5,18 @@ public struct ServerCommandEvent: Codable, Equatable {
     public let id: String
     public let name: String
     public let url: URL
+    public let testRunURL: URL?
 
     public init(
         id: String,
         name: String,
-        url: URL
+        url: URL,
+        testRunURL: URL?
     ) {
         self.id = id
         self.name = name
         self.url = url
+        self.testRunURL = testRunURL
     }
 
     public struct Artifact: Equatable {
@@ -39,6 +42,11 @@ extension ServerCommandEvent {
         id = commandEvent.id
         name = commandEvent.name
         url = URL(string: commandEvent.url)!
+        if let testRunURL = commandEvent.test_run_url {
+            self.testRunURL = URL(string: testRunURL)
+        } else {
+            testRunURL = nil
+        }
     }
 }
 
@@ -66,12 +74,14 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
         public static func test(
             id: String = UUID().uuidString,
             name: String = "generate",
-            url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
+            url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!,
+            testRunURL: URL? = nil
         ) -> Self {
             .init(
                 id: id,
                 name: name,
-                url: url
+                url: url,
+                testRunURL: testRunURL
             )
         }
     }

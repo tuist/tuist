@@ -716,6 +716,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user}
       ] do
       live "/tests/test-runs", TestRunsLive
+      live "/tests/test-runs/:test_run_id", TestRunLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

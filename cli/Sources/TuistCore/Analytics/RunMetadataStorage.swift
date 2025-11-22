@@ -53,4 +53,10 @@ public actor RunMetadataStorage {
     public func update(buildRunId: String?) {
         self.buildRunId = buildRunId
     }
+
+    /// The ID of the latest test run.
+    public private(set) var testRunId: String?
+    public func update(testRunId: String?) {
+        self.testRunId = testRunId
+    }
 }

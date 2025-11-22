@@ -30,6 +30,8 @@ public enum Module: String, CaseIterable {
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
     case ci = "TuistCI"
+    case xcodeProjectOrWorkspacePathLocator = "TuistXcodeProjectOrWorkspacePathLocator"
+    case xcResultService = "TuistXCResultService"
     case cas = "TuistCAS"
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
@@ -334,7 +336,7 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .casAnalytics, .launchctl:
+             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator:
             moduleTags.append("domain:infrastructure")
         }
 
@@ -459,6 +461,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
+                    .target(name: Module.xcResultService.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.launchctl.targetName),
                     .external(name: "MCP"),
@@ -595,6 +599,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.cache.targetName, condition: .when([.macos])),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
@@ -657,6 +662,18 @@ public enum Module: String, CaseIterable {
             case .ci:
                 [
                     .target(name: Module.support.targetName),
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .xcResultService:
+                [
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .external(name: "XCResultKit"),
+                    .external(name: "FileSystem"),
                 ]
             case .cas:
                 [
@@ -737,6 +754,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName),
                     .target(name: Module.launchctl.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
@@ -911,6 +929,14 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.testing.targetName)
+                ]
+            case .xcResultService:
+                [
+                    .target(name: Module.testing.targetName)
                 ]
             case .cas:
                 [

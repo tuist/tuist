@@ -21,6 +21,8 @@
 
   & [data-part="filters"] {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     gap: var(--noora-spacing-6);
   }
 

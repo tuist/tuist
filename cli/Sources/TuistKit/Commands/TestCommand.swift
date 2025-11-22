@@ -25,7 +25,7 @@ enum TuistTestFlagError: FatalError, Equatable {
 
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
-    RecentPathRememberableCommand
+    RecentPathRememberableCommand, TrackableParsableCommand
 {
     public init() {}
 
@@ -35,6 +35,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
             abstract: "Tests a project"
         )
     }
+
+    var analyticsRequired: Bool { true }
 
     var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 

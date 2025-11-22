@@ -370,6 +370,7 @@ defmodule TuistWeb.API.RunsControllerTest do
              ]
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -414,6 +415,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.account_id == user.account.id
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -456,6 +458,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [build] = Tuist.Repo.all(Build)
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -476,6 +479,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "build",
           id: UUIDv7.generate(),
           duration: 1000,
           is_ci: false
@@ -501,6 +505,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_provider == nil
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -544,6 +549,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.account_id == user.account.id
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -584,6 +590,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_provider == :gitlab
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1500,
                "project_id" => project.id,
@@ -663,6 +670,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert actual_tasks == expected_tasks
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -706,6 +714,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert cacheable_tasks == []
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -812,6 +821,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert actual_outputs == expected_outputs
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -837,6 +847,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           post(
             conn,
             ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+            type: "build",
             id: UUIDv7.generate(),
             duration: 1000,
             is_ci: false
@@ -861,6 +872,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "build",
           id: UUIDv7.generate(),
           duration: 1000,
           is_ci: false
@@ -953,10 +965,252 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert actual_tasks == expected_tasks
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
                "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
+
+    test "creates a new test run when authenticated as user", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 5000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          model_identifier: "MacBookPro18,3",
+          scheme: "MyAppTests",
+          status: "success",
+          git_commit_sha: "abc123",
+          git_branch: "main",
+          git_ref: "refs/heads/main",
+          test_modules: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 5000
+      assert test_run.macos_version == "14.0"
+      assert test_run.xcode_version == "15.0"
+      assert test_run.is_ci == true
+      assert test_run.model_identifier == "MacBookPro18,3"
+      assert test_run.scheme == "MyAppTests"
+      assert test_run.status == "success"
+      assert test_run.git_commit_sha == "abc123"
+      assert test_run.git_branch == "main"
+      assert test_run.git_ref == "refs/heads/main"
+      assert test_run.project_id == project.id
+      assert test_run.account_id == user.account.id
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 5000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
+
+    test "creates a new test run with test modules, suites, and cases", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 10_000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "MyAppTests",
+              status: "failure",
+              duration: 5000,
+              test_suites: [
+                %{
+                  name: "CalculatorTests",
+                  status: "failure",
+                  duration: 2000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "testAddition",
+                  test_suite_name: "CalculatorTests",
+                  status: "success",
+                  duration: 500,
+                  failures: []
+                },
+                %{
+                  name: "testDivision",
+                  test_suite_name: "CalculatorTests",
+                  status: "failure",
+                  duration: 1500,
+                  failures: [
+                    %{
+                      message: ~s{XCTAssertEqual failed: ("0") is not equal to ("1")},
+                      path: "Tests/CalculatorTests.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            },
+            %{
+              name: "MyAppUITests",
+              status: "success",
+              duration: 5000,
+              test_suites: [
+                %{
+                  name: "UITests",
+                  status: "success",
+                  duration: 5000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "testLaunch",
+                  test_suite_name: "UITests",
+                  status: "success",
+                  duration: 5000,
+                  failures: []
+                }
+              ]
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 10_000
+      assert test_run.status == "failure"
+      assert test_run.project_id == project.id
+      assert test_run.account_id == user.account.id
+
+      # Verify test modules were stored
+      {test_modules, _meta} =
+        Tuist.Runs.list_test_module_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      assert length(test_modules) == 2
+      [module1, module2] = test_modules
+
+      assert module1.name == "MyAppTests"
+      assert module1.status == "failure"
+      assert module1.duration == 5000
+
+      assert module2.name == "MyAppUITests"
+      assert module2.status == "success"
+      assert module2.duration == 5000
+
+      # Verify test cases were stored
+      {test_cases, _meta} =
+        Tuist.Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      assert length(test_cases) == 3
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 10_000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
+
+    test "creates a new test run with skipped tests", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 3000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          status: "success",
+          test_modules: [
+            %{
+              name: "MyAppTests",
+              status: "success",
+              duration: 3000,
+              test_suites: [
+                %{
+                  name: "FeatureTests",
+                  status: "skipped",
+                  duration: 0
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "testFeatureDisabled",
+                  test_suite_name: "FeatureTests",
+                  status: "skipped",
+                  duration: 0,
+                  failures: []
+                }
+              ]
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.status == "success"
+
+      {test_cases, _meta} =
+        Tuist.Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}]
+        })
+
+      assert length(test_cases) == 1
+      [test_case] = test_cases
+      assert test_case.status == "skipped"
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 3000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
   end

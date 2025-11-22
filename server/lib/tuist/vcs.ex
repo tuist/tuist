@@ -12,13 +12,14 @@ defmodule Tuist.VCS do
   alias Tuist.AppBuilds.Preview
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
-  alias Tuist.CommandEvents
+  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runs
+  alias Tuist.Runs.Analytics
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
@@ -174,7 +175,7 @@ defmodule Tuist.VCS do
         project: project,
         preview_url: preview_url,
         preview_qr_code_url: preview_qr_code_url,
-        command_run_url: command_run_url,
+        test_run_url: test_run_url,
         bundle_url: bundle_url,
         build_url: build_url
       }) do
@@ -200,7 +201,7 @@ defmodule Tuist.VCS do
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
           preview_qr_code_url: preview_qr_code_url,
-          command_run_url: command_run_url,
+          test_run_url: test_run_url,
           build_url: build_url,
           bundle_url: bundle_url,
           project: project
@@ -281,7 +282,7 @@ defmodule Tuist.VCS do
          git_remote_url_origin: git_remote_url_origin,
          preview_url: preview_url,
          preview_qr_code_url: preview_qr_code_url,
-         command_run_url: command_run_url,
+         test_run_url: test_run_url,
          build_url: build_url,
          bundle_url: bundle_url,
          project: project
@@ -292,10 +293,8 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    test_command_events =
-      get_latest_command_events(%{
-        name: "test",
-        get_identifier: & &1.command_arguments,
+    test_runs =
+      get_latest_test_runs(%{
         git_ref: git_ref,
         project: project
       })
@@ -317,9 +316,9 @@ defmodule Tuist.VCS do
 
     test_body =
       get_test_body(%{
-        test_command_events: test_command_events,
+        test_runs: test_runs,
         git_remote_url_origin: git_remote_url_origin,
-        command_run_url: command_run_url,
+        test_run_url: test_run_url,
         project: project
       })
 
@@ -435,37 +434,6 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_latest_command_events(
-         %{get_identifier: get_identifier, name: name, git_ref: git_ref, project: project},
-         opts \\ []
-       ) do
-    filter = Keyword.get(opts, :filter, fn _ -> true end)
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
-    %{
-      name: name,
-      git_ref: git_ref_pattern,
-      project: project
-    }
-    |> CommandEvents.get_command_events_by_name_git_ref_and_project(preload: [:preview])
-    |> Enum.filter(filter)
-    |> Enum.reduce(%{}, fn command_event, acc ->
-      identifier = get_identifier.(command_event)
-      current_event = Map.get(acc, identifier)
-
-      if current_event == nil or
-           NaiveDateTime.after?(
-             command_event.ran_at,
-             current_event.ran_at
-           ) do
-        Map.put(acc, identifier, command_event)
-      else
-        acc
-      end
-    end)
-    |> Map.values()
-  end
-
   defp latest_previews(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
@@ -528,52 +496,49 @@ defmodule Tuist.VCS do
   end
 
   defp get_test_body(%{
-         test_command_events: test_command_events,
+         test_runs: test_runs,
          git_remote_url_origin: git_remote_url_origin,
-         command_run_url: command_run_url,
+         test_run_url: test_run_url,
          project: project
        }) do
-    if Enum.empty?(test_command_events) do
+    if Enum.empty?(test_runs) do
       nil
     else
+      project = Repo.preload(project, :account)
+
+      metrics_data = Analytics.test_runs_metrics(test_runs)
+      metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
       """
 
       #### Tests 🧪
 
-      | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+      | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
       |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-      #{Enum.map(test_command_events, fn test_command_event ->
-        git_commit_sha = test_command_event.git_commit_sha
-        total_number_of_tests = Enum.count(test_command_event.test_targets)
-        tests_skipped = Enum.count(test_command_event.local_test_target_hits) + Enum.count(test_command_event.remote_test_target_hits)
-        test_url = command_run_url.(%{project: project, command_event: test_command_event})
+      #{Enum.map(test_runs, fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
+
+        git_commit_sha = test_run.git_commit_sha
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+
+        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
+        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
 
         """
-        | [#{test_command_event.command_arguments}](#{test_url}) | #{get_status_text(test_command_event)} | #{get_cache_hit_rate(test_command_event)} | #{total_number_of_tests} | #{tests_skipped} | #{total_number_of_tests - tests_skipped} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
         """
       end)}
       """
     end
   end
 
-  defp get_cache_hit_rate(command_event) do
-    total_targets = Enum.count(command_event.cacheable_targets)
-
-    total_hits =
-      Enum.count(command_event.local_cache_target_hits) +
-        Enum.count(command_event.remote_cache_target_hits)
-
-    if total_targets == 0 do
-      "0 %"
-    else
-      "#{(total_hits / total_targets * 100) |> Float.floor() |> round()} %"
-    end
-  end
-
-  defp get_status_text(command_event) do
-    case command_event.status do
-      :failure -> "❌"
-      :success -> "✅"
+  defp get_test_run_status_text(test_run) do
+    case test_run.status do
+      "failure" -> "❌"
+      "success" -> "✅"
     end
   end
 
@@ -596,6 +561,32 @@ defmodule Tuist.VCS do
              current_build.inserted_at
            ) do
         Map.put(acc, scheme, build)
+      else
+        acc
+      end
+    end)
+    |> Map.values()
+  end
+
+  defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
+    from(t in Runs.Test)
+    |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> where([t], not is_nil(t.scheme) and t.scheme != "")
+    |> order_by([t], desc: t.inserted_at)
+    |> ClickHouseRepo.all()
+    |> Enum.reduce(%{}, fn test_run, acc ->
+      scheme = test_run.scheme
+
+      current_test = Map.get(acc, scheme)
+
+      if current_test == nil or
+           NaiveDateTime.after?(
+             test_run.inserted_at,
+             current_test.inserted_at
+           ) do
+        Map.put(acc, scheme, test_run)
       else
         acc
       end

@@ -26,6 +26,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
             "preview_url_template" => preview_url_template,
             "preview_qr_code_url_template" => preview_qr_code_url_template,
             "command_run_url_template" => command_run_url_template,
+            "test_run_url_template" => test_run_url_template,
             "bundle_url_template" => bundle_url_template,
             "build_url_template" => build_url_template
           } = args
@@ -44,6 +45,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
       preview_url: &build_url(preview_url_template, &1),
       preview_qr_code_url: &build_url(preview_qr_code_url_template, &1),
       command_run_url: &build_url(command_run_url_template, &1),
+      test_run_url: &build_url(test_run_url_template, &1),
       bundle_url: &build_url(bundle_url_template, &1),
       build_url: &build_url(build_url_template, &1)
     })
@@ -73,6 +75,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     |> String.replace(":project_name", data.project.name)
     |> replace_if_present(data, :preview, ":preview_id")
     |> replace_if_present(data, :command_event, ":command_event_id")
+    |> replace_if_present(data, :test_run, ":test_run_id")
     |> replace_if_present(data, :bundle, ":bundle_id")
     |> replace_if_present(data, :build, ":build_id")
   end
