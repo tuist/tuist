@@ -1,5 +1,5 @@
 {
-  "originHash" : "5b4e465e93c4a88e77276415461f9a32069965f8c835324d56b1a158d1c8266b",
+  "originHash" : "09251a7d3360c6970b5056c19ab932ef56fa0619ab4b355daa3aeda71a4c214b",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -218,14 +218,6 @@
       }
     },
     {
-      "identity" : "davidahouse.XCResultKit",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.2.2"
-      }
-    },
-    {
       "identity" : "fabrizioBrancati.Queuer",
       "kind" : "registry",
       "location" : "",
@@ -247,6 +239,15 @@
       "location" : "",
       "state" : {
         "version" : "0.6.7"
+      }
+    },
+    {
+      "identity" : "fluid-menu-bar-extra",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lfroms/fluid-menu-bar-extra",
+      "state" : {
+        "revision" : "e152a3a1a25aca24906217f8d4d63afbb08d7f97",
+        "version" : "1.1.0"
       }
     },
     {
@@ -632,14 +633,6 @@
       "location" : "",
       "state" : {
         "version" : "0.9.20"
-      }
-    },
-    {
-      "identity" : "wadetregaskis.FluidMenuBarExtra",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.5.1"
       }
     },
     {

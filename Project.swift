@@ -47,6 +47,16 @@ func acceptanceTestsEnvironmentVariables() -> [String: EnvironmentVariable] {
     ]
 }
 
+func tuistTestUnitTargets() -> [TestableTarget] {
+    var unitTestTargets: [TestableTarget] = Module.allCases.flatMap(\.unitTestTargets).map {
+        .testableTarget(target: .target($0.name), parallelization: .enabled)
+    }
+    if Module.includeEE() {
+        unitTestTargets.append(.testableTarget(target: .target("TuistCacheEETests"), parallelization: .enabled))
+    }
+    return unitTestTargets
+}
+
 func schemes() -> [Scheme] {
     var schemes: [Scheme] = [
         .scheme(
@@ -103,9 +113,8 @@ func schemes() -> [Scheme] {
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.unitTestTargets).map {
-                    .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : []),
+                tuistTestUnitTargets(),
+                attachDebugger: false,
                 options: .options(
                     language: "en"
                 )

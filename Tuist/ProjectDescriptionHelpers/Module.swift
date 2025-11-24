@@ -497,7 +497,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
-                    .external(name: "XCResultKit"),
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
@@ -692,7 +691,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcActivityLog.targetName),
-                    .external(name: "XCResultKit"),
                     .external(name: "FileSystem"),
                 ]
             case .cas:
@@ -793,7 +791,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "MCP"),
                     .external(name: "Noora"),
                     .external(name: "Command"),
-                    .external(name: "XCResultKit"),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [

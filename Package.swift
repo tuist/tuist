@@ -732,7 +732,9 @@ let package = Package(
         .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
         .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(
-            id: "wadetregaskis.FluidMenuBarExtra", .upToNextMajor(from: "1.1.0")),
+            url: "https://github.com/lfroms/fluid-menu-bar-extra",
+            .upToNextMajor(from: "1.1.0")
+        ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
         .package(
             url: "https://github.com/apple/swift-protobuf.git",

@@ -12,7 +12,6 @@ import TuistTesting
 import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
-import XCResultKit
 
 @testable import TuistKit
 
