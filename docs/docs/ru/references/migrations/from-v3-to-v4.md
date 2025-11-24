@@ -28,7 +28,6 @@ the installation method of your choice. We strongly recommend the usage of Mise
 because it's able to install and activate versions deterministically across
 environments.
 
-::: code-group
 
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
@@ -131,7 +130,6 @@ controlling for which targets the binary cache should be skipped by using the
 arguments. If you were using the `--skip-cache` flag, you'll have to update your
 project to use the arguments instead.
 
-::: code-group
 
 ```bash [Before]
 tuist generate --skip-cache Foo
