@@ -44,7 +44,6 @@ let targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
-            pathDependency,
             "ProjectDescription",
             "TuistSupport",
         ],
@@ -107,7 +106,6 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
             anyCodableDependency,
-            .product(name: "XCResultKit", package: "davidahouse.XCResultKit"),
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
@@ -454,11 +452,12 @@ let targets: [Target] = [
     .target(
         name: "TuistXCResultService",
         dependencies: [
+            "TuistSupport",
             "TuistXCActivityLog",
-            "FileSystem",
-            "Mockable",
+            .product(name: "Command", package: "tuist.Command"),
+            fileSystemDependency,
+            mockableDependency,
             pathDependency,
-            .product(name: "XCResultKit", package: "XCResultKit"),
         ],
         path: "cli/Sources/TuistXCResultService",
         swiftSettings: [
@@ -495,8 +494,8 @@ let targets: [Target] = [
         name: "TuistXcodeProjectOrWorkspacePathLocator",
         dependencies: [
             "TuistSupport",
-            "FileSystem",
-            "Mockable",
+            fileSystemDependency,
+            mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
@@ -713,7 +712,6 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.43")
         ),
-        .package(id: "davidahouse.XCResultKit", .upToNextMajor(from: "1.2.2")),
         .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")

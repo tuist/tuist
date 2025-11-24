@@ -77,7 +77,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
                     .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
-                    inspectBuildPostAction(target: "TuistKitAcceptabceTests"),
+                    inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
                 runPostActionsOnFailure: true
             ),

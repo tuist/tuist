@@ -487,7 +487,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             // Check the test results and store successful test hashes for any targets that passed
             let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
-                  let testSummary = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+                  let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             else { throw error }
 
             let testTargets = testActionTargets(

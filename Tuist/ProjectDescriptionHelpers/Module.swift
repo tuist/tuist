@@ -67,10 +67,18 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.cache.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftECC"),
+                    .external(name: "CryptoSwift"),
+                    .external(name: "Noora"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
+                    .external(name: "Mockable"),
                 ],
                 settings: .settings(
                     configurations: [
@@ -104,11 +112,18 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.analytics.targetName),
+                    .target(name: Module.hasher.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.cache.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -125,10 +140,15 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "XcodeProj"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
                 ],
@@ -755,6 +775,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
@@ -772,7 +793,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "MCP"),
                     .external(name: "Noora"),
                     .external(name: "Command"),
-                ]
+                    .external(name: "XCResultKit"),
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
                     .target(name: Module.support.targetName),
@@ -932,11 +954,15 @@ public enum Module: String, CaseIterable {
                 ]
             case .xcodeProjectOrWorkspacePathLocator:
                 [
-                    .target(name: Module.testing.targetName)
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .xcResultService:
                 [
-                    .target(name: Module.testing.targetName)
+                    .target(name: Module.testing.targetName),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .cas:
                 [

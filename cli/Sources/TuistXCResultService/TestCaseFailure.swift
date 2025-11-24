@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import XCResultKit
 
 public struct TestCaseFailure {
     public enum IssueType: String {
@@ -23,24 +22,5 @@ public struct TestCaseFailure {
         self.path = path
         self.lineNumber = lineNumber
         self.issueType = issueType
-    }
-
-    init(_ actionTestFailureSummary: XCResultKit.ActionTestFailureSummary, rootDirectory: AbsolutePath?) {
-        message = actionTestFailureSummary.message
-
-        if let fileName = actionTestFailureSummary.fileName,
-           let absolutePath = try? AbsolutePath(validating: fileName)
-        {
-            path = absolutePath.relative(to: rootDirectory ?? AbsolutePath.root)
-        } else {
-            path = nil
-        }
-
-        lineNumber = actionTestFailureSummary.lineNumber
-        if let issueType = actionTestFailureSummary.issueType {
-            self.issueType = IssueType(rawValue: issueType)
-        } else {
-            issueType = nil
-        }
     }
 }

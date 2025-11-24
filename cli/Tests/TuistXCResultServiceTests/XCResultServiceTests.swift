@@ -13,7 +13,7 @@ struct XCResultServiceTests {
             .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
 
         // When
-        let got = try #require(subject.parse(path: xcresult, rootDirectory: nil))
+        let got = try #require(await subject.parse(path: xcresult, rootDirectory: nil))
 
         // Then
         #expect(got.status == .failed)

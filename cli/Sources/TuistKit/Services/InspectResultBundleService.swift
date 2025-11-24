@@ -73,7 +73,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
 
-        guard let testSummary = xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) else {
+        guard let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) else {
             throw InspectResultBundleServiceError.missingInvocationRecord
         }
 
