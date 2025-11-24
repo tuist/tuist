@@ -40,6 +40,7 @@ struct ActionLogSection: Codable {
     let subsections: [ActionLogSection]?
     let commandInvocationDetails: CommandInvocationDetails?
     let testDetails: TestDetails?
+    let duration: Double?
 
     struct CommandInvocationDetails: Codable {
         let emittedOutput: String?
