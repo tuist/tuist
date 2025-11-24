@@ -21,7 +21,7 @@
 
     & > p {
       color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
     }
   }
 
