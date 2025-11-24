@@ -41,6 +41,7 @@ struct ActionLogSection: Codable {
     let commandInvocationDetails: CommandInvocationDetails?
     let testDetails: TestDetails?
     let duration: Double?
+    let title: String?
 
     struct CommandInvocationDetails: Codable {
         let emittedOutput: String?
@@ -48,6 +49,7 @@ struct ActionLogSection: Codable {
 
     struct TestDetails: Codable {
         let emittedOutput: String?
+        let runnablePath: String?
     }
 }
 
@@ -74,5 +76,44 @@ extension ActionLogSection {
         }
 
         return outputs
+    }
+
+    /// Extract module durations by finding subsections with runnablePath in testDetails
+    /// and extracting the module name from XCTest output pattern
+    func extractModuleDurations(secondsToMilliseconds: (Double) -> Int) -> [String: Int] {
+        var moduleDurations: [String: Int] = [:]
+        extractModuleDurationsRecursive(into: &moduleDurations, secondsToMilliseconds: secondsToMilliseconds)
+        return moduleDurations
+    }
+
+    private func extractModuleDurationsRecursive(into moduleDurations: inout [String: Int], secondsToMilliseconds: (Double) -> Int) {
+        // Check if this section has a runnablePath and duration
+        if let runnablePath = testDetails?.runnablePath,
+           let duration = duration,
+           let emittedOutput = testDetails?.emittedOutput,
+           (runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")) {
+
+            // Extract module name from XCTest pattern: "-[ModuleName.ClassName testMethod]"
+            let xcTestPattern = #"-\[([^.]+)\."#
+            if let regex = try? NSRegularExpression(pattern: xcTestPattern, options: []),
+               let match = regex.firstMatch(in: emittedOutput, options: [], range: NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)),
+               let moduleRange = Range(match.range(at: 1), in: emittedOutput) {
+                let moduleName = String(emittedOutput[moduleRange])
+                if !moduleName.isEmpty {
+                    let durationMs = secondsToMilliseconds(duration)
+                    // Use the first (should be only) occurrence
+                    if moduleDurations[moduleName] == nil {
+                        moduleDurations[moduleName] = durationMs
+                    }
+                }
+            }
+        }
+
+        // Recursively process subsections
+        if let subsections = subsections {
+            for subsection in subsections {
+                subsection.extractModuleDurationsRecursive(into: &moduleDurations, secondsToMilliseconds: secondsToMilliseconds)
+            }
+        }
     }
 }

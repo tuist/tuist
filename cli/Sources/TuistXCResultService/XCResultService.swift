@@ -41,6 +41,13 @@ public struct XCResultService: XCResultServicing {
         self.commandRunner = commandRunner
     }
 
+    /// Convert seconds to milliseconds, ensuring non-zero values are at least 1ms
+    private func secondsToMilliseconds(_ seconds: Double) -> Int {
+        let ms = Int(seconds * 1000)
+        // If the original value was non-zero but rounds to 0ms, use 1ms
+        return (ms == 0 && seconds > 0) ? 1 : ms
+    }
+
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
         async throws -> XCResultFile?
     {
@@ -154,7 +161,7 @@ public struct XCResultService: XCResultServicing {
 
         // Capture suite duration if this is a Test Suite node
         if node.nodeType == "Test Suite", let suiteName = node.name, let durationInSeconds = node.durationInSeconds {
-            suiteDurations[suiteName] = Int(durationInSeconds * 1000)
+            suiteDurations[suiteName] = secondsToMilliseconds(durationInSeconds)
         }
 
         if node.nodeType == "Test Case" {
@@ -162,7 +169,7 @@ public struct XCResultService: XCResultServicing {
             guard let name = node.name else { return }
 
             let suiteName = extractSuiteName(from: node.nodeIdentifier)
-            let duration = node.durationInSeconds.map { Int($0 * 1000) }
+            let duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
             let status = testStatus(from: node.result)
             let failures = extractFailures(from: node, rootDirectory: rootDirectory)
 
@@ -308,13 +315,16 @@ public struct XCResultService: XCResultServicing {
             let actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
 
             // Extract top-level duration
-            let overallDuration = actionLog.duration.map { Int($0 * 1000) }
+            let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }
 
             // Collect all emittedOutput fields
             let emittedOutputs = actionLog.collectEmittedOutputs()
 
-            // Parse Swift Testing duration patterns and XCTest module durations from the emitted outputs
-            let (testDurationsMap, suiteDurationsMap, moduleDurationsMap) = parseDurations(from: emittedOutputs)
+            // Extract module durations from the JSON structure
+            let moduleDurationsMap = actionLog.extractModuleDurations(secondsToMilliseconds: secondsToMilliseconds)
+
+            // Parse Swift Testing duration patterns from the emitted outputs
+            let (testDurationsMap, suiteDurationsMap) = parseSwiftTestingDurations(from: emittedOutputs)
 
             // Update test cases with extracted durations
             let updatedTestCases = testCases.map { testCase in
@@ -361,13 +371,10 @@ public struct XCResultService: XCResultServicing {
             let actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
 
             // Extract top-level duration
-            let overallDuration = actionLog.duration.map { Int($0 * 1000) }
+            let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }
 
-            // Collect all emittedOutput fields
-            let emittedOutputs = actionLog.collectEmittedOutputs()
-
-            // Parse durations from the emitted outputs
-            let (_, _, moduleDurationsMap) = parseDurations(from: emittedOutputs)
+            // Extract module durations from the JSON structure
+            let moduleDurationsMap = actionLog.extractModuleDurations(secondsToMilliseconds: secondsToMilliseconds)
 
             return ((moduleDurationsMap, [:]), overallDuration)
         } catch {
@@ -377,11 +384,10 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    /// Parse test, suite, and module durations from emitted outputs
-    private func parseDurations(from emittedOutputs: [String]) -> ([String: Int], [String: Int], [String: Int]) {
+    /// Parse Swift Testing test and suite durations from emitted outputs
+    private func parseSwiftTestingDurations(from emittedOutputs: [String]) -> ([String: Int], [String: Int]) {
         var testDurationsMap: [String: Int] = [:]
         var suiteDurationsMap: [String: Int] = [:]
-        var moduleDurationsMap: [String: Int] = [:]
 
         // Pre-compiled regex patterns for Swift Testing test duration formats
         let testPatterns = [
@@ -397,13 +403,6 @@ public struct XCResultService: XCResultServicing {
             #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
         ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
-        // Pre-compiled regex pattern for XCTest module duration (elapsed time in parentheses)
-        // Format: "Test Suite 'ModuleName.xctest' passed/failed at ... in X.XXX (Y.YYY) seconds"
-        let modulePattern = try? NSRegularExpression(
-            pattern: #"Test Suite '(.+)\.xctest' (?:passed|failed) at .* in [\d.]+ \(([\d.]+)\) seconds"#,
-            options: []
-        )
-
         for output in emittedOutputs {
             let lines = output.components(separatedBy: .newlines)
 
@@ -412,25 +411,6 @@ public struct XCResultService: XCResultServicing {
                 guard line.contains("seconds") else { continue }
 
                 let range = NSRange(line.startIndex ..< line.endIndex, in: line)
-
-                // Try matching module patterns (XCTest bundles)
-                if line.contains(".xctest"), let modulePattern = modulePattern {
-                    if let match = modulePattern.firstMatch(in: line, options: [], range: range),
-                       let moduleNameRange = Range(match.range(at: 1), in: line),
-                       let durationRange = Range(match.range(at: 2), in: line)
-                    {
-                        let moduleName = String(line[moduleNameRange])
-                        let durationString = String(line[durationRange])
-
-                        if let durationSeconds = Double(durationString) {
-                            let durationMs = Int(durationSeconds * 1000)
-                            // Only use the first occurrence (avoid duplicates)
-                            if moduleDurationsMap[moduleName] == nil {
-                                moduleDurationsMap[moduleName] = durationMs
-                            }
-                        }
-                    }
-                }
 
                 // Try matching test patterns
                 if line.contains("Test") {
@@ -443,7 +423,7 @@ public struct XCResultService: XCResultServicing {
                             let durationString = String(line[durationRange])
 
                             if let durationSeconds = Double(durationString) {
-                                let durationMs = Int(durationSeconds * 1000)
+                                let durationMs = secondsToMilliseconds(durationSeconds)
                                 // Only use the first occurrence (avoid duplicates)
                                 if testDurationsMap[testName] == nil {
                                     testDurationsMap[testName] = durationMs
@@ -465,7 +445,7 @@ public struct XCResultService: XCResultServicing {
                             let durationString = String(line[durationRange])
 
                             if let durationSeconds = Double(durationString) {
-                                let durationMs = Int(durationSeconds * 1000)
+                                let durationMs = secondsToMilliseconds(durationSeconds)
                                 // Only use the first occurrence (avoid duplicates)
                                 if suiteDurationsMap[suiteName] == nil {
                                     suiteDurationsMap[suiteName] = durationMs
@@ -478,6 +458,6 @@ public struct XCResultService: XCResultServicing {
             }
         }
 
-        return (testDurationsMap, suiteDurationsMap, moduleDurationsMap)
+        return (testDurationsMap, suiteDurationsMap)
     }
 }
