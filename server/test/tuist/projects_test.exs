@@ -78,7 +78,7 @@ defmodule Tuist.ProjectsTest do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
-    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
     organization_two = AccountsFixtures.organization_fixture()
@@ -201,7 +201,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
       # When
       got = Projects.get_all_project_accounts(account)
@@ -218,8 +218,8 @@ defmodule Tuist.ProjectsTest do
 
     test "get all project accounts for an authenticated account subject" do
       account = AccountsFixtures.account_fixture()
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
-      project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
       got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
 
@@ -259,13 +259,13 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       project_two =
-        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [])
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
 
       # When
       got = Projects.get_all_project_accounts(user)
