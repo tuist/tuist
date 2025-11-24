@@ -109,7 +109,6 @@ integration, which is closed-source and maintained by Apple.
 To add external dependencies, you'll have to create a `Package.swift` either
 under `Tuist/` or at the root of the project.
 
-::: code-group
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -197,7 +196,6 @@ time as the project grows.
 From your project targets you can then reference those dependencies using the
 `TargetDependency.external` dependency type:
 
-::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
