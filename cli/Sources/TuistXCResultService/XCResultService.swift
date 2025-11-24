@@ -297,20 +297,24 @@ public struct XCResultService: XCResultServicing {
         xcresultPath: AbsolutePath
     ) async -> ([TestCase], [String: Int], ([String: Int], [String: Int]), Int?) {
         do {
+            // Use a temporary file to avoid issues with concatenatedString() on large outputs
+            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
+            let tempFile = try AbsolutePath(validating: tempFilePath)
+
             // Get action logs using xcresulttool with --compact for standardized JSON output
-            let logJsonString = try await commandRunner.run(
+            // Redirect to file to avoid concatenatedString() issues with large outputs
+            _ = try await commandRunner.run(
                 arguments: [
-                    "/usr/bin/xcrun", "xcresulttool",
-                    "get", "log", "--type", "action",
-                    "--compact",
-                    "--path", xcresultPath.pathString,
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
                 ]
             ).concatenatedString()
 
-            guard let logData = logJsonString.data(using: .utf8) else {
-                print("Warning: Failed to convert log output to data")
-                return (testCases, [:], ([:], [:]), nil)
-            }
+            // Read the JSON from the temporary file
+            let logData = try await fileSystem.readFile(at: tempFile)
+
+            // Clean up temporary file
+            try await fileSystem.remove(tempFile)
 
             // Parse the action log JSON
             let actionLog: ActionLogSection
@@ -360,20 +364,24 @@ public struct XCResultService: XCResultServicing {
     /// Extract module and suite durations from action logs
     private func extractActionLogDurations(xcresultPath: AbsolutePath) async -> (([String: Int], [String: Int]), Int?) {
         do {
+            // Use a temporary file to avoid issues with concatenatedString() on large outputs
+            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
+            let tempFile = try AbsolutePath(validating: tempFilePath)
+
             // Get action logs using xcresulttool with --compact for standardized JSON output
-            let logJsonString = try await commandRunner.run(
+            // Redirect to file to avoid concatenatedString() issues with large outputs
+            _ = try await commandRunner.run(
                 arguments: [
-                    "/usr/bin/xcrun", "xcresulttool",
-                    "get", "log", "--type", "action",
-                    "--compact",
-                    "--path", xcresultPath.pathString,
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
                 ]
             ).concatenatedString()
 
-            guard let logData = logJsonString.data(using: .utf8) else {
-                print("Warning: Failed to convert log output to data")
-                return (([:], [:]), nil)
-            }
+            // Read the JSON from the temporary file
+            let logData = try await fileSystem.readFile(at: tempFile)
+
+            // Clean up temporary file
+            try await fileSystem.remove(tempFile)
 
             // Parse the action log JSON
             let actionLog: ActionLogSection
