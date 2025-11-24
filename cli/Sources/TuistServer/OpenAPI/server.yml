@@ -1320,6 +1320,7 @@ components:
                                 enum:
                                   - error_thrown
                                   - assertion_failure
+                                  - issue_recorded
                                 type: string
                                 x-struct:
                                 x-validate:
@@ -1747,6 +1748,7 @@ components:
                             enum:
                               - error_thrown
                               - assertion_failure
+                              - issue_recorded
                             type: string
                             x-struct:
                             x-validate:
@@ -7354,6 +7356,7 @@ paths:
                                         enum:
                                           - error_thrown
                                           - assertion_failure
+                                          - issue_recorded
                                         type: string
                                         x-struct:
                                         x-validate:

@@ -21,6 +21,7 @@ defmodule Tuist.Runs.TestCaseFailure do
     [
       "error_thrown",
       "assertion_failure",
+      "issue_recorded",
       "unknown"
     ]
   end

@@ -48,6 +48,44 @@ public struct XCResultService: XCResultServicing {
         return (ms == 0 && seconds > 0) ? 1 : ms
     }
 
+    /// Determine the issue type based on the failure message and return cleaned message
+    private func parseFailureMessage(_ message: String) -> (issueType: TestCaseFailure.IssueType, cleanedMessage: String) {
+        // Check for error thrown patterns
+        let errorPatterns = [
+            "failed: caught error: ",
+            "caught error: ",
+            "thrown error: ",
+            "failed - caught error: "
+        ]
+
+        for pattern in errorPatterns {
+            if let range = message.range(of: pattern, options: .caseInsensitive) {
+                var cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+                // Remove surrounding quotes if present
+                cleanedMessage = cleanedMessage.trimmingCharacters(in: .whitespaces)
+                if cleanedMessage.hasPrefix("\"") && cleanedMessage.hasSuffix("\"") {
+                    cleanedMessage = String(cleanedMessage.dropFirst().dropLast())
+                }
+                return (.errorThrown, cleanedMessage)
+            }
+        }
+
+        // Check for issue recorded pattern
+        if let range = message.range(of: "issue recorded: ", options: .caseInsensitive) {
+            let cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+            return (.issueRecorded, cleanedMessage)
+        }
+
+        // Check for assertion failure pattern (only "expectation failed:")
+        if let range = message.range(of: "expectation failed: ", options: .caseInsensitive) {
+            let cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+            return (.assertionFailure, cleanedMessage)
+        }
+
+        // Default to assertion failure with original message
+        return (.assertionFailure, message)
+    }
+
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
         async throws -> XCResultFile?
     {
@@ -101,13 +139,16 @@ public struct XCResultService: XCResultServicing {
         rootDirectory: AbsolutePath?,
         xcresultPath: AbsolutePath
     ) async -> TestSummary {
+        // Extract failures from action logs first
+        let failuresFromActionLog = await extractFailuresFromActionLog(xcresultPath: xcresultPath, rootDirectory: rootDirectory)
+
         // Flatten all test nodes into test cases and extract suite/module durations
         var allTestCases: [TestCase] = []
         var suiteDurations: [String: Int] = [:]
         var moduleDurations: [String: Int] = [:]
 
         for testNode in output.testNodes {
-            extractTestCases(from: testNode, module: nil, into: &allTestCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory)
+            extractTestCases(from: testNode, module: nil, into: &allTestCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory, actionLogFailures: failuresFromActionLog)
         }
 
         let actionLogDurations: ([String: Int], [String: Int])
@@ -139,13 +180,54 @@ public struct XCResultService: XCResultServicing {
         )
     }
 
+    private func extractFailuresFromActionLog(
+        xcresultPath: AbsolutePath,
+        rootDirectory: AbsolutePath?
+    ) async -> [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] {
+        do {
+            // Use a temporary file to avoid issues with concatenatedString() on large outputs
+            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
+            let tempFile = try AbsolutePath(validating: tempFilePath)
+
+            // Get action logs using xcresulttool with --compact for standardized JSON output
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
+                ]
+            ).concatenatedString()
+
+            // Read the JSON from the temporary file
+            let logData = try await fileSystem.readFile(at: tempFile)
+
+            // Clean up temporary file
+            try await fileSystem.remove(tempFile)
+
+            // Parse the action log JSON
+            let actionLog: ActionLogSection
+            do {
+                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                print("Warning: Failed to parse action log JSON for failures: \(error)")
+                return [:]
+            }
+
+            // Extract test failures
+            return actionLog.extractTestFailures(rootDirectory: rootDirectory)
+        } catch {
+            print("Warning: Failed to extract failures from action log: \(error)")
+            return [:]
+        }
+    }
+
     private func extractTestCases(
         from node: TestNode,
         module: String?,
         into testCases: inout [TestCase],
         suiteDurations: inout [String: Int],
         moduleDurations: inout [String: Int],
-        rootDirectory: AbsolutePath?
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]]
     ) {
         let currentModule = (node.nodeType == "Unit test bundle") ? node.name : module
 
@@ -161,7 +243,24 @@ public struct XCResultService: XCResultServicing {
             let suiteName = extractSuiteName(from: node.nodeIdentifier)
             let duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
             let status = testStatus(from: node.result)
-            let failures = extractFailures(from: node, rootDirectory: rootDirectory)
+
+            // Get failures from action log using suite/test name identifier
+            let testIdentifier = suiteName.map { "\($0)/\(name)" } ?? name
+            let failures: [TestCaseFailure]
+            if let actionLogFailureList = actionLogFailures[testIdentifier] {
+                failures = actionLogFailureList.map { failure in
+                    let (issueType, cleanedMessage) = parseFailureMessage(failure.message)
+                    return TestCaseFailure(
+                        message: cleanedMessage,
+                        path: failure.filePath,
+                        lineNumber: failure.lineNumber,
+                        issueType: issueType
+                    )
+                }
+            } else {
+                // Fallback to old extraction method if not found in action logs
+                failures = extractFailures(from: node, rootDirectory: rootDirectory)
+            }
 
             let testCase = TestCase(
                 name: name,
@@ -177,7 +276,7 @@ public struct XCResultService: XCResultServicing {
         // Recursively process children
         if let children = node.children {
             for child in children {
-                extractTestCases(from: child, module: currentModule, into: &testCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory)
+                extractTestCases(from: child, module: currentModule, into: &testCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory, actionLogFailures: actionLogFailures)
             }
         }
     }
@@ -229,20 +328,22 @@ public struct XCResultService: XCResultServicing {
                         relativePath = nil
                     }
 
+                    let (issueType, cleanedMessage) = parseFailureMessage(errorMessage)
                     return TestCaseFailure(
-                        message: errorMessage,
+                        message: cleanedMessage,
                         path: relativePath,
                         lineNumber: lineNumber,
-                        issueType: nil
+                        issueType: issueType
                     )
                 }
             }
 
+            let (issueType, cleanedMessage) = parseFailureMessage(message)
             return TestCaseFailure(
-                message: message,
+                message: cleanedMessage,
                 path: nil,
                 lineNumber: 0,
-                issueType: nil
+                issueType: issueType
             )
         }
     }

@@ -666,7 +666,7 @@ defmodule TuistWeb.API.RunsController do
                                  issue_type: %Schema{
                                    type: :string,
                                    description: "The type of issue that occurred.",
-                                   enum: ["error_thrown", "assertion_failure"]
+                                   enum: ["error_thrown", "assertion_failure", "issue_recorded"]
                                  }
                                },
                                required: [:line_number]

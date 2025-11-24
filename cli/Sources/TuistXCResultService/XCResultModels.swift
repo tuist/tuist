@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 // MARK: - XCResult Test Output Models
 
@@ -40,9 +41,11 @@ struct ActionLogSection: Codable {
     let subsections: [ActionLogSection]?
     let commandInvocationDetails: CommandInvocationDetails?
     let testDetails: TestDetails?
+    let messages: [Message]?
     let duration: Double?
     let startTime: Double?
     let title: String?
+    let location: Location?
 
     struct CommandInvocationDetails: Codable {
         let emittedOutput: String?
@@ -61,18 +64,35 @@ struct ActionLogSection: Codable {
     struct TestDetails: Codable {
         let emittedOutput: String?
         let runnablePath: String?
+        let testName: String?
+        let suiteName: String?
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             // Try to decode emittedOutput, but if it fails, use nil
             emittedOutput = try? container.decodeIfPresent(String.self, forKey: .emittedOutput)
             runnablePath = try container.decodeIfPresent(String.self, forKey: .runnablePath)
+            testName = try container.decodeIfPresent(String.self, forKey: .testName)
+            suiteName = try container.decodeIfPresent(String.self, forKey: .suiteName)
         }
 
         private enum CodingKeys: String, CodingKey {
             case emittedOutput
             case runnablePath
+            case testName
+            case suiteName
         }
+    }
+
+    struct Message: Codable {
+        let type: String?
+        let title: String?
+        let shortTitle: String?
+        let location: Location?
+    }
+
+    struct Location: Codable {
+        let url: String?
     }
 }
 
@@ -233,6 +253,82 @@ extension ActionLogSection {
                     latestOverallCompletion: &latestOverallCompletion,
                     latestCompletionPerModule: &latestCompletionPerModule
                 )
+            }
+        }
+    }
+
+    /// Extract test failures from action logs
+    /// Returns a mapping from test identifier (suiteName/testName) to failures
+    func extractTestFailures(rootDirectory: AbsolutePath?) -> [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] {
+        var failures: [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] = [:]
+        extractTestFailuresRecursive(failures: &failures, rootDirectory: rootDirectory)
+        return failures
+    }
+
+    private func extractTestFailuresRecursive(
+        failures: inout [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]],
+        rootDirectory: AbsolutePath?
+    ) {
+        // Check if this section has test details and failure messages
+        if let testDetails = testDetails,
+           let testName = testDetails.testName,
+           let suiteName = testDetails.suiteName,
+           let messages = messages {
+
+            for message in messages {
+                // Only process test failure messages
+                guard message.type == "test failure",
+                      let title = message.title ?? message.shortTitle else {
+                    continue
+                }
+
+                // Parse the location URL to extract file path and line number
+                var filePath: RelativePath?
+                var lineNumber: Int = 0
+
+                if let locationUrl = message.location?.url,
+                   locationUrl.hasPrefix("file://") {
+                    // URL format: file:///path/to/file.swift#EndingLineNumber=38&StartingLineNumber=38
+                    let urlString = locationUrl.replacingOccurrences(of: "file://", with: "")
+                    let components = urlString.components(separatedBy: "#")
+
+                    if components.count >= 1 {
+                        let filePathString = components[0]
+
+                        // Parse line number from URL fragment
+                        if components.count >= 2 {
+                            let fragment = components[1]
+                            // Extract StartingLineNumber parameter
+                            let linePattern = #"StartingLineNumber=(\d+)"#
+                            if let regex = try? NSRegularExpression(pattern: linePattern, options: []),
+                               let match = regex.firstMatch(in: fragment, options: [], range: NSRange(fragment.startIndex..<fragment.endIndex, in: fragment)),
+                               let lineRange = Range(match.range(at: 1), in: fragment) {
+                                lineNumber = Int(fragment[lineRange]) ?? 0
+                            }
+                        }
+
+                        // Convert file path to RelativePath
+                        if let absolutePath = try? AbsolutePath(validating: filePathString) {
+                            filePath = absolutePath.relative(to: rootDirectory ?? AbsolutePath.root)
+                        }
+                    }
+                }
+
+                // Create test identifier
+                let testIdentifier = "\(suiteName)/\(testName)"
+
+                // Add failure to the list
+                if failures[testIdentifier] == nil {
+                    failures[testIdentifier] = []
+                }
+                failures[testIdentifier]?.append((message: title, filePath: filePath, lineNumber: lineNumber))
+            }
+        }
+
+        // Recursively process subsections
+        if let subsections = subsections {
+            for subsection in subsections {
+                subsection.extractTestFailuresRecursive(failures: &failures, rootDirectory: rootDirectory)
             }
         }
     }

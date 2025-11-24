@@ -830,6 +830,12 @@ defmodule TuistWeb.TestRunLive do
         {nil, "error_thrown", message} ->
           gettext("Caught error: %{message}", message: message)
 
+        {nil, "issue_recorded", nil} ->
+          gettext("Issue recorded")
+
+        {nil, "issue_recorded", message} ->
+          gettext("Issue recorded: %{message}", message: message)
+
         {nil, _, nil} ->
           gettext("Unknown error")
 
@@ -855,6 +861,17 @@ defmodule TuistWeb.TestRunLive do
 
         {path, "error_thrown", message} ->
           gettext("Caught error at %{location}: %{message}",
+            location: "#{path}:#{failure.line_number}",
+            message: message
+          )
+
+        {path, "issue_recorded", nil} ->
+          gettext("Issue recorded at %{location}",
+            location: "#{path}:#{failure.line_number}"
+          )
+
+        {path, "issue_recorded", message} ->
+          gettext("Issue recorded at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
             message: message
           )

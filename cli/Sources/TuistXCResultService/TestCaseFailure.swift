@@ -5,6 +5,7 @@ public struct TestCaseFailure {
     public enum IssueType: String {
         case errorThrown = "Thrown Error"
         case assertionFailure = "Assertion Failure"
+        case issueRecorded = "Issue Recorded"
     }
 
     public let message: String?

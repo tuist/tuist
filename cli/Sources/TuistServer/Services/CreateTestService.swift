@@ -234,6 +234,8 @@ import OpenAPIURLSession
                 return .error_thrown
             case .assertionFailure:
                 return .assertion_failure
+            case .issueRecorded:
+                return .issue_recorded
             }
         }
     }

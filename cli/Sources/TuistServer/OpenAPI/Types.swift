@@ -3220,6 +3220,7 @@ public enum Components {
                             @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case error_thrown = "error_thrown"
                                 case assertion_failure = "assertion_failure"
+                                case issue_recorded = "issue_recorded"
                             }
                             /// The type of issue that occurred.
                             ///
@@ -3980,6 +3981,7 @@ public enum Components {
                         @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case error_thrown = "error_thrown"
                             case assertion_failure = "assertion_failure"
+                            case issue_recorded = "issue_recorded"
                         }
                         /// The type of issue that occurred.
                         ///
@@ -23591,6 +23593,7 @@ public enum Operations {
                                     @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                         case error_thrown = "error_thrown"
                                         case assertion_failure = "assertion_failure"
+                                        case issue_recorded = "issue_recorded"
                                     }
                                     /// The type of issue that occurred.
                                     ///
