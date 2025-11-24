@@ -4,6 +4,6 @@
 set -eo pipefail
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  tuist install
+  tuist install --force-resolved-versions
   tuist setup cache
 fi

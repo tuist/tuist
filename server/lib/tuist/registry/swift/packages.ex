@@ -176,26 +176,6 @@ defmodule Tuist.Registry.Swift.Packages do
 
     new_source_archive_directory = "#{source_archive_directory}/source_archive.zip"
 
-    (source_archive_directory <> "/" <> source_directory)
-    |> File.ls!()
-    |> Enum.each(fn file_name ->
-      file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
-
-      if (String.ends_with?(file_name, "Package.swift") or
-            Regex.match?(
-              @alternate_package_manifest_regex,
-              file_name
-            )) and not File.dir?(file_path) do
-        file_content =
-          File.read!(file_path)
-
-        File.write!(
-          file_path,
-          replace_package_by_name_references_with_product_in_package_manifest(file_content)
-        )
-      end
-    end)
-
     {_, 0} =
       System.cmd(
         "zip",
@@ -318,7 +298,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
     Storage.put_object(
       package_object_key(%{scope: scope, name: name}, version: version, path: path),
-      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content),
+      package_manifest_content,
       :registry
     )
 
@@ -353,116 +333,6 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Repo.preload(preload)
   end
 
-  defp replace_package_by_name_references_with_product_in_package_manifest(package_manifest) do
-    packages =
-      extract_url_only_packages(package_manifest) ++ extract_named_url_packages(package_manifest)
-
-    Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-      package
-      |> replace_targets_content(package_manifest)
-      |> String.replace(
-        ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
-        "\"#{package.name}\""
-      )
-      # Workaround for a bug in SwiftPM fixed in: https://github.com/swiftlang/swift-package-manager/pull/8194
-      |> String.replace(
-        ~r/package:\s*"#{package.name}"/is,
-        "package: \"#{package.name}\""
-      )
-    end)
-  end
-
-  # This method replaces content only inside the targets: [..] array.
-  defp replace_targets_content(package, package_manifest) do
-    Enum.reduce(
-      Regex.scan(~r/targets:\s*\[/, package_manifest, return: :index),
-      package_manifest,
-      fn [{bracket_position, length}], package_manifest ->
-        case find_matching_bracket(package_manifest, bracket_position + length, 1) do
-          {:ok, position} ->
-            {pre_content, content} = String.split_at(package_manifest, bracket_position)
-
-            {content_to_replace, post_content} = String.split_at(content, position - bracket_position + 1)
-
-            replaced_content =
-              content_to_replace
-              |> String.replace(
-                ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
-                "\"#{package.name}\""
-              )
-              |> String.replace(
-                ~r/(?<![package|name]: )(?<!\()"(#{package.name})"/is,
-                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-              )
-              |> String.replace(
-                ~r/.byName\(name:\s*"(#{package.name})"\s*\)/is,
-                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-              )
-
-            pre_content <> replaced_content <> post_content
-
-          {:error, _} ->
-            package_manifest
-        end
-      end
-    )
-  end
-
-  defp find_matching_bracket(string, pos, _count) when pos >= byte_size(string) do
-    {:error, "No matching bracket found"}
-  end
-
-  defp find_matching_bracket(string, pos, count) do
-    case String.at(string, pos) do
-      "[" ->
-        find_matching_bracket(string, pos + 1, count + 1)
-
-      "]" ->
-        if count == 1 do
-          {:ok, pos}
-        else
-          find_matching_bracket(string, pos + 1, count - 1)
-        end
-
-      _ ->
-        find_matching_bracket(string, pos + 1, count)
-    end
-  end
-
-  defp extract_url_only_packages(package_manifest) do
-    ~r/\.package\(\s*url:\s*"([^"\\]+)"/
-    |> Regex.scan(package_manifest)
-    |> Enum.map(&List.last/1)
-    |> Enum.filter(&valid_repository_url?/1)
-    |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-    |> Enum.map(&elem(&1, 1))
-    |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
-    |> Enum.map(&%{scope: &1.scope, name: &1.name, by_name_reference: &1.name})
-  end
-
-  defp extract_named_url_packages(package_manifest) do
-    ~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/
-    |> Regex.scan(package_manifest)
-    |> Enum.map(&Enum.slice(&1, -2, 2))
-    |> Enum.filter(&valid_repository_url?(List.last(&1)))
-    |> Enum.map(fn [by_name_reference, package_url] ->
-      [scope, package_name] =
-        package_url
-        |> VCS.get_repository_full_handle_from_url()
-        |> elem(1)
-        |> String.split("/")
-
-      %{scope: scope, name: package_name, by_name_reference: by_name_reference}
-    end)
-  end
-
-  defp valid_repository_url?(package_url) do
-    case VCS.get_repository_full_handle_from_url(package_url) do
-      {:ok, _} -> true
-      {:error, _} -> false
-    end
-  end
-
   def package_manifest_as_string(%{scope: scope, name: name, version: version}) do
     object_key =
       package_object_key(%{scope: scope, name: name}, version: version, path: "Package.swift")
@@ -470,24 +340,6 @@ defmodule Tuist.Registry.Swift.Packages do
     if Storage.object_exists?(object_key, :registry) do
       package_manifest =
         Storage.get_object_as_string(object_key, :registry)
-
-      packages =
-        ~r/url:\s*"([^"]+)"/
-        |> Regex.scan(package_manifest)
-        |> Enum.map(&List.last/1)
-        |> Enum.filter(&valid_repository_url?/1)
-        |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-        |> Enum.map(&elem(&1, 1))
-        |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
-
-      package_manifest =
-        Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-          String.replace(
-            package_manifest,
-            ~r/(?<![package|name]: )"(#{package.name})"/i,
-            ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-          )
-        end)
 
       {:ok, package_manifest}
     else

@@ -442,14 +442,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                             name: "xcbeautify",
                             dependencies: [
                                 "XcbeautifyLib",
-                                .product(name: "SwiftGen", package: "SwiftGen"),
+                                "SwiftGen",
                                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                             ]
                         ),
                         .target(
                             name: "XcbeautifyLib",
                             dependencies: [
-                                .product(name: "Colorizer", package: "Colorizer"),
+                                "Colorizer",
                                 .product(name: "XMLCoder", package: "XMLCoder"),
                             ]
                         ),

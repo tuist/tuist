@@ -92,7 +92,7 @@
 <!-- hCaptcha -->
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
-    <TuistWeb.LayoutComponents.head_plain_script current_user={@current_user} />
+    <TuistWeb.LayoutComponents.head_plain_script current_user={@current_user} {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
