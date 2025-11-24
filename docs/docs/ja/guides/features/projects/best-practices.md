@@ -47,6 +47,7 @@ compared to vanilla Xcode projects, you'll receive warnings if configurations
 are not consistent throughout the dependency graph. This helps ensure build
 reliability and prevents configuration-related issues.
 <!-- -->
+:::
 
 ## Generated projects
 
@@ -86,6 +87,7 @@ let target = Target(
 )
 ```
 <!-- -->
+:::
 
 ### Dependencies
 
