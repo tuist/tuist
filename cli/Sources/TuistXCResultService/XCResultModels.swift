@@ -96,7 +96,7 @@ struct ActionLogSection: Codable {
     }
 }
 
-// Helper to recursively search for emittedOutput
+/// Helper to recursively search for emittedOutput
 extension ActionLogSection {
     func collectEmittedOutputs() -> [String] {
         var outputs: [String] = []
@@ -112,7 +112,7 @@ extension ActionLogSection {
         }
 
         // Recursively collect from subsections
-        if let subsections = subsections {
+        if let subsections {
             for subsection in subsections {
                 outputs.append(contentsOf: subsection.collectEmittedOutputs())
             }
@@ -175,7 +175,7 @@ extension ActionLogSection {
         for emittedOutput in emittedOutputs {
             guard let regex = try? NSRegularExpression(pattern: suiteCompletionPattern, options: []) else { continue }
 
-            let range = NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)
+            let range = NSRange(emittedOutput.startIndex ..< emittedOutput.endIndex, in: emittedOutput)
             let matches = regex.matches(in: emittedOutput, options: [], range: range)
 
             for match in matches {
@@ -224,13 +224,18 @@ extension ActionLogSection {
 
                 // Update per-module timestamp if this section has a module
                 if let runnablePath = testDetails?.runnablePath,
-                   (runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")) {
-
+                   runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")
+                {
                     // Extract module name from XCTest pattern: "-[ModuleName.ClassName testMethod]"
                     let xcTestPattern = #"-\[([^.]+)\."#
                     if let moduleRegex = try? NSRegularExpression(pattern: xcTestPattern, options: []),
-                       let moduleMatch = moduleRegex.firstMatch(in: emittedOutput, options: [], range: NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)),
-                       let moduleRange = Range(moduleMatch.range(at: 1), in: emittedOutput) {
+                       let moduleMatch = moduleRegex.firstMatch(
+                           in: emittedOutput,
+                           options: [],
+                           range: NSRange(emittedOutput.startIndex ..< emittedOutput.endIndex, in: emittedOutput)
+                       ),
+                       let moduleRange = Range(moduleMatch.range(at: 1), in: emittedOutput)
+                    {
                         let moduleName = String(emittedOutput[moduleRange])
                         if !moduleName.isEmpty {
                             if let current = latestCompletionPerModule[moduleName] {
@@ -245,7 +250,7 @@ extension ActionLogSection {
         }
 
         // Recursively process subsections
-        if let subsections = subsections {
+        if let subsections {
             for subsection in subsections {
                 subsection.extractTestTimestampsRecursive(
                     testTargetStartTimes: &testTargetStartTimes,
@@ -259,7 +264,11 @@ extension ActionLogSection {
 
     /// Extract test failures from action logs
     /// Returns a mapping from test identifier (suiteName/testName) to failures
-    func extractTestFailures(rootDirectory: AbsolutePath?) -> [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] {
+    func extractTestFailures(rootDirectory: AbsolutePath?) -> [String: [(
+        message: String,
+        filePath: RelativePath?,
+        lineNumber: Int
+    )]] {
         var failures: [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] = [:]
         extractTestFailuresRecursive(failures: &failures, rootDirectory: rootDirectory)
         return failures
@@ -270,24 +279,26 @@ extension ActionLogSection {
         rootDirectory: AbsolutePath?
     ) {
         // Check if this section has test details and failure messages
-        if let testDetails = testDetails,
+        if let testDetails,
            let testName = testDetails.testName,
            let suiteName = testDetails.suiteName,
-           let messages = messages {
-
+           let messages
+        {
             for message in messages {
                 // Only process test failure messages
                 guard message.type == "test failure",
-                      let title = message.title ?? message.shortTitle else {
+                      let title = message.title ?? message.shortTitle
+                else {
                     continue
                 }
 
                 // Parse the location URL to extract file path and line number
                 var filePath: RelativePath?
-                var lineNumber: Int = 0
+                var lineNumber = 0
 
                 if let locationUrl = message.location?.url,
-                   locationUrl.hasPrefix("file://") {
+                   locationUrl.hasPrefix("file://")
+                {
                     // URL format: file:///path/to/file.swift#EndingLineNumber=38&StartingLineNumber=38
                     let urlString = locationUrl.replacingOccurrences(of: "file://", with: "")
                     let components = urlString.components(separatedBy: "#")
@@ -301,8 +312,13 @@ extension ActionLogSection {
                             // Extract StartingLineNumber parameter
                             let linePattern = #"StartingLineNumber=(\d+)"#
                             if let regex = try? NSRegularExpression(pattern: linePattern, options: []),
-                               let match = regex.firstMatch(in: fragment, options: [], range: NSRange(fragment.startIndex..<fragment.endIndex, in: fragment)),
-                               let lineRange = Range(match.range(at: 1), in: fragment) {
+                               let match = regex.firstMatch(
+                                   in: fragment,
+                                   options: [],
+                                   range: NSRange(fragment.startIndex ..< fragment.endIndex, in: fragment)
+                               ),
+                               let lineRange = Range(match.range(at: 1), in: fragment)
+                            {
                                 lineNumber = Int(fragment[lineRange]) ?? 0
                             }
                         }
@@ -326,11 +342,10 @@ extension ActionLogSection {
         }
 
         // Recursively process subsections
-        if let subsections = subsections {
+        if let subsections {
             for subsection in subsections {
                 subsection.extractTestFailuresRecursive(failures: &failures, rootDirectory: rootDirectory)
             }
         }
     }
-
 }

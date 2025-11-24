@@ -55,15 +55,15 @@ public struct XCResultService: XCResultServicing {
             "failed: caught error: ",
             "caught error: ",
             "thrown error: ",
-            "failed - caught error: "
+            "failed - caught error: ",
         ]
 
         for pattern in errorPatterns {
             if let range = message.range(of: pattern, options: .caseInsensitive) {
-                var cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+                var cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
                 // Remove surrounding quotes if present
                 cleanedMessage = cleanedMessage.trimmingCharacters(in: .whitespaces)
-                if cleanedMessage.hasPrefix("\"") && cleanedMessage.hasSuffix("\"") {
+                if cleanedMessage.hasPrefix("\""), cleanedMessage.hasSuffix("\"") {
                     cleanedMessage = String(cleanedMessage.dropFirst().dropLast())
                 }
                 return (.errorThrown, cleanedMessage)
@@ -72,13 +72,13 @@ public struct XCResultService: XCResultServicing {
 
         // Check for issue recorded pattern
         if let range = message.range(of: "issue recorded: ", options: .caseInsensitive) {
-            let cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+            let cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
             return (.issueRecorded, cleanedMessage)
         }
 
         // Check for assertion failure pattern (only "expectation failed:")
         if let range = message.range(of: "expectation failed: ", options: .caseInsensitive) {
-            let cleanedMessage = message.replacingCharacters(in: message.startIndex..<range.upperBound, with: "")
+            let cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
             return (.assertionFailure, cleanedMessage)
         }
 
@@ -123,7 +123,11 @@ public struct XCResultService: XCResultServicing {
         ).concatenatedString()
 
         guard let outputData = outputString.data(using: .utf8) else {
-            throw NSError(domain: "XCResultService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert output to data"])
+            throw NSError(
+                domain: "XCResultService",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to convert output to data"]
+            )
         }
 
         let testOutput = try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
@@ -148,13 +152,24 @@ public struct XCResultService: XCResultServicing {
         var moduleDurations: [String: Int] = [:]
 
         for testNode in output.testNodes {
-            extractTestCases(from: testNode, module: nil, into: &allTestCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory, actionLogFailures: failuresFromActionLog)
+            extractTestCases(
+                from: testNode,
+                module: nil,
+                into: &allTestCases,
+                suiteDurations: &suiteDurations,
+                moduleDurations: &moduleDurations,
+                rootDirectory: rootDirectory,
+                actionLogFailures: failuresFromActionLog
+            )
         }
 
         let actionLogDurations: ([String: Int], [String: Int])
         var overallDuration: Int?
         let swiftTestingSuiteDurations: [String: Int]
-        (allTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) = await updateWithSwiftTestingDurations(testCases: allTestCases, xcresultPath: xcresultPath)
+        (allTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) = await updateWithSwiftTestingDurations(
+            testCases: allTestCases,
+            xcresultPath: xcresultPath
+        )
         // Merge Swift Testing suite durations (they take precedence over XCTest durations)
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
 
@@ -276,7 +291,15 @@ public struct XCResultService: XCResultServicing {
         // Recursively process children
         if let children = node.children {
             for child in children {
-                extractTestCases(from: child, module: currentModule, into: &testCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory, actionLogFailures: actionLogFailures)
+                extractTestCases(
+                    from: child,
+                    module: currentModule,
+                    into: &testCases,
+                    suiteDurations: &suiteDurations,
+                    moduleDurations: &moduleDurations,
+                    rootDirectory: rootDirectory,
+                    actionLogFailures: actionLogFailures
+                )
             }
         }
     }
@@ -348,7 +371,11 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    private func testModules(from testCases: [TestCase], suiteDurations: [String: Int], moduleDurations: [String: Int]) -> [TestModule] {
+    private func testModules(
+        from testCases: [TestCase],
+        suiteDurations: [String: Int],
+        moduleDurations: [String: Int]
+    ) -> [TestModule] {
         let testCasesByModule = Dictionary(grouping: testCases) { testCase in
             testCase.module ?? "Unknown"
         }
@@ -417,7 +444,8 @@ public struct XCResultService: XCResultServicing {
             }
 
             // Extract test target start times and suite completion timestamps
-            let (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule) = actionLog.extractTestTimestamps()
+            let (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule) = actionLog
+                .extractTestTimestamps()
 
             // Calculate overall duration using earliest test target start time and latest suite completion
             let overallDuration: Int?
