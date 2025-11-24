@@ -110,22 +110,12 @@ public struct XCResultService: XCResultServicing {
             extractTestCases(from: testNode, module: nil, into: &allTestCases, suiteDurations: &suiteDurations, moduleDurations: &moduleDurations, rootDirectory: rootDirectory)
         }
 
-        // Check if we need to extract Swift Testing durations (when duration is missing or 0)
-        let needsSwiftTestingDurations = allTestCases.contains { testCase in
-            testCase.duration == nil || testCase.duration == 0
-        }
-
         let actionLogDurations: ([String: Int], [String: Int])
         var overallDuration: Int?
-        if needsSwiftTestingDurations {
-            let swiftTestingSuiteDurations: [String: Int]
-            (allTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) = await updateWithSwiftTestingDurations(testCases: allTestCases, xcresultPath: xcresultPath)
-            // Merge Swift Testing suite durations (they take precedence over XCTest durations)
-            suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
-        } else {
-            // Even if we don't need Swift Testing durations, we should extract module durations from action logs
-            (actionLogDurations, overallDuration) = await extractActionLogDurations(xcresultPath: xcresultPath)
-        }
+        let swiftTestingSuiteDurations: [String: Int]
+        (allTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) = await updateWithSwiftTestingDurations(testCases: allTestCases, xcresultPath: xcresultPath)
+        // Merge Swift Testing suite durations (they take precedence over XCTest durations)
+        suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
 
         // Merge module durations from action logs (they take precedence over test node durations)
         moduleDurations.merge(actionLogDurations.0) { _, new in new }
