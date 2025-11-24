@@ -41,6 +41,7 @@ struct ActionLogSection: Codable {
     let commandInvocationDetails: CommandInvocationDetails?
     let testDetails: TestDetails?
     let duration: Double?
+    let startTime: Double?
     let title: String?
 
     struct CommandInvocationDetails: Codable {
@@ -100,32 +101,124 @@ extension ActionLogSection {
         return outputs
     }
 
-    /// Extract module durations by finding subsections with runnablePath in testDetails
-    /// and extracting the module name from XCTest output pattern
-    func extractModuleDurations(secondsToMilliseconds: (Double) -> Int) -> [String: Int] {
-        var moduleDurations: [String: Int] = [:]
-        extractModuleDurationsRecursive(into: &moduleDurations, secondsToMilliseconds: secondsToMilliseconds)
-        return moduleDurations
+    /// Extract test target start times and suite completion timestamps
+    /// Returns start times per module, earliest overall start, and latest completion timestamps
+    func extractTestTimestamps() -> (
+        testTargetStartTimes: [String: Double],
+        earliestTestStart: Double?,
+        latestOverallCompletion: Double?,
+        latestCompletionPerModule: [String: Double]
+    ) {
+        var testTargetStartTimes: [String: Double] = [:]
+        var earliestTestStart: Double?
+        var latestOverallCompletion: Double?
+        var latestCompletionPerModule: [String: Double] = [:]
+
+        extractTestTimestampsRecursive(
+            testTargetStartTimes: &testTargetStartTimes,
+            earliestTestStart: &earliestTestStart,
+            latestOverallCompletion: &latestOverallCompletion,
+            latestCompletionPerModule: &latestCompletionPerModule
+        )
+
+        return (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule)
     }
 
-    private func extractModuleDurationsRecursive(into moduleDurations: inout [String: Int], secondsToMilliseconds: (Double) -> Int) {
-        // Check if this section has a runnablePath and duration
-        if let runnablePath = testDetails?.runnablePath,
-           let duration = duration,
-           let emittedOutput = testDetails?.emittedOutput,
-           (runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")) {
+    private func extractTestTimestampsRecursive(
+        testTargetStartTimes: inout [String: Double],
+        earliestTestStart: inout Double?,
+        latestOverallCompletion: inout Double?,
+        latestCompletionPerModule: inout [String: Double]
+    ) {
+        // Check if this is a "Test target" node
+        if let nodeTitle = title, nodeTitle.hasPrefix("Test target "), let nodeStartTime = startTime {
+            // Extract module name from "Test target ModuleName"
+            let moduleName = String(nodeTitle.dropFirst("Test target ".count))
 
-            // Extract module name from XCTest pattern: "-[ModuleName.ClassName testMethod]"
-            let xcTestPattern = #"-\[([^.]+)\."#
-            if let regex = try? NSRegularExpression(pattern: xcTestPattern, options: []),
-               let match = regex.firstMatch(in: emittedOutput, options: [], range: NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)),
-               let moduleRange = Range(match.range(at: 1), in: emittedOutput) {
-                let moduleName = String(emittedOutput[moduleRange])
-                if !moduleName.isEmpty {
-                    let durationMs = secondsToMilliseconds(duration)
-                    // Use the first (should be only) occurrence
-                    if moduleDurations[moduleName] == nil {
-                        moduleDurations[moduleName] = durationMs
+            // Store the test target start time
+            testTargetStartTimes[moduleName] = nodeStartTime
+
+            // Update earliest test start
+            if let current = earliestTestStart {
+                earliestTestStart = min(current, nodeStartTime)
+            } else {
+                earliestTestStart = nodeStartTime
+            }
+        }
+
+        // Pattern: "Test Suite 'SuiteName' passed at 2025-11-24 18:39:44.625."
+        let suiteCompletionPattern = #"Test Suite '[^']+' (?:passed|failed) at (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d+)"#
+
+        // Check emittedOutput from both testDetails and commandInvocationDetails
+        let emittedOutputs = [testDetails?.emittedOutput, commandInvocationDetails?.emittedOutput].compactMap { $0 }
+
+        for emittedOutput in emittedOutputs {
+            guard let regex = try? NSRegularExpression(pattern: suiteCompletionPattern, options: []) else { continue }
+
+            let range = NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)
+            let matches = regex.matches(in: emittedOutput, options: [], range: range)
+
+            for match in matches {
+                // Extract timestamp components
+                guard match.numberOfRanges == 8,
+                      let yearRange = Range(match.range(at: 1), in: emittedOutput),
+                      let monthRange = Range(match.range(at: 2), in: emittedOutput),
+                      let dayRange = Range(match.range(at: 3), in: emittedOutput),
+                      let hourRange = Range(match.range(at: 4), in: emittedOutput),
+                      let minuteRange = Range(match.range(at: 5), in: emittedOutput),
+                      let secondRange = Range(match.range(at: 6), in: emittedOutput),
+                      let millisecondRange = Range(match.range(at: 7), in: emittedOutput)
+                else { continue }
+
+                let year = Int(emittedOutput[yearRange]) ?? 0
+                let month = Int(emittedOutput[monthRange]) ?? 0
+                let day = Int(emittedOutput[dayRange]) ?? 0
+                let hour = Int(emittedOutput[hourRange]) ?? 0
+                let minute = Int(emittedOutput[minuteRange]) ?? 0
+                let second = Int(emittedOutput[secondRange]) ?? 0
+                let millisecond = Int(emittedOutput[millisecondRange]) ?? 0
+
+                // Convert to Unix timestamp
+                // The timestamps in the log appear to be in local time, so we use the current timezone
+                var dateComponents = DateComponents()
+                dateComponents.year = year
+                dateComponents.month = month
+                dateComponents.day = day
+                dateComponents.hour = hour
+                dateComponents.minute = minute
+                dateComponents.second = second
+                dateComponents.nanosecond = millisecond * 1_000_000
+                dateComponents.timeZone = TimeZone.current
+
+                var calendar = Calendar.current
+                calendar.timeZone = TimeZone.current
+                guard let date = calendar.date(from: dateComponents) else { continue }
+                let timestamp = date.timeIntervalSince1970
+
+                // Update overall latest timestamp
+                if let current = latestOverallCompletion {
+                    latestOverallCompletion = max(current, timestamp)
+                } else {
+                    latestOverallCompletion = timestamp
+                }
+
+                // Update per-module timestamp if this section has a module
+                if let runnablePath = testDetails?.runnablePath,
+                   (runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")) {
+
+                    // Extract module name from XCTest pattern: "-[ModuleName.ClassName testMethod]"
+                    let xcTestPattern = #"-\[([^.]+)\."#
+                    if let moduleRegex = try? NSRegularExpression(pattern: xcTestPattern, options: []),
+                       let moduleMatch = moduleRegex.firstMatch(in: emittedOutput, options: [], range: NSRange(emittedOutput.startIndex..<emittedOutput.endIndex, in: emittedOutput)),
+                       let moduleRange = Range(moduleMatch.range(at: 1), in: emittedOutput) {
+                        let moduleName = String(emittedOutput[moduleRange])
+                        if !moduleName.isEmpty {
+                            if let current = latestCompletionPerModule[moduleName] {
+                                latestCompletionPerModule[moduleName] = max(current, timestamp)
+                            } else {
+                                latestCompletionPerModule[moduleName] = timestamp
+                            }
+                        }
                     }
                 }
             }
@@ -134,8 +227,14 @@ extension ActionLogSection {
         // Recursively process subsections
         if let subsections = subsections {
             for subsection in subsections {
-                subsection.extractModuleDurationsRecursive(into: &moduleDurations, secondsToMilliseconds: secondsToMilliseconds)
+                subsection.extractTestTimestampsRecursive(
+                    testTargetStartTimes: &testTargetStartTimes,
+                    earliestTestStart: &earliestTestStart,
+                    latestOverallCompletion: &latestOverallCompletion,
+                    latestCompletionPerModule: &latestCompletionPerModule
+                )
             }
         }
     }
+
 }

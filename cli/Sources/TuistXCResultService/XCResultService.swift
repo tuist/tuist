@@ -315,14 +315,29 @@ public struct XCResultService: XCResultServicing {
                 return (testCases, [:], ([:], [:]), nil)
             }
 
-            // Extract top-level duration
-            let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }
+            // Extract test target start times and suite completion timestamps
+            let (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule) = actionLog.extractTestTimestamps()
 
-            // Collect all emittedOutput fields
+            // Calculate overall duration using earliest test target start time and latest suite completion
+            let overallDuration: Int?
+            if let testStart = earliestTestStart, let latestCompletion = latestOverallCompletion {
+                let durationSeconds = latestCompletion - testStart
+                overallDuration = secondsToMilliseconds(durationSeconds)
+            } else {
+                overallDuration = nil
+            }
+
+            // Calculate module durations using per-module test target start times and latest suite completions
+            var moduleDurationsMap: [String: Int] = [:]
+            for (moduleName, testStartTime) in testTargetStartTimes {
+                if let latestCompletion = latestCompletionPerModule[moduleName] {
+                    let durationSeconds = latestCompletion - testStartTime
+                    moduleDurationsMap[moduleName] = secondsToMilliseconds(durationSeconds)
+                }
+            }
+
+            // Collect all emittedOutput fields for Swift Testing duration extraction
             let emittedOutputs = actionLog.collectEmittedOutputs()
-
-            // Extract module durations from the JSON structure
-            let moduleDurationsMap = actionLog.extractModuleDurations(secondsToMilliseconds: secondsToMilliseconds)
 
             // Parse Swift Testing duration patterns from the emitted outputs
             let (testDurationsMap, suiteDurationsMap) = parseSwiftTestingDurations(from: emittedOutputs)
@@ -348,51 +363,6 @@ public struct XCResultService: XCResultServicing {
             // If we fail to get logs, just return the test cases as-is
             print("Warning: Failed to extract Swift Testing durations: \(error)")
             return (testCases, [:], ([:], [:]), nil)
-        }
-    }
-
-    /// Extract module and suite durations from action logs
-    private func extractActionLogDurations(xcresultPath: AbsolutePath) async -> (([String: Int], [String: Int]), Int?) {
-        do {
-            // Use a temporary file to avoid issues with concatenatedString() on large outputs
-            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
-            let tempFile = try AbsolutePath(validating: tempFilePath)
-
-            // Get action logs using xcresulttool with --compact for standardized JSON output
-            // Redirect to file to avoid concatenatedString() issues with large outputs
-            _ = try await commandRunner.run(
-                arguments: [
-                    "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
-                ]
-            ).concatenatedString()
-
-            // Read the JSON from the temporary file
-            let logData = try await fileSystem.readFile(at: tempFile)
-
-            // Clean up temporary file
-            try await fileSystem.remove(tempFile)
-
-            // Parse the action log JSON
-            let actionLog: ActionLogSection
-            do {
-                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
-            } catch {
-                print("Warning: Failed to parse action log JSON: \(error)")
-                return (([:], [:]), nil)
-            }
-
-            // Extract top-level duration
-            let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }
-
-            // Extract module durations from the JSON structure
-            let moduleDurationsMap = actionLog.extractModuleDurations(secondsToMilliseconds: secondsToMilliseconds)
-
-            return ((moduleDurationsMap, [:]), overallDuration)
-        } catch {
-            // If we fail to get logs, just return empty maps
-            print("Warning: Failed to extract action log durations: \(error)")
-            return (([:], [:]), nil)
         }
     }
 
