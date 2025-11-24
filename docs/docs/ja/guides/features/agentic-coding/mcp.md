@@ -28,6 +28,7 @@ In this page you'll learn about how to set it up and its capabilities.
 Tuist MCP server uses Xcode's most-recent projects as the source of truth for
 projects you want to interact with.
 <!-- -->
+:::
 
 ## Set it up
 
@@ -124,6 +125,7 @@ Tuist MCP server to your client's configuration:
 }
 ```
 <!-- -->
+:::
 
 ## Capabilities
 
