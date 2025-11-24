@@ -98,17 +98,6 @@ struct CacheProfileTargetReplacementDeciderTests {
         #expect(!decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["cacheable"]))))
     }
 
-    @Test func onlyExternal_externals_ignored_by_exceptions_still_replaced() {
-        let profile = TuistCore.CacheProfile(
-            base: .onlyExternal,
-            targetQueries: ["A", "tag:cacheable"]
-        )
-        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["A", "tag:cacheable"])
-
-        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(name: "A")))
-        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test()))
-    }
-
     @Test func none_allowed_by_name_but_excepted_by_name_not_replaced() {
         let profile = TuistCore.CacheProfile(
             base: .none,
@@ -127,5 +116,33 @@ struct CacheProfileTargetReplacementDeciderTests {
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["tag:cacheable"])
 
         #expect(!decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["cacheable"]))))
+    }
+
+    @Test func onlyExternal_with_external_target_in_exceptions_should_not_replace() {
+        let profile = TuistCore.CacheProfile(
+            base: .onlyExternal,
+            targetQueries: []
+        )
+        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["ExternalDependency", "tag:keep-source"])
+
+        #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(name: "ExternalDependency")))
+        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(name: "OtherExternal")))
+        
+        #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["keep-source"]))))
+        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["other"]))))
+    }
+
+    @Test func allPossible_with_external_target_in_exceptions_should_not_replace() {
+        let profile = TuistCore.CacheProfile(
+            base: .allPossible,
+            targetQueries: []
+        )
+        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["ExternalDependency", "tag:keep-source"])
+
+        #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(name: "ExternalDependency")))
+        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(name: "OtherExternal")))
+        
+        #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["keep-source"]))))
+        #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["other"]))))
     }
 }
