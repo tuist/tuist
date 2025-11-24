@@ -297,11 +297,12 @@ public struct XCResultService: XCResultServicing {
         xcresultPath: AbsolutePath
     ) async -> ([TestCase], [String: Int], ([String: Int], [String: Int]), Int?) {
         do {
-            // Get action logs using xcresulttool
+            // Get action logs using xcresulttool with --compact for standardized JSON output
             let logJsonString = try await commandRunner.run(
                 arguments: [
                     "/usr/bin/xcrun", "xcresulttool",
                     "get", "log", "--type", "action",
+                    "--compact",
                     "--path", xcresultPath.pathString,
                 ]
             ).concatenatedString()
@@ -312,7 +313,13 @@ public struct XCResultService: XCResultServicing {
             }
 
             // Parse the action log JSON
-            let actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            let actionLog: ActionLogSection
+            do {
+                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                print("Warning: Failed to parse action log JSON: \(error)")
+                return (testCases, [:], ([:], [:]), nil)
+            }
 
             // Extract top-level duration
             let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }
@@ -353,11 +360,12 @@ public struct XCResultService: XCResultServicing {
     /// Extract module and suite durations from action logs
     private func extractActionLogDurations(xcresultPath: AbsolutePath) async -> (([String: Int], [String: Int]), Int?) {
         do {
-            // Get action logs using xcresulttool
+            // Get action logs using xcresulttool with --compact for standardized JSON output
             let logJsonString = try await commandRunner.run(
                 arguments: [
                     "/usr/bin/xcrun", "xcresulttool",
                     "get", "log", "--type", "action",
+                    "--compact",
                     "--path", xcresultPath.pathString,
                 ]
             ).concatenatedString()
@@ -368,7 +376,13 @@ public struct XCResultService: XCResultServicing {
             }
 
             // Parse the action log JSON
-            let actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            let actionLog: ActionLogSection
+            do {
+                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                print("Warning: Failed to parse action log JSON: \(error)")
+                return (([:], [:]), nil)
+            }
 
             // Extract top-level duration
             let overallDuration = actionLog.duration.map { secondsToMilliseconds($0) }

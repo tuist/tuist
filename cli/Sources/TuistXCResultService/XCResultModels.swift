@@ -45,11 +45,33 @@ struct ActionLogSection: Codable {
 
     struct CommandInvocationDetails: Codable {
         let emittedOutput: String?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            // Try to decode emittedOutput, but if it fails, use nil
+            emittedOutput = try? container.decodeIfPresent(String.self, forKey: .emittedOutput)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case emittedOutput
+        }
     }
 
     struct TestDetails: Codable {
         let emittedOutput: String?
         let runnablePath: String?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            // Try to decode emittedOutput, but if it fails, use nil
+            emittedOutput = try? container.decodeIfPresent(String.self, forKey: .emittedOutput)
+            runnablePath = try container.decodeIfPresent(String.self, forKey: .runnablePath)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case emittedOutput
+            case runnablePath
+        }
     }
 }
 
