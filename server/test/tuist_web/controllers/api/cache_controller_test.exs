@@ -66,7 +66,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       end)
 
       expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
+      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -156,7 +156,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       end)
 
       expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
+      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -608,7 +608,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       end)
 
       expect(Storage, :get_object_size, fn ^object_key, _ ->
-        size
+        {:ok, size}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -652,7 +652,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         :ok
       end)
 
-      stub(Storage, :get_object_size, fn _, _ -> 1024 end)
+      stub(Storage, :get_object_size, fn _, _ -> {:ok, 1024} end)
       conn = Authentication.put_current_project(conn, project)
 
       # When
@@ -669,6 +669,46 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["status"] == "success"
       assert response["data"] == %{}
+    end
+
+    test "returns 404 when the uploaded object is not found in storage", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"}
+      ]
+
+      stub(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        :ok
+      end)
+
+      stub(Storage, :get_object_size, fn _, _ -> {:error, :not_found} end)
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_slug}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, 404)
+      assert response["message"] == "The uploaded object was not found in storage"
     end
 
     test "errors with a payment_required when the account has no subscription and has gone above the limit",

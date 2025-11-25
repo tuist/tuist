@@ -692,10 +692,8 @@ defmodule TuistWeb.API.CacheController do
         |> put_status(404)
         |> json(%{message: "The uploaded object was not found in storage"})
 
-      {:error, _reason} ->
-        conn
-        |> put_status(500)
-        |> json(%{message: "Failed to verify uploaded object"})
+      {:error, reason} ->
+        raise "Failed to get object size: #{inspect(reason)}"
     end
   end
 
