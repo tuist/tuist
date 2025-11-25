@@ -124,7 +124,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
@@ -171,7 +171,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
@@ -218,7 +218,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
