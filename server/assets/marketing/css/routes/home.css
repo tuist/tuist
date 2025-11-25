@@ -849,11 +849,65 @@
         height: auto;
       }
 
+      & > img[data-part="default"],
+      & > img[data-part="hover"] {
+        display: none;
+
+        @media (min-width: 1024px) {
+          display: block;
+        }
+      }
+
+      & > img[data-part="hover"] {
+        @media (min-width: 1024px) {
+          display: none;
+        }
+      }
+
+      & > img[data-part="default-mobile"] {
+        display: block;
+
+        @media (min-width: 1024px) {
+          display: none;
+        }
+      }
+
+      & > img[data-part="hover-mobile"] {
+        display: none;
+      }
+
+      &:hover > img[data-part="default"] {
+        display: none;
+      }
+
+      &:hover > img[data-part="hover"] {
+        @media (min-width: 1024px) {
+          display: block;
+        }
+      }
+
+      &:hover > img[data-part="default-mobile"] {
+        display: none;
+      }
+
+      &:hover > img[data-part="hover-mobile"] {
+        display: block;
+
+        @media (min-width: 1024px) {
+          display: none;
+        }
+      }
+
       & > .noora-button {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
+      &:hover > .noora-button {
+        pointer-events: auto;
       }
     }
   }

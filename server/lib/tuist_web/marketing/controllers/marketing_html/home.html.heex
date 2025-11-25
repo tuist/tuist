@@ -417,7 +417,10 @@
         <span>{dgettext("marketing", "live on our dashboard")}</span>
       </h2>
       <main data-part="dashboard">
-        <img src="/marketing/images/home/dashboard.webp" />
+        <img data-part="default" src="/marketing/images/home/dashboard.webp" />
+        <img data-part="hover" src="/marketing/images/home/dashboard-hover.webp" />
+        <img data-part="default-mobile" src="/marketing/images/home/dashboard-mobile.webp" />
+        <img data-part="hover-mobile" src="/marketing/images/home/dashboard-hover-mobile.webp" />
         <.button
           href="/tuist/tuist"
           label={dgettext("marketing", "Explore Tuist's features")}
