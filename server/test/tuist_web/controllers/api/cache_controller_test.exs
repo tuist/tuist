@@ -701,6 +701,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> assign(:cache, cache)
+        |> assign(:skip_retry_sleep, true)
         |> post(
           ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_slug}&cache_category=#{cache_category}&upload_id=#{upload_id}",
           parts: parts

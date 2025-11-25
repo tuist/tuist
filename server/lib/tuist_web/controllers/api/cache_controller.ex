@@ -681,8 +681,9 @@ defmodule TuistWeb.API.CacheController do
     # Tigris may have a race condition where the object isn't immediately queryable
     # after multipart upload completion. Retry up to 3 times with exponential backoff.
     object_key = get_object_key(item)
+    skip_sleep = Map.get(conn.assigns, :skip_retry_sleep, false)
 
-    case retry_get_object_size(object_key, selected_project.account, 3) do
+    case retry_get_object_size(object_key, selected_project.account, 3, 1, skip_sleep) do
       {:ok, size} ->
         Tuist.Analytics.cache_artifact_upload(
           %{size: size, category: cache_category},
@@ -736,24 +737,26 @@ defmodule TuistWeb.API.CacheController do
     send_resp(conn, :no_content, "")
   end
 
-  defp retry_get_object_size(object_key, actor, retries_left, attempt \\ 1)
-
-  defp retry_get_object_size(object_key, actor, retries_left, attempt) when retries_left > 0 do
+  defp retry_get_object_size(object_key, actor, retries_left, attempt, skip_sleep)
+       when retries_left > 0 do
     case Storage.get_object_size(object_key, actor) do
       {:ok, size} ->
         {:ok, size}
 
       {:error, :not_found} ->
         # Wait with exponential backoff: 100ms, 200ms, 400ms
-        (100 * :math.pow(2, attempt - 1)) |> round() |> Process.sleep()
-        retry_get_object_size(object_key, actor, retries_left - 1, attempt + 1)
+        unless skip_sleep do
+          (100 * :math.pow(2, attempt - 1)) |> round() |> Process.sleep()
+        end
+
+        retry_get_object_size(object_key, actor, retries_left - 1, attempt + 1, skip_sleep)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  defp retry_get_object_size(_object_key, _actor, 0, _attempt) do
+  defp retry_get_object_size(_object_key, _actor, 0, _attempt, _skip_sleep) do
     {:error, :max_retries_exceeded}
   end
 
