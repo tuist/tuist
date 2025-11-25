@@ -106,13 +106,24 @@ public struct XCResultService: XCResultServicing {
             ]
         ).concatenatedString()
 
-        guard let outputData = outputString.data(using: .utf8) else {
+        let jsonString = extractJSON(from: outputString)
+
+        guard let outputData = jsonString.data(using: .utf8) else {
             throw XCResultServiceError.failedToParseOutput(path)
         }
 
         let testOutput = try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
 
         return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+    }
+
+    private func extractJSON(from output: String) -> String {
+        guard let jsonStartIndex = output.firstIndex(of: "{"),
+              let jsonEndIndex = output.lastIndex(of: "}")
+        else {
+            return output
+        }
+        return String(output[jsonStartIndex ... jsonEndIndex])
     }
 
     private func parseTestOutput(
@@ -378,7 +389,7 @@ public struct XCResultService: XCResultServicing {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
             let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
-            _ = try await commandRunner.run(
+            let outputString = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
                     "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
