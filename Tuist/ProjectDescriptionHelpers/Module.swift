@@ -691,6 +691,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcActivityLog.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                 ]
             case .cas:
