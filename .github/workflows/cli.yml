@@ -60,6 +60,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Lint
         run: mise run cli:lint
       - name: Save cache
@@ -86,6 +89,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
       - name: Save cache
@@ -112,6 +118,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Cache
         run: tuist cache
       - name: Save cache
@@ -138,6 +147,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Run tests
         run: mise x -- tuist test TuistUnitTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
       - name: Save cache
@@ -164,6 +176,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -196,6 +211,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -235,6 +253,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -267,6 +288,9 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
