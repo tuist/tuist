@@ -195,12 +195,16 @@ defmodule TuistWeb.API.CacheController do
     object_key = get_object_key(item)
 
     if Storage.object_exists?(object_key, selected_project.account) do
-      size = Storage.get_object_size(object_key, selected_project.account)
+      case Storage.get_object_size(object_key, selected_project.account) do
+        {:ok, size} ->
+          Tuist.Analytics.cache_artifact_download(
+            %{size: size, category: cache_category},
+            TuistWeb.Authentication.authenticated_subject(conn)
+          )
 
-      Tuist.Analytics.cache_artifact_download(
-        %{size: size, category: cache_category},
-        TuistWeb.Authentication.authenticated_subject(conn)
-      )
+        {:error, _reason} ->
+          :ok
+      end
     end
 
     expires_at = System.system_time(:second) + expires_in
@@ -674,14 +678,25 @@ defmodule TuistWeb.API.CacheController do
         selected_project.account
       )
 
-    size = Storage.get_object_size(get_object_key(item), selected_project.account)
+    case Storage.get_object_size(get_object_key(item), selected_project.account) do
+      {:ok, size} ->
+        Tuist.Analytics.cache_artifact_upload(
+          %{size: size, category: cache_category},
+          TuistWeb.Authentication.authenticated_subject(conn)
+        )
 
-    Tuist.Analytics.cache_artifact_upload(
-      %{size: size, category: cache_category},
-      TuistWeb.Authentication.authenticated_subject(conn)
-    )
+        json(conn, %{status: "success", data: %{}})
 
-    json(conn, %{status: "success", data: %{}})
+      {:error, :not_found} ->
+        conn
+        |> put_status(404)
+        |> json(%{message: "The uploaded object was not found in storage"})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(500)
+        |> json(%{message: "Failed to verify uploaded object"})
+    end
   end
 
   def multipart_complete(conn, _params) do
