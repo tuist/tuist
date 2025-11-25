@@ -100,6 +100,8 @@ struct CASServiceTests {
             .decompress(.value(compressedData))
             .called(1)
 
+        try await Task.sleep(for: .milliseconds(100))
+
         verify(metadataStore)
             .storeMetadata(.any, for: .value(casID))
             .called(1)
@@ -192,6 +194,8 @@ struct CASServiceTests {
                 authenticationURL: .value(serverURL)
             )
             .called(1)
+
+        try await Task.sleep(for: .milliseconds(100))
 
         verify(metadataStore)
             .storeMetadata(.any, for: .value(fingerprint))

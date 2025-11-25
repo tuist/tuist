@@ -58,8 +58,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="dashboard"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs" == @current_path or
-            (not is_nil(@selected_run) and not Enum.empty?(@selected_run.test_targets))
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
+          )
         }
       />
       <.sidebar_group

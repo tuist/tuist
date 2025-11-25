@@ -248,6 +248,7 @@ components:
         id: 123e4567-e89b-12d3-a456-426614174000
         name: build
         project_id: 123
+        test_run_url: https://tuist.dev/my-account/my-project/tests/test-runs/123e4567-e89b-12d3-a456-426614174000
         url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
         id:
@@ -264,6 +265,12 @@ components:
         project_id:
           description: The project identifier
           type: integer
+          x-struct:
+          x-validate:
+        test_run_url:
+          description: The URL to the test run, if available
+          nullable: true
+          type: string
           x-struct:
           x-validate:
         url:
@@ -1211,10 +1218,226 @@ components:
               x-struct:
               x-validate:
           required:
+            - type
             - id
             - duration
             - is_ci
           title: BuildRun
+          type: object
+          x-struct:
+          x-validate:
+        - properties:
+            duration:
+              description: Duration of the run in milliseconds.
+              type: integer
+              x-struct:
+              x-validate:
+            git_branch:
+              description: The git branch.
+              type: string
+              x-struct:
+              x-validate:
+            git_commit_sha:
+              description: The commit SHA.
+              type: string
+              x-struct:
+              x-validate:
+            git_ref:
+              description: The git reference.
+              type: string
+              x-struct:
+              x-validate:
+            git_remote_url_origin:
+              description: The git remote URL origin.
+              type: string
+              x-struct:
+              x-validate:
+            is_ci:
+              description: Indicates if the run was executed on a Continuous Integration (CI) system.
+              type: boolean
+              x-struct:
+              x-validate:
+            macos_version:
+              description: The version of macOS used during the run.
+              type: string
+              x-struct:
+              x-validate:
+            model_identifier:
+              description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme used for the test run.
+              type: string
+              x-struct:
+              x-validate:
+            status:
+              description: The status of the test run.
+              enum:
+                - success
+                - failure
+              type: string
+              x-struct:
+              x-validate:
+            test_modules:
+              description: The test modules associated with the test run.
+              items:
+                properties:
+                  duration:
+                    description: The duration of the test module in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The name of the test module/target.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: The status of the test module.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  test_cases:
+                    description: The test cases within this module.
+                    items:
+                      properties:
+                        duration:
+                          description: The duration of the test case in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        failures:
+                          description: The failures that occurred in this test case.
+                          items:
+                            properties:
+                              issue_type:
+                                description: The type of issue that occurred.
+                                enum:
+                                  - error_thrown
+                                  - assertion_failure
+                                  - issue_recorded
+                                type: string
+                                x-struct:
+                                x-validate:
+                              line_number:
+                                description: The line number where the failure occurred.
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              message:
+                                description: The failure message.
+                                type: string
+                                x-struct:
+                                x-validate:
+                              path:
+                                description: The file path where the failure occurred, relative to the project root.
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - line_number
+                            type: object
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The name of the test case.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The status of the test case.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_suite_name:
+                          description: The name of the test suite this test case belongs to (optional).
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_suites:
+                    description: The test suites within this module.
+                    items:
+                      properties:
+                        duration:
+                          description: The duration of the test suite in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The name of the test suite.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The status of the test suite.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - name
+                  - status
+                  - duration
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            type:
+              description: "The type of the run, which is 'test' in this case."
+              enum:
+                - test
+              type: string
+              x-struct:
+              x-validate:
+            xcode_version:
+              description: The version of Xcode used during the run.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - type
+            - duration
+            - test_modules
+            - macos_version
+            - is_ci
+          title: TestRun
           type: object
           x-struct:
           x-validate:
@@ -1387,12 +1610,20 @@ components:
           type: integer
           x-struct:
           x-validate:
+        type:
+          description: "The type of the run, which is 'build' in this case"
+          enum:
+            - build
+          type: string
+          x-struct:
+          x-validate:
         url:
           description: The URL to access the build run
           type: string
           x-struct:
           x-validate:
       required:
+        - type
         - id
         - duration
         - project_id
@@ -1421,6 +1652,222 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    TestRun:
+      properties:
+        duration:
+          description: Duration of the run in milliseconds.
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit SHA.
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          description: The git reference.
+          type: string
+          x-struct:
+          x-validate:
+        git_remote_url_origin:
+          description: The git remote URL origin.
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          description: Indicates if the run was executed on a Continuous Integration (CI) system.
+          type: boolean
+          x-struct:
+          x-validate:
+        macos_version:
+          description: The version of macOS used during the run.
+          type: string
+          x-struct:
+          x-validate:
+        model_identifier:
+          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme used for the test run.
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the test run.
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+        test_modules:
+          description: The test modules associated with the test run.
+          items:
+            properties:
+              duration:
+                description: The duration of the test module in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test module/target.
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: The status of the test module.
+                enum:
+                  - success
+                  - failure
+                type: string
+                x-struct:
+                x-validate:
+              test_cases:
+                description: The test cases within this module.
+                items:
+                  properties:
+                    duration:
+                      description: The duration of the test case in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    failures:
+                      description: The failures that occurred in this test case.
+                      items:
+                        properties:
+                          issue_type:
+                            description: The type of issue that occurred.
+                            enum:
+                              - error_thrown
+                              - assertion_failure
+                              - issue_recorded
+                            type: string
+                            x-struct:
+                            x-validate:
+                          line_number:
+                            description: The line number where the failure occurred.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          message:
+                            description: The failure message.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          path:
+                            description: The file path where the failure occurred, relative to the project root.
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - line_number
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the test case.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test case.
+                      enum:
+                        - success
+                        - failure
+                        - skipped
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_suite_name:
+                      description: The name of the test suite this test case belongs to (optional).
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - status
+                    - duration
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              test_suites:
+                description: The test suites within this module.
+                items:
+                  properties:
+                    duration:
+                      description: The duration of the test suite in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the test suite.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test suite.
+                      enum:
+                        - success
+                        - failure
+                        - skipped
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - status
+                    - duration
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - status
+              - duration
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        type:
+          description: "The type of the run, which is 'test' in this case."
+          enum:
+            - test
+          type: string
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: The version of Xcode used during the run.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+        - duration
+        - test_modules
+        - macos_version
+        - is_ci
+      title: TestRun
+      type: object
+      x-struct:
       x-validate:
     AccountTokenScope:
       description: The scope of the token.
@@ -2343,12 +2790,53 @@ components:
           x-struct:
           x-validate:
       required:
+        - type
         - id
         - duration
         - is_ci
       title: BuildRun
       type: object
       x-struct:
+      x-validate:
+    RunsTest:
+      description: Represents a single test run.
+      properties:
+        duration:
+          description: The duration of the test run in milliseconds
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: The unique identifier of the test run
+          type: string
+          x-struct:
+          x-validate:
+        project_id:
+          description: The ID of the Tuist project associated with this test run
+          type: integer
+          x-struct:
+          x-validate:
+        type:
+          description: "The type of the run, which is 'test' in this case"
+          enum:
+            - test
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL to access the test run
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+        - id
+        - duration
+        - project_id
+        - url
+      title: RunsTest
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Runs.Test
       x-validate:
     PaginationMetadata:
       description: Pagination metadata.
@@ -2787,6 +3275,11 @@ paths:
                   x-validate:
                 swift_version:
                   description: The version of Swift that ran the command.
+                  type: string
+                  x-struct:
+                  x-validate:
+                test_run_id:
+                  description: The test run identifier.
                   type: string
                   x-struct:
                   x-validate:
@@ -6761,10 +7254,226 @@ paths:
                       x-struct:
                       x-validate:
                   required:
+                    - type
                     - id
                     - duration
                     - is_ci
                   title: BuildRun
+                  type: object
+                  x-struct:
+                  x-validate:
+                - properties:
+                    duration:
+                      description: Duration of the run in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    git_branch:
+                      description: The git branch.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_commit_sha:
+                      description: The commit SHA.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_ref:
+                      description: The git reference.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_remote_url_origin:
+                      description: The git remote URL origin.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    is_ci:
+                      description: Indicates if the run was executed on a Continuous Integration (CI) system.
+                      type: boolean
+                      x-struct:
+                      x-validate:
+                    macos_version:
+                      description: The version of macOS used during the run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    model_identifier:
+                      description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme used for the test run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test run.
+                      enum:
+                        - success
+                        - failure
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_modules:
+                      description: The test modules associated with the test run.
+                      items:
+                        properties:
+                          duration:
+                            description: The duration of the test module in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: The name of the test module/target.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status of the test module.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                          test_cases:
+                            description: The test cases within this module.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration of the test case in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                failures:
+                                  description: The failures that occurred in this test case.
+                                  items:
+                                    properties:
+                                      issue_type:
+                                        description: The type of issue that occurred.
+                                        enum:
+                                          - error_thrown
+                                          - assertion_failure
+                                          - issue_recorded
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                      line_number:
+                                        description: The line number where the failure occurred.
+                                        type: integer
+                                        x-struct:
+                                        x-validate:
+                                      message:
+                                        description: The failure message.
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                      path:
+                                        description: The file path where the failure occurred, relative to the project root.
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                    required:
+                                      - line_number
+                                    type: object
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the test case.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status of the test case.
+                                  enum:
+                                    - success
+                                    - failure
+                                    - skipped
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                test_suite_name:
+                                  description: The name of the test suite this test case belongs to (optional).
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - name
+                                - status
+                                - duration
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          test_suites:
+                            description: The test suites within this module.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration of the test suite in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the test suite.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status of the test suite.
+                                  enum:
+                                    - success
+                                    - failure
+                                    - skipped
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - name
+                                - status
+                                - duration
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                        required:
+                          - name
+                          - status
+                          - duration
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type:
+                      description: "The type of the run, which is 'test' in this case."
+                      enum:
+                        - test
+                      type: string
+                      x-struct:
+                      x-validate:
+                    xcode_version:
+                      description: The version of Xcode used during the run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - type
+                    - duration
+                    - test_modules
+                    - macos_version
+                    - is_ci
+                  title: TestRun
                   type: object
                   x-struct:
                   x-validate:
@@ -6780,9 +7489,10 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/RunsBuild'
+                  - $ref: '#/components/schemas/RunsTest'
                 x-struct:
                 x-validate:
-          description: The created build
+          description: The created run
         '400':
           content:
             application/json:
@@ -6807,7 +7517,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-      summary: Create a new build.
+      summary: Create a new run.
       tags:
         - Runs
   /api/organizations/{organization_name}/members/{user_name}:

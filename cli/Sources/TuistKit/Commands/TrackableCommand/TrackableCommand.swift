@@ -26,6 +26,7 @@ public struct TrackableCommandInfo {
     let resultBundlePath: AbsolutePath?
     let ranAt: Date
     let buildRunId: String?
+    let testRunId: String?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -128,7 +129,8 @@ public class TrackableCommand {
             previewId: runMetadataStorage.previewId,
             resultBundlePath: runMetadataStorage.resultBundlePath,
             ranAt: Date(),
-            buildRunId: runMetadataStorage.buildRunId
+            buildRunId: runMetadataStorage.buildRunId,
+            testRunId: runMetadataStorage.testRunId
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
@@ -138,10 +140,17 @@ public class TrackableCommand {
             Logger.current.info("Uploading run metadata...")
             do {
                 let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
-                Logger.current
-                    .info(
-                        "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
-                    )
+                if let testRunURL = serverCommandEvent.testRunURL {
+                    Logger.current
+                        .info(
+                            "You can view a detailed test report at: \(testRunURL.absoluteString)"
+                        )
+                } else {
+                    Logger.current
+                        .info(
+                            "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
+                        )
+                }
             } catch let error as ClientError {
                 Logger.current
                     .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")

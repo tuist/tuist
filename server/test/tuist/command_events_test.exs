@@ -1682,6 +1682,37 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "get_command_event_by_test_run_id/1" do
+    test "returns a command event when test_run_id exists" do
+      # Given
+      test_run_id = Ecto.UUID.generate()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          test_run_id: test_run_id
+        )
+
+      # When
+      got = CommandEvents.get_command_event_by_test_run_id(test_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == command_event.id
+    end
+
+    test "returns {:error, :not_found} when test_run_id does not exist" do
+      # Given
+      non_existent_test_run_id = Ecto.UUID.generate()
+
+      # When
+      got = CommandEvents.get_command_event_by_test_run_id(non_existent_test_run_id)
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+  end
+
   describe "cache_hit_rate_period_percentile/4" do
     test "returns single percentile value for entire period" do
       # Given

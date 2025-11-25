@@ -4,6 +4,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
+  alias Tuist.Runs.TestCaseRun
   alias Tuist.Xcode.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -2028,6 +2029,215 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
+    end
+  end
+
+  describe "test_runs_metrics/1" do
+    test "returns metrics and command event data for test runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create test runs
+      {:ok, test_run_one} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, test_run_two} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "failure",
+          scheme: "AnotherScheme",
+          duration: 2000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      # Create test case runs for both test runs
+      module_run_id_one = UUIDv7.generate()
+      module_run_id_two = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_one.id,
+          test_module_run_id: module_run_id_one,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 50,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_two.id,
+          test_module_run_id: module_run_id_two,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testSuccess",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_two.id,
+          test_module_run_id: module_run_id_two,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testFailure",
+          status: 1,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_two.id,
+          test_module_run_id: module_run_id_two,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testAnother",
+          status: 0,
+          duration: 150,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        }
+      ])
+
+      # Create command events linked to test runs
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_run_id: test_run_one.id,
+          cacheable_targets: ["A", "B", "C"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: ["B"],
+          test_targets: ["TestA", "TestB"],
+          local_test_target_hits: ["TestA"],
+          remote_test_target_hits: [],
+          duration: 5000,
+          created_at: ~N[2024-04-30 10:00:00.000000]
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          subcommand: "test-without-building",
+          test_run_id: test_run_two.id,
+          cacheable_targets: ["D", "E", "F", "G"],
+          local_cache_target_hits: [],
+          remote_cache_target_hits: ["E", "F"],
+          test_targets: ["TestC", "TestD", "TestE"],
+          local_test_target_hits: ["TestC"],
+          remote_test_target_hits: ["TestD"],
+          duration: 3000,
+          created_at: ~N[2024-04-30 11:00:00.000000]
+        )
+
+      # When
+      got = Analytics.test_runs_metrics([test_run_one, test_run_two])
+
+      # Then
+      assert length(got) == 2
+
+      # Find results for each test run
+      result_one = Enum.find(got, &(&1.test_run_id == test_run_one.id))
+      result_two = Enum.find(got, &(&1.test_run_id == test_run_two.id))
+
+      # Verify test_run_one metrics (1 test case run)
+      # Cache: 3 cacheable targets, 2 hits (A local, B remote) = 66%
+      # Skipped: 1 local test target hit (TestA) = 1 skipped
+      # Ran: 1 total - 1 skipped = 0 ran
+      assert result_one.test_run_id == test_run_one.id
+      assert result_one.total_tests == 1
+      assert result_one.cache_hit_rate == "66 %"
+      assert result_one.skipped_tests == 1
+      assert result_one.ran_tests == 0
+
+      # Verify test_run_two metrics (3 test case runs: 2 success, 1 failure)
+      # Cache: 4 cacheable targets, 2 hits (E, F remote) = 50%
+      # Skipped: 2 test target hits (TestC local, TestD remote) = 2 skipped
+      # Ran: 3 total - 2 skipped = 1 ran
+      assert result_two.test_run_id == test_run_two.id
+      assert result_two.total_tests == 3
+      assert result_two.cache_hit_rate == "50 %"
+      assert result_two.skipped_tests == 2
+      assert result_two.ran_tests == 1
+    end
+
+    test "handles test runs without command events" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      # Create test case runs but no command event
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: UUIDv7.generate(),
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.test_runs_metrics([test_run])
+
+      # Then
+      assert length(got) == 1
+      result = List.first(got)
+
+      # Without command event, no cache targets or test target hits
+      # Cache: 0 cacheable targets = 0%
+      # Skipped: 0 test target hits = 0 skipped
+      # Ran: 1 total - 0 skipped = 1 ran
+      assert result.test_run_id == test_run.id
+      assert result.total_tests == 1
+      assert result.cache_hit_rate == "0 %"
+      assert result.skipped_tests == 0
+      assert result.ran_tests == 1
     end
   end
 end

@@ -345,7 +345,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
     func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output
-    /// Create a new build.
+    /// Create a new run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)`.
@@ -1187,7 +1187,7 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Create a new build.
+    /// Create a new run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)`.
@@ -1716,6 +1716,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/project_id`.
             public var project_id: Swift.Int
+            /// The URL to the test run, if available
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEvent/test_run_url`.
+            public var test_run_url: Swift.String?
             /// The URL to the command event
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/url`.
@@ -1726,22 +1730,26 @@ public enum Components {
             ///   - id: The unique identifier of the command event.
             ///   - name: The name of the command
             ///   - project_id: The project identifier
+            ///   - test_run_url: The URL to the test run, if available
             ///   - url: The URL to the command event
             public init(
                 id: Swift.String,
                 name: Swift.String,
                 project_id: Swift.Int,
+                test_run_url: Swift.String? = nil,
                 url: Swift.String
             ) {
                 self.id = id
                 self.name = name
                 self.project_id = project_id
+                self.test_run_url = test_run_url
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case project_id
+                case test_run_url
                 case url
             }
         }
@@ -3016,7 +3024,7 @@ public enum Components {
                 /// The type of the run, which is 'build' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/type`.
-                public var _type: Components.Schemas.RunParams.Case1Payload._typePayload?
+                public var _type: Components.Schemas.RunParams.Case1Payload._typePayload
                 /// The version of Xcode used during the run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/xcode_version`.
@@ -3071,7 +3079,7 @@ public enum Components {
                     scheme: Swift.String? = nil,
                     status: Components.Schemas.RunParams.Case1Payload.statusPayload? = nil,
                     targets: Components.Schemas.RunParams.Case1Payload.targetsPayload? = nil,
-                    _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
+                    _type: Components.Schemas.RunParams.Case1Payload._typePayload,
                     xcode_version: Swift.String? = nil
                 ) {
                     self.cacheable_tasks = cacheable_tasks
@@ -3128,10 +3136,373 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/RunParams/case1`.
             case case1(Components.Schemas.RunParams.Case1Payload)
+            /// - Remark: Generated from `#/components/schemas/RunParams/case2`.
+            public struct Case2Payload: Codable, Hashable, Sendable {
+                /// Duration of the run in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/duration`.
+                public var duration: Swift.Int
+                /// The git branch.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/git_branch`.
+                public var git_branch: Swift.String?
+                /// The commit SHA.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/git_commit_sha`.
+                public var git_commit_sha: Swift.String?
+                /// The git reference.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/git_ref`.
+                public var git_ref: Swift.String?
+                /// The git remote URL origin.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/git_remote_url_origin`.
+                public var git_remote_url_origin: Swift.String?
+                /// Indicates if the run was executed on a Continuous Integration (CI) system.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/is_ci`.
+                public var is_ci: Swift.Bool
+                /// The version of macOS used during the run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/macos_version`.
+                public var macos_version: Swift.String
+                /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/model_identifier`.
+                public var model_identifier: Swift.String?
+                /// The scheme used for the test run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/scheme`.
+                public var scheme: Swift.String?
+                /// The status of the test run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// The status of the test run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/status`.
+                public var status: Components.Schemas.RunParams.Case2Payload.statusPayload?
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload`.
+                public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The duration of the test module in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/duration`.
+                    public var duration: Swift.Int
+                    /// The name of the test module/target.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/name`.
+                    public var name: Swift.String
+                    /// The status of the test module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                    }
+                    /// The status of the test module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/status`.
+                    public var status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.statusPayload
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload`.
+                    public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The duration of the test case in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/duration`.
+                        public var duration: Swift.Int
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload`.
+                        public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                            /// The type of issue that occurred.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                            @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case error_thrown = "error_thrown"
+                                case assertion_failure = "assertion_failure"
+                                case issue_recorded = "issue_recorded"
+                            }
+                            /// The type of issue that occurred.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                            public var issue_type: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload?
+                            /// The line number where the failure occurred.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload/line_number`.
+                            public var line_number: Swift.Int
+                            /// The failure message.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload/message`.
+                            public var message: Swift.String?
+                            /// The file path where the failure occurred, relative to the project root.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failuresPayload/path`.
+                            public var path: Swift.String?
+                            /// Creates a new `failuresPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - issue_type: The type of issue that occurred.
+                            ///   - line_number: The line number where the failure occurred.
+                            ///   - message: The failure message.
+                            ///   - path: The file path where the failure occurred, relative to the project root.
+                            public init(
+                                issue_type: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload? = nil,
+                                line_number: Swift.Int,
+                                message: Swift.String? = nil,
+                                path: Swift.String? = nil
+                            ) {
+                                self.issue_type = issue_type
+                                self.line_number = line_number
+                                self.message = message
+                                self.path = path
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case issue_type
+                                case line_number
+                                case message
+                                case path
+                            }
+                        }
+                        /// The failures that occurred in this test case.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failures`.
+                        public typealias failuresPayload = [Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload]
+                        /// The failures that occurred in this test case.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/failures`.
+                        public var failures: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload?
+                        /// The name of the test case.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/name`.
+                        public var name: Swift.String
+                        /// The status of the test case.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                            case skipped = "skipped"
+                        }
+                        /// The status of the test case.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/status`.
+                        public var status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload
+                        /// The name of the test suite this test case belongs to (optional).
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/test_suite_name`.
+                        public var test_suite_name: Swift.String?
+                        /// Creates a new `test_casesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: The duration of the test case in milliseconds.
+                        ///   - failures: The failures that occurred in this test case.
+                        ///   - name: The name of the test case.
+                        ///   - status: The status of the test case.
+                        ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
+                        public init(
+                            duration: Swift.Int,
+                            failures: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
+                            name: Swift.String,
+                            status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
+                            test_suite_name: Swift.String? = nil
+                        ) {
+                            self.duration = duration
+                            self.failures = failures
+                            self.name = name
+                            self.status = status
+                            self.test_suite_name = test_suite_name
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case failures
+                            case name
+                            case status
+                            case test_suite_name
+                        }
+                    }
+                    /// The test cases within this module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_cases`.
+                    public typealias test_casesPayload = [Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload]
+                    /// The test cases within this module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_cases`.
+                    public var test_cases: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayload?
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suitesPayload`.
+                    public struct test_suitesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The duration of the test suite in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suitesPayload/duration`.
+                        public var duration: Swift.Int
+                        /// The name of the test suite.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suitesPayload/name`.
+                        public var name: Swift.String
+                        /// The status of the test suite.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suitesPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                            case skipped = "skipped"
+                        }
+                        /// The status of the test suite.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suitesPayload/status`.
+                        public var status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                        /// Creates a new `test_suitesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: The duration of the test suite in milliseconds.
+                        ///   - name: The name of the test suite.
+                        ///   - status: The status of the test suite.
+                        public init(
+                            duration: Swift.Int,
+                            name: Swift.String,
+                            status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                        ) {
+                            self.duration = duration
+                            self.name = name
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case name
+                            case status
+                        }
+                    }
+                    /// The test suites within this module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suites`.
+                    public typealias test_suitesPayload = [Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload]
+                    /// The test suites within this module.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_suites`.
+                    public var test_suites: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_suitesPayload?
+                    /// Creates a new `test_modulesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: The duration of the test module in milliseconds.
+                    ///   - name: The name of the test module/target.
+                    ///   - status: The status of the test module.
+                    ///   - test_cases: The test cases within this module.
+                    ///   - test_suites: The test suites within this module.
+                    public init(
+                        duration: Swift.Int,
+                        name: Swift.String,
+                        status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.statusPayload,
+                        test_cases: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayload? = nil,
+                        test_suites: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_suitesPayload? = nil
+                    ) {
+                        self.duration = duration
+                        self.name = name
+                        self.status = status
+                        self.test_cases = test_cases
+                        self.test_suites = test_suites
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case name
+                        case status
+                        case test_cases
+                        case test_suites
+                    }
+                }
+                /// The test modules associated with the test run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modules`.
+                public typealias test_modulesPayload = [Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload]
+                /// The test modules associated with the test run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modules`.
+                public var test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload
+                /// The type of the run, which is 'test' in this case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/type`.
+                @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case test = "test"
+                }
+                /// The type of the run, which is 'test' in this case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/type`.
+                public var _type: Components.Schemas.RunParams.Case2Payload._typePayload
+                /// The version of Xcode used during the run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/xcode_version`.
+                public var xcode_version: Swift.String?
+                /// Creates a new `Case2Payload`.
+                ///
+                /// - Parameters:
+                ///   - duration: Duration of the run in milliseconds.
+                ///   - git_branch: The git branch.
+                ///   - git_commit_sha: The commit SHA.
+                ///   - git_ref: The git reference.
+                ///   - git_remote_url_origin: The git remote URL origin.
+                ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+                ///   - macos_version: The version of macOS used during the run.
+                ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                ///   - scheme: The scheme used for the test run.
+                ///   - status: The status of the test run.
+                ///   - test_modules: The test modules associated with the test run.
+                ///   - _type: The type of the run, which is 'test' in this case.
+                ///   - xcode_version: The version of Xcode used during the run.
+                public init(
+                    duration: Swift.Int,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    git_ref: Swift.String? = nil,
+                    git_remote_url_origin: Swift.String? = nil,
+                    is_ci: Swift.Bool,
+                    macos_version: Swift.String,
+                    model_identifier: Swift.String? = nil,
+                    scheme: Swift.String? = nil,
+                    status: Components.Schemas.RunParams.Case2Payload.statusPayload? = nil,
+                    test_modules: Components.Schemas.RunParams.Case2Payload.test_modulesPayload,
+                    _type: Components.Schemas.RunParams.Case2Payload._typePayload,
+                    xcode_version: Swift.String? = nil
+                ) {
+                    self.duration = duration
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.git_ref = git_ref
+                    self.git_remote_url_origin = git_remote_url_origin
+                    self.is_ci = is_ci
+                    self.macos_version = macos_version
+                    self.model_identifier = model_identifier
+                    self.scheme = scheme
+                    self.status = status
+                    self.test_modules = test_modules
+                    self._type = _type
+                    self.xcode_version = xcode_version
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case duration
+                    case git_branch
+                    case git_commit_sha
+                    case git_ref
+                    case git_remote_url_origin
+                    case is_ci
+                    case macos_version
+                    case model_identifier
+                    case scheme
+                    case status
+                    case test_modules
+                    case _type = "type"
+                    case xcode_version
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunParams/case2`.
+            case case2(Components.Schemas.RunParams.Case2Payload)
             public init(from decoder: any Decoder) throws {
                 var errors: [any Error] = []
                 do {
                     self = .case1(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case2(try .init(from: decoder))
                     return
                 } catch {
                     errors.append(error)
@@ -3145,6 +3516,8 @@ public enum Components {
             public func encode(to encoder: any Encoder) throws {
                 switch self {
                 case let .case1(value):
+                    try value.encode(to: encoder)
+                case let .case2(value):
                     try value.encode(to: encoder)
                 }
             }
@@ -3452,6 +3825,16 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/project_id`.
             public var project_id: Swift.Int
+            /// The type of the run, which is 'build' in this case
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build = "build"
+            }
+            /// The type of the run, which is 'build' in this case
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/type`.
+            public var _type: Components.Schemas.RunsBuild._typePayload
             /// The URL to access the build run
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/url`.
@@ -3462,22 +3845,26 @@ public enum Components {
             ///   - duration: The duration of the build run in milliseconds
             ///   - id: The unique identifier of the build run
             ///   - project_id: The ID of the Tuist project associated with this build run
+            ///   - _type: The type of the run, which is 'build' in this case
             ///   - url: The URL to access the build run
             public init(
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
+                _type: Components.Schemas.RunsBuild._typePayload,
                 url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self._type = _type
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
                 case duration
                 case id
                 case project_id
+                case _type = "type"
                 case url
             }
         }
@@ -3508,6 +3895,361 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case id
                 case inserted_at
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/TestRun`.
+        public struct TestRun: Codable, Hashable, Sendable {
+            /// Duration of the run in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/duration`.
+            public var duration: Swift.Int
+            /// The git branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/git_branch`.
+            public var git_branch: Swift.String?
+            /// The commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/git_commit_sha`.
+            public var git_commit_sha: Swift.String?
+            /// The git reference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/git_ref`.
+            public var git_ref: Swift.String?
+            /// The git remote URL origin.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/git_remote_url_origin`.
+            public var git_remote_url_origin: Swift.String?
+            /// Indicates if the run was executed on a Continuous Integration (CI) system.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/is_ci`.
+            public var is_ci: Swift.Bool
+            /// The version of macOS used during the run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/macos_version`.
+            public var macos_version: Swift.String
+            /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/model_identifier`.
+            public var model_identifier: Swift.String?
+            /// The scheme used for the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/scheme`.
+            public var scheme: Swift.String?
+            /// The status of the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+            }
+            /// The status of the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/status`.
+            public var status: Components.Schemas.TestRun.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload`.
+            public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
+                /// The duration of the test module in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/duration`.
+                public var duration: Swift.Int
+                /// The name of the test module/target.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/name`.
+                public var name: Swift.String
+                /// The status of the test module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// The status of the test module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/status`.
+                public var status: Components.Schemas.TestRun.test_modulesPayloadPayload.statusPayload
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload`.
+                public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The duration of the test case in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/duration`.
+                    public var duration: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload`.
+                    public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                        /// The type of issue that occurred.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                        @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case error_thrown = "error_thrown"
+                            case assertion_failure = "assertion_failure"
+                            case issue_recorded = "issue_recorded"
+                        }
+                        /// The type of issue that occurred.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                        public var issue_type: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload?
+                        /// The line number where the failure occurred.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload/line_number`.
+                        public var line_number: Swift.Int
+                        /// The failure message.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload/message`.
+                        public var message: Swift.String?
+                        /// The file path where the failure occurred, relative to the project root.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failuresPayload/path`.
+                        public var path: Swift.String?
+                        /// Creates a new `failuresPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - issue_type: The type of issue that occurred.
+                        ///   - line_number: The line number where the failure occurred.
+                        ///   - message: The failure message.
+                        ///   - path: The file path where the failure occurred, relative to the project root.
+                        public init(
+                            issue_type: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload? = nil,
+                            line_number: Swift.Int,
+                            message: Swift.String? = nil,
+                            path: Swift.String? = nil
+                        ) {
+                            self.issue_type = issue_type
+                            self.line_number = line_number
+                            self.message = message
+                            self.path = path
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case issue_type
+                            case line_number
+                            case message
+                            case path
+                        }
+                    }
+                    /// The failures that occurred in this test case.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failures`.
+                    public typealias failuresPayload = [Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload]
+                    /// The failures that occurred in this test case.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/failures`.
+                    public var failures: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload?
+                    /// The name of the test case.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/name`.
+                    public var name: Swift.String
+                    /// The status of the test case.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case skipped = "skipped"
+                    }
+                    /// The status of the test case.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/status`.
+                    public var status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload
+                    /// The name of the test suite this test case belongs to (optional).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/test_suite_name`.
+                    public var test_suite_name: Swift.String?
+                    /// Creates a new `test_casesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: The duration of the test case in milliseconds.
+                    ///   - failures: The failures that occurred in this test case.
+                    ///   - name: The name of the test case.
+                    ///   - status: The status of the test case.
+                    ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
+                    public init(
+                        duration: Swift.Int,
+                        failures: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
+                        name: Swift.String,
+                        status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
+                        test_suite_name: Swift.String? = nil
+                    ) {
+                        self.duration = duration
+                        self.failures = failures
+                        self.name = name
+                        self.status = status
+                        self.test_suite_name = test_suite_name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case failures
+                        case name
+                        case status
+                        case test_suite_name
+                    }
+                }
+                /// The test cases within this module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_cases`.
+                public typealias test_casesPayload = [Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload]
+                /// The test cases within this module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_cases`.
+                public var test_cases: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayload?
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suitesPayload`.
+                public struct test_suitesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The duration of the test suite in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suitesPayload/duration`.
+                    public var duration: Swift.Int
+                    /// The name of the test suite.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suitesPayload/name`.
+                    public var name: Swift.String
+                    /// The status of the test suite.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suitesPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case skipped = "skipped"
+                    }
+                    /// The status of the test suite.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suitesPayload/status`.
+                    public var status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                    /// Creates a new `test_suitesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: The duration of the test suite in milliseconds.
+                    ///   - name: The name of the test suite.
+                    ///   - status: The status of the test suite.
+                    public init(
+                        duration: Swift.Int,
+                        name: Swift.String,
+                        status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                    ) {
+                        self.duration = duration
+                        self.name = name
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case name
+                        case status
+                    }
+                }
+                /// The test suites within this module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suites`.
+                public typealias test_suitesPayload = [Components.Schemas.TestRun.test_modulesPayloadPayload.test_suitesPayloadPayload]
+                /// The test suites within this module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_suites`.
+                public var test_suites: Components.Schemas.TestRun.test_modulesPayloadPayload.test_suitesPayload?
+                /// Creates a new `test_modulesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - duration: The duration of the test module in milliseconds.
+                ///   - name: The name of the test module/target.
+                ///   - status: The status of the test module.
+                ///   - test_cases: The test cases within this module.
+                ///   - test_suites: The test suites within this module.
+                public init(
+                    duration: Swift.Int,
+                    name: Swift.String,
+                    status: Components.Schemas.TestRun.test_modulesPayloadPayload.statusPayload,
+                    test_cases: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayload? = nil,
+                    test_suites: Components.Schemas.TestRun.test_modulesPayloadPayload.test_suitesPayload? = nil
+                ) {
+                    self.duration = duration
+                    self.name = name
+                    self.status = status
+                    self.test_cases = test_cases
+                    self.test_suites = test_suites
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case duration
+                    case name
+                    case status
+                    case test_cases
+                    case test_suites
+                }
+            }
+            /// The test modules associated with the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/test_modules`.
+            public typealias test_modulesPayload = [Components.Schemas.TestRun.test_modulesPayloadPayload]
+            /// The test modules associated with the test run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/test_modules`.
+            public var test_modules: Components.Schemas.TestRun.test_modulesPayload
+            /// The type of the run, which is 'test' in this case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case test = "test"
+            }
+            /// The type of the run, which is 'test' in this case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/type`.
+            public var _type: Components.Schemas.TestRun._typePayload
+            /// The version of Xcode used during the run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/xcode_version`.
+            public var xcode_version: Swift.String?
+            /// Creates a new `TestRun`.
+            ///
+            /// - Parameters:
+            ///   - duration: Duration of the run in milliseconds.
+            ///   - git_branch: The git branch.
+            ///   - git_commit_sha: The commit SHA.
+            ///   - git_ref: The git reference.
+            ///   - git_remote_url_origin: The git remote URL origin.
+            ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+            ///   - macos_version: The version of macOS used during the run.
+            ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///   - scheme: The scheme used for the test run.
+            ///   - status: The status of the test run.
+            ///   - test_modules: The test modules associated with the test run.
+            ///   - _type: The type of the run, which is 'test' in this case.
+            ///   - xcode_version: The version of Xcode used during the run.
+            public init(
+                duration: Swift.Int,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
+                git_ref: Swift.String? = nil,
+                git_remote_url_origin: Swift.String? = nil,
+                is_ci: Swift.Bool,
+                macos_version: Swift.String,
+                model_identifier: Swift.String? = nil,
+                scheme: Swift.String? = nil,
+                status: Components.Schemas.TestRun.statusPayload? = nil,
+                test_modules: Components.Schemas.TestRun.test_modulesPayload,
+                _type: Components.Schemas.TestRun._typePayload,
+                xcode_version: Swift.String? = nil
+            ) {
+                self.duration = duration
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.git_remote_url_origin = git_remote_url_origin
+                self.is_ci = is_ci
+                self.macos_version = macos_version
+                self.model_identifier = model_identifier
+                self.scheme = scheme
+                self.status = status
+                self.test_modules = test_modules
+                self._type = _type
+                self.xcode_version = xcode_version
+            }
+            public enum CodingKeys: String, CodingKey {
+                case duration
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case git_remote_url_origin
+                case is_ci
+                case macos_version
+                case model_identifier
+                case scheme
+                case status
+                case test_modules
+                case _type = "type"
+                case xcode_version
             }
         }
         /// The scope of the token.
@@ -4691,7 +5433,7 @@ public enum Components {
             /// The type of the run, which is 'build' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/type`.
-            public var _type: Components.Schemas.BuildRun._typePayload?
+            public var _type: Components.Schemas.BuildRun._typePayload
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/xcode_version`.
@@ -4746,7 +5488,7 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildRun.statusPayload? = nil,
                 targets: Components.Schemas.BuildRun.targetsPayload? = nil,
-                _type: Components.Schemas.BuildRun._typePayload? = nil,
+                _type: Components.Schemas.BuildRun._typePayload,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -4799,6 +5541,65 @@ public enum Components {
                 case targets
                 case _type = "type"
                 case xcode_version
+            }
+        }
+        /// Represents a single test run.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsTest`.
+        public struct RunsTest: Codable, Hashable, Sendable {
+            /// The duration of the test run in milliseconds
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/duration`.
+            public var duration: Swift.Int
+            /// The unique identifier of the test run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/id`.
+            public var id: Swift.String
+            /// The ID of the Tuist project associated with this test run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/project_id`.
+            public var project_id: Swift.Int
+            /// The type of the run, which is 'test' in this case
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case test = "test"
+            }
+            /// The type of the run, which is 'test' in this case
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/type`.
+            public var _type: Components.Schemas.RunsTest._typePayload
+            /// The URL to access the test run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/url`.
+            public var url: Swift.String
+            /// Creates a new `RunsTest`.
+            ///
+            /// - Parameters:
+            ///   - duration: The duration of the test run in milliseconds
+            ///   - id: The unique identifier of the test run
+            ///   - project_id: The ID of the Tuist project associated with this test run
+            ///   - _type: The type of the run, which is 'test' in this case
+            ///   - url: The URL to access the test run
+            public init(
+                duration: Swift.Int,
+                id: Swift.String,
+                project_id: Swift.Int,
+                _type: Components.Schemas.RunsTest._typePayload,
+                url: Swift.String
+            ) {
+                self.duration = duration
+                self.id = id
+                self.project_id = project_id
+                self._type = _type
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case duration
+                case id
+                case project_id
+                case _type = "type"
+                case url
             }
         }
         /// Pagination metadata.
@@ -5602,6 +6403,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/swift_version`.
                     public var swift_version: Swift.String
+                    /// The test run identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/test_run_id`.
+                    public var test_run_id: Swift.String?
                     /// The version of Tuist that ran the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/tuist_version`.
@@ -5828,6 +6633,7 @@ public enum Operations {
                     ///   - status: The status of the command.
                     ///   - subcommand: The subcommand of the command.
                     ///   - swift_version: The version of Swift that ran the command.
+                    ///   - test_run_id: The test run identifier.
                     ///   - tuist_version: The version of Tuist that ran the command.
                     ///   - xcode_graph: The schema for the Xcode graph.
                     public init(
@@ -5849,6 +6655,7 @@ public enum Operations {
                         status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload? = nil,
                         subcommand: Swift.String? = nil,
                         swift_version: Swift.String,
+                        test_run_id: Swift.String? = nil,
                         tuist_version: Swift.String,
                         xcode_graph: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload? = nil
                     ) {
@@ -5870,6 +6677,7 @@ public enum Operations {
                         self.status = status
                         self.subcommand = subcommand
                         self.swift_version = swift_version
+                        self.test_run_id = test_run_id
                         self.tuist_version = tuist_version
                         self.xcode_graph = xcode_graph
                     }
@@ -5892,6 +6700,7 @@ public enum Operations {
                         case status
                         case subcommand
                         case swift_version
+                        case test_run_id
                         case tuist_version
                         case xcode_graph
                     }
@@ -21927,7 +22736,7 @@ public enum Operations {
             }
         }
     }
-    /// Create a new build.
+    /// Create a new run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)`.
@@ -22588,7 +23397,7 @@ public enum Operations {
                         /// The type of the run, which is 'build' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/type`.
-                        public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload?
+                        public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload
                         /// The version of Xcode used during the run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/xcode_version`.
@@ -22643,7 +23452,7 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = nil,
                             targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload? = nil,
-                            _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
+                            _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload,
                             xcode_version: Swift.String? = nil
                         ) {
                             self.cacheable_tasks = cacheable_tasks
@@ -22700,10 +23509,373 @@ public enum Operations {
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1`.
                     case case1(Operations.createRun.Input.Body.jsonPayload.Case1Payload)
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2`.
+                    public struct Case2Payload: Codable, Hashable, Sendable {
+                        /// Duration of the run in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/duration`.
+                        public var duration: Swift.Int
+                        /// The git branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// The commit SHA.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// The git reference.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// The git remote URL origin.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/git_remote_url_origin`.
+                        public var git_remote_url_origin: Swift.String?
+                        /// Indicates if the run was executed on a Continuous Integration (CI) system.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/is_ci`.
+                        public var is_ci: Swift.Bool
+                        /// The version of macOS used during the run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/macos_version`.
+                        public var macos_version: Swift.String
+                        /// Identifier for the model where the run was executed, such as MacBookAir10,1.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/model_identifier`.
+                        public var model_identifier: Swift.String?
+                        /// The scheme used for the test run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/scheme`.
+                        public var scheme: Swift.String?
+                        /// The status of the test run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// The status of the test run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/status`.
+                        public var status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload`.
+                        public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The duration of the test module in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/duration`.
+                            public var duration: Swift.Int
+                            /// The name of the test module/target.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/name`.
+                            public var name: Swift.String
+                            /// The status of the test module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// The status of the test module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/status`.
+                            public var status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload`.
+                            public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                                /// The duration of the test case in milliseconds.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/duration`.
+                                public var duration: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload`.
+                                public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                                    /// The type of issue that occurred.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                                    @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case error_thrown = "error_thrown"
+                                        case assertion_failure = "assertion_failure"
+                                        case issue_recorded = "issue_recorded"
+                                    }
+                                    /// The type of issue that occurred.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload/issue_type`.
+                                    public var issue_type: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload?
+                                    /// The line number where the failure occurred.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload/line_number`.
+                                    public var line_number: Swift.Int
+                                    /// The failure message.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload/message`.
+                                    public var message: Swift.String?
+                                    /// The file path where the failure occurred, relative to the project root.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failuresPayload/path`.
+                                    public var path: Swift.String?
+                                    /// Creates a new `failuresPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - issue_type: The type of issue that occurred.
+                                    ///   - line_number: The line number where the failure occurred.
+                                    ///   - message: The failure message.
+                                    ///   - path: The file path where the failure occurred, relative to the project root.
+                                    public init(
+                                        issue_type: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload? = nil,
+                                        line_number: Swift.Int,
+                                        message: Swift.String? = nil,
+                                        path: Swift.String? = nil
+                                    ) {
+                                        self.issue_type = issue_type
+                                        self.line_number = line_number
+                                        self.message = message
+                                        self.path = path
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case issue_type
+                                        case line_number
+                                        case message
+                                        case path
+                                    }
+                                }
+                                /// The failures that occurred in this test case.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failures`.
+                                public typealias failuresPayload = [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload]
+                                /// The failures that occurred in this test case.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/failures`.
+                                public var failures: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload?
+                                /// The name of the test case.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/name`.
+                                public var name: Swift.String
+                                /// The status of the test case.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case success = "success"
+                                    case failure = "failure"
+                                    case skipped = "skipped"
+                                }
+                                /// The status of the test case.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/status`.
+                                public var status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload
+                                /// The name of the test suite this test case belongs to (optional).
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/test_suite_name`.
+                                public var test_suite_name: Swift.String?
+                                /// Creates a new `test_casesPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration: The duration of the test case in milliseconds.
+                                ///   - failures: The failures that occurred in this test case.
+                                ///   - name: The name of the test case.
+                                ///   - status: The status of the test case.
+                                ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
+                                public init(
+                                    duration: Swift.Int,
+                                    failures: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
+                                    name: Swift.String,
+                                    status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
+                                    test_suite_name: Swift.String? = nil
+                                ) {
+                                    self.duration = duration
+                                    self.failures = failures
+                                    self.name = name
+                                    self.status = status
+                                    self.test_suite_name = test_suite_name
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration
+                                    case failures
+                                    case name
+                                    case status
+                                    case test_suite_name
+                                }
+                            }
+                            /// The test cases within this module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_cases`.
+                            public typealias test_casesPayload = [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload]
+                            /// The test cases within this module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_cases`.
+                            public var test_cases: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suitesPayload`.
+                            public struct test_suitesPayloadPayload: Codable, Hashable, Sendable {
+                                /// The duration of the test suite in milliseconds.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suitesPayload/duration`.
+                                public var duration: Swift.Int
+                                /// The name of the test suite.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suitesPayload/name`.
+                                public var name: Swift.String
+                                /// The status of the test suite.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suitesPayload/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case success = "success"
+                                    case failure = "failure"
+                                    case skipped = "skipped"
+                                }
+                                /// The status of the test suite.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suitesPayload/status`.
+                                public var status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                                /// Creates a new `test_suitesPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration: The duration of the test suite in milliseconds.
+                                ///   - name: The name of the test suite.
+                                ///   - status: The status of the test suite.
+                                public init(
+                                    duration: Swift.Int,
+                                    name: Swift.String,
+                                    status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+                                ) {
+                                    self.duration = duration
+                                    self.name = name
+                                    self.status = status
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration
+                                    case name
+                                    case status
+                                }
+                            }
+                            /// The test suites within this module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suites`.
+                            public typealias test_suitesPayload = [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload]
+                            /// The test suites within this module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_suites`.
+                            public var test_suites: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayload?
+                            /// Creates a new `test_modulesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration: The duration of the test module in milliseconds.
+                            ///   - name: The name of the test module/target.
+                            ///   - status: The status of the test module.
+                            ///   - test_cases: The test cases within this module.
+                            ///   - test_suites: The test suites within this module.
+                            public init(
+                                duration: Swift.Int,
+                                name: Swift.String,
+                                status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.statusPayload,
+                                test_cases: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayload? = nil,
+                                test_suites: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_suitesPayload? = nil
+                            ) {
+                                self.duration = duration
+                                self.name = name
+                                self.status = status
+                                self.test_cases = test_cases
+                                self.test_suites = test_suites
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration
+                                case name
+                                case status
+                                case test_cases
+                                case test_suites
+                            }
+                        }
+                        /// The test modules associated with the test run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modules`.
+                        public typealias test_modulesPayload = [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload]
+                        /// The test modules associated with the test run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modules`.
+                        public var test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload
+                        /// The type of the run, which is 'test' in this case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/type`.
+                        @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case test = "test"
+                        }
+                        /// The type of the run, which is 'test' in this case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/type`.
+                        public var _type: Operations.createRun.Input.Body.jsonPayload.Case2Payload._typePayload
+                        /// The version of Xcode used during the run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/xcode_version`.
+                        public var xcode_version: Swift.String?
+                        /// Creates a new `Case2Payload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: Duration of the run in milliseconds.
+                        ///   - git_branch: The git branch.
+                        ///   - git_commit_sha: The commit SHA.
+                        ///   - git_ref: The git reference.
+                        ///   - git_remote_url_origin: The git remote URL origin.
+                        ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+                        ///   - macos_version: The version of macOS used during the run.
+                        ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                        ///   - scheme: The scheme used for the test run.
+                        ///   - status: The status of the test run.
+                        ///   - test_modules: The test modules associated with the test run.
+                        ///   - _type: The type of the run, which is 'test' in this case.
+                        ///   - xcode_version: The version of Xcode used during the run.
+                        public init(
+                            duration: Swift.Int,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            git_remote_url_origin: Swift.String? = nil,
+                            is_ci: Swift.Bool,
+                            macos_version: Swift.String,
+                            model_identifier: Swift.String? = nil,
+                            scheme: Swift.String? = nil,
+                            status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.statusPayload? = nil,
+                            test_modules: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayload,
+                            _type: Operations.createRun.Input.Body.jsonPayload.Case2Payload._typePayload,
+                            xcode_version: Swift.String? = nil
+                        ) {
+                            self.duration = duration
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.git_remote_url_origin = git_remote_url_origin
+                            self.is_ci = is_ci
+                            self.macos_version = macos_version
+                            self.model_identifier = model_identifier
+                            self.scheme = scheme
+                            self.status = status
+                            self.test_modules = test_modules
+                            self._type = _type
+                            self.xcode_version = xcode_version
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case git_branch
+                            case git_commit_sha
+                            case git_ref
+                            case git_remote_url_origin
+                            case is_ci
+                            case macos_version
+                            case model_identifier
+                            case scheme
+                            case status
+                            case test_modules
+                            case _type = "type"
+                            case xcode_version
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2`.
+                    case case2(Operations.createRun.Input.Body.jsonPayload.Case2Payload)
                     public init(from decoder: any Decoder) throws {
                         var errors: [any Error] = []
                         do {
                             self = .case1(try .init(from: decoder))
+                            return
+                        } catch {
+                            errors.append(error)
+                        }
+                        do {
+                            self = .case2(try .init(from: decoder))
                             return
                         } catch {
                             errors.append(error)
@@ -22717,6 +23889,8 @@ public enum Operations {
                     public func encode(to encoder: any Encoder) throws {
                         switch self {
                         case let .case1(value):
+                            try value.encode(to: encoder)
+                        case let .case2(value):
                             try value.encode(to: encoder)
                         }
                     }
@@ -22749,10 +23923,18 @@ public enum Operations {
                     @frozen public enum jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/responses/200/content/json/case1`.
                         case RunsBuild(Components.Schemas.RunsBuild)
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/responses/200/content/json/case2`.
+                        case RunsTest(Components.Schemas.RunsTest)
                         public init(from decoder: any Decoder) throws {
                             var errors: [any Error] = []
                             do {
                                 self = .RunsBuild(try .init(from: decoder))
+                                return
+                            } catch {
+                                errors.append(error)
+                            }
+                            do {
+                                self = .RunsTest(try .init(from: decoder))
                                 return
                             } catch {
                                 errors.append(error)
@@ -22766,6 +23948,8 @@ public enum Operations {
                         public func encode(to encoder: any Encoder) throws {
                             switch self {
                             case let .RunsBuild(value):
+                                try value.encode(to: encoder)
+                            case let .RunsTest(value):
                                 try value.encode(to: encoder)
                             }
                         }
@@ -22795,7 +23979,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The created build
+            /// The created run
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)/responses/200`.
             ///

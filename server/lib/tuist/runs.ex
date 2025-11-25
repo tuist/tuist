@@ -15,9 +15,31 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildTarget
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
+  alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCaseFailure
+  alias Tuist.Runs.TestCaseRun
+  alias Tuist.Runs.TestModuleRun
+  alias Tuist.Runs.TestSuiteRun
 
   def get_build(id) do
     Repo.get(Build, id)
+  end
+
+  def get_test(id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    case ClickHouseRepo.get(Test, id) do
+      nil -> {:error, :not_found}
+      test -> {:ok, Repo.preload(test, preload)}
+    end
+  end
+
+  def list_test_runs(attrs) do
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+
+    results = Repo.preload(results, :ran_by_account)
+
+    {results, meta}
   end
 
   def create_build(attrs) do
@@ -189,6 +211,51 @@ defmodule Tuist.Runs do
 
   def list_build_targets(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+  end
+
+  def list_test_case_runs(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
+  end
+
+  def get_test_run_failures_count(test_run_id) do
+    query =
+      from f in TestCaseFailure,
+        join: tcr in TestCaseRun,
+        on: f.test_case_run_id == tcr.id,
+        where: tcr.test_run_id == ^test_run_id,
+        select: count(f.id)
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  def list_test_run_failures(test_run_id, attrs) do
+    query =
+      from f in TestCaseFailure,
+        join: tcr in TestCaseRun,
+        on: f.test_case_run_id == tcr.id,
+        where: tcr.test_run_id == ^test_run_id,
+        select: %{
+          id: f.id,
+          test_case_run_id: f.test_case_run_id,
+          message: f.message,
+          path: f.path,
+          line_number: f.line_number,
+          issue_type: f.issue_type,
+          inserted_at: f.inserted_at,
+          test_case_name: tcr.name,
+          test_module_name: tcr.module_name,
+          test_suite_name: tcr.suite_name
+        }
+
+    Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
+  end
+
+  def list_test_suite_runs(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
+  end
+
+  def list_test_module_runs(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
   end
 
   def list_cacheable_tasks(attrs) do
@@ -373,6 +440,164 @@ defmodule Tuist.Runs do
 
       _ ->
         nil
+    end
+  end
+
+  def create_test(attrs) do
+    case %Test{}
+         |> Test.create_changeset(attrs)
+         |> IngestRepo.insert() do
+      {:ok, test} ->
+        create_test_modules(test, Map.get(attrs, :test_modules, []))
+
+        project = Tuist.Projects.get_project_by_id(test.project_id)
+
+        Tuist.PubSub.broadcast(
+          test,
+          "#{project.account.name}/#{project.name}",
+          :test_created
+        )
+
+        {:ok, test}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  defp create_test_modules(test, test_modules) do
+    Enum.each(test_modules, fn module_attrs ->
+      module_id = Ecto.UUID.generate()
+
+      test_suites = Map.get(module_attrs, :test_suites, [])
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      test_suite_count = length(test_suites)
+      test_case_count = length(test_cases)
+
+      avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
+
+      module_run_attrs = %{
+        id: module_id,
+        name: Map.get(module_attrs, :name),
+        test_run_id: test.id,
+        status: Map.get(module_attrs, :status),
+        duration: Map.get(module_attrs, :duration, 0),
+        test_suite_count: test_suite_count,
+        test_case_count: test_case_count,
+        avg_test_case_duration: avg_test_case_duration,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      {:ok, _module_run} =
+        %TestModuleRun{}
+        |> TestModuleRun.create_changeset(module_run_attrs)
+        |> IngestRepo.insert do
+          suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases)
+
+          create_test_cases_for_module(
+            test,
+            module_id,
+            test_cases,
+            suite_name_to_id,
+            Map.get(module_attrs, :name)
+          )
+        end
+    end)
+  end
+
+  defp create_test_suites(test, module_id, test_suites, test_cases) do
+    test_cases_by_suite =
+      Enum.group_by(test_cases, fn case_attrs ->
+        Map.get(case_attrs, :test_suite_name, "")
+      end)
+
+    {test_suite_runs, suite_name_to_id} =
+      Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
+        suite_id = Ecto.UUID.generate()
+        suite_name = Map.get(suite_attrs, :name)
+
+        suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
+        test_case_count = length(suite_test_cases)
+
+        avg_test_case_duration = calculate_avg_test_case_duration(suite_test_cases)
+
+        suite_run = %{
+          id: suite_id,
+          name: suite_name,
+          test_run_id: test.id,
+          test_module_run_id: module_id,
+          status: Map.get(suite_attrs, :status),
+          duration: Map.get(suite_attrs, :duration, 0),
+          test_case_count: test_case_count,
+          avg_test_case_duration: avg_test_case_duration,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+
+        updated_mapping = Map.put(acc, suite_name, suite_id)
+        {suite_run, updated_mapping}
+      end)
+
+    IngestRepo.insert_all(TestSuiteRun, test_suite_runs)
+    suite_name_to_id
+  end
+
+  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
+    {test_case_runs, all_failures} =
+      Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
+        suite_name = Map.get(case_attrs, :test_suite_name, "")
+
+        test_suite_run_id = Map.get(suite_name_to_id, suite_name)
+
+        test_case_run_id = Ecto.UUID.generate()
+
+        test_case_run = %{
+          id: test_case_run_id,
+          name: Map.get(case_attrs, :name),
+          test_run_id: test.id,
+          test_module_run_id: module_id,
+          test_suite_run_id: test_suite_run_id,
+          status: Map.get(case_attrs, :status),
+          duration: Map.get(case_attrs, :duration, 0),
+          inserted_at: NaiveDateTime.utc_now(),
+          module_name: module_name,
+          suite_name: suite_name || ""
+        }
+
+        failures = Map.get(case_attrs, :failures, [])
+
+        test_case_failures =
+          Enum.map(failures, fn failure_attrs ->
+            %{
+              id: Ecto.UUID.generate(),
+              test_case_run_id: test_case_run_id,
+              message: Map.get(failure_attrs, :message),
+              path: Map.get(failure_attrs, :path),
+              line_number: Map.get(failure_attrs, :line_number),
+              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc}
+      end)
+
+    IngestRepo.insert_all(TestCaseRun, test_case_runs)
+    IngestRepo.insert_all(TestCaseFailure, all_failures)
+  end
+
+  defp calculate_avg_test_case_duration(test_cases) do
+    test_case_count = length(test_cases)
+
+    if test_case_count > 0 do
+      total_duration =
+        Enum.reduce(test_cases, 0, fn case_attrs, acc ->
+          acc + Map.get(case_attrs, :duration, 0)
+        end)
+
+      round(total_duration / test_case_count)
+    else
+      0
     end
   end
 end

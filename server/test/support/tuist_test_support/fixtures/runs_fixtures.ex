@@ -3,16 +3,18 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   Fixtures for runs.
   """
   alias Tuist.Runs
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def build_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
+        ProjectsFixtures.project_fixture().id
       end)
 
     account_id =
       Keyword.get_lazy(attrs, :user_id, fn ->
-        TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account.id
+        AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
     Runs.create_build(%{
@@ -41,6 +43,55 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       targets: Keyword.get(attrs, :targets, []),
       cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
       cas_outputs: Keyword.get(attrs, :cas_outputs, [])
+    })
+  end
+
+  def test_fixture(attrs \\ []) do
+    project_id =
+      Keyword.get_lazy(attrs, :project_id, fn ->
+        ProjectsFixtures.project_fixture().id
+      end)
+
+    account_id =
+      Keyword.get_lazy(attrs, :account_id, fn ->
+        AccountsFixtures.user_fixture(preload: [:account]).account.id
+      end)
+
+    test_modules =
+      Keyword.get(attrs, :test_modules, [
+        %{
+          name: "TestModuleExample",
+          status: "success",
+          duration: 1000,
+          test_cases: [
+            %{
+              name: "testExample",
+              status: "success",
+              duration: 500
+            },
+            %{
+              name: "testAnotherExample",
+              status: "failure",
+              duration: 300
+            }
+          ]
+        }
+      ])
+
+    Runs.create_test(%{
+      id: Keyword.get(attrs, :id, UUIDv7.generate()),
+      project_id: project_id,
+      account_id: account_id,
+      duration: Keyword.get(attrs, :duration, 2000),
+      status: Keyword.get(attrs, :status, "success"),
+      model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+      macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+      xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+      ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      test_modules: test_modules
     })
   end
 

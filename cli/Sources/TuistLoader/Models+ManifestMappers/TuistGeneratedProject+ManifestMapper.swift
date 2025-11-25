@@ -32,6 +32,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             defaultConfiguration: manifest.defaultConfiguration,
             optionalAuthentication: manifest.optionalAuthentication,
             buildInsightsDisabled: fullHandle == nil || manifest.buildInsightsDisabled,
+            testInsightsDisabled: fullHandle == nil || manifest.testInsightsDisabled,
             disableSandbox: manifest.disableSandbox,
             includeGenerateScheme: manifest.includeGenerateScheme,
             enableCaching: manifest.enableCaching

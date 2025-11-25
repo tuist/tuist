@@ -44,6 +44,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
+                testInsightsDisabled: true,
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false
@@ -73,6 +74,7 @@ extension TuistGeneratedProjectOptions {
         public let defaultConfiguration: String?
         public var optionalAuthentication: Bool
         public let buildInsightsDisabled: Bool
+        public let testInsightsDisabled: Bool
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
@@ -87,6 +89,7 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool,
+            testInsightsDisabled: Bool,
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
             enableCaching: Bool = false
@@ -100,6 +103,7 @@ extension TuistGeneratedProjectOptions {
             self.defaultConfiguration = defaultConfiguration
             self.optionalAuthentication = optionalAuthentication
             self.buildInsightsDisabled = buildInsightsDisabled
+            self.testInsightsDisabled = testInsightsDisabled
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
@@ -172,6 +176,7 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
+            testInsightsDisabled: Bool = true,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false
@@ -186,6 +191,7 @@ extension TuistGeneratedProjectOptions {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching

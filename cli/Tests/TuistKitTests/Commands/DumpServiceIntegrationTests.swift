@@ -220,7 +220,8 @@ final class DumpServiceTests: TuistTestCase {
                       "all": {
 
                       }
-                    }
+                    },
+                    "testInsightsDisabled": false
                   },
                   "installOptions": {
                     "passthroughSwiftPackageManagerArguments": [

@@ -11,6 +11,8 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
 
@@ -1045,14 +1047,213 @@ defmodule Tuist.Runs.Analytics do
     Tasks.parallel_tasks(queries)
   end
 
-  def combined_test_runs_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> runs_analytics(project_id, "test", opts) end,
-      fn -> runs_analytics(project_id, "test", Keyword.put(opts, :status, :failure)) end,
-      fn -> runs_duration_analytics("test", opts) end
-    ]
+  def test_run_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    Tasks.parallel_tasks(queries)
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    current_runs_data =
+      test_run_count(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    current_runs = process_runs_count_data(current_runs_data, start_date, end_date, date_period)
+
+    previous_runs_count =
+      test_run_total_count(project_id, Date.add(start_date, -days_delta), start_date, opts)
+
+    current_runs_count = test_run_total_count(project_id, start_date, end_date, opts)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_runs_count,
+          current_value: current_runs_count
+        ),
+      count: current_runs_count,
+      values: Enum.map(current_runs, & &1.count),
+      dates: Enum.map(current_runs, & &1.date)
+    }
+  end
+
+  defp test_run_count(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+    status = Keyword.get(opts, :status)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          count: count(t.id)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [t], t.status == "failure")
+        "success" -> where(query, [t], t.status == "success")
+      end
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp test_run_total_count(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+    status = Keyword.get(opts, :status)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: count(t.id)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [t], t.status == "failure")
+        "success" -> where(query, [t], t.status == "success")
+      end
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  def test_run_duration_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    previous_period_total_average_duration =
+      test_run_aggregated_duration(project_id, Date.add(start_date, -days_delta), start_date, opts)
+
+    current_period_total_average_duration =
+      test_run_aggregated_duration(project_id, start_date, end_date, opts)
+
+    average_durations_data =
+      test_run_average_durations(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    average_durations =
+      process_durations_data(average_durations_data, start_date, end_date, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_total_average_duration,
+          current_value: current_period_total_average_duration
+        ),
+      total_average_duration: current_period_total_average_duration,
+      average_durations: average_durations,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value)
+    }
+  end
+
+  defp test_run_aggregated_duration(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: avg(t.duration)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      nil -> 0.0
+      avg when is_float(avg) -> avg
+      avg -> avg * 1.0
+    end
+  end
+
+  defp test_run_average_durations(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          value: avg(t.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    ClickHouseRepo.all(query)
   end
 
   @doc """
@@ -1544,6 +1745,87 @@ defmodule Tuist.Runs.Analytics do
     ]
 
     Tasks.parallel_tasks(queries)
+  end
+
+  @doc """
+  Gets test run metrics for a specific test run.
+
+  Returns a map with:
+  - total_count: Total number of test cases
+  - failed_count: Number of failed test cases
+  - avg_duration: Average test case duration in milliseconds
+  """
+  def get_test_run_metrics(test_run_id) do
+    query =
+      from t in TestCaseRun,
+        where: t.test_run_id == ^test_run_id,
+        select: %{
+          total_count: fragment("coalesce(count(?), 0)", t.id),
+          failed_count: fragment("coalesce(countIf(? = 1), 0)", t.status),
+          avg_duration: fragment("coalesce(round(avg(?)), 0)", t.duration)
+        }
+
+    ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, avg_duration: 0}
+  end
+
+  @doc """
+  Fetches metrics for multiple test runs with precomputed values.
+
+  Returns a list of maps with:
+  - test_run_id: The test run ID
+  - total_tests: Total number of test cases
+  - cache_hit_rate: Cache hit rate as a string (e.g., "50 %")
+  - skipped_tests: Number of skipped test targets
+  - ran_tests: Number of test cases that actually ran
+  """
+  def test_runs_metrics(test_runs) when is_list(test_runs) do
+    test_run_ids = Enum.map(test_runs, & &1.id)
+
+    results =
+      ClickHouseRepo.all(
+        from(t in TestCaseRun,
+          left_join: e in Event,
+          on: t.test_run_id == e.test_run_id,
+          where: t.test_run_id in ^test_run_ids,
+          group_by: t.test_run_id,
+          select: %{
+            test_run_id: t.test_run_id,
+            total_count: count(t.id),
+            cacheable_targets: fragment("any(?)", e.cacheable_targets),
+            local_cache_target_hits: fragment("any(?)", e.local_cache_target_hits),
+            remote_cache_target_hits: fragment("any(?)", e.remote_cache_target_hits),
+            local_test_target_hits: fragment("any(?)", e.local_test_target_hits),
+            remote_test_target_hits: fragment("any(?)", e.remote_test_target_hits)
+          }
+        )
+      )
+
+    Enum.map(results, fn result ->
+      cacheable_targets = length(result.cacheable_targets || [])
+      local_cache_hits = length(result.local_cache_target_hits || [])
+      remote_cache_hits = length(result.remote_cache_target_hits || [])
+      total_cache_hits = local_cache_hits + remote_cache_hits
+
+      cache_hit_rate =
+        if cacheable_targets == 0 do
+          "0 %"
+        else
+          "#{(total_cache_hits / cacheable_targets * 100) |> Float.floor() |> round()} %"
+        end
+
+      local_test_hits = length(result.local_test_target_hits || [])
+      remote_test_hits = length(result.remote_test_target_hits || [])
+      skipped_tests = local_test_hits + remote_test_hits
+      ran_tests = result.total_count - skipped_tests
+
+      %{
+        test_run_id: result.test_run_id,
+        total_tests: result.total_count,
+        cache_hit_rate: cache_hit_rate,
+        skipped_tests: skipped_tests,
+        ran_tests: ran_tests
+      }
+    end)
   end
 
   @doc """
