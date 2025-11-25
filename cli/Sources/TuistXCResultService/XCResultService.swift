@@ -180,7 +180,12 @@ public struct XCResultService: XCResultServicing {
 
         captureSuiteDuration(from: node, into: &suiteDurations)
 
-        if let testCase = testCase(from: node, module: currentModule, rootDirectory: rootDirectory, actionLogFailures: actionLogFailures) {
+        if let testCase = testCase(
+            from: node,
+            module: currentModule,
+            rootDirectory: rootDirectory,
+            actionLogFailures: actionLogFailures
+        ) {
             testCases.append(testCase)
         }
 
@@ -277,7 +282,7 @@ public struct XCResultService: XCResultServicing {
     private func extractFailures(from node: TestNode, rootDirectory: AbsolutePath?) -> [TestCaseFailure] {
         (node.children ?? [])
             .filter { $0.nodeType == "Failure Message" }
-            .compactMap { $0.name }
+            .compactMap(\.name)
             .map { failure(from: $0, rootDirectory: rootDirectory) }
     }
 
