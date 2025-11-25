@@ -105,14 +105,10 @@ public struct XCResultService: XCResultServicing {
                 "--path", path.pathString,
             ]
         ).concatenatedString()
-        print("tests output", outputString)
 
         let jsonString = extractJSON(from: outputString)
-        
-        print("extracted json", jsonString)
 
         guard let outputData = jsonString.data(using: .utf8) else {
-            print("failed to parse the test-results json")
             throw XCResultServiceError.failedToParseOutput(path)
         }
 
@@ -127,7 +123,7 @@ public struct XCResultService: XCResultServicing {
         else {
             return output
         }
-        return String(output[jsonStartIndex...jsonEndIndex])
+        return String(output[jsonStartIndex ... jsonEndIndex])
     }
 
     private func parseTestOutput(
@@ -399,7 +395,6 @@ public struct XCResultService: XCResultServicing {
                     "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             ).concatenatedString()
-            print(outputString)
 
             let logData = try await fileSystem.readFile(at: tempFile)
             return try JSONDecoder().decode(ActionLogSection.self, from: logData)
