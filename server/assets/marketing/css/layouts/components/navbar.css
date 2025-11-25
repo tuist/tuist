@@ -199,8 +199,8 @@
 
           /* Single column layout on medium screens */
           @media (min-width: 768px) and (max-width: 1024px) {
-            grid-template-columns: 1fr;
             grid-template-rows: auto;
+            grid-template-columns: 1fr;
             grid-auto-flow: row;
             padding: var(--noora-spacing-4);
             max-width: 400px;
@@ -243,9 +243,9 @@
 
               /* Smaller icons on medium screens */
               @media (min-width: 768px) and (max-width: 1024px) {
+                padding: 6px;
                 width: 32px;
                 height: 32px;
-                padding: 6px;
               }
 
               & > svg {
@@ -382,9 +382,9 @@
                 max-height: 40px;
 
                 @media (min-width: 768px) and (max-width: 1024px) {
+                  padding: 6px;
                   width: 32px;
                   height: 32px;
-                  padding: 6px;
                 }
 
                 & > svg {
@@ -531,8 +531,8 @@
 
           /* Single column layout on medium screens */
           @media (min-width: 768px) and (max-width: 1024px) {
-            grid-template-columns: 1fr;
             grid-template-rows: auto;
+            grid-template-columns: 1fr;
             grid-auto-flow: row;
             padding: var(--noora-spacing-4);
             max-width: 400px;
@@ -573,9 +573,9 @@
               max-height: 40px;
 
               @media (min-width: 768px) and (max-width: 1024px) {
+                padding: 6px;
                 width: 32px;
                 height: 32px;
-                padding: 6px;
               }
 
               & > svg {
