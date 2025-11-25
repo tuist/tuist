@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -45,6 +46,43 @@ struct InspectAcceptanceTests {
 
         // Then
         #expect(ui().contains("View the analyzed build at"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func test() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: I build the app
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "test",
+                "-scheme", "App",
+                "-destination", "platform=iOS Simulator,name=iPhone 17",
+                "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-derivedDataPath", temporaryDirectory.pathString,
+            ]
+        ).pipedStream().awaitCompletion()
+
+        // When: I inspect the test
+        try await TuistTest.run(
+            InspectTestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("View the analyzed test at"))
     }
 
     @Test(

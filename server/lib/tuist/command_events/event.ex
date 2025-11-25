@@ -49,6 +49,7 @@ defmodule Tuist.CommandEvents.Event do
     field :user_id, Ch, type: "Nullable(Int32)"
     field :preview_id, Ch, type: "Nullable(UUID)"
     field :build_run_id, Ch, type: "Nullable(UUID)"
+    field :test_run_id, Ch, type: "Nullable(UUID)"
 
     # When the command was run - provided by the CLI, defaulting to current server time when missing.
     field :ran_at, Ch, type: "DateTime64(6)"
@@ -97,6 +98,8 @@ defmodule Tuist.CommandEvents.Event do
       Map.update!(attrs, :status, fn
         :success -> 0
         :failure -> 1
+        "success" -> 0
+        "failure" -> 1
         other -> other
       end)
     else

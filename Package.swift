@@ -44,7 +44,6 @@ let targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
-            pathDependency,
             "ProjectDescription",
             "TuistSupport",
         ],
@@ -97,6 +96,8 @@ let targets: [Target] = [
             fileSystemDependency,
             "TuistCache",
             "TuistRootDirectoryLocator",
+            "TuistXcodeProjectOrWorkspacePathLocator",
+            "TuistXCResultService",
             "TuistCI",
             "TuistCAS",
             "TuistLaunchctl",
@@ -105,7 +106,6 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
             anyCodableDependency,
-            .product(name: "XCResultKit", package: "davidahouse.XCResultKit"),
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
@@ -368,6 +368,7 @@ let targets: [Target] = [
             "TuistSupport",
             "TuistCache",
             "TuistXCActivityLog",
+            "TuistXCResultService",
             fileSystemDependency,
             xcodeGraphDependency,
             mockableDependency,
@@ -449,6 +450,21 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistXCResultService",
+        dependencies: [
+            "TuistSupport",
+            "TuistXCActivityLog",
+            .product(name: "Command", package: "tuist.Command"),
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistXCResultService",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistGit",
         dependencies: [
             "TuistSupport",
@@ -470,6 +486,19 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistXcodeProjectOrWorkspacePathLocator",
+        dependencies: [
+            "TuistSupport",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -684,7 +713,6 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.43")
         ),
-        .package(id: "davidahouse.XCResultKit", .upToNextMajor(from: "1.2.2")),
         .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
@@ -705,7 +733,9 @@ let package = Package(
         .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
         .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(
-            id: "wadetregaskis.FluidMenuBarExtra", .upToNextMajor(from: "1.1.0")),
+            url: "https://github.com/lfroms/fluid-menu-bar-extra",
+            .upToNextMajor(from: "1.1.0")
+        ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
         .package(
             url: "https://github.com/apple/swift-protobuf.git",
