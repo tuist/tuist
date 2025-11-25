@@ -2,6 +2,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   alias Tuist.IngestRepo
   use Ecto.Migration
   import Ecto.Query
+  require Logger
 
   @disable_ddl_transaction true
   @disable_migration_lock true
@@ -144,7 +145,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
         args when is_binary(args) -> String.split(args)
       end
 
-    scheme = extract_scheme_from_command_arguments(command_arguments)
+    scheme = extract_scheme_from_command_arguments(command_arguments) || ""
 
     %{
       id: Ecto.UUID.generate(),
@@ -183,6 +184,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
        )
 
   defp throttle_change_in_batches(query_fun, change_fun, last_created_at) do
+    Logger.info("Processing events since #{last_created_at}")
+
     case IngestRepo.all(query_fun.(last_created_at), log: :info, timeout: :infinity) do
       [] ->
         :ok
