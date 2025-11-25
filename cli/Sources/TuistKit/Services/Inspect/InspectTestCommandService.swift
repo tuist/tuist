@@ -121,11 +121,11 @@ struct InspectTestCommandService {
             try await derivedDataLocator.locate(for: projectPath)
         }
 
-        let mostRecentXCResultFile = try await xcResultService
+        guard let xcResultPath = try await xcResultService
             .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
-        guard let xcResultFile = mostRecentXCResultFile else {
+        else {
             throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
         }
-        return try AbsolutePath(validating: xcResultFile.url.path)
+        return xcResultPath
     }
 }

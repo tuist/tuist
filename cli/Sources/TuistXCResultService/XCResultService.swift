@@ -5,27 +5,21 @@ import Mockable
 import Path
 import TuistSupport
 
+enum XCResultServiceError: LocalizedError, Equatable {
+    case failedToParseOutput(AbsolutePath)
+
+    var errorDescription: String? {
+        switch self {
+        case let .failedToParseOutput(path):
+            return "Failed to parse xcresult output at \(path.pathString)"
+        }
+    }
+}
+
 @Mockable
 public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
-    func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> XCResultFile?
-}
-
-public struct XCResultFile {
-    public let url: URL
-
-    public init(url: URL) {
-        self.url = url
-    }
-}
-
-struct XCLogStoreManifestPlist: Decodable {
-    let logs: [String: Log]
-
-    struct Log: Decodable {
-        let fileName: String
-        let timeStoppedRecording: Double
-    }
+    func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
 // swiftlint:disable:next type_body_length
@@ -44,50 +38,43 @@ public struct XCResultService: XCResultServicing {
     /// Convert seconds to milliseconds, ensuring non-zero values are at least 1ms
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
         let ms = Int(seconds * 1000)
-        // If the original value was non-zero but rounds to 0ms, use 1ms
         return (ms == 0 && seconds > 0) ? 1 : ms
     }
 
-    /// Determine the issue type based on the failure message and return cleaned message
+    private static let errorPatterns = [
+        "failed: caught error: ",
+        "caught error: ",
+        "thrown error: ",
+        "failed - caught error: ",
+    ]
+
     private func parseFailureMessage(_ message: String) -> (issueType: TestCaseFailure.IssueType, cleanedMessage: String) {
-        // Check for error thrown patterns
-        let errorPatterns = [
-            "failed: caught error: ",
-            "caught error: ",
-            "thrown error: ",
-            "failed - caught error: ",
-        ]
-
-        for pattern in errorPatterns {
-            if let range = message.range(of: pattern, options: .caseInsensitive) {
-                var cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
-                // Remove surrounding quotes if present
-                cleanedMessage = cleanedMessage.trimmingCharacters(in: .whitespaces)
-                if cleanedMessage.hasPrefix("\""), cleanedMessage.hasSuffix("\"") {
-                    cleanedMessage = String(cleanedMessage.dropFirst().dropLast())
-                }
-                return (.errorThrown, cleanedMessage)
-            }
+        if let cleaned = cleanedMessage(from: message, matching: Self.errorPatterns) {
+            return (.errorThrown, cleaned.trimmingQuotes())
         }
 
-        // Check for issue recorded pattern
-        if let range = message.range(of: "issue recorded: ", options: .caseInsensitive) {
-            let cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
-            return (.issueRecorded, cleanedMessage)
+        if let cleaned = cleanedMessage(from: message, matching: ["issue recorded: "]) {
+            return (.issueRecorded, cleaned)
         }
 
-        // Check for assertion failure pattern (only "expectation failed:")
-        if let range = message.range(of: "expectation failed: ", options: .caseInsensitive) {
-            let cleanedMessage = message.replacingCharacters(in: message.startIndex ..< range.upperBound, with: "")
-            return (.assertionFailure, cleanedMessage)
+        if let cleaned = cleanedMessage(from: message, matching: ["expectation failed: "]) {
+            return (.assertionFailure, cleaned)
         }
 
-        // Default to assertion failure with original message
         return (.assertionFailure, message)
     }
 
+    private func cleanedMessage(from message: String, matching patterns: [String]) -> String? {
+        for pattern in patterns {
+            guard message.localizedCaseInsensitiveContains(pattern) else { continue }
+            return message.replacingOccurrences(of: pattern, with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
-        async throws -> XCResultFile?
+        async throws -> AbsolutePath?
     {
         let logsBuildDirectoryPath = projectDerivedDataDirectory.appending(
             components: "Logs", "Test"
@@ -107,13 +94,10 @@ public struct XCResultService: XCResultServicing {
             return nil
         }
 
-        return XCResultFile(url: logsBuildDirectoryPath.appending(component: latestLog.fileName).url)
+        return logsBuildDirectoryPath.appending(component: latestLog.fileName)
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
-        let now = Date()
-
-        // Run xcresulttool to get test results as JSON
         let outputString = try await commandRunner.run(
             arguments: [
                 "/usr/bin/xcrun", "xcresulttool",
@@ -123,30 +107,22 @@ public struct XCResultService: XCResultServicing {
         ).concatenatedString()
 
         guard let outputData = outputString.data(using: .utf8) else {
-            throw NSError(
-                domain: "XCResultService",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to convert output to data"]
-            )
+            throw XCResultServiceError.failedToParseOutput(path)
         }
 
         let testOutput = try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
 
-        let testSummary = await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
-
-        print("Total parsing time: ", Date().timeIntervalSince1970 - now.timeIntervalSince1970)
-        return testSummary
+        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
     }
 
     private func parseTestOutput(
         _ output: XCResultTestOutput,
         rootDirectory: AbsolutePath?,
         xcresultPath: AbsolutePath
-    ) async -> TestSummary {
-        // Extract failures from action logs first
-        let failuresFromActionLog = await extractFailuresFromActionLog(xcresultPath: xcresultPath, rootDirectory: rootDirectory)
+    ) async throws -> TestSummary {
+        let actionLog = try await actionLog(from: xcresultPath)
+        let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
 
-        // Flatten all test nodes into test cases and extract suite/module durations
         var allTestCases: [TestCase] = []
         var suiteDurations: [String: Int] = [:]
         var moduleDurations: [String: Int] = [:]
@@ -163,28 +139,14 @@ public struct XCResultService: XCResultServicing {
             )
         }
 
-        let actionLogDurations: ([String: Int], [String: Int])
-        var overallDuration: Int?
-        let swiftTestingSuiteDurations: [String: Int]
-        (allTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) = await updateWithSwiftTestingDurations(
-            testCases: allTestCases,
-            xcresultPath: xcresultPath
-        )
-        // Merge Swift Testing suite durations (they take precedence over XCTest durations)
-        suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
+        let (updatedTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) =
+            updateWithSwiftTestingDurations(testCases: allTestCases, actionLog: actionLog)
 
-        // Merge module durations from action logs (they take precedence over test node durations)
+        allTestCases = updatedTestCases
+        suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(actionLogDurations.0) { _, new in new }
 
-        let overallStatus: TestStatus
-        if allTestCases.contains(where: { $0.status == .failed }) {
-            overallStatus = .failed
-        } else if allTestCases.allSatisfy({ $0.status == .skipped }) {
-            overallStatus = .skipped
-        } else {
-            overallStatus = .passed
-        }
-
+        let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
 
         return TestSummary(
@@ -195,43 +157,13 @@ public struct XCResultService: XCResultServicing {
         )
     }
 
-    private func extractFailuresFromActionLog(
-        xcresultPath: AbsolutePath,
-        rootDirectory: AbsolutePath?
-    ) async -> [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]] {
-        do {
-            // Use a temporary file to avoid issues with concatenatedString() on large outputs
-            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
-            let tempFile = try AbsolutePath(validating: tempFilePath)
-
-            // Get action logs using xcresulttool with --compact for standardized JSON output
-            _ = try await commandRunner.run(
-                arguments: [
-                    "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
-                ]
-            ).concatenatedString()
-
-            // Read the JSON from the temporary file
-            let logData = try await fileSystem.readFile(at: tempFile)
-
-            // Clean up temporary file
-            try await fileSystem.remove(tempFile)
-
-            // Parse the action log JSON
-            let actionLog: ActionLogSection
-            do {
-                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
-            } catch {
-                print("Warning: Failed to parse action log JSON for failures: \(error)")
-                return [:]
-            }
-
-            // Extract test failures
-            return actionLog.extractTestFailures(rootDirectory: rootDirectory)
-        } catch {
-            print("Warning: Failed to extract failures from action log: \(error)")
-            return [:]
+    private func overallStatus(from testCases: [TestCase]) -> TestStatus {
+        if testCases.contains(where: { $0.status == .failed }) {
+            return .failed
+        } else if testCases.allSatisfy({ $0.status == .skipped }) {
+            return .skipped
+        } else {
+            return .passed
         }
     }
 
@@ -242,65 +174,86 @@ public struct XCResultService: XCResultServicing {
         suiteDurations: inout [String: Int],
         moduleDurations: inout [String: Int],
         rootDirectory: AbsolutePath?,
-        actionLogFailures: [String: [(message: String, filePath: RelativePath?, lineNumber: Int)]]
+        actionLogFailures: [String: [TestFailure]]
     ) {
-        let currentModule = (node.nodeType == "Unit test bundle") ? node.name : module
+        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
 
-        // Capture suite duration if this is a Test Suite node
-        if node.nodeType == "Test Suite", let suiteName = node.name, let durationInSeconds = node.durationInSeconds {
-            suiteDurations[suiteName] = secondsToMilliseconds(durationInSeconds)
-        }
+        captureSuiteDuration(from: node, into: &suiteDurations)
 
-        if node.nodeType == "Test Case" {
-            // This is an actual test case
-            guard let name = node.name else { return }
-
-            let suiteName = extractSuiteName(from: node.nodeIdentifier)
-            let duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
-            let status = testStatus(from: node.result)
-
-            // Get failures from action log using suite/test name identifier
-            let testIdentifier = suiteName.map { "\($0)/\(name)" } ?? name
-            let failures: [TestCaseFailure]
-            if let actionLogFailureList = actionLogFailures[testIdentifier] {
-                failures = actionLogFailureList.map { failure in
-                    let (issueType, cleanedMessage) = parseFailureMessage(failure.message)
-                    return TestCaseFailure(
-                        message: cleanedMessage,
-                        path: failure.filePath,
-                        lineNumber: failure.lineNumber,
-                        issueType: issueType
-                    )
-                }
-            } else {
-                // Fallback to old extraction method if not found in action logs
-                failures = extractFailures(from: node, rootDirectory: rootDirectory)
-            }
-
-            let testCase = TestCase(
-                name: name,
-                testSuite: suiteName,
-                module: currentModule,
-                duration: duration,
-                status: status,
-                failures: failures
-            )
+        if let testCase = testCase(from: node, module: currentModule, rootDirectory: rootDirectory, actionLogFailures: actionLogFailures) {
             testCases.append(testCase)
         }
 
-        // Recursively process children
-        if let children = node.children {
-            for child in children {
-                extractTestCases(
-                    from: child,
-                    module: currentModule,
-                    into: &testCases,
-                    suiteDurations: &suiteDurations,
-                    moduleDurations: &moduleDurations,
-                    rootDirectory: rootDirectory,
-                    actionLogFailures: actionLogFailures
-                )
-            }
+        for child in node.children ?? [] {
+            extractTestCases(
+                from: child,
+                module: currentModule,
+                into: &testCases,
+                suiteDurations: &suiteDurations,
+                moduleDurations: &moduleDurations,
+                rootDirectory: rootDirectory,
+                actionLogFailures: actionLogFailures
+            )
+        }
+    }
+
+    private func captureSuiteDuration(from node: TestNode, into suiteDurations: inout [String: Int]) {
+        guard node.nodeType == "Test Suite",
+              let suiteName = node.name,
+              let durationInSeconds = node.durationInSeconds
+        else { return }
+
+        suiteDurations[suiteName] = secondsToMilliseconds(durationInSeconds)
+    }
+
+    private func testCase(
+        from node: TestNode,
+        module: String?,
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [TestFailure]]
+    ) -> TestCase? {
+        guard node.nodeType == "Test Case", let name = node.name else { return nil }
+
+        let suiteName = extractSuiteName(from: node.nodeIdentifier)
+        let failures = testCaseFailures(
+            testName: name,
+            suiteName: suiteName,
+            node: node,
+            rootDirectory: rootDirectory,
+            actionLogFailures: actionLogFailures
+        )
+
+        return TestCase(
+            name: name,
+            testSuite: suiteName,
+            module: module,
+            duration: node.durationInSeconds.map { secondsToMilliseconds($0) },
+            status: testStatus(from: node.result),
+            failures: failures
+        )
+    }
+
+    private func testCaseFailures(
+        testName: String,
+        suiteName: String?,
+        node: TestNode,
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [TestFailure]]
+    ) -> [TestCaseFailure] {
+        let testIdentifier = suiteName.map { "\($0)/\(testName)" } ?? testName
+
+        guard let actionLogFailureList = actionLogFailures[testIdentifier] else {
+            return extractFailures(from: node, rootDirectory: rootDirectory)
+        }
+
+        return actionLogFailureList.map { failure in
+            let (issueType, cleanedMessage) = parseFailureMessage(failure.message)
+            return TestCaseFailure(
+                message: cleanedMessage,
+                path: failure.filePath,
+                lineNumber: failure.lineNumber,
+                issueType: issueType
+            )
         }
     }
 
@@ -322,53 +275,38 @@ public struct XCResultService: XCResultServicing {
     }
 
     private func extractFailures(from node: TestNode, rootDirectory: AbsolutePath?) -> [TestCaseFailure] {
-        guard let children = node.children else { return [] }
+        (node.children ?? [])
+            .filter { $0.nodeType == "Failure Message" }
+            .compactMap { $0.name }
+            .map { failure(from: $0, rootDirectory: rootDirectory) }
+    }
 
-        return children.compactMap { child in
-            guard child.nodeType == "Failure Message",
-                  let message = child.name
-            else {
-                return nil
-            }
-
-            // Parse file path and line number from message
-            // Format: "File.swift:123: Error message"
-            let components = message.components(separatedBy: ": ")
-            if components.count >= 2 {
-                let fileAndLine = components[0]
-                let errorMessage = components.dropFirst().joined(separator: ": ")
-
-                let fileComponents = fileAndLine.components(separatedBy: ":")
-                if fileComponents.count >= 2 {
-                    let filePath = fileComponents[0]
-                    let lineNumber = Int(fileComponents[1]) ?? 0
-
-                    // Convert file path to RelativePath
-                    let relativePath: RelativePath?
-                    if let absolutePath = try? AbsolutePath(validating: filePath) {
-                        relativePath = absolutePath.relative(to: rootDirectory ?? AbsolutePath.root)
-                    } else {
-                        relativePath = nil
-                    }
-
-                    let (issueType, cleanedMessage) = parseFailureMessage(errorMessage)
-                    return TestCaseFailure(
-                        message: cleanedMessage,
-                        path: relativePath,
-                        lineNumber: lineNumber,
-                        issueType: issueType
-                    )
-                }
-            }
-
+    private func failure(from message: String, rootDirectory: AbsolutePath?) -> TestCaseFailure {
+        guard let (filePath, lineNumber, errorMessage) = parseFileLocation(from: message) else {
             let (issueType, cleanedMessage) = parseFailureMessage(message)
-            return TestCaseFailure(
-                message: cleanedMessage,
-                path: nil,
-                lineNumber: 0,
-                issueType: issueType
-            )
+            return TestCaseFailure(message: cleanedMessage, path: nil, lineNumber: 0, issueType: issueType)
         }
+
+        let relativePath = (try? AbsolutePath(validating: filePath))
+            .map { $0.relative(to: rootDirectory ?? .root) }
+        let (issueType, cleanedMessage) = parseFailureMessage(errorMessage)
+
+        return TestCaseFailure(message: cleanedMessage, path: relativePath, lineNumber: lineNumber, issueType: issueType)
+    }
+
+    private func parseFileLocation(from message: String) -> (filePath: String, lineNumber: Int, errorMessage: String)? {
+        let components = message.components(separatedBy: ": ")
+        guard components.count >= 2 else { return nil }
+
+        let fileAndLine = components[0]
+        let fileComponents = fileAndLine.components(separatedBy: ":")
+        guard fileComponents.count >= 2 else { return nil }
+
+        let filePath = fileComponents[0]
+        let lineNumber = Int(fileComponents[1]) ?? 0
+        let errorMessage = components.dropFirst().joined(separator: ": ")
+
+        return (filePath, lineNumber, errorMessage)
     }
 
     private func testModules(
@@ -376,199 +314,173 @@ public struct XCResultService: XCResultServicing {
         suiteDurations: [String: Int],
         moduleDurations: [String: Int]
     ) -> [TestModule] {
-        let testCasesByModule = Dictionary(grouping: testCases) { testCase in
-            testCase.module ?? "Unknown"
-        }
-
-        return testCasesByModule.map { moduleName, moduleTestCases in
-            let moduleStatus: TestStatus = moduleTestCases.contains { $0.status == .failed } ? .failed : .passed
-            // Use the module duration from the node if available, otherwise sum test case durations
-            let moduleDuration = moduleDurations[moduleName] ?? moduleTestCases.compactMap(\.duration).reduce(0, +)
-
-            let testCasesBySuite = Dictionary(grouping: moduleTestCases) { testCase in
-                testCase.testSuite
+        Dictionary(grouping: testCases) { $0.module ?? "Unknown" }
+            .map { moduleName, moduleTestCases in
+                testModule(
+                    name: moduleName,
+                    testCases: moduleTestCases,
+                    suiteDurations: suiteDurations,
+                    moduleDurations: moduleDurations
+                )
             }
+    }
 
-            let testSuites = testCasesBySuite.compactMap { suiteName, suiteTestCases -> TestSuite? in
+    private func testModule(
+        name: String,
+        testCases: [TestCase],
+        suiteDurations: [String: Int],
+        moduleDurations: [String: Int]
+    ) -> TestModule {
+        let status: TestStatus = testCases.contains { $0.status == .failed } ? .failed : .passed
+        let duration = moduleDurations[name] ?? testCases.compactMap(\.duration).reduce(0, +)
+        let suites = testSuites(from: testCases, suiteDurations: suiteDurations)
+
+        return TestModule(name: name, status: status, duration: duration, testSuites: suites, testCases: testCases)
+    }
+
+    private func testSuites(from testCases: [TestCase], suiteDurations: [String: Int]) -> [TestSuite] {
+        Dictionary(grouping: testCases) { $0.testSuite }
+            .compactMap { suiteName, suiteTestCases in
                 guard let suiteName else { return nil }
-                let suiteStatus: TestStatus = suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
-                // Use the suite duration from the node if available, otherwise sum test case durations
-                let suiteDuration = suiteDurations[suiteName] ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
-                return TestSuite(name: suiteName, status: suiteStatus, duration: suiteDuration)
+                let status: TestStatus = suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
+                let duration = suiteDurations[suiteName] ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
+                return TestSuite(name: suiteName, status: status, duration: duration)
             }
-
-            return TestModule(
-                name: moduleName,
-                status: moduleStatus,
-                duration: moduleDuration,
-                testSuites: testSuites,
-                testCases: moduleTestCases
-            )
-        }
     }
 
     // MARK: - Swift Testing Duration Extraction
 
-    /// Swift Testing durations are not properly reported in xcresult, so we extract them from action logs
     private func updateWithSwiftTestingDurations(
         testCases: [TestCase],
-        xcresultPath: AbsolutePath
-    ) async -> ([TestCase], [String: Int], ([String: Int], [String: Int]), Int?) {
-        do {
-            // Use a temporary file to avoid issues with concatenatedString() on large outputs
-            let tempFilePath = "/tmp/xcresult-action-log-\(UUID().uuidString).json"
-            let tempFile = try AbsolutePath(validating: tempFilePath)
+        actionLog: ActionLogSection
+    ) -> ([TestCase], [String: Int], ([String: Int], [String: Int]), Int?) {
+        let timestamps = actionLog.extractTestTimestamps()
+        let emittedOutputs = actionLog.collectEmittedOutputs()
+        let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
 
-            // Get action logs using xcresulttool with --compact for standardized JSON output
-            // Redirect to file to avoid concatenatedString() issues with large outputs
+        let overall = overallDuration(from: timestamps)
+        let modules = moduleDurations(from: timestamps)
+        let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
+
+        return (updatedTestCases, suiteDurations, (modules, [:]), overall)
+    }
+
+    private func actionLog(from xcresultPath: AbsolutePath) async throws -> ActionLogSection {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
+            let tempFile = temporaryDirectory.appending(component: "action-log.json")
+
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFilePath)'",
+                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             ).concatenatedString()
 
-            // Read the JSON from the temporary file
             let logData = try await fileSystem.readFile(at: tempFile)
-
-            // Clean up temporary file
-            try await fileSystem.remove(tempFile)
-
-            // Parse the action log JSON
-            let actionLog: ActionLogSection
-            do {
-                actionLog = try JSONDecoder().decode(ActionLogSection.self, from: logData)
-            } catch {
-                print("Warning: Failed to parse action log JSON: \(error)")
-                return (testCases, [:], ([:], [:]), nil)
-            }
-
-            // Extract test target start times and suite completion timestamps
-            let (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule) = actionLog
-                .extractTestTimestamps()
-
-            // Calculate overall duration using earliest test target start time and latest suite completion
-            let overallDuration: Int?
-            if let testStart = earliestTestStart, let latestCompletion = latestOverallCompletion {
-                let durationSeconds = latestCompletion - testStart
-                overallDuration = secondsToMilliseconds(durationSeconds)
-            } else {
-                overallDuration = nil
-            }
-
-            // Calculate module durations using per-module test target start times and latest suite completions
-            var moduleDurationsMap: [String: Int] = [:]
-            for (moduleName, testStartTime) in testTargetStartTimes {
-                if let latestCompletion = latestCompletionPerModule[moduleName] {
-                    let durationSeconds = latestCompletion - testStartTime
-                    moduleDurationsMap[moduleName] = secondsToMilliseconds(durationSeconds)
-                }
-            }
-
-            // Collect all emittedOutput fields for Swift Testing duration extraction
-            let emittedOutputs = actionLog.collectEmittedOutputs()
-
-            // Parse Swift Testing duration patterns from the emitted outputs
-            let (testDurationsMap, suiteDurationsMap) = parseSwiftTestingDurations(from: emittedOutputs)
-
-            // Update test cases with extracted durations
-            let updatedTestCases = testCases.map { testCase in
-                guard testCase.duration == nil || testCase.duration == 0 else {
-                    return testCase
-                }
-
-                let testNameWithoutParens = testCase.name.replacingOccurrences(of: "()", with: "")
-                if let duration = testDurationsMap[testNameWithoutParens] ?? testDurationsMap[testCase.name] {
-                    var updatedTestCase = testCase
-                    updatedTestCase.duration = duration
-                    return updatedTestCase
-                }
-
-                return testCase
-            }
-
-            return (updatedTestCases, suiteDurationsMap, (moduleDurationsMap, [:]), overallDuration)
-        } catch {
-            // If we fail to get logs, just return the test cases as-is
-            print("Warning: Failed to extract Swift Testing durations: \(error)")
-            return (testCases, [:], ([:], [:]), nil)
+            return try JSONDecoder().decode(ActionLogSection.self, from: logData)
         }
     }
 
-    /// Parse Swift Testing test and suite durations from emitted outputs
-    private func parseSwiftTestingDurations(from emittedOutputs: [String]) -> ([String: Int], [String: Int]) {
-        var testDurationsMap: [String: Int] = [:]
-        var suiteDurationsMap: [String: Int] = [:]
+    private func overallDuration(
+        from timestamps: (
+            testTargetStartTimes: [String: Double],
+            earliestTestStart: Double?,
+            latestOverallCompletion: Double?,
+            latestCompletionPerModule: [String: Double]
+        )
+    ) -> Int? {
+        guard let testStart = timestamps.earliestTestStart,
+              let latestCompletion = timestamps.latestOverallCompletion
+        else { return nil }
 
-        // Pre-compiled regex patterns for Swift Testing test duration formats
-        let testPatterns = [
-            #"[✔✘] Test (\w+)\(\) (?:passed|failed) after ([\d.]+) seconds"#,
-            #"✔ Test (\w+)\(\) passed after ([\d.]+) seconds"#,
-            #"✘ Test (\w+)\(\) failed after ([\d.]+) seconds"#,
-        ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+        return secondsToMilliseconds(latestCompletion - testStart)
+    }
 
-        // Pre-compiled regex patterns for Swift Testing suite duration formats
-        let suitePatterns = [
-            #"[✔✘] Suite (\w+) (?:passed|failed) after ([\d.]+) seconds"#,
-            #"✔ Suite (\w+) passed after ([\d.]+) seconds"#,
-            #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
-        ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+    private func moduleDurations(
+        from timestamps: (
+            testTargetStartTimes: [String: Double],
+            earliestTestStart: Double?,
+            latestOverallCompletion: Double?,
+            latestCompletionPerModule: [String: Double]
+        )
+    ) -> [String: Int] {
+        var durations: [String: Int] = [:]
+        for (moduleName, testStartTime) in timestamps.testTargetStartTimes {
+            if let latestCompletion = timestamps.latestCompletionPerModule[moduleName] {
+                durations[moduleName] = secondsToMilliseconds(latestCompletion - testStartTime)
+            }
+        }
+        return durations
+    }
 
-        for output in emittedOutputs {
-            let lines = output.components(separatedBy: .newlines)
+    private func testCasesWithDurations(_ testCases: [TestCase], testDurations: [String: Int]) -> [TestCase] {
+        testCases.map { testCase in
+            guard testCase.duration == nil || testCase.duration == 0 else { return testCase }
 
-            for line in lines {
-                // Quick filter to skip irrelevant lines
-                guard line.contains("seconds") else { continue }
+            let testNameWithoutParens = testCase.name.replacingOccurrences(of: "()", with: "")
+            guard let duration = testDurations[testNameWithoutParens] ?? testDurations[testCase.name] else {
+                return testCase
+            }
 
-                let range = NSRange(line.startIndex ..< line.endIndex, in: line)
+            var updated = testCase
+            updated.duration = duration
+            return updated
+        }
+    }
 
-                // Try matching test patterns
-                if line.contains("Test") {
-                    for regex in testPatterns {
-                        if let match = regex.firstMatch(in: line, options: [], range: range),
-                           let testNameRange = Range(match.range(at: 1), in: line),
-                           let durationRange = Range(match.range(at: 2), in: line)
-                        {
-                            let testName = String(line[testNameRange])
-                            let durationString = String(line[durationRange])
+    // MARK: - Swift Testing Duration Parsing
 
-                            if let durationSeconds = Double(durationString) {
-                                let durationMs = secondsToMilliseconds(durationSeconds)
-                                // Only use the first occurrence (avoid duplicates)
-                                if testDurationsMap[testName] == nil {
-                                    testDurationsMap[testName] = durationMs
-                                }
-                                break
-                            }
-                        }
-                    }
-                }
+    private static let testDurationPatterns = [
+        #"[✔✘] Test (\w+)\(\) (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Test (\w+)\(\) passed after ([\d.]+) seconds"#,
+        #"✘ Test (\w+)\(\) failed after ([\d.]+) seconds"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
-                // Try matching suite patterns
-                if line.contains("Suite") {
-                    for regex in suitePatterns {
-                        if let match = regex.firstMatch(in: line, options: [], range: range),
-                           let suiteNameRange = Range(match.range(at: 1), in: line),
-                           let durationRange = Range(match.range(at: 2), in: line)
-                        {
-                            let suiteName = String(line[suiteNameRange])
-                            let durationString = String(line[durationRange])
+    private static let suiteDurationPatterns = [
+        #"[✔✘] Suite (\w+) (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Suite (\w+) passed after ([\d.]+) seconds"#,
+        #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
-                            if let durationSeconds = Double(durationString) {
-                                let durationMs = secondsToMilliseconds(durationSeconds)
-                                // Only use the first occurrence (avoid duplicates)
-                                if suiteDurationsMap[suiteName] == nil {
-                                    suiteDurationsMap[suiteName] = durationMs
-                                }
-                                break
-                            }
-                        }
-                    }
-                }
+    private func swiftTestingDurations(from emittedOutputs: [String]) -> (tests: [String: Int], suites: [String: Int]) {
+        var testDurations: [String: Int] = [:]
+        var suiteDurations: [String: Int] = [:]
+
+        let lines = emittedOutputs.flatMap { $0.components(separatedBy: .newlines) }
+            .filter { $0.contains("seconds") }
+
+        for line in lines {
+            if line.contains("Test"), let (name, duration) = extractDuration(from: line, using: Self.testDurationPatterns) {
+                testDurations[name] = testDurations[name] ?? duration
+            }
+            if line.contains("Suite"), let (name, duration) = extractDuration(from: line, using: Self.suiteDurationPatterns) {
+                suiteDurations[name] = suiteDurations[name] ?? duration
             }
         }
 
-        return (testDurationsMap, suiteDurationsMap)
+        return (testDurations, suiteDurations)
+    }
+
+    private func extractDuration(from line: String, using patterns: [NSRegularExpression]) -> (name: String, duration: Int)? {
+        let range = NSRange(line.startIndex ..< line.endIndex, in: line)
+
+        for regex in patterns {
+            guard let match = regex.firstMatch(in: line, options: [], range: range),
+                  let nameRange = Range(match.range(at: 1), in: line),
+                  let durationRange = Range(match.range(at: 2), in: line),
+                  let durationSeconds = Double(String(line[durationRange]))
+            else { continue }
+
+            return (String(line[nameRange]), secondsToMilliseconds(durationSeconds))
+        }
+
+        return nil
+    }
+}
+
+extension String {
+    fileprivate func trimmingQuotes() -> String {
+        guard hasPrefix("\""), hasSuffix("\"") else { return self }
+        return String(dropFirst().dropLast())
     }
 }

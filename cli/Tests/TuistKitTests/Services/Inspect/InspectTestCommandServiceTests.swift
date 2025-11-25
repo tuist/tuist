@@ -103,7 +103,7 @@ struct InspectTestCommandServiceTests {
         let resultBundlePath = derivedDataPath.appending(components: "Logs", "Test", "Test.xcresult")
         given(xcResultService)
             .mostRecentXCResultFile(projectDerivedDataDirectory: .value(derivedDataPath))
-            .willReturn(XCResultFile(url: resultBundlePath.url))
+            .willReturn(resultBundlePath)
 
         // When
         try await subject.run(path: temporaryDirectory.pathString)
@@ -134,7 +134,7 @@ struct InspectTestCommandServiceTests {
         let resultBundlePath = derivedDataPath.appending(components: "Logs", "Test", "Test.xcresult")
         given(xcResultService)
             .mostRecentXCResultFile(projectDerivedDataDirectory: .value(derivedDataPath))
-            .willReturn(XCResultFile(url: resultBundlePath.url))
+            .willReturn(resultBundlePath)
 
         // When
         try await subject.run(
@@ -205,7 +205,7 @@ struct InspectTestCommandServiceTests {
         let resultBundlePath = derivedDataPath.appending(components: "Logs", "Test", "Test.xcresult")
         given(xcResultService)
             .mostRecentXCResultFile(projectDerivedDataDirectory: .value(derivedDataPath))
-            .willReturn(XCResultFile(url: resultBundlePath.url))
+            .willReturn(resultBundlePath)
 
         // When
         try await subject.run(path: nil)
