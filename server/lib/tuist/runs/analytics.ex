@@ -1762,7 +1762,7 @@ defmodule Tuist.Runs.Analytics do
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
           failed_count: fragment("coalesce(countIf(? = 1), 0)", t.status),
-          avg_duration: fragment("coalesce(round(avg(?)), 0)", t.duration)
+          avg_duration: fragment("ifNotFinite(round(avg(?)), 0)", t.duration)
         }
 
     ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, avg_duration: 0}
