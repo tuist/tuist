@@ -688,7 +688,7 @@ defmodule TuistWeb.Router do
 
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
-      on_mount: [{TuistWeb.LayoutLive, :account}, {TuistWeb.Authentication, :mount_current_user}] do
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}, {TuistWeb.LayoutLive, :account}] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
       live "/members", MembersLive
