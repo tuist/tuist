@@ -367,7 +367,7 @@ public class GraphTraverser: GraphTraversing {
                         )
                     }
         }
-        references.formUnion(
+        references.formUnionPreferringRequiredStatus(
             precompiledFrameworks.lazy.compactMap {
                 self.dependencyReference(
                     to: $0,
@@ -393,7 +393,7 @@ public class GraphTraverser: GraphTraversing {
             )
         }
 
-        references.formUnion(
+        references.formUnionPreferringRequiredStatus(
             otherTargetFrameworks.lazy.compactMap {
                 self.dependencyReference(
                     to: $0,
@@ -1612,5 +1612,50 @@ extension GraphDependency {
 
     private var isPrecompiledAndLinkable: Bool {
         if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
+    }
+}
+
+extension Set<GraphDependencyReference> {
+    /// Merges another set of references, preferring the stronger linking status (.required over .optional)
+    /// when the same dependency appears with different statuses.
+    fileprivate mutating func formUnionPreferringRequiredStatus(_ other: some Sequence<GraphDependencyReference>) {
+        for newRef in other {
+            if let existingRef = first(where: { $0.hasSamePath(as: newRef) }) {
+                if newRef.linkingStatus == .required, existingRef.linkingStatus == .optional {
+                    remove(existingRef)
+                    insert(newRef)
+                }
+            } else {
+                insert(newRef)
+            }
+        }
+    }
+}
+
+extension GraphDependencyReference {
+    fileprivate var linkingStatus: LinkingStatus? {
+        switch self {
+        case let .framework(_, _, _, _, _, _, _, status, _):
+            return status
+        case let .xcframework(_, _, _, status, _):
+            return status
+        case let .product(_, _, status, _):
+            return status
+        case let .sdk(_, status, _, _):
+            return status
+        case .library, .bundle, .macro, .packageProduct:
+            return nil
+        }
+    }
+
+    fileprivate func hasSamePath(as other: GraphDependencyReference) -> Bool {
+        switch (self, other) {
+        case let (.xcframework(path1, _, _, _, _), .xcframework(path2, _, _, _, _)):
+            return path1 == path2
+        case let (.framework(path1, _, _, _, _, _, _, _, _), .framework(path2, _, _, _, _, _, _, _, _)):
+            return path1 == path2
+        default:
+            return false
+        }
     }
 }
