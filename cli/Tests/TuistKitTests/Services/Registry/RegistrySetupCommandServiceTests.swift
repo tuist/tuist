@@ -13,7 +13,6 @@ struct RegistrySetupCommandServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
-    private let fullHandleService = MockFullHandleServicing()
     private let manifestFilesLocator = MockManifestFilesLocating()
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
     private let createAccountTokenService = MockCreateAccountTokenServicing()
@@ -25,7 +24,6 @@ struct RegistrySetupCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             fileSystem: fileSystem,
-            fullHandleService: fullHandleService,
             manifestFilesLocator: manifestFilesLocator,
             swiftPackageManagerController: swiftPackageManagerController,
             createAccountTokenService: createAccountTokenService,
@@ -46,10 +44,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
@@ -107,10 +102,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
@@ -155,10 +147,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
