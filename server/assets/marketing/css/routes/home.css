@@ -809,6 +809,26 @@
     }
   }
 
+  & > [data-part="public-dashboard"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-11);
+
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-13);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+
+      & > :nth-child(2) {
+        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+        border-radius: var(--noora-radius-xlarge);
+        background: radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%), linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.00) 100%), var(--Purple-50, #F4F4FF);
+        box-shadow: 0 -1px 2px 0 rgba(61, 61, 61, 0.25) inset, 0 2px 4px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 4px 5px 0 rgba(255, 255, 255, 0.03) inset, 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.03) inset, 0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset, 0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
+      }
+    }
+  }
+
   & > [data-part="testimonial"] {
     display: flex;
     flex-direction: column;
