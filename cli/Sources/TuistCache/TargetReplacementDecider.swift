@@ -50,11 +50,11 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
     }
 
     public func shouldReplace(project: Project, target: Target) -> Bool {
+        if focusedTargetNames.contains(target.name) { return false }
+        if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
+
         switch project.type {
         case .external:
-            if focusedTargetNames.contains(target.name) { return false }
-            if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
-
             switch base {
             case .none:
                 return false
@@ -62,9 +62,6 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
                 return true
             }
         case .local:
-            if focusedTargetNames.contains(target.name) { return false }
-            if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
-
             switch base {
             case .allPossible:
                 return true
