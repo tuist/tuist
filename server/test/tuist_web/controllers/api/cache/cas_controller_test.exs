@@ -6,7 +6,6 @@ defmodule TuistWeb.API.CASControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
-  alias TuistWeb.Errors.NotFoundError
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
@@ -89,10 +88,13 @@ defmodule TuistWeb.API.CASControllerTest do
 
       cas_id = "0~YWoYNXX123"
 
-      # When/Then
-      assert_raise NotFoundError, fn ->
+      # When
+      conn =
         get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}")
-      end
+
+      # Then
+      assert conn.status == 404
+      assert get_resp_header(conn, "connection") == ["close"]
     end
 
     test "returns not found when project doesn't exist", %{
@@ -106,10 +108,13 @@ defmodule TuistWeb.API.CASControllerTest do
 
       cas_id = "0~YWoYNXX123"
 
-      # When/Then
-      assert_raise NotFoundError, fn ->
+      # When
+      conn =
         get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project")
-      end
+
+      # Then
+      assert conn.status == 404
+      assert get_resp_header(conn, "connection") == ["close"]
     end
 
     test "returns forbidden when user doesn't have permission", %{
@@ -222,15 +227,18 @@ defmodule TuistWeb.API.CASControllerTest do
       cas_id = "0~YWoYNXX123"
       artifact_content = "artifact content"
 
-      # When/Then
-      assert_raise NotFoundError, fn ->
+      # When
+      conn =
         conn
         |> put_req_header("content-type", "application/octet-stream")
         |> post(
           ~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}",
           artifact_content
         )
-      end
+
+      # Then
+      assert conn.status == 404
+      assert get_resp_header(conn, "connection") == ["close"]
     end
 
     test "returns not found when project doesn't exist", %{
@@ -245,15 +253,18 @@ defmodule TuistWeb.API.CASControllerTest do
       cas_id = "0~YWoYNXX123"
       artifact_content = "artifact content"
 
-      # When/Then
-      assert_raise NotFoundError, fn ->
+      # When
+      conn =
         conn
         |> put_req_header("content-type", "application/octet-stream")
         |> post(
           ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project",
           artifact_content
         )
-      end
+
+      # Then
+      assert conn.status == 404
+      assert get_resp_header(conn, "connection") == ["close"]
     end
 
     test "returns forbidden when user doesn't have permission", %{
