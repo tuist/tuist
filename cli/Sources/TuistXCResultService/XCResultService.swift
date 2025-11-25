@@ -139,12 +139,12 @@ public struct XCResultService: XCResultServicing {
             )
         }
 
-        let (updatedTestCases, swiftTestingSuiteDurations, actionLogDurations, overallDuration) =
+        let (updatedTestCases, swiftTestingSuiteDurations, swiftTestingModuleDurations, overallDuration) =
             updateWithSwiftTestingDurations(testCases: allTestCases, actionLog: actionLog)
 
         allTestCases = updatedTestCases
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
-        moduleDurations.merge(actionLogDurations.0) { _, new in new }
+        moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
         let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
@@ -287,19 +287,19 @@ public struct XCResultService: XCResultServicing {
     }
 
     private func failure(from message: String, rootDirectory: AbsolutePath?) -> TestCaseFailure {
-        guard let (filePath, lineNumber, errorMessage) = parseFileLocation(from: message) else {
+        guard let location = parseFileLocation(from: message) else {
             let (issueType, cleanedMessage) = parseFailureMessage(message)
             return TestCaseFailure(message: cleanedMessage, path: nil, lineNumber: 0, issueType: issueType)
         }
 
-        let relativePath = (try? AbsolutePath(validating: filePath))
+        let relativePath = (try? AbsolutePath(validating: location.filePath))
             .map { $0.relative(to: rootDirectory ?? .root) }
-        let (issueType, cleanedMessage) = parseFailureMessage(errorMessage)
+        let (issueType, cleanedMessage) = parseFailureMessage(location.errorMessage)
 
-        return TestCaseFailure(message: cleanedMessage, path: relativePath, lineNumber: lineNumber, issueType: issueType)
+        return TestCaseFailure(message: cleanedMessage, path: relativePath, lineNumber: location.lineNumber, issueType: issueType)
     }
 
-    private func parseFileLocation(from message: String) -> (filePath: String, lineNumber: Int, errorMessage: String)? {
+    private func parseFileLocation(from message: String) -> FileLocation? {
         let components = message.components(separatedBy: ": ")
         guard components.count >= 2 else { return nil }
 
@@ -311,7 +311,7 @@ public struct XCResultService: XCResultServicing {
         let lineNumber = Int(fileComponents[1]) ?? 0
         let errorMessage = components.dropFirst().joined(separator: ": ")
 
-        return (filePath, lineNumber, errorMessage)
+        return FileLocation(filePath: filePath, lineNumber: lineNumber, errorMessage: errorMessage)
     }
 
     private func testModules(
@@ -353,12 +353,16 @@ public struct XCResultService: XCResultServicing {
             }
     }
 
-    // MARK: - Swift Testing Duration Extraction
+    private struct FileLocation {
+        let filePath: String
+        let lineNumber: Int
+        let errorMessage: String
+    }
 
     private func updateWithSwiftTestingDurations(
         testCases: [TestCase],
         actionLog: ActionLogSection
-    ) -> ([TestCase], [String: Int], ([String: Int], [String: Int]), Int?) {
+    ) -> ([TestCase], [String: Int], [String: Int], Int?) { // swiftlint:disable:this large_tuple
         let timestamps = actionLog.extractTestTimestamps()
         let emittedOutputs = actionLog.collectEmittedOutputs()
         let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
@@ -367,7 +371,7 @@ public struct XCResultService: XCResultServicing {
         let modules = moduleDurations(from: timestamps)
         let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
 
-        return (updatedTestCases, suiteDurations, (modules, [:]), overall)
+        return (updatedTestCases, suiteDurations, modules, overall)
     }
 
     private func actionLog(from xcresultPath: AbsolutePath) async throws -> ActionLogSection {
@@ -386,14 +390,7 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    private func overallDuration(
-        from timestamps: (
-            testTargetStartTimes: [String: Double],
-            earliestTestStart: Double?,
-            latestOverallCompletion: Double?,
-            latestCompletionPerModule: [String: Double]
-        )
-    ) -> Int? {
+    private func overallDuration(from timestamps: ActionLogSection.TestTimestamps) -> Int? {
         guard let testStart = timestamps.earliestTestStart,
               let latestCompletion = timestamps.latestOverallCompletion
         else { return nil }
@@ -401,14 +398,7 @@ public struct XCResultService: XCResultServicing {
         return secondsToMilliseconds(latestCompletion - testStart)
     }
 
-    private func moduleDurations(
-        from timestamps: (
-            testTargetStartTimes: [String: Double],
-            earliestTestStart: Double?,
-            latestOverallCompletion: Double?,
-            latestCompletionPerModule: [String: Double]
-        )
-    ) -> [String: Int] {
+    private func moduleDurations(from timestamps: ActionLogSection.TestTimestamps) -> [String: Int] {
         var durations: [String: Int] = [:]
         for (moduleName, testStartTime) in timestamps.testTargetStartTimes {
             if let latestCompletion = timestamps.latestCompletionPerModule[moduleName] {

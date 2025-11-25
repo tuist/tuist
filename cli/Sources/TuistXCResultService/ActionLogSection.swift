@@ -32,6 +32,13 @@ struct ActionLogSection: Codable {
     struct Location: Codable {
         let url: String?
     }
+
+    struct TestTimestamps {
+        let testTargetStartTimes: [String: Double]
+        let earliestTestStart: Double?
+        let latestOverallCompletion: Double?
+        let latestCompletionPerModule: [String: Double]
+    }
 }
 
 /// Helper to recursively search for test-related emittedOutput
@@ -54,12 +61,7 @@ extension ActionLogSection {
 
     /// Extract test target start times and suite completion timestamps
     /// Returns start times per module, earliest overall start, and latest completion timestamps
-    func extractTestTimestamps() -> (
-        testTargetStartTimes: [String: Double],
-        earliestTestStart: Double?,
-        latestOverallCompletion: Double?,
-        latestCompletionPerModule: [String: Double]
-    ) {
+    func extractTestTimestamps() -> TestTimestamps {
         var testTargetStartTimes: [String: Double] = [:]
         var earliestTestStart: Double?
         var latestOverallCompletion: Double?
@@ -72,7 +74,12 @@ extension ActionLogSection {
             latestCompletionPerModule: &latestCompletionPerModule
         )
 
-        return (testTargetStartTimes, earliestTestStart, latestOverallCompletion, latestCompletionPerModule)
+        return TestTimestamps(
+            testTargetStartTimes: testTargetStartTimes,
+            earliestTestStart: earliestTestStart,
+            latestOverallCompletion: latestOverallCompletion,
+            latestCompletionPerModule: latestCompletionPerModule
+        )
     }
 
     private func extractTestTimestampsRecursive(
