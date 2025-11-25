@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.107.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.107.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* remove fullHandle requirement for tuist registry setup by [@fortmarek](https://github.com/fortmarek) in [#8750](https://github.com/tuist/tuist/pull/8750)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.1...4.107.2
+
+## What's Changed in 4.107.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -12,7 +20,7 @@ All notable changes to this project will be documented in this file.
 * skip warning Swift flags when hashing by [@fortmarek](https://github.com/fortmarek) in [#8728](https://github.com/tuist/tuist/pull/8728)
 * prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.1
 
 ## What's Changed in 4.106.1<!-- RELEASE NOTES START -->
 
