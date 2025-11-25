@@ -105,14 +105,27 @@ public struct XCResultService: XCResultServicing {
                 "--path", path.pathString,
             ]
         ).concatenatedString()
+        print("tests output", outputString)
 
-        guard let outputData = outputString.data(using: .utf8) else {
+        let jsonString = extractJSON(from: outputString)
+        
+        print("extracted json", jsonString)
+
+        guard let outputData = jsonString.data(using: .utf8) else {
+            print("failed to parse the test-results json")
             throw XCResultServiceError.failedToParseOutput(path)
         }
 
         let testOutput = try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
 
         return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+    }
+
+    private func extractJSON(from output: String) -> String {
+        guard let jsonStartIndex = output.firstIndex(of: "{") else {
+            return output
+        }
+        return String(output[jsonStartIndex...])
     }
 
     private func parseTestOutput(
@@ -378,12 +391,13 @@ public struct XCResultService: XCResultServicing {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
             let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
-            _ = try await commandRunner.run(
+            let outputString = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
                     "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             ).concatenatedString()
+            print(outputString)
 
             let logData = try await fileSystem.readFile(at: tempFile)
             return try JSONDecoder().decode(ActionLogSection.self, from: logData)
