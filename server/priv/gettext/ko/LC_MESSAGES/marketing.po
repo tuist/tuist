@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-25 14:23+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-25 14:23+0000\nLast-Translator: Boram Jeong <bbiguduk@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,9 +38,7 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr ""
-"<p>오픈 소스에 대한 저희의 헌신과 핵심 가치는 독특한 가격 정책을 만듭니다. \"영업팀에 문의\"를 유도하거나 제한된 데모를 제공하는 등 여러 영업 전략으로 돈을 더 받아내려는 수많은 모델과 달리, 저희는 공정성과 투명성을 믿습니다. 저희는 모두 동등하게 대하고 모두에게 공정한 가격을 책정합니다. 저희 서비스를 선택하면 훌륭한 제품을 얻는 동시에 더 많은 오픈 소스 프로젝트의 발전을 지원하게 됩니다. 저희는 비지니스의 성공을 비양심적인 관행으로 가득 찬 단거리 경주가 아닌 장기적으로 바라봅니다. 저희의 철학에 대한 자세한 내용은 %{여기}에서 확인할 수 있습니다.</p>\n"
-"<p>Tuist를 후원함으로써, 여러분은 Swift 생태계를 위한 더 많은 오픈 소스 소프트웨어 개발 또한 후원하게 됩니다.</p>\n"
+msgstr "<p>오픈 소스에 대한 저희의 헌신과 핵심 가치는 독특한 가격 정책을 만듭니다. \"영업팀에 문의\"를 유도하거나 제한된 데모를 제공하는 등 여러 영업 전략으로 돈을 더 받아내려는 수많은 모델과 달리, 저희는 공정성과 투명성을 믿습니다. 저희는 모두 동등하게 대하고 모두에게 공정한 가격을 책정합니다. 저희 서비스를 선택하면 훌륭한 제품을 얻는 동시에 더 많은 오픈 소스 프로젝트의 발전을 지원하게 됩니다. 저희는 비지니스의 성공을 비양심적인 관행으로 가득 찬 단거리 경주가 아닌 장기적으로 바라봅니다. 저희의 철학에 대한 자세한 내용은 %{여기}에서 확인할 수 있습니다.</p>\n<p>Tuist를 후원함으로써, 여러분은 Swift 생태계를 위한 더 많은 오픈 소스 소프트웨어 개발 또한 후원하게 됩니다.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "추가 안내가 포함된 확인 이메일이 귀하의 계정으로 발송되었습니다."
