@@ -12,7 +12,11 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
 
   def up do
     # Start the PostgreSQL repo since it's not started during ClickHouse migrations
-    {:ok, _} = Repo.start_link()
+    case Repo.start_link() do
+      {:ok, _} -> :ok
+      {:error, {:already_started, _}} -> :ok
+    end
+
     throttle_change_in_batches(&page_query/1, &do_change/1)
   end
 
