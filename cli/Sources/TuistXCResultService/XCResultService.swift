@@ -122,10 +122,12 @@ public struct XCResultService: XCResultServicing {
     }
 
     private func extractJSON(from output: String) -> String {
-        guard let jsonStartIndex = output.firstIndex(of: "{") else {
+        guard let jsonStartIndex = output.firstIndex(of: "{"),
+              let jsonEndIndex = output.lastIndex(of: "}")
+        else {
             return output
         }
-        return String(output[jsonStartIndex...])
+        return String(output[jsonStartIndex...jsonEndIndex])
     }
 
     private func parseTestOutput(
