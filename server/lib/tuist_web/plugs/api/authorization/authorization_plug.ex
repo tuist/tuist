@@ -74,6 +74,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         end
 
       conn
+      |> put_resp_header("connection", "close")
       |> put_status(status)
       |> json(%{
         message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
@@ -123,6 +124,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       conn
     else
       conn
+      |> put_resp_header("connection", "close")
       |> put_status(:forbidden)
       |> json(%{
         message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
