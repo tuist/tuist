@@ -1,5 +1,6 @@
 defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   use Ecto.Migration
   import Ecto.Query
   require Logger
@@ -10,6 +11,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   @throttle_ms 500
 
   def up do
+    # Start the PostgreSQL repo since it's not started during ClickHouse migrations
+    {:ok, _} = Repo.start_link()
     throttle_change_in_batches(&page_query/1, &do_change/1)
   end
 
@@ -18,15 +21,43 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   end
 
   def do_change(batch_of_events) do
+    # Get unique project_ids and fetch their account_ids from PostgreSQL
+    project_ids = batch_of_events |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    project_to_account =
+      from(p in "projects", where: p.id in ^project_ids, select: {p.id, p.account_id})
+      |> Repo.all()
+      |> Map.new()
+
+    # Get unique user_ids (excluding nil) and fetch their account_ids from PostgreSQL
+    # Account belongs_to User, so we query accounts by user_id to get the account id
+    user_ids = batch_of_events |> Enum.map(& &1.user_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    user_to_account =
+      from(a in "accounts", where: a.user_id in ^user_ids, select: {a.user_id, a.id})
+      |> Repo.all()
+      |> Map.new()
+
     # Create a mapping of command_event_id to test_run_id
     mappings =
       batch_of_events
       |> Enum.map(fn event ->
         test_run_id = Ecto.UUID.generate()
 
+        account_id =
+          if not is_nil(event.user_id) do
+            Map.get(
+              user_to_account,
+              event.user_id,
+              Map.get(project_to_account, event.project_id, 0)
+            )
+          else
+            Map.get(project_to_account, event.project_id, 0)
+          end
+
         test_run =
           event
-          |> create_test_run_from_event()
+          |> create_test_run_from_event(account_id)
           |> Map.put(:id, test_run_id)
 
         {event.id, test_run_id, test_run}
@@ -137,7 +168,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
     )
   end
 
-  defp create_test_run_from_event(event) do
+  defp create_test_run_from_event(event, account_id) do
     command_arguments =
       case event.command_arguments do
         nil -> []
@@ -151,16 +182,16 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
       id: Ecto.UUID.generate(),
       project_id: event.project_id,
       duration: event.duration,
-      macos_version: event.macos_version,
-      xcode_version: event.swift_version,
-      is_ci: event.is_ci,
+      macos_version: event.macos_version || "",
+      xcode_version: event.swift_version || "",
+      is_ci: event.is_ci || false,
       model_identifier: "",
       scheme: scheme,
-      status: event.status,
-      git_branch: event.git_branch,
-      git_commit_sha: event.git_commit_sha,
-      git_ref: event.git_ref,
-      account_id: event.user_id,
+      status: event.status || "success",
+      git_branch: event.git_branch || "",
+      git_commit_sha: event.git_commit_sha || "",
+      git_ref: event.git_ref || "",
+      account_id: account_id,
       ran_at: event.ran_at,
       inserted_at: event.created_at
     }
