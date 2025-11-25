@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-25 14:23+0000\nLast-Translator: Boram Jeong <bbiguduk@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-25 14:23+0000\nLast-Translator: jimmy <wjdtjq6@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 # # This file is a PO Template file.
 # #
@@ -287,7 +287,7 @@ msgid "Get started"
 msgstr "시작하기"
 
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
-msgstr "무료로 Tuist를 시작하고 더 높은 제한이나 개인적인 지원이 필요할 때 투자하세요."
+msgstr "Tuist는 비용 없이 시작할 수 있으며, 더 높은 한도, 맞춤형 지원, 혹은 다른 결제 옵션이 필요할 때만 추가로 투자하면 됩니다."
 
 msgid "Get started with no credit card required."
 msgstr "신용카드 없이 시작해 보세요."
@@ -344,7 +344,7 @@ msgid "Is there a free trial on paid plans?"
 msgstr "유료 요금제에서 무료 시험 사용 기간이 제공되나요??"
 
 msgid "Is there a minimum contract length?"
-msgstr "요금제에 대한 최소 계약 기간이 있습니까?"
+msgstr "최소 이용 기간이 있나요?"
 
 msgid "Issue Tracking"
 msgstr "이슈 확인"
@@ -389,7 +389,7 @@ msgid "Log in"
 msgstr "로그인"
 
 msgid "Longevity"
-msgstr "선언문"
+msgstr "지속성"
 
 msgid "Make Xcode projects easier to manage and scale"
 msgstr "Xcode 프로젝트들을 더 쉽게 관리하고 확장할 수 있게 해보세요"
@@ -455,7 +455,7 @@ msgid "Powered by"
 msgstr "Powered by"
 
 msgid "Previews"
-msgstr "미리보기"
+msgstr "Previews"
 
 msgid "Price per unit above free tier"
 msgstr "무료 요금제 이상에서 사용 단위에 따른 가격"
