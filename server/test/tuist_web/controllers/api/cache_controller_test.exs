@@ -671,7 +671,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["data"] == %{}
     end
 
-    test "returns 404 when the uploaded object is not found in storage", %{
+    test "succeeds even when object size cannot be retrieved (eventual consistency)", %{
       conn: conn,
       cache: cache
     } do
@@ -707,8 +707,9 @@ defmodule TuistWeb.API.CacheControllerTest do
         )
 
       # Then
-      response = json_response(conn, 404)
-      assert response["message"] == "The uploaded object was not found in storage"
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"] == %{}
     end
 
     test "errors with a payment_required when the account has no subscription and has gone above the limit",

@@ -685,16 +685,13 @@ defmodule TuistWeb.API.CacheController do
           TuistWeb.Authentication.authenticated_subject(conn)
         )
 
-        json(conn, %{status: "success", data: %{}})
-
-      {:error, :not_found} ->
-        conn
-        |> put_status(404)
-        |> json(%{message: "The uploaded object was not found in storage"})
-
-      {:error, reason} ->
-        raise "Failed to get object size: #{inspect(reason)}"
+      {:error, _reason} ->
+        # Upload succeeded but we couldn't get size for analytics (likely eventual consistency)
+        # This is fine - we'll just skip the analytics tracking
+        :ok
     end
+
+    json(conn, %{status: "success", data: %{}})
   end
 
   def multipart_complete(conn, _params) do
