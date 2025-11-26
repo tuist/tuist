@@ -472,8 +472,10 @@
 
   & > [data-part="cta"] {
     margin-right: var(--noora-spacing-6);
+    margin-bottom: var(--noora-spacing-11);
     margin-left: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-9);
+    width: 100%;
 
     @media (min-width: 1024px) {
       margin-right: var(--noora-spacing-14);
