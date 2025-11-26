@@ -107,12 +107,21 @@
       id="orgs-list-scroll"
     >
       <div data-part="rows">
-        <div
-          data-part="org-logo"
-          aria-label="Trendyol"
-        >
-          <.trendyol_org_logo />
-        </div>
+        <%= if Gettext.get_locale() == "ko" do %>
+          <div
+            data-part="org-logo"
+            aria-label="Socar"
+          >
+            <.socar_org_logo />
+          </div>
+        <% else %>
+          <div
+            data-part="org-logo"
+            aria-label="Trendyol"
+          >
+            <.trendyol_org_logo />
+          </div>
+        <% end %>
         <div
           data-part="org-logo"
           aria-label="Adidas"
