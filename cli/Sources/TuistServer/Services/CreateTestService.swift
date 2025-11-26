@@ -3,6 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 #if canImport(TuistXCResultService)
+    import TuistCI
     import TuistXCResultService
 
     @Mockable
@@ -18,7 +19,11 @@ import OpenAPIURLSession
             isCI: Bool,
             modelIdentifier: String?,
             macOSVersion: String,
-            xcodeVersion: String?
+            xcodeVersion: String?,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -69,7 +74,11 @@ import OpenAPIURLSession
             isCI: Bool,
             modelIdentifier: String?,
             macOSVersion: String,
-            xcodeVersion: String?
+            xcodeVersion: String?,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -126,6 +135,24 @@ import OpenAPIURLSession
                 )
             }
 
+            let ciProviderPayload: Operations.createRun.Input.Body.jsonPayload.Case2Payload.ci_providerPayload? =
+                switch ciProvider {
+                case .github:
+                    .github
+                case .gitlab:
+                    .gitlab
+                case .bitrise:
+                    .bitrise
+                case .circleci:
+                    .circleci
+                case .buildkite:
+                    .buildkite
+                case .codemagic:
+                    .codemagic
+                case .none:
+                    nil
+                }
+
             let response = try await client.createRun(
                 .init(
                     path: .init(
@@ -135,6 +162,10 @@ import OpenAPIURLSession
                     body: .json(
                         .case2(
                             .init(
+                                ci_host: ciHost,
+                                ci_project_handle: ciProjectHandle,
+                                ci_provider: ciProviderPayload,
+                                ci_run_id: ciRunId,
                                 duration: testSummary.duration ?? 0,
                                 git_branch: gitBranch,
                                 git_commit_sha: gitCommitSHA,

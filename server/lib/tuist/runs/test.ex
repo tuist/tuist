@@ -37,6 +37,10 @@ defmodule Tuist.Runs.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :ci_run_id, :string
+    field :ci_project_handle, :string
+    field :ci_host, :string
+    field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
 
@@ -60,7 +64,11 @@ defmodule Tuist.Runs.Test do
       :git_commit_sha,
       :git_ref,
       :ran_at,
-      :inserted_at
+      :inserted_at,
+      :ci_run_id,
+      :ci_project_handle,
+      :ci_host,
+      :ci_provider
     ])
     |> validate_required([
       :id,
@@ -74,5 +82,6 @@ defmodule Tuist.Runs.Test do
       :ran_at
     ])
     |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
   end
 end
