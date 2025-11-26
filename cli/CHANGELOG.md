@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.108.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track CI run id for test insights by [@fortmarek](https://github.com/fortmarek) in [#8769](https://github.com/tuist/tuist/pull/8769)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.2...4.108.0
+
 ## What's Changed in 4.107.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
