@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell 补全"
+                        },
+                        "directories": {
+                            "text": "目录"
                         }
                     }
                 },
@@ -140,7 +143,7 @@
                     }
                 },
                 "releases": {
-                    "text": ""
+                    "text": "运行"
                 }
             }
         },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "最佳实践"
+                                },
+                                "metadata-tags": {
+                                    "text": "元数据标签"
                                 }
                             }
                         },
@@ -308,7 +314,10 @@
                                     "text": ""
                                 },
                                 "xcode-cache": {
-                                    "text": ""
+                                    "text": "Xcode缓存"
+                                },
+                                "module-cache": {
+                                    "text": "模块缓存"
                                 }
                             }
                         },

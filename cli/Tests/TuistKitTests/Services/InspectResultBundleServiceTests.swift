@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistAutomation
+import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -26,6 +27,7 @@ struct InspectResultBundleServiceTests {
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
+    private let ciController = MockCIControlling()
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
@@ -38,6 +40,7 @@ struct InspectResultBundleServiceTests {
             dateService: dateService,
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
+            ciController: ciController,
             xcodeBuildController: xcodeBuildController,
             rootDirectoryLocator: rootDirectoryLocator,
             xcActivityLogController: xcActivityLogController
@@ -71,6 +74,10 @@ struct InspectResultBundleServiceTests {
             .topLevelGitDirectory(workingDirectory: .any)
             .willReturn(try AbsolutePath(validating: "/tmp/project"))
 
+        given(ciController)
+            .ciInfo()
+            .willReturn(nil)
+
         given(createTestService)
             .createTest(
                 fullHandle: .any,
@@ -84,7 +91,11 @@ struct InspectResultBundleServiceTests {
                 isCI: .any,
                 modelIdentifier: .any,
                 macOSVersion: .any,
-                xcodeVersion: .any
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -156,7 +167,11 @@ struct InspectResultBundleServiceTests {
                 isCI: .value(false),
                 modelIdentifier: .value("Mac15,3"),
                 macOSVersion: .value("13.2.0"),
-                xcodeVersion: .value("16.0.0")
+                xcodeVersion: .value("16.0.0"),
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .called(1)
     }
@@ -312,7 +327,143 @@ struct InspectResultBundleServiceTests {
                 isCI: .any,
                 modelIdentifier: .any,
                 macOSVersion: .any,
-                xcodeVersion: .any
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func inspectResultBundle_passesCIMetadata() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
+
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(
+                .test(
+                    ref: "git-ref",
+                    branch: "main",
+                    sha: "abc123",
+                    remoteURLOrigin: "https://github.com/tuist/tuist"
+                )
+            )
+
+        ciController.reset()
+        given(ciController)
+            .ciInfo()
+            .willReturn(
+                .test(
+                    provider: .github,
+                    runId: "19683527895",
+                    projectHandle: "tuist/tuist",
+                    host: "github.com"
+                )
+            )
+
+        // When
+        _ = try await subject.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        // Then
+        verify(createTestService)
+            .createTest(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .value("main"),
+                gitCommitSHA: .value("abc123"),
+                gitRef: .value("git-ref"),
+                gitRemoteURLOrigin: .value("https://github.com/tuist/tuist"),
+                isCI: .value(false),
+                modelIdentifier: .value("Mac15,3"),
+                macOSVersion: .value("13.2.0"),
+                xcodeVersion: .value("16.0.0"),
+                ciRunId: .value("19683527895"),
+                ciProjectHandle: .value("tuist/tuist"),
+                ciHost: .value("github.com"),
+                ciProvider: .value(.github)
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func inspectResultBundle_handlesNilCIInfo() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
+
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        ciController.reset()
+        given(ciController)
+            .ciInfo()
+            .willReturn(nil)
+
+        // When
+        _ = try await subject.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        // Then
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .value(nil),
+                ciProjectHandle: .value(nil),
+                ciHost: .value(nil),
+                ciProvider: .value(nil)
             )
             .called(1)
     }

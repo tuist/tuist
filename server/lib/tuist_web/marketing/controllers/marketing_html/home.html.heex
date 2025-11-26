@@ -411,6 +411,29 @@
       </div>
     </section>
 
+    <section data-part="public-dashboard">
+      <h2 data-part="title">
+        <span>{dgettext("marketing", "Explore features")}</span>
+        <span>{dgettext("marketing", "live on our dashboard")}</span>
+      </h2>
+      <main data-part="dashboard">
+        <a
+          data-part="overlay-link"
+          href="/tuist/tuist"
+          aria-label={dgettext("marketing", "Explore Tuist's features")}
+        >
+        </a>
+        <img data-part="default" src="/marketing/images/home/dashboard.webp" />
+        <img data-part="hover" src="/marketing/images/home/dashboard-hover.webp" />
+        <img data-part="default-mobile" src="/marketing/images/home/dashboard-mobile.webp" />
+        <img data-part="hover-mobile" src="/marketing/images/home/dashboard-hover-mobile.webp" />
+        <.button
+          href="/tuist/tuist"
+          label={dgettext("marketing", "Explore Tuist's features")}
+        />
+      </main>
+    </section>
+
     <section data-part="testimonial">
       <blockquote data-part="quote">
         <h3>

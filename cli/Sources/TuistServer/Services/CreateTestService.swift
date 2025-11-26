@@ -3,6 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 #if canImport(TuistXCResultService)
+    import TuistCI
     import TuistXCResultService
 
     @Mockable
@@ -19,7 +20,11 @@ import OpenAPIURLSession
             isCI: Bool,
             modelIdentifier: String?,
             macOSVersion: String,
-            xcodeVersion: String?
+            xcodeVersion: String?,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -40,7 +45,8 @@ import OpenAPIURLSession
                  let .badRequest(message):
                 return message
             case .unexpectedResponseType:
-                return "The server returned an unexpected response type. Expected a test run but received a different type."
+                return
+                    "The server returned an unexpected response type. Expected a test run but received a different type."
             }
         }
     }
@@ -71,7 +77,11 @@ import OpenAPIURLSession
             isCI: Bool,
             modelIdentifier: String?,
             macOSVersion: String,
-            xcodeVersion: String?
+            xcodeVersion: String?,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -88,7 +98,8 @@ import OpenAPIURLSession
 
             let testModules = testSummary.testModules.map { module in
                 let testSuites = module.testSuites.map { suite in
-                    Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                    Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                        .test_modulesPayloadPayload
                         .test_suitesPayloadPayload(
                             duration: suite.duration,
                             name: suite.name,
@@ -97,19 +108,24 @@ import OpenAPIURLSession
                 }
 
                 let moduleTestCases = module.testCases.map { testCase in
-                    let failures: [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                        .test_casesPayloadPayload.failuresPayloadPayload
-                    ] = testCase.failures.map { failure in
-                        Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
-                            .test_casesPayloadPayload.failuresPayloadPayload(
-                                issue_type: mapIssueType(failure.issueType),
-                                line_number: failure.lineNumber,
-                                message: failure.message,
-                                path: failure.path?.pathString
-                            )
-                    }
+                    let failures:
+                        [Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                            .test_modulesPayloadPayload
+                            .test_casesPayloadPayload.failuresPayloadPayload
+                        ] = testCase.failures
+                        .map { failure in
+                            Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                                .test_modulesPayloadPayload
+                                .test_casesPayloadPayload.failuresPayloadPayload(
+                                    issue_type: mapIssueType(failure.issueType),
+                                    line_number: failure.lineNumber,
+                                    message: failure.message,
+                                    path: failure.path?.pathString
+                                )
+                        }
 
-                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload
+                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                        .test_modulesPayloadPayload
                         .test_casesPayloadPayload(
                             duration: testCase.duration ?? 0,
                             failures: failures,
@@ -119,14 +135,34 @@ import OpenAPIURLSession
                         )
                 }
 
-                return Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload(
-                    duration: module.duration,
-                    name: module.name,
-                    status: mapModuleStatus(module.status),
-                    test_cases: moduleTestCases,
-                    test_suites: testSuites
-                )
+                return Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                    .test_modulesPayloadPayload(
+                        duration: module.duration,
+                        name: module.name,
+                        status: mapModuleStatus(module.status),
+                        test_cases: moduleTestCases,
+                        test_suites: testSuites
+                    )
             }
+
+            let ciProviderPayload:
+                Operations.createRun.Input.Body.jsonPayload.Case2Payload.ci_providerPayload? =
+                    switch ciProvider {
+                    case .github:
+                        .github
+                    case .gitlab:
+                        .gitlab
+                    case .bitrise:
+                        .bitrise
+                    case .circleci:
+                        .circleci
+                    case .buildkite:
+                        .buildkite
+                    case .codemagic:
+                        .codemagic
+                    case .none:
+                        nil
+                    }
 
             let response = try await client.createRun(
                 .init(
@@ -138,6 +174,10 @@ import OpenAPIURLSession
                         .case2(
                             .init(
                                 build_run_id: buildRunId,
+                                ci_host: ciHost,
+                                ci_project_handle: ciProjectHandle,
+                                ci_provider: ciProviderPayload,
+                                ci_run_id: ciRunId,
                                 duration: testSummary.duration ?? 0,
                                 git_branch: gitBranch,
                                 git_commit_sha: gitCommitSHA,
@@ -173,7 +213,7 @@ import OpenAPIURLSession
                 case let .json(error):
                     throw CreateTestServiceError.forbidden(error.message)
                 }
-            case let .undocumented(statusCode: statusCode, _):
+            case let .undocumented(statusCode, _):
                 throw CreateTestServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):
                 switch unauthorized.body {
@@ -193,7 +233,8 @@ import OpenAPIURLSession
             }
         }
 
-        private func testCaseStatusToServerStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+        private func testCaseStatusToServerStatus(_ status: TestStatus)
+            -> Operations.createRun.Input.Body.jsonPayload
             .Case2Payload.test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
         {
             switch status {
@@ -206,7 +247,8 @@ import OpenAPIURLSession
             }
         }
 
-        private func mapModuleStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+        private func mapModuleStatus(_ status: TestStatus)
+            -> Operations.createRun.Input.Body.jsonPayload
             .Case2Payload.test_modulesPayloadPayload.statusPayload
         {
             switch status {
@@ -217,7 +259,8 @@ import OpenAPIURLSession
             }
         }
 
-        private func mapSuiteStatus(_ status: TestStatus) -> Operations.createRun.Input.Body.jsonPayload
+        private func mapSuiteStatus(_ status: TestStatus)
+            -> Operations.createRun.Input.Body.jsonPayload
             .Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
         {
             switch status {
@@ -228,8 +271,10 @@ import OpenAPIURLSession
             }
         }
 
-        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun.Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload.issue_typePayload?
+        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun
+            .Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload
+            .issue_typePayload?
         {
             guard let issueType else { return nil }
             switch issueType {

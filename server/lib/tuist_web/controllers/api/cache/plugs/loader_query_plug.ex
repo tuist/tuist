@@ -5,14 +5,12 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
   This plug expects `account_handle` and `project_handle` query parameters and will:
   - Load the project using the combined slug "account_handle/project_handle"
   - Assign `:selected_project` and `:selected_account` to the connection
-  - Raise appropriate errors if the project is not found or invalid
+  - Return appropriate errors if the project is not found or invalid
   """
 
   use TuistWeb, :controller
 
   alias Tuist.Projects
-  alias TuistWeb.Errors.BadRequestError
-  alias TuistWeb.Errors.NotFoundError
 
   def init(opts), do: opts
 
@@ -28,19 +26,32 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
         |> assign(:selected_account, project.account)
 
       {:error, :not_found} ->
-        raise NotFoundError,
-              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
+        conn
+        |> put_resp_header("connection", "close")
+        |> put_status(:not_found)
+        |> json(%{message: gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})})
+        |> halt()
 
       {:error, :invalid} ->
-        raise BadRequestError,
-              gettext(
-                "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
-                %{project_slug: project_slug}
-              )
+        conn
+        |> put_resp_header("connection", "close")
+        |> put_status(:bad_request)
+        |> json(%{
+          message:
+            gettext(
+              "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
+              %{project_slug: project_slug}
+            )
+        })
+        |> halt()
     end
   end
 
-  def call(_conn, _opts) do
-    raise BadRequestError, "account_handle and project_handle query parameters are required"
+  def call(conn, _opts) do
+    conn
+    |> put_resp_header("connection", "close")
+    |> put_status(:bad_request)
+    |> json(%{message: "account_handle and project_handle query parameters are required"})
+    |> halt()
   end
 end
