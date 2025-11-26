@@ -533,7 +533,7 @@ tests =
       ci_run_id: ci_run_id,
       ci_project_handle: if(is_ci, do: "tuist/tuist", else: ""),
       ci_host: "",
-      ci_provider: if(is_ci, do: "github", else: nil)
+      ci_provider: if(is_ci, do: "github")
     }
   end)
 

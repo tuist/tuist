@@ -582,13 +582,11 @@ defmodule TuistWeb.API.RunsController do
                },
                ci_run_id: %Schema{
                  type: :string,
-                 description:
-                   "The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID)."
+                 description: "The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID)."
                },
                ci_project_handle: %Schema{
                  type: :string,
-                 description:
-                   "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                 description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
                },
                ci_host: %Schema{
                  type: :string,
@@ -597,7 +595,7 @@ defmodule TuistWeb.API.RunsController do
                ci_provider: %Schema{
                  type: :string,
                  description: "The CI provider.",
-                 enum: Tuist.Runs.valid_ci_providers() |> Enum.map(&String.to_atom/1)
+                 enum: Runs.valid_ci_providers()
                },
                test_modules: %Schema{
                  type: :array,

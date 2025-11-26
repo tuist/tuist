@@ -1213,5 +1213,94 @@ defmodule TuistWeb.API.RunsControllerTest do
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
+
+    test "creates a new test run with GitHub CI metadata", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 5000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          status: "success",
+          ci_run_id: "19683527895",
+          ci_project_handle: "tuist/tuist",
+          ci_provider: "github",
+          test_modules: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 5000
+      assert test_run.is_ci == true
+      assert test_run.ci_run_id == "19683527895"
+      assert test_run.ci_project_handle == "tuist/tuist"
+      assert test_run.ci_host == ""
+      assert test_run.ci_provider == "github"
+      assert test_run.project_id == project.id
+      assert test_run.account_id == user.account.id
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 5000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
+
+    test "creates a new test run with GitLab CI metadata including a custom host", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 8000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          status: "failure",
+          ci_run_id: "987654321",
+          ci_project_handle: "group/project",
+          ci_host: "gitlab.example.com",
+          ci_provider: "gitlab",
+          test_modules: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 8000
+      assert test_run.is_ci == true
+      assert test_run.ci_run_id == "987654321"
+      assert test_run.ci_project_handle == "group/project"
+      assert test_run.ci_host == "gitlab.example.com"
+      assert test_run.ci_provider == "gitlab"
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 8000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
   end
 end

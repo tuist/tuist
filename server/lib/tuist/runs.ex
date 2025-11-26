@@ -442,8 +442,6 @@ defmodule Tuist.Runs do
   defp normalize_ci_provider(provider) when is_binary(provider) do
     if provider in valid_ci_providers() do
       String.to_existing_atom(provider)
-    else
-      nil
     end
   end
 
