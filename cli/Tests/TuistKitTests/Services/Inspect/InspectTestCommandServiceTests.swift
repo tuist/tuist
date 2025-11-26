@@ -41,7 +41,7 @@ struct InspectTestCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(inspectResultBundleService)
-            .inspectResultBundle(resultBundlePath: .any, config: .any)
+            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,
@@ -77,6 +77,7 @@ struct InspectTestCommandServiceTests {
         verify(inspectResultBundleService)
             .inspectResultBundle(
                 resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .value(nil),
                 config: .any
             )
             .called(1)
@@ -112,6 +113,7 @@ struct InspectTestCommandServiceTests {
         verify(inspectResultBundleService)
             .inspectResultBundle(
                 resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
             .called(1)
@@ -150,6 +152,7 @@ struct InspectTestCommandServiceTests {
         verify(inspectResultBundleService)
             .inspectResultBundle(
                 resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
             .called(1)
@@ -214,6 +217,7 @@ struct InspectTestCommandServiceTests {
         verify(inspectResultBundleService)
             .inspectResultBundle(
                 resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
             .called(1)

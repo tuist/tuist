@@ -1213,5 +1213,56 @@ defmodule TuistWeb.API.RunsControllerTest do
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
+
+    test "creates a new test run with associated build_run_id", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # First create a build run
+      build_id = UUIDv7.generate()
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+        id: build_id,
+        type: "build",
+        duration: 1000,
+        is_ci: false
+      )
+
+      # When - create a test run with build_run_id
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 5000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          status: "success",
+          build_run_id: build_id,
+          test_modules: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.build_run_id == build_id
+      assert test_run.duration == 5000
+      assert test_run.status == "success"
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 5000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
   end
 end

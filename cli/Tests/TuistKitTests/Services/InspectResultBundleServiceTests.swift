@@ -28,6 +28,7 @@ struct InspectResultBundleServiceTests {
     private let gitController = MockGitControlling()
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
+    private let xcActivityLogController = MockXCActivityLogControlling()
 
     init() throws {
         subject = InspectResultBundleService(
@@ -38,7 +39,8 @@ struct InspectResultBundleServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
             xcodeBuildController: xcodeBuildController,
-            rootDirectoryLocator: rootDirectoryLocator
+            rootDirectoryLocator: rootDirectoryLocator,
+            xcActivityLogController: xcActivityLogController
         )
 
         given(machineEnvironment)
@@ -74,6 +76,7 @@ struct InspectResultBundleServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 testSummary: .any,
+                buildRunId: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -92,6 +95,10 @@ struct InspectResultBundleServiceTests {
                     url: "https://tuist.dev/tuist/tuist/runs/test-id"
                 )
             )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
     }
 
     @Test(.withMockedEnvironment())
@@ -128,6 +135,7 @@ struct InspectResultBundleServiceTests {
         // When
         let result = try await subject.inspectResultBundle(
             resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist")
         )
 
@@ -140,6 +148,7 @@ struct InspectResultBundleServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
                 testSummary: .any,
+                buildRunId: .value(nil),
                 gitBranch: .value("main"),
                 gitCommitSHA: .value("abc123"),
                 gitRef: .value("git-ref"),
@@ -169,6 +178,7 @@ struct InspectResultBundleServiceTests {
         ) {
             try await subject.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: nil,
                 config: .test(fullHandle: nil)
             )
         }
@@ -191,6 +201,7 @@ struct InspectResultBundleServiceTests {
         ) {
             try await subject.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: nil,
                 config: .test(fullHandle: "tuist/tuist")
             )
         }
@@ -225,6 +236,7 @@ struct InspectResultBundleServiceTests {
         // When
         _ = try await subject.inspectResultBundle(
             resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist")
         )
 
@@ -239,6 +251,69 @@ struct InspectResultBundleServiceTests {
 
         verify(gitController)
             .gitInfo(workingDirectory: .value(workspacePath))
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func inspectResultBundle_passesBuildRunIdFromActivityLog() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
+        let derivedDataDirectory = currentWorkingDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataDirectory.appending(components: "Logs", "Build", "build-123.xcactivitylog")
+
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        xcActivityLogController.reset()
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataDirectory), filter: .any)
+            .willReturn(
+                XCActivityLogFile(
+                    path: activityLogPath,
+                    timeStoppedRecording: Date(),
+                    signature: "Build"
+                )
+            )
+
+        // When
+        _ = try await subject.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: derivedDataDirectory,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        // Then
+        verify(createTestService)
+            .createTest(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testSummary: .any,
+                buildRunId: .value("build-123"),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any
+            )
             .called(1)
     }
 }

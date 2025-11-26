@@ -91,6 +91,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
       ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       is_ci: Keyword.get(attrs, :is_ci, false),
+      build_run_id: Keyword.get(attrs, :build_run_id),
       test_modules: test_modules
     })
   end
