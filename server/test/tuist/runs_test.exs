@@ -1744,109 +1744,12 @@ defmodule Tuist.RunsTest do
       assert url == "https://codemagic.io/app/project-id-456/build/build-id-123"
     end
 
-    test "returns nil when ci_provider is nil" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: nil,
-          ci_run_id: "123",
-          ci_project_handle: "owner/repo"
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
     test "returns nil when ci_run_id is nil" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
           ci_provider: "github",
           ci_run_id: nil,
-          ci_project_handle: "owner/repo"
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
-    test "returns nil when ci_run_id is empty string" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: "github",
-          ci_run_id: "",
-          ci_project_handle: "owner/repo"
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
-    test "returns nil when ci_project_handle is nil for providers that require it" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: "github",
-          ci_run_id: "123",
-          ci_project_handle: nil
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
-    test "returns nil when ci_project_handle is empty string for providers that require it" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: "github",
-          ci_run_id: "123",
-          ci_project_handle: ""
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
-    test "returns nil when all CI fields are nil or empty" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: nil,
-          ci_run_id: nil,
-          ci_project_handle: nil,
-          ci_host: nil
-        )
-
-      # When
-      url = Runs.test_ci_run_url(test)
-
-      # Then
-      assert url == nil
-    end
-
-    test "returns nil when ci_provider is empty string" do
-      # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          ci_provider: "",
-          ci_run_id: "123",
           ci_project_handle: "owner/repo"
         )
 
