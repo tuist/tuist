@@ -858,6 +858,21 @@
       position: relative;
       padding: 0 var(--noora-spacing-6);
 
+      & > [data-part="overlay-link"] {
+        display: block;
+        position: absolute;
+        z-index: var(--noora-z-index-2);
+        cursor: pointer;
+        inset: 0;
+        border-radius: inherit;
+        text-decoration: none;
+      }
+
+      & > [data-part="overlay-link"]:focus-visible {
+        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline-offset: 6px;
+      }
+
       & > img {
         max-width: 100%;
         height: auto;
