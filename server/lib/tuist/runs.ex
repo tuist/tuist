@@ -21,6 +21,8 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.TestModuleRun
   alias Tuist.Runs.TestSuiteRun
 
+  def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
   def get_build(id) do
     Repo.get(Build, id)
   end
@@ -418,30 +420,34 @@ defmodule Tuist.Runs do
   Returns nil if the build doesn't have complete CI information.
   """
   def build_ci_run_url(%Build{} = build) do
-    case {build.ci_provider, build.ci_run_id, build.ci_project_handle} do
-      {:github, run_id, project_handle} when not is_nil(run_id) and not is_nil(project_handle) ->
-        "https://github.com/#{project_handle}/actions/runs/#{run_id}"
+    Tuist.VCS.ci_run_url(build)
+  end
 
-      {:gitlab, pipeline_id, project_path} when not is_nil(pipeline_id) and not is_nil(project_path) ->
-        host = build.ci_host || "gitlab.com"
-        "https://#{host}/#{project_path}/-/pipelines/#{pipeline_id}"
+  @doc """
+  Constructs a CI run URL for a test run based on the CI provider and metadata.
+  Returns nil if the test doesn't have complete CI information.
+  """
+  def test_ci_run_url(%Test{} = test) do
+    Tuist.VCS.ci_run_url(%{
+      ci_provider: normalize_ci_provider(test.ci_provider),
+      ci_run_id: test.ci_run_id,
+      ci_project_handle: test.ci_project_handle,
+      ci_host: test.ci_host
+    })
+  end
 
-      {:bitrise, build_slug, _app_slug} when not is_nil(build_slug) ->
-        "https://app.bitrise.io/build/#{build_slug}"
+  defp normalize_ci_provider(nil), do: nil
+  defp normalize_ci_provider(""), do: nil
 
-      {:circleci, build_num, project_handle} when not is_nil(build_num) and not is_nil(project_handle) ->
-        "https://app.circleci.com/pipelines/github/#{project_handle}/#{build_num}"
-
-      {:buildkite, build_number, project_handle} when not is_nil(build_number) and not is_nil(project_handle) ->
-        "https://buildkite.com/#{project_handle}/builds/#{build_number}"
-
-      {:codemagic, build_id, project_id} when not is_nil(build_id) and not is_nil(project_id) ->
-        "https://codemagic.io/app/#{project_id}/build/#{build_id}"
-
-      _ ->
-        nil
+  defp normalize_ci_provider(provider) when is_binary(provider) do
+    if provider in valid_ci_providers() do
+      String.to_existing_atom(provider)
+    else
+      nil
     end
   end
+
+  defp normalize_ci_provider(provider) when is_atom(provider), do: provider
 
   def create_test(attrs) do
     case %Test{}

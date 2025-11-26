@@ -81,7 +81,11 @@ struct InspectResultBundleServiceTests {
                 isCI: .any,
                 modelIdentifier: .any,
                 macOSVersion: .any,
-                xcodeVersion: .any
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -147,7 +151,11 @@ struct InspectResultBundleServiceTests {
                 isCI: .value(false),
                 modelIdentifier: .value("Mac15,3"),
                 macOSVersion: .value("13.2.0"),
-                xcodeVersion: .value("16.0.0")
+                xcodeVersion: .value("16.0.0"),
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .called(1)
     }

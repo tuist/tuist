@@ -27,6 +27,48 @@ defmodule Tuist.VCS do
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
 
+  @doc """
+  Constructs a CI run URL based on the CI provider and metadata.
+  Returns nil if the required CI information is missing.
+
+  Accepts CI metadata as a map with:
+  - ci_provider: atom (e.g., :github, :gitlab)
+  - ci_run_id: string
+  - ci_project_handle: string
+  - ci_host: string (optional, for self-hosted instances)
+  """
+  def ci_run_url(%{ci_provider: provider, ci_run_id: run_id, ci_project_handle: project_handle} = ci_metadata)
+      when not is_nil(run_id) and run_id != "" do
+    host = Map.get(ci_metadata, :ci_host)
+    host = if host == "", do: nil, else: host
+
+    case {provider, project_handle} do
+      {:github, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+        "https://github.com/#{project_handle}/actions/runs/#{run_id}"
+
+      {:gitlab, project_path} when not is_nil(project_path) and project_path != "" ->
+        gitlab_host = host || "gitlab.com"
+        "https://#{gitlab_host}/#{project_path}/-/pipelines/#{run_id}"
+
+      {:bitrise, _} ->
+        "https://app.bitrise.io/build/#{run_id}"
+
+      {:circleci, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+        "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
+
+      {:buildkite, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+        "https://buildkite.com/#{project_handle}/builds/#{run_id}"
+
+      {:codemagic, project_id} when not is_nil(project_id) and project_id != "" ->
+        "https://codemagic.io/app/#{project_id}/build/#{run_id}"
+
+      _ ->
+        nil
+    end
+  end
+
+  def ci_run_url(_), do: nil
+
   def supported_vcs_hosts do
     ["GitHub"]
   end

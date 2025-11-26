@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAutomation
+import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -42,6 +43,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
+    private let ciController: CIControlling
     private let xcodeBuildController: XcodeBuildControlling
     private let rootDirectoryLocator: RootDirectoryLocating
 
@@ -52,6 +54,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
+        ciController: CIControlling = CIController(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
@@ -61,6 +64,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
+        self.ciController = ciController
         self.xcodeBuildController = xcodeBuildController
         self.rootDirectoryLocator = rootDirectoryLocator
     }
@@ -84,6 +88,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         }
 
         let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let ciInfo = ciController.ciInfo()
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -95,7 +100,11 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
-            xcodeVersion: try await xcodeBuildController.version()?.description
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

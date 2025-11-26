@@ -580,6 +580,25 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The git remote URL origin."
                },
+               ci_run_id: %Schema{
+                 type: :string,
+                 description:
+                   "The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID)."
+               },
+               ci_project_handle: %Schema{
+                 type: :string,
+                 description:
+                   "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+               },
+               ci_host: %Schema{
+                 type: :string,
+                 description: "The CI host URL (optional, for self-hosted instances)."
+               },
+               ci_provider: %Schema{
+                 type: :string,
+                 description: "The CI provider.",
+                 enum: Tuist.Runs.valid_ci_providers() |> Enum.map(&String.to_atom/1)
+               },
                test_modules: %Schema{
                  type: :array,
                  description: "The test modules associated with the test run.",
@@ -824,6 +843,10 @@ defmodule TuistWeb.API.RunsController do
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
+          ci_run_id: Map.get(params, :ci_run_id),
+          ci_project_handle: Map.get(params, :ci_project_handle),
+          ci_host: Map.get(params, :ci_host),
+          ci_provider: Map.get(params, :ci_provider),
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, [])
         })

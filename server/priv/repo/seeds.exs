@@ -506,6 +506,8 @@ tests =
 
     git_branch = Enum.random(branches)
 
+    ci_run_id = if is_ci, do: "#{Enum.random(19_000_000_000..20_000_000_000)}", else: ""
+
     %{
       id: UUIDv7.generate(),
       duration: Enum.random(5_000..60_000),
@@ -527,7 +529,11 @@ tests =
       ran_at: ran_at,
       project_id: tuist_project.id,
       account_id: account_id,
-      inserted_at: inserted_at
+      inserted_at: inserted_at,
+      ci_run_id: ci_run_id,
+      ci_project_handle: if(is_ci, do: "tuist/tuist", else: ""),
+      ci_host: "",
+      ci_provider: if(is_ci, do: "github", else: nil)
     }
   end)
 
