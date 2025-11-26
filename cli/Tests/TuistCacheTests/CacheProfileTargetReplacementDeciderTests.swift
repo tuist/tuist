@@ -192,7 +192,10 @@ struct CacheProfileTargetReplacementDeciderTests {
         #expect(!decider.shouldReplace(project: .test(type: .local), target: .test(name: "B")))
         #expect(decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["shared"]))))
         #expect(!decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["cacheable"]))))
-        #expect(!decider.shouldReplace(project: .test(type: .local), target: .test(metadata: .test(tags: ["shared", "cacheable"]))))
+        #expect(!decider.shouldReplace(
+            project: .test(type: .local),
+            target: .test(metadata: .test(tags: ["shared", "cacheable"]))
+        ))
     }
 
     @Test func profile_exceptTargetQueries_combines_with_focus_exceptions() {
