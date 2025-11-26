@@ -16,7 +16,7 @@ As teams started to integrate the registry, one point of friction has become cle
 
 ## Setting up the Tuist registry
 
-Thanks to the registry being open now, the only thing you need to do is to run the following command in your project:
+Thanks to the registry being open now, the only thing you need to do is to run the following command in your project (install the CLI first by following [these instructions](https://docs.tuist.dev/en/guides/quick-start/install-tuist)):
 
 ```sh
 tuist registry setup
@@ -42,7 +42,7 @@ If you're already using the registry, we recommend re-running `tuist registry se
 
 ## What's next?
 
-We believe that to provide the best experience, we need to use our own tools daily. Opening the registry has allowed us to integrate the registry in our [monorepository](https://github.com/tuist/tuist) where all of our Swift packages are installed via the Tuist Registry.
+We believe that to provide the best experience, we need to use our own tools daily. Opening the registry has allowed us to integrate the registry in our [monorepository](https://github.com/tuist/tuist) where all of our Swift packages are installed via the Tuist Registry, which we've done as part of [this PR](https://github.com/tuist/tuist/pull/8712).
 
 Now that the registry is open, our next step will be to allow authenticated organizations to publish their own packages to a private registry, so they can move _all_ of their packages away from the source control resolution and improve the resolution of both open source and internal packages.
 
