@@ -123,11 +123,14 @@ struct CacheProfileTargetReplacementDeciderTests {
             base: .onlyExternal,
             targetQueries: []
         )
-        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["ExternalDependency", "tag:keep-source"])
+        let decider = CacheProfileTargetReplacementDecider(
+            profile: profile,
+            exceptions: ["ExternalDependency", "tag:keep-source"]
+        )
 
         #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(name: "ExternalDependency")))
         #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(name: "OtherExternal")))
-        
+
         #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["keep-source"]))))
         #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["other"]))))
     }
@@ -137,11 +140,14 @@ struct CacheProfileTargetReplacementDeciderTests {
             base: .allPossible,
             targetQueries: []
         )
-        let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["ExternalDependency", "tag:keep-source"])
+        let decider = CacheProfileTargetReplacementDecider(
+            profile: profile,
+            exceptions: ["ExternalDependency", "tag:keep-source"]
+        )
 
         #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(name: "ExternalDependency")))
         #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(name: "OtherExternal")))
-        
+
         #expect(!decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["keep-source"]))))
         #expect(decider.shouldReplace(project: .test(type: .external()), target: .test(metadata: .test(tags: ["other"]))))
     }
