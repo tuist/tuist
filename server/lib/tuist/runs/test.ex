@@ -37,8 +37,10 @@ defmodule Tuist.Runs.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :build_run_id, Ecto.UUID
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :build_run, Tuist.Runs.Build, foreign_key: :build_run_id, define_field: false
 
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
@@ -60,7 +62,8 @@ defmodule Tuist.Runs.Test do
       :git_commit_sha,
       :git_ref,
       :ran_at,
-      :inserted_at
+      :inserted_at,
+      :build_run_id
     ])
     |> validate_required([
       :id,

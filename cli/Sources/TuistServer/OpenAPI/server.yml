@@ -1227,6 +1227,11 @@ components:
           x-struct:
           x-validate:
         - properties:
+            build_run_id:
+              description: The UUID of an associated build run.
+              type: string
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -1655,6 +1660,11 @@ components:
       x-validate:
     TestRun:
       properties:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
@@ -7263,6 +7273,11 @@ paths:
                   x-struct:
                   x-validate:
                 - properties:
+                    build_run_id:
+                      description: The UUID of an associated build run.
+                      type: string
+                      x-struct:
+                      x-validate:
                     duration:
                       description: Duration of the run in milliseconds.
                       type: integer

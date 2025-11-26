@@ -580,6 +580,10 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The git remote URL origin."
                },
+               build_run_id: %Schema{
+                 type: :string,
+                 description: "The UUID of an associated build run."
+               },
                test_modules: %Schema{
                  type: :array,
                  description: "The test modules associated with the test run.",
@@ -825,7 +829,8 @@ defmodule TuistWeb.API.RunsController do
           git_ref: Map.get(params, :git_ref),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           test_modules: Map.get(params, :test_modules, []),
-          test_cases: Map.get(params, :test_cases, [])
+          test_cases: Map.get(params, :test_cases, []),
+          build_run_id: Map.get(params, :build_run_id)
         })
     end
   end

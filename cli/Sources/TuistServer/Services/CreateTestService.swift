@@ -11,6 +11,7 @@ import OpenAPIURLSession
             fullHandle: String,
             serverURL: URL,
             testSummary: TestSummary,
+            buildRunId: String?,
             gitBranch: String?,
             gitCommitSHA: String?,
             gitRef: String?,
@@ -62,6 +63,7 @@ import OpenAPIURLSession
             fullHandle: String,
             serverURL: URL,
             testSummary: TestSummary,
+            buildRunId: String?,
             gitBranch: String?,
             gitCommitSHA: String?,
             gitRef: String?,
@@ -135,6 +137,7 @@ import OpenAPIURLSession
                     body: .json(
                         .case2(
                             .init(
+                                build_run_id: buildRunId,
                                 duration: testSummary.duration ?? 0,
                                 git_branch: gitBranch,
                                 git_commit_sha: gitCommitSHA,

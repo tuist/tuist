@@ -34,6 +34,20 @@ defmodule Tuist.Runs do
     end
   end
 
+  def get_latest_test_by_build_run_id(build_run_id) do
+    query =
+      from(t in Test,
+        where: t.build_run_id == ^build_run_id,
+        order_by: [desc: t.ran_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test -> {:ok, test}
+    end
+  end
+
   def list_test_runs(attrs) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
 

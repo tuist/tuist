@@ -3138,6 +3138,10 @@ public enum Components {
             case case1(Components.Schemas.RunParams.Case1Payload)
             /// - Remark: Generated from `#/components/schemas/RunParams/case2`.
             public struct Case2Payload: Codable, Hashable, Sendable {
+                /// The UUID of an associated build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case2/build_run_id`.
+                public var build_run_id: Swift.String?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case2/duration`.
@@ -3433,6 +3437,7 @@ public enum Components {
                 /// Creates a new `Case2Payload`.
                 ///
                 /// - Parameters:
+                ///   - build_run_id: The UUID of an associated build run.
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - git_branch: The git branch.
                 ///   - git_commit_sha: The commit SHA.
@@ -3447,6 +3452,7 @@ public enum Components {
                 ///   - _type: The type of the run, which is 'test' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
+                    build_run_id: Swift.String? = nil,
                     duration: Swift.Int,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
@@ -3461,6 +3467,7 @@ public enum Components {
                     _type: Components.Schemas.RunParams.Case2Payload._typePayload,
                     xcode_version: Swift.String? = nil
                 ) {
+                    self.build_run_id = build_run_id
                     self.duration = duration
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
@@ -3476,6 +3483,7 @@ public enum Components {
                     self.xcode_version = xcode_version
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case build_run_id
                     case duration
                     case git_branch
                     case git_commit_sha
@@ -3899,6 +3907,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/TestRun`.
         public struct TestRun: Codable, Hashable, Sendable {
+            /// The UUID of an associated build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestRun/build_run_id`.
+            public var build_run_id: Swift.String?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/TestRun/duration`.
@@ -4194,6 +4206,7 @@ public enum Components {
             /// Creates a new `TestRun`.
             ///
             /// - Parameters:
+            ///   - build_run_id: The UUID of an associated build run.
             ///   - duration: Duration of the run in milliseconds.
             ///   - git_branch: The git branch.
             ///   - git_commit_sha: The commit SHA.
@@ -4208,6 +4221,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'test' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
+                build_run_id: Swift.String? = nil,
                 duration: Swift.Int,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -4222,6 +4236,7 @@ public enum Components {
                 _type: Components.Schemas.TestRun._typePayload,
                 xcode_version: Swift.String? = nil
             ) {
+                self.build_run_id = build_run_id
                 self.duration = duration
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -4237,6 +4252,7 @@ public enum Components {
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
+                case build_run_id
                 case duration
                 case git_branch
                 case git_commit_sha
@@ -23511,6 +23527,10 @@ public enum Operations {
                     case case1(Operations.createRun.Input.Body.jsonPayload.Case1Payload)
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2`.
                     public struct Case2Payload: Codable, Hashable, Sendable {
+                        /// The UUID of an associated build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/build_run_id`.
+                        public var build_run_id: Swift.String?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/duration`.
@@ -23806,6 +23826,7 @@ public enum Operations {
                         /// Creates a new `Case2Payload`.
                         ///
                         /// - Parameters:
+                        ///   - build_run_id: The UUID of an associated build run.
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - git_branch: The git branch.
                         ///   - git_commit_sha: The commit SHA.
@@ -23820,6 +23841,7 @@ public enum Operations {
                         ///   - _type: The type of the run, which is 'test' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
+                            build_run_id: Swift.String? = nil,
                             duration: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -23834,6 +23856,7 @@ public enum Operations {
                             _type: Operations.createRun.Input.Body.jsonPayload.Case2Payload._typePayload,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.build_run_id = build_run_id
                             self.duration = duration
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -23849,6 +23872,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case build_run_id
                             case duration
                             case git_branch
                             case git_commit_sha
