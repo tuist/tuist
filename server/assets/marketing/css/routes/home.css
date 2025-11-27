@@ -1506,6 +1506,9 @@
   & > [data-part="cta"] {
     margin-bottom: var(--noora-spacing-11);
     padding-top: var(--noora-spacing-14);
-    width: 100%;
+
+    @media (min-width: 1024px) {
+      width: 100%;
+    }
   }
 }
