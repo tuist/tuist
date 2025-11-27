@@ -83,22 +83,57 @@
         selected={@analytics_selected_widget == "failed_test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
-      <.widget
-        title={gettext("Avg. test run duration")}
-        description={
-          gettext(
-            "Average test run duration represents the average time it took to run a test during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-          )
-        }
-        value={
-          gettext("%{test_runs_average_duration}s",
-            test_runs_average_duration:
-              (@test_runs_duration_analytics.total_average_duration / 1000)
-              |> Decimal.from_float()
-              |> Decimal.round(1)
-          )
-        }
+      <.percentile_dropdown_widget
         id="widget-test-run-duration"
+        title={
+          case @selected_duration_type do
+            "avg" -> gettext("Avg. test run duration")
+            "p99" -> gettext("p99 test run duration")
+            "p90" -> gettext("p90 test run duration")
+            "p50" -> gettext("p50 test run duration")
+          end
+        }
+        legend_color={
+          case @selected_duration_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "primary"
+          end
+        }
+        description={gettext("Average duration of test runs during a given period.")}
+        value={
+          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+            case @selected_duration_type do
+              "avg" -> @test_runs_duration_analytics.total_average_duration
+              "p99" -> @test_runs_duration_analytics.p99
+              "p90" -> @test_runs_duration_analytics.p90
+              "p50" -> @test_runs_duration_analytics.p50
+            end
+          )
+        }
+        metrics={
+          %{
+            avg:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.total_average_duration
+              ),
+            p99:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p99
+              ),
+            p90:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p90
+              ),
+            p50:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p50
+              )
+          }
+        }
+        selected_type={@selected_duration_type}
+        event_name="select_duration_type"
         trend_value={@test_runs_duration_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
@@ -106,6 +141,7 @@
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
         empty={@test_runs_analytics.count == 0}
+        empty_label={gettext("No data")}
       />
     </div>
     <.card_section :if={@test_runs_analytics.count != 0}>

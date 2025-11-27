@@ -2808,4 +2808,159 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.total_average_duration == 500.0
     end
   end
+
+  describe "test_run_duration_analytics/2" do
+    test "returns duration analytics with percentiles" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run_1} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _test_run_2} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 2000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _test_run_3} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "ghi789",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 3000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 12:00:00.000000],
+          test_modules: []
+        })
+
+      # When
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 2000.0
+      assert got.p50
+      assert got.p90
+      assert got.p99
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
+      assert length(got.dates) == length(got.p50_values)
+      assert length(got.dates) == length(got.p90_values)
+      assert length(got.dates) == length(got.p99_values)
+    end
+
+    test "returns zero when no test runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 0.0
+      assert got.p50 == 0.0
+      assert got.p90 == 0.0
+      assert got.p99 == 0.0
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
+    end
+
+    test "filters by is_ci" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _ci_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 5000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _local_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      # When - filter by CI only
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          is_ci: true
+        )
+
+      # Then - only CI test run has 5000ms duration
+      assert got.total_average_duration == 5000.0
+    end
+  end
 end

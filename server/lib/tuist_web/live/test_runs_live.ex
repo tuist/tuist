@@ -5,6 +5,7 @@ defmodule TuistWeb.TestRunsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -142,6 +143,22 @@ defmodule TuistWeb.TestRunsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "select_duration_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "duration_type", type)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
@@ -160,8 +177,8 @@ defmodule TuistWeb.TestRunsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     date_range = date_range(params)
-
     analytics_environment = analytics_environment(params)
+    selected_duration_type = params["duration_type"] || "avg"
 
     opts = [
       project_id: project.id,
@@ -208,63 +225,41 @@ defmodule TuistWeb.TestRunsLive do
           }
 
         "test_run_duration" ->
+          {values, name} =
+            case selected_duration_type do
+              "p99" ->
+                {test_runs_duration_analytics.p99_values, gettext("p99 test run duration")}
+
+              "p90" ->
+                {test_runs_duration_analytics.p90_values, gettext("p90 test run duration")}
+
+              "p50" ->
+                {test_runs_duration_analytics.p50_values, gettext("p50 test run duration")}
+
+              _ ->
+                {test_runs_duration_analytics.values, gettext("Avg. test run duration")}
+            end
+
           %{
             dates: test_runs_duration_analytics.dates,
-            values:
-              Enum.map(
-                test_runs_duration_analytics.values,
-                &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
-              ),
-            name: gettext("Avg. test run duration"),
-            value_formatter: "fn:formatSeconds"
+            values: values,
+            name: name,
+            value_formatter: "fn:formatMilliseconds"
           }
       end
 
     socket
-    |> assign(
-      :analytics_date_range,
-      date_range
-    )
-    |> assign(
-      :analytics_trend_label,
-      analytics_trend_label(date_range)
-    )
-    |> assign(
-      :analytics_environment,
-      analytics_environment
-    )
-    |> assign(
-      :analytics_environment_label,
-      analytics_environment_label(analytics_environment)
-    )
-    |> assign(
-      :analytics_date_range,
-      date_range
-    )
-    |> assign(
-      :analytics_selected_widget,
-      analytics_selected_widget
-    )
-    |> assign(
-      :test_runs_analytics,
-      test_runs_analytics
-    )
-    |> assign(
-      :failed_test_runs_analytics,
-      failed_test_runs_analytics
-    )
-    |> assign(
-      :test_runs_duration_analytics,
-      test_runs_duration_analytics
-    )
-    |> assign(
-      :analytics_chart_data,
-      analytics_chart_data
-    )
-    |> assign(
-      :uri,
-      uri
-    )
+    |> assign(:analytics_date_range, date_range)
+    |> assign(:analytics_trend_label, analytics_trend_label(date_range))
+    |> assign(:analytics_environment, analytics_environment)
+    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign(:selected_duration_type, selected_duration_type)
+    |> assign(:test_runs_analytics, test_runs_analytics)
+    |> assign(:failed_test_runs_analytics, failed_test_runs_analytics)
+    |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
+    |> assign(:analytics_chart_data, analytics_chart_data)
+    |> assign(:uri, uri)
   end
 
   defp start_date("last_12_months"), do: Date.add(DateTime.utc_now(), -365)
