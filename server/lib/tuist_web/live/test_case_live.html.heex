@@ -109,7 +109,7 @@
               branch: @selected_project.default_branch
             )
           }
-          value={if @reliability, do: "#{@reliability}%", else: gettext("No data")}
+          value={"#{@reliability}%"}
           id="widget-test-reliability"
           empty={is_nil(@reliability)}
           empty_label={gettext("No data")}
@@ -152,7 +152,7 @@
             type="search"
             id="search-test-case-runs"
             name="search"
-            placeholder={gettext("Search by scheme...")}
+            placeholder={gettext("Search...")}
             show_suffix={false}
             data-part="search"
             value={@test_case_runs_search}
