@@ -237,9 +237,9 @@
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
-        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
-        </div>
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
       <div :if={not Enum.empty?(@test_cases)} data-part="test-cases-table">

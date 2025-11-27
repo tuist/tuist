@@ -222,10 +222,25 @@ defmodule TuistWeb.TestCasesLive do
           }
 
         "test_case_run_duration" ->
+          {values, name} =
+            case selected_duration_type do
+              "p99" ->
+                {test_case_runs_duration_analytics.p99_values, gettext("p99 test case run duration")}
+
+              "p90" ->
+                {test_case_runs_duration_analytics.p90_values, gettext("p90 test case run duration")}
+
+              "p50" ->
+                {test_case_runs_duration_analytics.p50_values, gettext("p50 test case run duration")}
+
+              _ ->
+                {test_case_runs_duration_analytics.values, gettext("Avg. test case run duration")}
+            end
+
           %{
             dates: test_case_runs_duration_analytics.dates,
-            values: test_case_runs_duration_analytics.values,
-            name: gettext("Avg. test case run duration"),
+            values: values,
+            name: name,
             value_formatter: "fn:formatMilliseconds"
           }
       end

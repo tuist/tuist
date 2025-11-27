@@ -22,6 +22,9 @@ defmodule TuistWeb.TestCasesLiveTest do
         %{
           dates: [],
           values: [],
+          p50_values: [],
+          p90_values: [],
+          p99_values: [],
           total_average_duration: 0,
           p50: 0,
           p90: 0,

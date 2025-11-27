@@ -2352,8 +2352,42 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
+    percentile_durations_data =
+      test_case_run_percentile_durations(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
     average_durations =
       process_durations_data(average_durations_data, start_date, end_date, date_period)
+
+    p50_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p50} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p90_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p90} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p99_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p99} end),
+        start_date,
+        end_date,
+        date_period
+      )
 
     %{
       trend:
@@ -2367,7 +2401,10 @@ defmodule Tuist.Runs.Analytics do
       p99: current_period_percentiles.p99,
       average_durations: average_durations,
       dates: Enum.map(average_durations, & &1.date),
-      values: Enum.map(average_durations, & &1.value)
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
     }
   end
 
@@ -2483,5 +2520,52 @@ defmodule Tuist.Runs.Analytics do
       end
 
     ClickHouseRepo.all(query)
+  end
+
+  defp test_case_run_percentile_durations(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    is_ci_filter =
+      case is_ci do
+        nil -> ""
+        true -> "AND tr.is_ci = true"
+        false -> "AND tr.is_ci = false"
+      end
+
+    query = """
+    SELECT
+      formatDateTime(tcr.inserted_at, '#{date_format}') as date,
+      quantile(0.5)(tcr.duration) as p50,
+      quantile(0.9)(tcr.duration) as p90,
+      quantile(0.99)(tcr.duration) as p99
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.inserted_at >= {start_dt:DateTime}
+      AND tcr.inserted_at <= {end_dt:DateTime}
+      #{is_ci_filter}
+    GROUP BY formatDateTime(tcr.inserted_at, '#{date_format}')
+    ORDER BY date
+    """
+
+    result =
+      ClickHouseRepo.query!(query, %{
+        project_id: project_id,
+        start_dt: start_dt,
+        end_dt: end_dt
+      })
+
+    Enum.map(result.rows, fn [date, p50, p90, p99] ->
+      %{
+        date: date,
+        p50: p50 || 0,
+        p90: p90 || 0,
+        p99: p99 || 0
+      }
+    end)
   end
 end

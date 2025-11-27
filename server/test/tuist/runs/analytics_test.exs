@@ -2667,6 +2667,15 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.p50 != nil
       assert got.p90 != nil
       assert got.p99 != nil
+      # Verify percentile time series are returned
+      assert got.dates != nil
+      assert got.values != nil
+      assert got.p50_values != nil
+      assert got.p90_values != nil
+      assert got.p99_values != nil
+      assert length(got.dates) == length(got.p50_values)
+      assert length(got.dates) == length(got.p90_values)
+      assert length(got.dates) == length(got.p99_values)
     end
 
     test "returns zero when no test case runs exist" do
@@ -2687,6 +2696,10 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.p90 == 0
       assert got.p99 == 0
       assert got.trend == 0
+      # Verify percentile time series are filled with zeros (one for each day in the range)
+      assert Enum.all?(got.p50_values, &(&1 == 0))
+      assert Enum.all?(got.p90_values, &(&1 == 0))
+      assert Enum.all?(got.p99_values, &(&1 == 0))
     end
 
     test "filters by is_ci when specified" do

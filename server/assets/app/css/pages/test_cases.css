@@ -32,14 +32,14 @@
   & [data-part="test-cases-section"] {
     display: flex;
     flex-direction: column;
-  }
+    gap: var(--noora-spacing-8);
 
-  & [data-part="test-cases-table"] {
-    margin-top: var(--noora-spacing-6);
-  }
-
-  & [data-part="empty-test-cases"] {
-    margin-top: var(--noora-spacing-6);
+    & [data-part="active-filters"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--noora-spacing-3);
+    }
   }
 
   & .noora-card {
@@ -73,7 +73,7 @@
     }
   }
 
-  & .tuist-pagination-group {
+  & .noora-pagination-group {
     margin-top: var(--noora-spacing-7);
   }
 }
