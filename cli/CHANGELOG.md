@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.109.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.1
+
 ## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
