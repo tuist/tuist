@@ -23,7 +23,18 @@ defmodule CacheWeb.Router do
     get "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue", KeyValueController, :put_value
+
     get "/cas/:id", CASController, :download
     post "/cas/:id", CASController, :save
+
+    # Module cache routes matching server API paths
+    get "/", ModuleCacheController, :download
+    get "/exists", ModuleCacheController, :exists
+
+    scope "/multipart" do
+      post "/start", ModuleCacheController, :multipart_start
+      post "/generate-url", ModuleCacheController, :multipart_generate_url
+      post "/complete", ModuleCacheController, :multipart_complete
+    end
   end
 end

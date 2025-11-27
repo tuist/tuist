@@ -92,6 +92,97 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Constructs a module cache key from account handle, project handle, category, hash, and name.
+
+  ## Examples
+
+      iex> Cache.Disk.module_key("account", "project", "framework", "abc123", "MyModule.xcframework.zip")
+      "account/project/module/framework/abc123/MyModule.xcframework.zip"
+  """
+  def module_key(account_handle, project_handle, category, hash, name) do
+    "#{account_handle}/#{project_handle}/module/#{category}/#{hash}/#{name}"
+  end
+
+  @doc """
+  Checks if a module artifact exists on disk.
+
+  ## Examples
+
+      iex> Cache.Disk.module_exists?("account", "project", "framework", "abc123", "MyModule.xcframework.zip")
+      true
+  """
+  def module_exists?(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.exists?()
+  end
+
+  @doc """
+  Writes data to disk for given account, project, and module artifact.
+
+  Accepts either binary data or a file path.
+
+  ## Examples
+
+      iex> Cache.Disk.module_put("account", "project", "framework", "abc123", "MyModule.xcframework.zip", <<1, 2, 3>>)
+      :ok
+
+      iex> Cache.Disk.module_put("account", "project", "framework", "abc123", "MyModule.xcframework.zip", {:file, "/tmp/upload-123"})
+      :ok
+  """
+  def module_put(account_handle, project_handle, category, hash, name, {:file, tmp_path}) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- move_file(tmp_path, path) do
+      :ok
+    else
+      {:error, _} = error ->
+        File.rm(tmp_path)
+        error
+    end
+  end
+
+  def module_put(account_handle, project_handle, category, hash, name, data) when is_binary(data) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write module artifact to #{path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  @doc """
+  Returns file stat information for a module artifact.
+
+  ## Examples
+
+      iex> Cache.Disk.module_stat("account", "project", "framework", "abc123", "MyModule.xcframework.zip")
+      {:ok, %File.Stat{size: 1024, ...}}
+  """
+  def module_stat(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
+  Build the internal X-Accel-Redirect path for a module artifact.
+
+  The returned path maps to the nginx internal location that aliases the
+  physical storage directory.
+  """
+  def module_local_accel_path(account_handle, project_handle, category, hash, name) do
+    "/internal/local/" <> module_key(account_handle, project_handle, category, hash, name)
+  end
+
+  @doc """
   Build the internal X-Accel-Redirect path for a CAS artifact.
 
   The returned path maps to the nginx internal location that aliases the

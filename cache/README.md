@@ -68,7 +68,7 @@ The service runs on port 4000 by default in development mode.
 - **Cache.Disk** - Local disk storage backend for CAS objects
   - Atomic file operations with proper error handling
   - Cross-device move support (falls back to copy)
-- **Cache.CASArtifacts** - Persists artifact metadata in SQLite to power LRU eviction logic
+- **Cache.CacheArtifacts** - Persists artifact metadata in SQLite to power LRU eviction logic
 - **Cache.KeyValueStore** - In-memory Cachex-based key-value store
 - **Cache.Authentication** - Authentication against Tuist server API
   - Caches successful auth for 10 minutes

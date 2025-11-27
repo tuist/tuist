@@ -2,7 +2,7 @@ defmodule CacheWeb.CASController do
   use CacheWeb, :controller
 
   alias Cache.BodyReader
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3DownloadWorker
@@ -13,7 +13,7 @@ defmodule CacheWeb.CASController do
   def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
     key = Disk.cas_key(account_handle, project_handle, id)
-    :ok = CASArtifacts.track_artifact_access(key)
+    :ok = CacheArtifacts.track_artifact_access(key)
 
     case Disk.stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
@@ -117,7 +117,7 @@ defmodule CacheWeb.CASController do
           project_handle: project_handle
         })
 
-        :ok = CASArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))
+        :ok = CacheArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))
         S3UploadWorker.enqueue_upload(account_handle, project_handle, id)
         send_resp(conn, :no_content, "")
 
