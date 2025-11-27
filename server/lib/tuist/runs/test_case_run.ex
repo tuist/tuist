@@ -26,6 +26,12 @@ defmodule Tuist.Runs.TestCaseRun do
     field :test_run_id, Ecto.UUID
     field :test_module_run_id, Ecto.UUID
     field :test_suite_run_id, Ecto.UUID
+    field :project_id, Ch, type: "Nullable(Int64)"
+    field :is_ci, Ch, type: "Nullable(Bool)"
+    field :scheme, Ch, type: "Nullable(String)"
+    field :account_id, Ch, type: "Nullable(Int64)"
+    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
+    field :git_branch, Ch, type: "Nullable(String)"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -41,6 +47,12 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_run_id,
       :test_module_run_id,
       :test_suite_run_id,
+      :project_id,
+      :is_ci,
+      :scheme,
+      :account_id,
+      :ran_at,
+      :git_branch,
       :status,
       :duration,
       :inserted_at,

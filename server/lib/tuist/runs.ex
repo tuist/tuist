@@ -561,6 +561,12 @@ defmodule Tuist.Runs do
           test_run_id: test.id,
           test_module_run_id: module_id,
           test_suite_run_id: test_suite_run_id,
+          project_id: test.project_id,
+          is_ci: test.is_ci,
+          scheme: test.scheme,
+          account_id: test.account_id,
+          ran_at: test.ran_at,
+          git_branch: test.git_branch,
           status: Map.get(case_attrs, :status),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
@@ -666,8 +672,7 @@ defmodule Tuist.Runs do
       argMax(status, inserted_at) as last_status,
       max(inserted_at) as last_ran_at
     FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
+    WHERE tcr.project_id = {project_id:Int64}
       AND tcr.inserted_at >= now() - INTERVAL 14 DAY
       #{where_conditions}
       #{search_condition}
@@ -686,8 +691,7 @@ defmodule Tuist.Runs do
         module_name,
         suite_name
       FROM test_case_runs tcr
-      JOIN test_runs tr ON tcr.test_run_id = tr.id
-      WHERE tr.project_id = {project_id:Int64}
+      WHERE tcr.project_id = {project_id:Int64}
         AND tcr.inserted_at >= now() - INTERVAL 14 DAY
         #{where_conditions}
         #{search_condition}
@@ -804,8 +808,7 @@ defmodule Tuist.Runs do
       argMax(duration, inserted_at) as last_duration,
       max(inserted_at) as last_ran_at
     FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
+    WHERE tcr.project_id = {project_id:Int64}
       AND tcr.name = {name:String}
       AND tcr.module_name = {module_name:String}
       AND tcr.suite_name = {suite_name:String}
@@ -850,87 +853,50 @@ defmodule Tuist.Runs do
 
     offset = (page - 1) * page_size
 
-    search_condition =
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.name == ^name,
+        where: tcr.module_name == ^module_name,
+        where: tcr.suite_name == ^suite_name
+      )
+
+    base_query =
       if search == "" do
-        ""
+        base_query
       else
-        "AND tr.scheme ILIKE {search:String}"
+        search_term = "%#{search}%"
+        where(base_query, [tcr], ilike(tcr.scheme, ^search_term))
       end
 
-    filter_conditions = build_test_case_runs_filter_conditions(filters)
-    order_by = build_test_case_runs_order_by(sort_by, sort_order)
+    base_query = apply_test_case_run_filters(base_query, filters)
 
-    query = """
-    SELECT
-      toString(tcr.id) as id,
-      tcr.status,
-      tcr.duration,
-      tcr.inserted_at,
-      toString(tr.id) as test_run_id,
-      tr.scheme,
-      tr.is_ci,
-      tr.account_id,
-      tr.ran_at
-    FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
-      AND tcr.name = {name:String}
-      AND tcr.module_name = {module_name:String}
-      AND tcr.suite_name = {suite_name:String}
-      #{search_condition}
-      #{filter_conditions}
-    ORDER BY #{order_by}
-    LIMIT {limit:Int32}
-    OFFSET {offset:Int32}
-    """
+    count_query = select(base_query, [tcr], count(tcr.id))
+    total_count = ClickHouseRepo.one(count_query) || 0
 
-    count_query = """
-    SELECT count() as total
-    FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
-      AND tcr.name = {name:String}
-      AND tcr.module_name = {module_name:String}
-      AND tcr.suite_name = {suite_name:String}
-      #{search_condition}
-      #{filter_conditions}
-    """
-
-    params = %{
-      project_id: project_id,
-      name: name,
-      module_name: module_name,
-      suite_name: suite_name,
-      limit: page_size,
-      offset: offset,
-      search: "%#{search}%"
-    }
-
-    result = ClickHouseRepo.query!(query, params)
-    count_result = ClickHouseRepo.query!(count_query, params)
+    data_query =
+      base_query
+      |> apply_test_case_run_order(sort_by, sort_order)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> select([tcr], %{
+        id: tcr.id,
+        status: tcr.status,
+        duration: tcr.duration,
+        inserted_at: tcr.inserted_at,
+        test_run_id: tcr.test_run_id,
+        scheme: tcr.scheme,
+        is_ci: tcr.is_ci,
+        account_id: tcr.account_id,
+        ran_at: tcr.ran_at
+      })
 
     test_case_runs =
-      Enum.map(result.rows, fn [id, status, duration, inserted_at, test_run_id, scheme, is_ci, account_id, ran_at] ->
-        %{
-          id: id,
-          status: status,
-          duration: normalize_duration(duration),
-          inserted_at: inserted_at,
-          test_run_id: test_run_id,
-          scheme: scheme,
-          is_ci: is_ci,
-          account_id: account_id,
-          ran_at: ran_at
-        }
-      end)
+      data_query
+      |> ClickHouseRepo.all()
+      |> Enum.map(fn row -> %{row | duration: normalize_duration(row.duration)} end)
 
-    total_count =
-      case count_result.rows do
-        [[count]] -> count
-        _ -> 0
-      end
-
-    total_pages = ceil(total_count / page_size)
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
 
     meta = %{
       current_page: page,
@@ -944,46 +910,46 @@ defmodule Tuist.Runs do
     {test_case_runs, meta}
   end
 
-  defp build_test_case_runs_filter_conditions(filters) do
-    conditions =
-      Enum.reduce(filters, [], fn filter, acc ->
-        field = Map.get(filter, :field)
-        op = Map.get(filter, :op)
-        value = Map.get(filter, :value)
+  defp apply_test_case_run_filters(query, filters) do
+    Enum.reduce(filters, query, fn filter, acc ->
+      field = Map.get(filter, :field)
+      op = Map.get(filter, :op)
+      value = Map.get(filter, :value)
 
-        case {field, op, value} do
-          {"status", :==, status} when status in ["success", "failure", "skipped"] ->
-            ["AND tcr.status = '#{status}'" | acc]
+      case {field, op, value} do
+        {"status", :==, status} when status in ["success", "failure", "skipped"] ->
+          where(acc, [tcr], tcr.status == ^status)
 
-          {"is_ci", :==, true} ->
-            ["AND tr.is_ci = true" | acc]
+        {"is_ci", :==, true} ->
+          where(acc, [tcr], tcr.is_ci == true)
 
-          {"account_id", :==, account_id} when is_integer(account_id) ->
-            ["AND tr.account_id = #{account_id}" | acc]
+        {"account_id", :==, account_id} when is_integer(account_id) ->
+          where(acc, [tcr], tcr.account_id == ^account_id)
 
-          {"account_id", :==, account_id} when is_binary(account_id) ->
-            ["AND tr.account_id = #{account_id}" | acc]
+        {"account_id", :==, account_id} when is_binary(account_id) ->
+          case Integer.parse(account_id) do
+            {id, _} -> where(acc, [tcr], tcr.account_id == ^id)
+            :error -> acc
+          end
 
-          {"duration", :>, duration_str} when is_binary(duration_str) ->
-            case Integer.parse(duration_str) do
-              {duration_ms, _} -> ["AND tcr.duration > #{duration_ms}" | acc]
-              :error -> acc
-            end
+        {"duration", :>, duration_str} when is_binary(duration_str) ->
+          case Integer.parse(duration_str) do
+            {duration_ms, _} -> where(acc, [tcr], tcr.duration > ^duration_ms)
+            :error -> acc
+          end
 
-          _ ->
-            acc
-        end
-      end)
-
-    Enum.join(conditions, " ")
+        _ ->
+          acc
+      end
+    end)
   end
 
-  defp build_test_case_runs_order_by(sort_by, sort_order) do
-    direction = if sort_order == "asc", do: "ASC", else: "DESC"
+  defp apply_test_case_run_order(query, sort_by, sort_order) do
+    direction = if sort_order == "asc", do: :asc, else: :desc
 
     case sort_by do
-      "duration" -> "tcr.duration #{direction}"
-      _ -> "tr.ran_at #{direction}"
+      "duration" -> order_by(query, [tcr], [{^direction, tcr.duration}])
+      _ -> order_by(query, [tcr], [{^direction, tcr.ran_at}])
     end
   end
 end

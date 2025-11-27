@@ -64,6 +64,8 @@ defmodule TuistWeb.TestCasesLiveTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testExample",

@@ -2371,6 +2371,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -2382,6 +2384,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
@@ -2393,6 +2397,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
@@ -2461,6 +2467,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: ci_test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -2472,6 +2480,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: local_test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
@@ -2483,6 +2493,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: local_test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
@@ -2533,6 +2545,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -2544,6 +2558,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
@@ -2555,6 +2571,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
@@ -2624,6 +2642,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -2635,6 +2655,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
@@ -2646,6 +2668,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
@@ -2664,15 +2688,15 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.total_average_duration == 200.0
-      assert got.p50 != nil
-      assert got.p90 != nil
-      assert got.p99 != nil
+      assert got.p50
+      assert got.p90
+      assert got.p99
       # Verify percentile time series are returned
-      assert got.dates != nil
-      assert got.values != nil
-      assert got.p50_values != nil
-      assert got.p90_values != nil
-      assert got.p99_values != nil
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
       assert length(got.dates) == length(got.p50_values)
       assert length(got.dates) == length(got.p90_values)
       assert length(got.dates) == length(got.p99_values)
@@ -2748,6 +2772,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: ci_test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -2759,6 +2785,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: local_test_run.id,
           test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",

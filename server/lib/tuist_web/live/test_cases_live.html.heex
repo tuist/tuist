@@ -73,7 +73,9 @@
             "Failed test case runs represents the number of individual test case executions that failed during a given period."
           )
         }
-        value={Number.Delimit.number_to_delimited(@failed_test_case_runs_analytics.count, precision: 0)}
+        value={
+          Number.Delimit.number_to_delimited(@failed_test_case_runs_analytics.count, precision: 0)
+        }
         id="widget-failed-test-case-run-count"
         trend_value={@failed_test_case_runs_analytics.trend}
         trend_label={@analytics_trend_label}

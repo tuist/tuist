@@ -683,6 +683,7 @@ test_case_runs =
     # Create the number of test cases specified in test_case_count
     case_count = suite_run.test_case_count
     module_run = Enum.find(test_module_runs, &(&1.id == suite_run.test_module_run_id))
+    test_run = Enum.find(tests, &(&1.id == suite_run.test_run_id))
 
     Enum.map(1..case_count, fn _ ->
       test_case_name = Enum.random(test_case_names)
@@ -702,6 +703,12 @@ test_case_runs =
         test_run_id: suite_run.test_run_id,
         test_module_run_id: suite_run.test_module_run_id,
         test_suite_run_id: suite_run.id,
+        project_id: test_run.project_id,
+        is_ci: test_run.is_ci,
+        scheme: test_run.scheme,
+        account_id: test_run.account_id,
+        ran_at: test_run.ran_at,
+        git_branch: test_run.git_branch,
         status: case_status,
         duration: case_duration,
         module_name: module_run.name,

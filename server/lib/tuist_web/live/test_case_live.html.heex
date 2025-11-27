@@ -32,7 +32,10 @@
         {@test_case_detail.name}
       </h1>
     </div>
-    <div :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""} data-part="badges">
+    <div
+      :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
+      data-part="badges"
+    >
       <.badge
         :if={@test_case_detail.module_name != ""}
         label={"Module: #{@test_case_detail.module_name}"}
@@ -70,13 +73,18 @@
             <div data-part="title">{gettext("Last run duration")}</div>
             <span data-part="value">
               <.history />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@test_case_detail.last_duration)}
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_case_detail.last_duration
+              )}
             </span>
           </div>
           <div data-part="metadata">
             <div data-part="title">{gettext("Last ran at")}</div>
             <span data-part="value">
-              {Tuist.Utilities.DateFormatter.format_with_timezone(@test_case_detail.last_ran_at, @user_timezone)}
+              {Tuist.Utilities.DateFormatter.format_with_timezone(
+                @test_case_detail.last_ran_at,
+                @user_timezone
+              )}
             </span>
           </div>
         </div>
@@ -107,7 +115,11 @@
         <.widget
           title={gettext("Avg. test case run duration")}
           description={gettext("Average duration of this test case across all runs.")}
-          value={Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@analytics.avg_duration)}
+          value={
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              @analytics.avg_duration
+            )
+          }
           id="widget-avg-duration"
           empty={@analytics.total_count == 0}
           empty_label={gettext("No data")}
@@ -207,7 +219,11 @@
           }
         >
           <.text_cell
-            label={Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(test_case_run.duration)}
+            label={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                test_case_run.duration
+              )
+            }
             icon="history"
           />
         </:col>

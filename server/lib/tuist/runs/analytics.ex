@@ -2249,9 +2249,7 @@ defmodule Tuist.Runs.Analytics do
 
     query =
       from(tcr in TestCaseRun,
-        join: tr in Test,
-        on: tcr.test_run_id == tr.id,
-        where: tr.project_id == ^project_id,
+        where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_dt,
         where: tcr.inserted_at <= ^end_dt,
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
@@ -2265,16 +2263,16 @@ defmodule Tuist.Runs.Analytics do
     query =
       case is_ci do
         nil -> query
-        true -> where(query, [_tcr, tr], tr.is_ci == true)
-        false -> where(query, [_tcr, tr], tr.is_ci == false)
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
     query =
       case status do
         nil -> query
-        "failure" -> where(query, [tcr, _tr], tcr.status == "failure")
-        "success" -> where(query, [tcr, _tr], tcr.status == "success")
-        "skipped" -> where(query, [tcr, _tr], tcr.status == "skipped")
+        "failure" -> where(query, [tcr], tcr.status == "failure")
+        "success" -> where(query, [tcr], tcr.status == "success")
+        "skipped" -> where(query, [tcr], tcr.status == "skipped")
       end
 
     ClickHouseRepo.all(query)
@@ -2289,9 +2287,7 @@ defmodule Tuist.Runs.Analytics do
 
     query =
       from(tcr in TestCaseRun,
-        join: tr in Test,
-        on: tcr.test_run_id == tr.id,
-        where: tr.project_id == ^project_id,
+        where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_dt,
         where: tcr.inserted_at <= ^end_dt,
         select: count(tcr.id)
@@ -2300,16 +2296,16 @@ defmodule Tuist.Runs.Analytics do
     query =
       case is_ci do
         nil -> query
-        true -> where(query, [_tcr, tr], tr.is_ci == true)
-        false -> where(query, [_tcr, tr], tr.is_ci == false)
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
     query =
       case status do
         nil -> query
-        "failure" -> where(query, [tcr, _tr], tcr.status == "failure")
-        "success" -> where(query, [tcr, _tr], tcr.status == "success")
-        "skipped" -> where(query, [tcr, _tr], tcr.status == "skipped")
+        "failure" -> where(query, [tcr], tcr.status == "failure")
+        "success" -> where(query, [tcr], tcr.status == "success")
+        "skipped" -> where(query, [tcr], tcr.status == "skipped")
       end
 
     ClickHouseRepo.one(query) || 0
@@ -2416,9 +2412,7 @@ defmodule Tuist.Runs.Analytics do
 
     query =
       from(tcr in TestCaseRun,
-        join: tr in Test,
-        on: tcr.test_run_id == tr.id,
-        where: tr.project_id == ^project_id,
+        where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_dt,
         where: tcr.inserted_at <= ^end_dt,
         select: avg(tcr.duration)
@@ -2427,8 +2421,8 @@ defmodule Tuist.Runs.Analytics do
     query =
       case is_ci do
         nil -> query
-        true -> where(query, [_tcr, tr], tr.is_ci == true)
-        false -> where(query, [_tcr, tr], tr.is_ci == false)
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
     result = ClickHouseRepo.one(query)
@@ -2449,8 +2443,8 @@ defmodule Tuist.Runs.Analytics do
     is_ci_filter =
       case is_ci do
         nil -> ""
-        true -> "AND tr.is_ci = true"
-        false -> "AND tr.is_ci = false"
+        true -> "AND tcr.is_ci = true"
+        false -> "AND tcr.is_ci = false"
       end
 
     query = """
@@ -2459,8 +2453,7 @@ defmodule Tuist.Runs.Analytics do
       quantile(0.90)(tcr.duration) as p90,
       quantile(0.99)(tcr.duration) as p99
     FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
+    WHERE tcr.project_id = {project_id:Int64}
       AND tcr.inserted_at >= {start_dt:DateTime64(6)}
       AND tcr.inserted_at <= {end_dt:DateTime64(6)}
       #{is_ci_filter}
@@ -2499,9 +2492,7 @@ defmodule Tuist.Runs.Analytics do
 
     query =
       from(tcr in TestCaseRun,
-        join: tr in Test,
-        on: tcr.test_run_id == tr.id,
-        where: tr.project_id == ^project_id,
+        where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_dt,
         where: tcr.inserted_at <= ^end_dt,
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
@@ -2515,8 +2506,8 @@ defmodule Tuist.Runs.Analytics do
     query =
       case is_ci do
         nil -> query
-        true -> where(query, [_tcr, tr], tr.is_ci == true)
-        false -> where(query, [_tcr, tr], tr.is_ci == false)
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
     ClickHouseRepo.all(query)
@@ -2532,8 +2523,8 @@ defmodule Tuist.Runs.Analytics do
     is_ci_filter =
       case is_ci do
         nil -> ""
-        true -> "AND tr.is_ci = true"
-        false -> "AND tr.is_ci = false"
+        true -> "AND tcr.is_ci = true"
+        false -> "AND tcr.is_ci = false"
       end
 
     query = """
@@ -2543,8 +2534,7 @@ defmodule Tuist.Runs.Analytics do
       quantile(0.9)(tcr.duration) as p90,
       quantile(0.99)(tcr.duration) as p99
     FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
+    WHERE tcr.project_id = {project_id:Int64}
       AND tcr.inserted_at >= {start_dt:DateTime}
       AND tcr.inserted_at <= {end_dt:DateTime}
       #{is_ci_filter}
@@ -2574,33 +2564,26 @@ defmodule Tuist.Runs.Analytics do
   Returns the percentage of successful runs (0-100) or nil if no runs exist on the default branch.
   """
   def test_case_reliability(project_id, name, module_name, suite_name, default_branch) do
-    query = """
-    SELECT
-      countIf(tcr.status = 'success') as success_count,
-      count(*) as total_count
-    FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
-      AND tr.git_branch = {default_branch:String}
-      AND tcr.name = {name:String}
-      AND tcr.module_name = {module_name:String}
-      AND tcr.suite_name = {suite_name:String}
-    """
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.git_branch == ^default_branch,
+        where: tcr.name == ^name,
+        where: tcr.module_name == ^module_name,
+        where: tcr.suite_name == ^suite_name,
+        select: %{
+          success_count: fragment("countIf(? = 'success')", tcr.status),
+          total_count: count(tcr.id)
+        }
+      )
 
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        default_branch: default_branch,
-        name: name,
-        module_name: module_name,
-        suite_name: suite_name
-      })
+    result = ClickHouseRepo.one(query)
 
-    case result.rows do
-      [[_success_count, 0]] ->
+    case result do
+      %{total_count: 0} ->
         nil
 
-      [[success_count, total_count]] when total_count > 0 ->
+      %{success_count: success_count, total_count: total_count} when total_count > 0 ->
         Float.round(success_count / total_count * 100, 1)
 
       _ ->
@@ -2612,40 +2595,30 @@ defmodule Tuist.Runs.Analytics do
   Gets analytics for a specific test case including total runs, failed runs, and average duration.
   """
   def test_case_analytics(project_id, name, module_name, suite_name, _opts \\ []) do
-    query = """
-    SELECT
-      count(*) as total_count,
-      countIf(tcr.status = 'failure') as failed_count,
-      avg(tcr.duration) as avg_duration
-    FROM test_case_runs tcr
-    JOIN test_runs tr ON tcr.test_run_id = tr.id
-    WHERE tr.project_id = {project_id:Int64}
-      AND tcr.name = {name:String}
-      AND tcr.module_name = {module_name:String}
-      AND tcr.suite_name = {suite_name:String}
-    """
-
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        name: name,
-        module_name: module_name,
-        suite_name: suite_name
-      })
-
-    case result.rows do
-      [[total_count, failed_count, avg_duration]] ->
-        %{
-          total_count: total_count,
-          failed_count: failed_count,
-          avg_duration: normalize_duration(avg_duration)
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.name == ^name,
+        where: tcr.module_name == ^module_name,
+        where: tcr.suite_name == ^suite_name,
+        select: %{
+          total_count: count(tcr.id),
+          failed_count: fragment("countIf(? = 'failure')", tcr.status),
+          avg_duration: avg(tcr.duration)
         }
+      )
 
-      _ ->
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      nil ->
+        %{total_count: 0, failed_count: 0, avg_duration: 0}
+
+      %{total_count: total, failed_count: failed, avg_duration: avg} ->
         %{
-          total_count: 0,
-          failed_count: 0,
-          avg_duration: 0
+          total_count: total,
+          failed_count: failed,
+          avg_duration: normalize_duration(avg)
         }
     end
   end
