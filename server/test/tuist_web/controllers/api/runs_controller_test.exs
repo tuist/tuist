@@ -884,6 +884,40 @@ defmodule TuistWeb.API.RunsControllerTest do
              }
     end
 
+    test "creates a build when type is not passed (legacy CLI pre-4.107.0)", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      assert build.duration == 1000
+      assert build.is_ci == false
+      assert build.project_id == project.id
+      assert build.account_id == user.account.id
+
+      assert response == %{
+               "type" => "build",
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
+
     test "creates a new build with cacheable tasks that have cas_output_node_ids", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")

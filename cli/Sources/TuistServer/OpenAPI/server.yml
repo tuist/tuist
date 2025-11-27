@@ -1218,7 +1218,6 @@ components:
               x-struct:
               x-validate:
           required:
-            - type
             - id
             - duration
             - is_ci
@@ -2854,7 +2853,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - type
         - id
         - duration
         - is_ci
@@ -7318,7 +7316,6 @@ paths:
                       x-struct:
                       x-validate:
                   required:
-                    - type
                     - id
                     - duration
                     - is_ci
