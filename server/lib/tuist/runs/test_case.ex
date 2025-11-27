@@ -18,11 +18,13 @@ defmodule Tuist.Runs.TestCase do
     field :last_duration, Ch, type: "Int32"
     field :last_ran_at, Ch, type: "DateTime64(6)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    field :recent_durations, Ch, type: "Array(Int32)"
+    field :avg_duration, Ch, type: "Int64"
   end
 
   def create_changeset(test_case, attrs) do
     test_case
-    |> cast(attrs, [:id, :name, :module_name, :suite_name, :project_id, :last_status, :last_duration, :last_ran_at, :inserted_at])
+    |> cast(attrs, [:id, :name, :module_name, :suite_name, :project_id, :last_status, :last_duration, :last_ran_at, :inserted_at, :recent_durations, :avg_duration])
     |> validate_required([:id, :name, :module_name, :suite_name, :project_id, :last_status, :last_duration, :last_ran_at])
   end
 end

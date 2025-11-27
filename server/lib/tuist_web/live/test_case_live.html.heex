@@ -114,7 +114,7 @@
         />
         <.widget
           title={gettext("Avg. test case run duration")}
-          description={gettext("Average duration of this test case across all runs.")}
+          description={gettext("Average duration of this test case across the last 50 runs.")}
           value={
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               @analytics.avg_duration

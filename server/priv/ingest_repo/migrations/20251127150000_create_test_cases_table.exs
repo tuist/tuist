@@ -16,6 +16,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCasesTable do
       add :last_duration, :Int32, null: false, default: 0
       add :last_ran_at, :"DateTime64(6)", null: false
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
+      add :recent_durations, :"Array(Int32)", null: false, default: fragment("[]")
+      add :avg_duration, :Int64, null: false, default: 0
     end
 
     execute(

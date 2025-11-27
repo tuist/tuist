@@ -480,28 +480,63 @@ defmodule Tuist.Runs do
   - :status, :duration, :ran_at - latest run data
   """
   def create_test_cases(project_id, test_case_data_list) do
-      now = NaiveDateTime.utc_now()
+    now = NaiveDateTime.utc_now()
 
-      test_cases =
-        Enum.map(test_case_data_list, fn data ->
-          %{
-            id: generate_test_case_id(project_id, data.name, data.module_name, data.suite_name),
-            name: data.name,
-            module_name: data.module_name,
-            suite_name: data.suite_name,
-            project_id: project_id,
-            last_status: data.status,
-            last_duration: data.duration,
-            last_ran_at: data.ran_at,
-            inserted_at: now
-          }
-        end)
-
-      IngestRepo.insert_all(TestCase, test_cases)
-
-      Map.new(test_cases, fn tc ->
-        {{tc.name, tc.module_name, tc.suite_name}, tc.id}
+    test_case_ids_with_data =
+      Enum.map(test_case_data_list, fn data ->
+        id = generate_test_case_id(project_id, data.name, data.module_name, data.suite_name)
+        {id, data}
       end)
+
+    test_case_ids = Enum.map(test_case_ids_with_data, fn {id, _} -> id end)
+
+    existing_data = fetch_existing_test_case_data(project_id, test_case_ids)
+
+    test_cases =
+      Enum.map(test_case_ids_with_data, fn {id, data} ->
+        existing = Map.get(existing_data, id, %{recent_durations: []})
+        new_durations = Enum.take([data.duration | existing.recent_durations], 50)
+
+        new_avg =
+          if Enum.empty?(new_durations),
+            do: 0,
+            else: div(Enum.sum(new_durations), length(new_durations))
+
+        %{
+          id: id,
+          name: data.name,
+          module_name: data.module_name,
+          suite_name: data.suite_name,
+          project_id: project_id,
+          last_status: data.status,
+          last_duration: data.duration,
+          last_ran_at: data.ran_at,
+          inserted_at: now,
+          recent_durations: new_durations,
+          avg_duration: new_avg
+        }
+      end)
+
+    IngestRepo.insert_all(TestCase, test_cases)
+
+    Map.new(test_cases, fn tc ->
+      {{tc.name, tc.module_name, tc.suite_name}, tc.id}
+    end)
+  end
+
+  defp fetch_existing_test_case_data(_project_id, []), do: %{}
+
+  defp fetch_existing_test_case_data(project_id, test_case_ids) do
+    query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        where: tc.id in ^test_case_ids,
+        select: %{id: tc.id, recent_durations: tc.recent_durations}
+      )
+
+    IngestRepo.all(query)
+    |> Map.new(fn row -> {row.id, row} end)
   end
 
   defp generate_test_case_id(project_id, name, module_name, suite_name) do
@@ -797,18 +832,23 @@ defmodule Tuist.Runs do
 
     offset = (page - 1) * page_size
 
+    # Only show test cases that were run in the last 2 weeks
+    two_weeks_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-14, :day)
+
     # Query test_cases directly with FINAL to force deduplication
     # Denormalized fields are kept up to date by ReplacingMergeTree
     base_query =
       from(tc in TestCase,
         hints: ["FINAL"],
         where: tc.project_id == ^project_id,
+        where: tc.last_ran_at >= ^two_weeks_ago,
         select: %{
           id: tc.id,
           name: tc.name,
           module_name: tc.module_name,
           suite_name: tc.suite_name,
           last_duration: tc.last_duration,
+          avg_duration: tc.avg_duration,
           last_status: tc.last_status,
           last_ran_at: tc.last_ran_at
         }
@@ -821,7 +861,14 @@ defmodule Tuist.Runs do
     base_query = apply_test_cases_order(base_query, sort_by, sort_order)
 
     # Get count with FINAL for deduplication
-    count_query = from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: count())
+    count_query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        where: tc.last_ran_at >= ^two_weeks_ago,
+        select: count()
+      )
+
     count_query = apply_test_cases_filters(count_query, filters, search)
     total_count = ClickHouseRepo.one(count_query) || 0
 
@@ -893,9 +940,8 @@ defmodule Tuist.Runs do
       "last_duration" ->
         order_by(query, [tc], [{^direction, tc.last_duration}])
 
-      # Support legacy "avg_duration" as alias for "last_duration"
       "avg_duration" ->
-        order_by(query, [tc], [{^direction, tc.last_duration}])
+        order_by(query, [tc], [{^direction, tc.avg_duration}])
 
       _ ->
         order_by(query, [tc], [{^direction, tc.last_ran_at}])

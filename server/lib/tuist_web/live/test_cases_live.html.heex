@@ -238,7 +238,7 @@
           label={
             case @test_cases_sort_by do
               "name" -> gettext("Test Case")
-              "last_duration" -> gettext("Last duration")
+              "avg_duration" -> gettext("Avg. duration")
               _ -> gettext("Last ran at")
             end
           }
@@ -261,10 +261,10 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
           <.dropdown_item
-            value="last_duration"
-            label={gettext("Last duration")}
-            patch={sort_by_patch(@uri, "last_duration")}
-            data-selected={@test_cases_sort_by == "last_duration"}
+            value="avg_duration"
+            label={gettext("Avg. duration")}
+            patch={sort_by_patch(@uri, "avg_duration")}
+            data-selected={@test_cases_sort_by == "avg_duration"}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -322,20 +322,20 @@
           </:col>
           <:col
             :let={test_case}
-            label={gettext("Last duration")}
+            label={gettext("Avg. duration")}
             patch={
-              @test_cases_sort_by == "last_duration" &&
-                column_sort_patch(assigns, "last_duration")
+              @test_cases_sort_by == "avg_duration" &&
+                column_sort_patch(assigns, "avg_duration")
             }
             icon={
-              @test_cases_sort_by == "last_duration" &&
+              @test_cases_sort_by == "avg_duration" &&
                 sort_icon(@test_cases_sort_order)
             }
           >
             <.text_cell
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.last_duration
+                  test_case.avg_duration
                 )
               }
               icon="history"
