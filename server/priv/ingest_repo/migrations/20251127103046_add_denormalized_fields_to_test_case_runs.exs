@@ -4,11 +4,11 @@ defmodule Tuist.IngestRepo.Migrations.AddDenormalizedFieldsToTestCaseRuns do
   def change do
     alter table(:test_case_runs) do
       add :project_id, :"Nullable(Int64)"
-      add :is_ci, :"Nullable(Bool)"
-      add :scheme, :"Nullable(String)"
+      add :is_ci, :Bool, default: false
+      add :scheme, :String, default: ""
       add :account_id, :"Nullable(Int64)"
       add :ran_at, :"Nullable(DateTime64(6))"
-      add :git_branch, :"Nullable(String)"
+      add :git_branch, :String, default: ""
     end
   end
 end
