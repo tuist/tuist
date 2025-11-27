@@ -520,7 +520,6 @@ defmodule TuistWeb.API.RunsController do
                }
              },
              required: [
-               :type,
                :id,
                :duration,
                :is_ci
@@ -733,7 +732,7 @@ defmodule TuistWeb.API.RunsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
-    case Map.get(body_params, :type) do
+    case Map.get(body_params, :type, "build") do
       "build" ->
         case get_or_create_build(run_params) do
           {:ok, build} ->

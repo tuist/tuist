@@ -3024,7 +3024,7 @@ public enum Components {
                 /// The type of the run, which is 'build' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/type`.
-                public var _type: Components.Schemas.RunParams.Case1Payload._typePayload
+                public var _type: Components.Schemas.RunParams.Case1Payload._typePayload?
                 /// The version of Xcode used during the run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/xcode_version`.
@@ -3079,7 +3079,7 @@ public enum Components {
                     scheme: Swift.String? = nil,
                     status: Components.Schemas.RunParams.Case1Payload.statusPayload? = nil,
                     targets: Components.Schemas.RunParams.Case1Payload.targetsPayload? = nil,
-                    _type: Components.Schemas.RunParams.Case1Payload._typePayload,
+                    _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
                     self.cacheable_tasks = cacheable_tasks
@@ -5535,7 +5535,7 @@ public enum Components {
             /// The type of the run, which is 'build' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/type`.
-            public var _type: Components.Schemas.BuildRun._typePayload
+            public var _type: Components.Schemas.BuildRun._typePayload?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/xcode_version`.
@@ -5590,7 +5590,7 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildRun.statusPayload? = nil,
                 targets: Components.Schemas.BuildRun.targetsPayload? = nil,
-                _type: Components.Schemas.BuildRun._typePayload,
+                _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -23499,7 +23499,7 @@ public enum Operations {
                         /// The type of the run, which is 'build' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/type`.
-                        public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload
+                        public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload?
                         /// The version of Xcode used during the run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/xcode_version`.
@@ -23554,7 +23554,7 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = nil,
                             targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload? = nil,
-                            _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload,
+                            _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
                             self.cacheable_tasks = cacheable_tasks
