@@ -157,6 +157,13 @@
         align-items: flex-start;
         gap: var(--noora-spacing-3);
       }
+
+      & .noora-table {
+        & th:nth-child(1),
+        & td:nth-child(1) {
+          width: 40%;
+        }
+      }
     }
   }
 }

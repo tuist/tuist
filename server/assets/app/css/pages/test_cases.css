@@ -40,6 +40,13 @@
       align-items: flex-start;
       gap: var(--noora-spacing-3);
     }
+
+    & [data-part="test-cases-table"] .noora-table {
+      & th:nth-child(1),
+      & td:nth-child(1) {
+        width: 50%;
+      }
+    }
   }
 
   & .noora-card {
