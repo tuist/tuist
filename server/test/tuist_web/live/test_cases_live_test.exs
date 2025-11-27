@@ -6,9 +6,7 @@ defmodule TuistWeb.TestCasesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
-  alias Tuist.Runs.TestCaseRun
 
   describe "test cases page" do
     setup do
@@ -54,26 +52,11 @@ defmodule TuistWeb.TestCasesLiveTest do
       organization: organization,
       project: project
     } do
-      # Given
-      {:ok, test_run} = create_test_run(project, organization.account)
+      # Given - create test run with test modules/cases using the proper flow
+      {:ok, _test_run} = create_test_run_with_cases(project, organization.account)
 
-      module_run_id = UUIDv7.generate()
-
-      IngestRepo.insert_all(TestCaseRun, [
-        %{
-          id: UUIDv7.generate(),
-          test_run_id: test_run.id,
-          test_module_run_id: module_run_id,
-          project_id: project.id,
-          is_ci: true,
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          name: "testExample",
-          status: 0,
-          duration: 100,
-          inserted_at: NaiveDateTime.utc_now()
-        }
-      ])
+      # Wait for ClickHouse to process
+      Process.sleep(100)
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
@@ -129,7 +112,7 @@ defmodule TuistWeb.TestCasesLiveTest do
     end
   end
 
-  defp create_test_run(project, account) do
+  defp create_test_run_with_cases(project, account) do
     Tuist.Runs.create_test(%{
       id: UUIDv7.generate(),
       project_id: project.id,
@@ -143,7 +126,19 @@ defmodule TuistWeb.TestCasesLiveTest do
       xcode_version: "15.0",
       is_ci: true,
       ran_at: NaiveDateTime.utc_now(),
-      test_modules: []
+      test_modules: [
+        %{
+          name: "MyTests",
+          status: "success",
+          duration: 100,
+          test_suites: [
+            %{name: "TestSuite", status: "success", duration: 100}
+          ],
+          test_cases: [
+            %{name: "testExample", test_suite_name: "TestSuite", status: "success", duration: 100}
+          ]
+        }
+      ]
     })
   end
 end

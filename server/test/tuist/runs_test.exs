@@ -2191,7 +2191,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "list_unique_test_cases/2" do
+  describe "list_test_cases/2" do
     test "returns unique test cases grouped by name, module_name, suite_name" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -2219,7 +2219,7 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {test_cases, _meta} = Runs.list_unique_test_cases(project.id)
+      {test_cases, _meta} = Runs.list_test_cases(project.id)
 
       # Then
       assert length(test_cases) == 2
@@ -2275,13 +2275,14 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {test_cases, _meta} = Runs.list_unique_test_cases(project.id)
+      {test_cases, _meta} = Runs.list_test_cases(project.id)
 
       # Then
       assert length(test_cases) == 1
       test_case = hd(test_cases)
       assert test_case.name == "testOne"
-      assert test_case.avg_duration == 200
+      # last_duration is from the most recent run (300ms)
+      assert test_case.last_duration == 300
       assert test_case.last_status == "failure"
     end
 
@@ -2290,7 +2291,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
 
       # When
-      {test_cases, meta} = Runs.list_unique_test_cases(project.id)
+      {test_cases, meta} = Runs.list_test_cases(project.id)
 
       # Then
       assert test_cases == []
@@ -2322,8 +2323,8 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {page1, meta} = Runs.list_unique_test_cases(project.id, page: 1, page_size: 2)
-      {page2, _meta2} = Runs.list_unique_test_cases(project.id, page: 2, page_size: 2)
+      {page1, meta} = Runs.list_test_cases(project.id, page: 1, page_size: 2)
+      {page2, _meta2} = Runs.list_test_cases(project.id, page: 2, page_size: 2)
 
       # Then
       assert length(page1) == 2
@@ -2332,7 +2333,7 @@ defmodule Tuist.RunsTest do
       assert meta.total_pages == 2
     end
 
-    test "supports sorting by avg_duration" do
+    test "supports sorting by last_duration" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -2356,17 +2357,17 @@ defmodule Tuist.RunsTest do
       # Wait for ClickHouse to process
       Process.sleep(100)
 
-      # When - sort by avg_duration ascending
+      # When - sort by last_duration ascending
       {test_cases_asc, _meta} =
-        Runs.list_unique_test_cases(project.id, sort_by: "avg_duration", sort_order: "asc")
+        Runs.list_test_cases(project.id, sort_by: "last_duration", sort_order: "asc")
 
       # Then
       assert Enum.at(test_cases_asc, 0).name == "fastTest"
       assert Enum.at(test_cases_asc, 2).name == "slowTest"
 
-      # When - sort by avg_duration descending
+      # When - sort by last_duration descending
       {test_cases_desc, _meta} =
-        Runs.list_unique_test_cases(project.id, sort_by: "avg_duration", sort_order: "desc")
+        Runs.list_test_cases(project.id, sort_by: "last_duration", sort_order: "desc")
 
       # Then
       assert Enum.at(test_cases_desc, 0).name == "slowTest"

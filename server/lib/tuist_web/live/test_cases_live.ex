@@ -295,7 +295,7 @@ defmodule TuistWeb.TestCasesLive do
     run_filters = build_run_filters(filters)
 
     {test_cases, test_cases_meta} =
-      Runs.list_unique_test_cases(project.id,
+      Runs.list_test_cases(project.id,
         page: page,
         page_size: 20,
         sort_by: sort_by,
@@ -349,15 +349,5 @@ defmodule TuistWeb.TestCasesLive do
 
   defp sort_by_patch(uri, sort_by) do
     "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
-  end
-
-  defp encode_test_case_id(test_case) do
-    %{
-      "name" => test_case.name,
-      "module_name" => test_case.module_name,
-      "suite_name" => test_case.suite_name
-    }
-    |> Jason.encode!()
-    |> Base.url_encode64(padding: false)
   end
 end

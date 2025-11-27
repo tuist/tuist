@@ -16,6 +16,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestModuleRun
@@ -469,6 +470,144 @@ defmodule Tuist.Runs do
     end
   end
 
+  @doc """
+  Creates test cases and returns a map of {name, module_name, suite_name} => test_case_id.
+  Uses deterministic UUIDs based on the test case identity, so duplicates are handled
+  by ClickHouse's ReplacingMergeTree engine (keeps the row with the latest inserted_at).
+
+  Each test case data map should contain:
+  - :name, :module_name, :suite_name - identity fields
+  - :status, :duration, :ran_at - latest run data
+  """
+  def create_test_cases(project_id, test_case_data_list) do
+      now = NaiveDateTime.utc_now()
+
+      test_cases =
+        Enum.map(test_case_data_list, fn data ->
+          %{
+            id: generate_test_case_id(project_id, data.name, data.module_name, data.suite_name),
+            name: data.name,
+            module_name: data.module_name,
+            suite_name: data.suite_name,
+            project_id: project_id,
+            last_status: data.status,
+            last_duration: data.duration,
+            last_ran_at: data.ran_at,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCase, test_cases)
+
+      Map.new(test_cases, fn tc ->
+        {{tc.name, tc.module_name, tc.suite_name}, tc.id}
+      end)
+  end
+
+  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+    identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
+
+    <<a::32, b::16, c::16, d::16, e::48>> =
+      :crypto.hash(:md5, identity)
+      |> binary_part(0, 16)
+
+    # Format as UUID v4 (set version and variant bits)
+    <<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>
+    |> Ecto.UUID.cast!()
+  end
+
+  @doc """
+  Gets a test case by its UUID with all denormalized fields.
+  Returns nil if the test case is not found.
+  """
+  def get_test_case_by_id(id) do
+    query =
+      from(tc in TestCase,
+        where: tc.id == ^id,
+        select: %{
+          id: tc.id,
+          name: tc.name,
+          module_name: tc.module_name,
+          suite_name: tc.suite_name,
+          project_id: tc.project_id,
+          last_status: tc.last_status,
+          last_duration: tc.last_duration,
+          last_ran_at: tc.last_ran_at
+        },
+        limit: 1
+      )
+
+    ClickHouseRepo.one(query)
+  end
+
+  @doc """
+  Lists test case runs for a specific test case by its UUID.
+  Returns a tuple of {test_case_runs, meta} with pagination info.
+  """
+  def list_test_case_runs_by_test_case_id(test_case_id, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    search = Keyword.get(opts, :search, "")
+    filters = Keyword.get(opts, :filters, [])
+    sort_by = Keyword.get(opts, :sort_by, "ran_at")
+    sort_order = Keyword.get(opts, :sort_order, "desc")
+
+    offset = (page - 1) * page_size
+
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id
+      )
+
+    base_query =
+      if search == "" do
+        base_query
+      else
+        search_term = "%#{search}%"
+        where(base_query, [tcr], ilike(tcr.scheme, ^search_term))
+      end
+
+    base_query = apply_test_case_run_filters(base_query, filters)
+
+    count_query = select(base_query, [tcr], count(tcr.id))
+    total_count = ClickHouseRepo.one(count_query) || 0
+
+    data_query =
+      base_query
+      |> apply_test_case_run_order(sort_by, sort_order)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> select([tcr], %{
+        id: tcr.id,
+        status: tcr.status,
+        duration: tcr.duration,
+        inserted_at: tcr.inserted_at,
+        test_run_id: tcr.test_run_id,
+        scheme: tcr.scheme,
+        is_ci: tcr.is_ci,
+        account_id: tcr.account_id,
+        ran_at: tcr.ran_at
+      })
+
+    test_case_runs =
+      data_query
+      |> ClickHouseRepo.all()
+      |> Enum.map(fn row -> %{row | duration: normalize_duration(row.duration)} end)
+
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
+
+    meta = %{
+      current_page: page,
+      page_size: page_size,
+      total_count: total_count,
+      total_pages: total_pages,
+      has_next_page?: page < total_pages,
+      has_previous_page?: page > 1
+    }
+
+    {test_case_runs, meta}
+  end
+
   defp create_test_modules(test, test_modules) do
     Enum.each(test_modules, fn module_attrs ->
       module_id = Ecto.UUID.generate()
@@ -547,6 +686,24 @@ defmodule Tuist.Runs do
   end
 
   defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
+    # Build test case data with identity and latest run info
+    test_case_data_list =
+      test_cases
+      |> Enum.map(fn case_attrs ->
+        %{
+          name: Map.get(case_attrs, :name),
+          module_name: module_name,
+          suite_name: Map.get(case_attrs, :test_suite_name, "") || "",
+          status: Map.get(case_attrs, :status),
+          duration: Map.get(case_attrs, :duration, 0),
+          ran_at: test.ran_at
+        }
+      end)
+      |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
+
+    # Create test cases (duplicates handled by ReplacingMergeTree)
+    test_case_id_map = create_test_cases(test.project_id, test_case_data_list)
+
     {test_case_runs, all_failures} =
       Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "")
@@ -555,12 +712,18 @@ defmodule Tuist.Runs do
 
         test_case_run_id = Ecto.UUID.generate()
 
+        # Lookup the test_case_id from our map
+        case_name = Map.get(case_attrs, :name)
+        identity_key = {case_name, module_name, suite_name || ""}
+        test_case_id = Map.get(test_case_id_map, identity_key)
+
         test_case_run = %{
           id: test_case_run_id,
-          name: Map.get(case_attrs, :name),
+          name: case_name,
           test_run_id: test.id,
           test_module_run_id: module_id,
           test_suite_run_id: test_suite_run_id,
+          test_case_id: test_case_id,
           project_id: test.project_id,
           is_ci: test.is_ci,
           scheme: test.scheme,
@@ -612,24 +775,19 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Lists unique test cases for a project, aggregated by (name, module_name, suite_name).
-  Only includes test cases with runs in the last 14 days.
-
-  Returns test cases with:
-  - name, module_name, suite_name
-  - avg_duration (average duration across all runs)
-  - last_status (status of the most recent run)
-  - last_ran_at (timestamp of the most recent run)
+  Lists test cases for a project directly from the test_cases table.
+  Denormalized fields (last_status, last_duration, last_ran_at) are kept up to date
+  by ReplacingMergeTree on each test run.
 
   ## Options
     * `:page` - Page number (default: 1)
     * `:page_size` - Number of items per page (default: 20)
-    * `:sort_by` - Field to sort by: "name", "avg_duration", "last_status", "last_ran_at" (default: "last_ran_at")
+    * `:sort_by` - Field to sort by: "name", "last_duration", "last_ran_at" (default: "last_ran_at")
     * `:sort_order` - Sort order: "asc" or "desc" (default: "desc")
     * `:filters` - List of filter maps with :field, :op, :value
     * `:search` - Search string to filter test cases by name (default: "")
   """
-  def list_unique_test_cases(project_id, opts \\ []) do
+  def list_test_cases(project_id, opts \\ []) do
     page = Keyword.get(opts, :page, 1)
     page_size = Keyword.get(opts, :page_size, 20)
     sort_by = Keyword.get(opts, :sort_by, "last_ran_at")
@@ -639,100 +797,43 @@ defmodule Tuist.Runs do
 
     offset = (page - 1) * page_size
 
-    # Build filter conditions (WHERE vs HAVING)
-    {where_conditions, having_conditions} = build_unique_test_cases_filter_conditions(filters)
-
-    search_condition =
-      if search == "" do
-        ""
-      else
-        "AND tcr.name ILIKE {search:String}"
-      end
-
-    # Build sort clause
-    sort_field =
-      case sort_by do
-        "name" -> "name"
-        "avg_duration" -> "avg_duration"
-        "last_status" -> "last_status"
-        "last_ran_at" -> "last_ran_at"
-        _ -> "last_ran_at"
-      end
-
-    sort_direction = if sort_order == "asc", do: "ASC", else: "DESC"
-
-    having_clause = if having_conditions == "", do: "", else: "HAVING 1=1 #{having_conditions}"
-
-    query = """
-    SELECT
-      name,
-      module_name,
-      suite_name,
-      avg(duration) as avg_duration,
-      argMax(status, inserted_at) as last_status,
-      max(inserted_at) as last_ran_at
-    FROM test_case_runs tcr
-    WHERE tcr.project_id = {project_id:Int64}
-      AND tcr.inserted_at >= now() - INTERVAL 14 DAY
-      #{where_conditions}
-      #{search_condition}
-    GROUP BY name, module_name, suite_name
-    #{having_clause}
-    ORDER BY #{sort_field} #{sort_direction}
-    LIMIT {limit:Int32}
-    OFFSET {offset:Int32}
-    """
-
-    count_query = """
-    SELECT count() as total
-    FROM (
-      SELECT
-        name,
-        module_name,
-        suite_name
-      FROM test_case_runs tcr
-      WHERE tcr.project_id = {project_id:Int64}
-        AND tcr.inserted_at >= now() - INTERVAL 14 DAY
-        #{where_conditions}
-        #{search_condition}
-      GROUP BY name, module_name, suite_name
-      #{having_clause}
-    )
-    """
-
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        limit: page_size,
-        offset: offset,
-        search: "%#{search}%"
-      })
-
-    count_result =
-      ClickHouseRepo.query!(count_query, %{
-        project_id: project_id,
-        search: "%#{search}%"
-      })
-
-    test_cases =
-      Enum.map(result.rows, fn [name, module_name, suite_name, avg_duration, last_status, last_ran_at] ->
-        %{
-          name: name,
-          module_name: module_name,
-          suite_name: suite_name,
-          avg_duration: normalize_duration(avg_duration),
-          last_status: last_status,
-          last_ran_at: last_ran_at
+    # Query test_cases directly with FINAL to force deduplication
+    # Denormalized fields are kept up to date by ReplacingMergeTree
+    base_query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        select: %{
+          id: tc.id,
+          name: tc.name,
+          module_name: tc.module_name,
+          suite_name: tc.suite_name,
+          last_duration: tc.last_duration,
+          last_status: tc.last_status,
+          last_ran_at: tc.last_ran_at
         }
-      end)
+      )
 
-    total_count =
-      case count_result.rows do
-        [[count]] -> count
-        _ -> 0
-      end
+    # Apply filters
+    base_query = apply_test_cases_filters(base_query, filters, search)
 
-    total_pages = ceil(total_count / page_size)
+    # Apply sorting
+    base_query = apply_test_cases_order(base_query, sort_by, sort_order)
+
+    # Get count with FINAL for deduplication
+    count_query = from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: count())
+    count_query = apply_test_cases_filters(count_query, filters, search)
+    total_count = ClickHouseRepo.one(count_query) || 0
+
+    # Get paginated data
+    data_query =
+      base_query
+      |> limit(^page_size)
+      |> offset(^offset)
+
+    test_cases = ClickHouseRepo.all(data_query)
+
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
 
     meta = %{
       current_page: page,
@@ -746,169 +847,65 @@ defmodule Tuist.Runs do
     {test_cases, meta}
   end
 
-  defp build_unique_test_cases_filter_conditions(filters) do
-    {where_parts, having_parts} =
-      Enum.reduce(filters, {[], []}, fn filter, {where_acc, having_acc} ->
-        field = Map.get(filter, :field)
-        op = Map.get(filter, :op)
-        value = Map.get(filter, :value)
+  defp apply_test_cases_filters(query, filters, search) do
+    query =
+      if search != "" do
+        search_term = "%#{search}%"
+        where(query, [tc], ilike(tc.name, ^search_term))
+      else
+        query
+      end
 
-        case {field, op} do
-          {"last_status", :==} ->
-            {where_acc, ["AND argMax(tcr.status, tcr.inserted_at) = '#{value}'" | having_acc]}
+    Enum.reduce(filters, query, fn filter, acc ->
+      field = Map.get(filter, :field)
+      op = Map.get(filter, :op)
+      value = Map.get(filter, :value)
 
-          {"module_name", :=~} ->
-            {["AND tcr.module_name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+      case {field, op} do
+        {"module_name", :=~} ->
+          search_term = "%#{value}%"
+          where(acc, [tc], ilike(tc.module_name, ^search_term))
 
-          {"suite_name", :=~} ->
-            {["AND tcr.suite_name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+        {"suite_name", :=~} ->
+          search_term = "%#{value}%"
+          where(acc, [tc], ilike(tc.suite_name, ^search_term))
 
-          {"name", :=~} ->
-            {["AND tcr.name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+        {"name", :=~} ->
+          search_term = "%#{value}%"
+          where(acc, [tc], ilike(tc.name, ^search_term))
 
-          {"avg_duration", :>} ->
-            {where_acc, ["AND avg(tcr.duration) > #{value}" | having_acc]}
+        {"last_status", :==} ->
+          where(acc, [tc], tc.last_status == ^value)
 
-          {"avg_duration", :<} ->
-            {where_acc, ["AND avg(tcr.duration) < #{value}" | having_acc]}
-
-          _ ->
-            {where_acc, having_acc}
-        end
-      end)
-
-    {Enum.join(where_parts, " "), Enum.join(having_parts, " ")}
+        _ ->
+          acc
+      end
+    end)
   end
 
-  defp escape_like(value) when is_binary(value) do
-    value
-    |> String.replace("\\", "\\\\")
-    |> String.replace("%", "\\%")
-    |> String.replace("_", "\\_")
-  end
+  defp apply_test_cases_order(query, sort_by, sort_order) do
+    direction = if sort_order == "asc", do: :asc, else: :desc
 
-  defp escape_like(_), do: ""
+    case sort_by do
+      "name" ->
+        order_by(query, [tc], [{^direction, tc.name}])
+
+      "last_duration" ->
+        order_by(query, [tc], [{^direction, tc.last_duration}])
+
+      # Support legacy "avg_duration" as alias for "last_duration"
+      "avg_duration" ->
+        order_by(query, [tc], [{^direction, tc.last_duration}])
+
+      _ ->
+        order_by(query, [tc], [{^direction, tc.last_ran_at}])
+    end
+  end
 
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
   defp normalize_duration(value), do: round(value * 1.0)
-
-  @doc """
-  Gets detail for a specific test case identified by name, module_name, and suite_name.
-  Returns nil if the test case is not found.
-  """
-  def get_test_case_detail(project_id, name, module_name, suite_name) do
-    query = """
-    SELECT
-      name,
-      module_name,
-      suite_name,
-      argMax(status, inserted_at) as last_status,
-      argMax(duration, inserted_at) as last_duration,
-      max(inserted_at) as last_ran_at
-    FROM test_case_runs tcr
-    WHERE tcr.project_id = {project_id:Int64}
-      AND tcr.name = {name:String}
-      AND tcr.module_name = {module_name:String}
-      AND tcr.suite_name = {suite_name:String}
-    GROUP BY name, module_name, suite_name
-    """
-
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        name: name,
-        module_name: module_name,
-        suite_name: suite_name
-      })
-
-    case result.rows do
-      [[name, module_name, suite_name, last_status, last_duration, last_ran_at]] ->
-        %{
-          name: name,
-          module_name: module_name,
-          suite_name: suite_name,
-          last_status: last_status,
-          last_duration: normalize_duration(last_duration),
-          last_ran_at: last_ran_at
-        }
-
-      _ ->
-        nil
-    end
-  end
-
-  @doc """
-  Lists test case runs for a specific test case across all test runs.
-  Returns a tuple of {test_case_runs, meta} with pagination info.
-  """
-  def list_test_case_runs_for_test_case(project_id, name, module_name, suite_name, opts \\ []) do
-    page = Keyword.get(opts, :page, 1)
-    page_size = Keyword.get(opts, :page_size, 20)
-    search = Keyword.get(opts, :search, "")
-    filters = Keyword.get(opts, :filters, [])
-    sort_by = Keyword.get(opts, :sort_by, "ran_at")
-    sort_order = Keyword.get(opts, :sort_order, "desc")
-
-    offset = (page - 1) * page_size
-
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.name == ^name,
-        where: tcr.module_name == ^module_name,
-        where: tcr.suite_name == ^suite_name
-      )
-
-    base_query =
-      if search == "" do
-        base_query
-      else
-        search_term = "%#{search}%"
-        where(base_query, [tcr], ilike(tcr.scheme, ^search_term))
-      end
-
-    base_query = apply_test_case_run_filters(base_query, filters)
-
-    count_query = select(base_query, [tcr], count(tcr.id))
-    total_count = ClickHouseRepo.one(count_query) || 0
-
-    data_query =
-      base_query
-      |> apply_test_case_run_order(sort_by, sort_order)
-      |> limit(^page_size)
-      |> offset(^offset)
-      |> select([tcr], %{
-        id: tcr.id,
-        status: tcr.status,
-        duration: tcr.duration,
-        inserted_at: tcr.inserted_at,
-        test_run_id: tcr.test_run_id,
-        scheme: tcr.scheme,
-        is_ci: tcr.is_ci,
-        account_id: tcr.account_id,
-        ran_at: tcr.ran_at
-      })
-
-    test_case_runs =
-      data_query
-      |> ClickHouseRepo.all()
-      |> Enum.map(fn row -> %{row | duration: normalize_duration(row.duration)} end)
-
-    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
-
-    meta = %{
-      current_page: page,
-      page_size: page_size,
-      total_count: total_count,
-      total_pages: total_pages,
-      has_next_page?: page < total_pages,
-      has_previous_page?: page > 1
-    }
-
-    {test_case_runs, meta}
-  end
 
   defp apply_test_case_run_filters(query, filters) do
     Enum.reduce(filters, query, fn filter, acc ->

@@ -20,17 +20,14 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
-    test_case = decode_test_case_id(test_case_id)
-
-    test_case_detail =
-      Runs.get_test_case_detail(
-        project.id,
-        test_case["name"],
-        test_case["module_name"],
-        test_case["suite_name"]
-      )
+    test_case_detail = Runs.get_test_case_by_id(test_case_id)
 
     if is_nil(test_case_detail) do
+      raise NotFoundError, gettext("Test case not found.")
+    end
+
+    # Verify project ownership
+    if test_case_detail.project_id != project.id do
       raise NotFoundError, gettext("Test case not found.")
     end
 
@@ -45,7 +42,7 @@ defmodule TuistWeb.TestCaseLive do
 
     socket =
       socket
-      |> assign(:test_case, test_case)
+      |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(users))
@@ -109,15 +106,13 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "search-test-case-runs",
         %{"search" => search},
-        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case, uri: uri}} = socket
+        %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id, uri: uri}} = socket
       ) do
-    encoded_id = encode_test_case_id(test_case)
-
     socket =
       push_patch(
         socket,
         to:
-          "/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{uri.query |> Query.put("search", search) |> Query.drop("page")}"
+          "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{uri.query |> Query.put("search", search) |> Query.drop("page")}"
       )
 
     {:noreply, socket}
@@ -126,14 +121,13 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "add_filter",
         %{"value" => filter_id},
-        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case}} = socket
+        %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id}} = socket
       ) do
     updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
-    encoded_id = encode_test_case_id(test_case)
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{updated_params}")
+     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -141,14 +135,13 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "update_filter",
         params,
-        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case}} = socket
+        %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id}} = socket
       ) do
     updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
-    encoded_id = encode_test_case_id(test_case)
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{updated_query_params}")
+     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{updated_query_params}")
      |> push_event("close-dropdown", %{all: true})
      |> push_event("close-popover", %{all: true})}
   end
@@ -166,30 +159,18 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
-  defp assign_analytics(%{assigns: %{selected_project: project, test_case: test_case}} = socket) do
-    name = test_case["name"]
-    module_name = test_case["module_name"]
-    suite_name = test_case["suite_name"]
-
+  defp assign_analytics(%{assigns: %{selected_project: project, test_case_id: test_case_id}} = socket) do
     [reliability, analytics] =
       Task.await_many(
         [
           Task.async(fn ->
-            Analytics.test_case_reliability(
-              project.id,
-              name,
-              module_name,
-              suite_name,
+            Analytics.test_case_reliability_by_id(
+              test_case_id,
               project.default_branch
             )
           end),
           Task.async(fn ->
-            Analytics.test_case_analytics(
-              project.id,
-              name,
-              module_name,
-              suite_name
-            )
+            Analytics.test_case_analytics_by_id(test_case_id)
           end)
         ],
         30_000
@@ -201,7 +182,7 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   defp assign_test_case_runs(
-         %{assigns: %{selected_project: project, test_case: test_case, available_filters: available_filters}} = socket,
+         %{assigns: %{test_case_id: test_case_id, available_filters: available_filters}} = socket,
          params
        ) do
     page = parse_page(params["page"])
@@ -213,11 +194,8 @@ defmodule TuistWeb.TestCaseLive do
     run_filters = build_run_filters(filters)
 
     {test_case_runs, meta} =
-      Runs.list_test_case_runs_for_test_case(
-        project.id,
-        test_case["name"],
-        test_case["module_name"],
-        test_case["suite_name"],
+      Runs.list_test_case_runs_by_test_case_id(
+        test_case_id,
         page: page,
         page_size: @table_page_size,
         search: search,
@@ -303,21 +281,5 @@ defmodule TuistWeb.TestCaseLive do
       end
 
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
-  end
-
-  defp decode_test_case_id(encoded) do
-    encoded
-    |> Base.url_decode64!(padding: false)
-    |> Jason.decode!()
-  end
-
-  defp encode_test_case_id(test_case) do
-    %{
-      "name" => test_case["name"],
-      "module_name" => test_case["module_name"],
-      "suite_name" => test_case["suite_name"]
-    }
-    |> Jason.encode!()
-    |> Base.url_encode64(padding: false)
   end
 end

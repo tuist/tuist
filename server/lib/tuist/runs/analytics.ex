@@ -2560,17 +2560,14 @@ defmodule Tuist.Runs.Analytics do
   end
 
   @doc """
-  Calculates the test reliability (success rate) for a specific test case on the project's default branch.
+  Calculates the test reliability (success rate) for a specific test case by its UUID on the project's default branch.
   Returns the percentage of successful runs (0-100) or nil if no runs exist on the default branch.
   """
-  def test_case_reliability(project_id, name, module_name, suite_name, default_branch) do
+  def test_case_reliability_by_id(test_case_id, default_branch) do
     query =
       from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id == ^test_case_id,
         where: tcr.git_branch == ^default_branch,
-        where: tcr.name == ^name,
-        where: tcr.module_name == ^module_name,
-        where: tcr.suite_name == ^suite_name,
         select: %{
           success_count: fragment("countIf(? = 'success')", tcr.status),
           total_count: count(tcr.id)
@@ -2592,15 +2589,12 @@ defmodule Tuist.Runs.Analytics do
   end
 
   @doc """
-  Gets analytics for a specific test case including total runs, failed runs, and average duration.
+  Gets analytics for a specific test case by its UUID including total runs, failed runs, and average duration.
   """
-  def test_case_analytics(project_id, name, module_name, suite_name, _opts \\ []) do
+  def test_case_analytics_by_id(test_case_id, _opts \\ []) do
     query =
       from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.name == ^name,
-        where: tcr.module_name == ^module_name,
-        where: tcr.suite_name == ^suite_name,
+        where: tcr.test_case_id == ^test_case_id,
         select: %{
           total_count: count(tcr.id),
           failed_count: fragment("countIf(? = 'failure')", tcr.status),

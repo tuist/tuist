@@ -26,6 +26,7 @@ defmodule Tuist.Runs.TestCaseRun do
     field :test_run_id, Ecto.UUID
     field :test_module_run_id, Ecto.UUID
     field :test_suite_run_id, Ecto.UUID
+    field :test_case_id, Ch, type: "Nullable(UUID)"
     field :project_id, Ch, type: "Nullable(Int64)"
     field :is_ci, Ch, type: "Nullable(Bool)"
     field :scheme, Ch, type: "Nullable(String)"
@@ -47,6 +48,7 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_run_id,
       :test_module_run_id,
       :test_suite_run_id,
+      :test_case_id,
       :project_id,
       :is_ci,
       :scheme,

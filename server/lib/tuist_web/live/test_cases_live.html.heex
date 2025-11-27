@@ -238,7 +238,7 @@
           label={
             case @test_cases_sort_by do
               "name" -> gettext("Test Case")
-              "avg_duration" -> gettext("Avg. duration")
+              "last_duration" -> gettext("Last duration")
               _ -> gettext("Last ran at")
             end
           }
@@ -261,10 +261,10 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
           <.dropdown_item
-            value="avg_duration"
-            label={gettext("Avg. duration")}
-            patch={sort_by_patch(@uri, "avg_duration")}
-            data-selected={@test_cases_sort_by == "avg_duration"}
+            value="last_duration"
+            label={gettext("Last duration")}
+            patch={sort_by_patch(@uri, "last_duration")}
+            data-selected={@test_cases_sort_by == "last_duration"}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -287,7 +287,7 @@
           row_navigate={
             fn test_case ->
               url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{encode_test_case_id(test_case)}"
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
               )
             end
           }
@@ -322,20 +322,20 @@
           </:col>
           <:col
             :let={test_case}
-            label={gettext("Avg. duration")}
+            label={gettext("Last duration")}
             patch={
-              @test_cases_sort_by == "avg_duration" &&
-                column_sort_patch(assigns, "avg_duration")
+              @test_cases_sort_by == "last_duration" &&
+                column_sort_patch(assigns, "last_duration")
             }
             icon={
-              @test_cases_sort_by == "avg_duration" &&
+              @test_cases_sort_by == "last_duration" &&
                 sort_icon(@test_cases_sort_order)
             }
           >
             <.text_cell
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
+                  test_case.last_duration
                 )
               }
               icon="history"
