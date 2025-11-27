@@ -6,7 +6,7 @@ defmodule CacheWeb.CASControllerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Authentication
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
 
   setup do
@@ -226,7 +226,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         :ok
       end)
@@ -258,7 +258,7 @@ defmodule CacheWeb.CASControllerTest do
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         :ok
       end)
@@ -296,7 +296,7 @@ defmodule CacheWeb.CASControllerTest do
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         :ok
       end)

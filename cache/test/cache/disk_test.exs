@@ -4,7 +4,7 @@ defmodule Cache.DiskTest do
 
   import ExUnit.CaptureLog
 
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
 
   @test_account "test_account"
@@ -54,7 +54,7 @@ defmodule Cache.DiskTest do
       File.stat(path)
     end)
 
-    stub(CASArtifacts, :track_artifact_access, fn _key -> :ok end)
+    stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
     {:ok, test_storage_dir: test_storage_dir}
   end
 

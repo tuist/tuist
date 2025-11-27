@@ -1,11 +1,11 @@
-defmodule Cache.CASArtifacts do
+defmodule Cache.CacheArtifacts do
   @moduledoc """
-  Persists CAS artifact metadata to support eviction decisions.
+  Persists cache artifact metadata (for both CAS and module cache) to support LRU eviction decisions.
   """
 
   import Ecto.Query
 
-  alias Cache.CASArtifact
+  alias Cache.CacheArtifact
   alias Cache.Disk
   alias Cache.Repo
 
@@ -16,7 +16,7 @@ defmodule Cache.CASArtifacts do
   """
 
   def oldest(limit \\ @default_batch_size) do
-    CASArtifact
+    CacheArtifact
     |> order_by([a], asc: a.last_accessed_at)
     |> limit(^limit)
     |> Repo.all()
@@ -36,14 +36,14 @@ defmodule Cache.CASArtifacts do
   """
 
   def delete_by_keys(keys) when is_list(keys) do
-    Repo.delete_all(from(a in CASArtifact, where: a.key in ^keys))
+    Repo.delete_all(from(a in CacheArtifact, where: a.key in ^keys))
     :ok
   end
 
   @doc """
-  Tracks access to a CAS artifact by updating its metadata in the database.
+  Tracks access to a cache artifact by updating its metadata in the database.
 
-  Creates or updates a CASArtifact record with the current file size and access time.
+  Creates or updates a CacheArtifact record with the current file size and access time.
   Uses upsert logic to handle conflicts on the key field.
   """
   def track_artifact_access(key) do
@@ -55,7 +55,7 @@ defmodule Cache.CASArtifacts do
       last_accessed_at: DateTime.utc_now()
     }
 
-    changeset = CASArtifact.changeset(%CASArtifact{}, attrs)
+    changeset = CacheArtifact.changeset(%CacheArtifact{}, attrs)
 
     case Repo.insert(changeset,
            conflict_target: :key,
@@ -77,6 +77,6 @@ defmodule Cache.CASArtifacts do
   end
 
   defp by_key_query(key) do
-    from(a in CASArtifact, where: a.key == ^key)
+    from(a in CacheArtifact, where: a.key == ^key)
   end
 end
