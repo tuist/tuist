@@ -2190,4 +2190,187 @@ defmodule Tuist.RunsTest do
       assert "node2" in node_ids
     end
   end
+
+  describe "list_unique_test_cases/2" do
+    test "returns unique test cases grouped by name, module_name, suite_name" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{name: "TestSuite", status: "success", duration: 500}
+              ],
+              test_cases: [
+                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100},
+                %{name: "testTwo", test_suite_name: "TestSuite", status: "success", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      # Wait for ClickHouse to process
+      Process.sleep(100)
+
+      # When
+      {test_cases, _meta} = Runs.list_unique_test_cases(project.id)
+
+      # Then
+      assert length(test_cases) == 2
+      names = Enum.map(test_cases, & &1.name)
+      assert "testOne" in names
+      assert "testTwo" in names
+    end
+
+    test "aggregates test cases with same name, module, and suite" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create two test runs with same test case
+      {:ok, _test_run1} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: ~N[2024-04-29 10:00:00],
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{name: "TestSuite", status: "success", duration: 500}
+              ],
+              test_cases: [
+                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: ~N[2024-04-30 10:00:00],
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_suites: [
+                %{name: "TestSuite", status: "failure", duration: 500}
+              ],
+              test_cases: [
+                %{name: "testOne", test_suite_name: "TestSuite", status: "failure", duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # Wait for ClickHouse to process
+      Process.sleep(100)
+
+      # When
+      {test_cases, _meta} = Runs.list_unique_test_cases(project.id)
+
+      # Then
+      assert length(test_cases) == 1
+      test_case = hd(test_cases)
+      assert test_case.name == "testOne"
+      assert test_case.avg_duration == 200
+      assert test_case.last_status == "failure"
+    end
+
+    test "returns empty list when no test cases exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {test_cases, meta} = Runs.list_unique_test_cases(project.id)
+
+      # Then
+      assert test_cases == []
+      assert meta.total_count == 0
+    end
+
+    test "supports pagination" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testA", status: "success", duration: 100},
+                %{name: "testB", status: "success", duration: 200},
+                %{name: "testC", status: "success", duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # Wait for ClickHouse to process
+      Process.sleep(100)
+
+      # When
+      {page1, meta} = Runs.list_unique_test_cases(project.id, page: 1, page_size: 2)
+      {page2, _meta2} = Runs.list_unique_test_cases(project.id, page: 2, page_size: 2)
+
+      # Then
+      assert length(page1) == 2
+      assert length(page2) == 1
+      assert meta.total_count == 3
+      assert meta.total_pages == 2
+    end
+
+    test "supports sorting by avg_duration" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "slowTest", status: "success", duration: 500},
+                %{name: "fastTest", status: "success", duration: 100},
+                %{name: "mediumTest", status: "success", duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # Wait for ClickHouse to process
+      Process.sleep(100)
+
+      # When - sort by avg_duration ascending
+      {test_cases_asc, _meta} =
+        Runs.list_unique_test_cases(project.id, sort_by: "avg_duration", sort_order: "asc")
+
+      # Then
+      assert Enum.at(test_cases_asc, 0).name == "fastTest"
+      assert Enum.at(test_cases_asc, 2).name == "slowTest"
+
+      # When - sort by avg_duration descending
+      {test_cases_desc, _meta} =
+        Runs.list_unique_test_cases(project.id, sort_by: "avg_duration", sort_order: "desc")
+
+      # Then
+      assert Enum.at(test_cases_desc, 0).name == "slowTest"
+      assert Enum.at(test_cases_desc, 2).name == "fastTest"
+    end
+  end
 end

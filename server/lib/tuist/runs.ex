@@ -604,4 +604,189 @@ defmodule Tuist.Runs do
       0
     end
   end
+
+  @doc """
+  Lists unique test cases for a project, aggregated by (name, module_name, suite_name).
+  Only includes test cases with runs in the last 14 days.
+
+  Returns test cases with:
+  - name, module_name, suite_name
+  - avg_duration (average duration across all runs)
+  - last_status (status of the most recent run)
+  - last_ran_at (timestamp of the most recent run)
+
+  ## Options
+    * `:page` - Page number (default: 1)
+    * `:page_size` - Number of items per page (default: 20)
+    * `:sort_by` - Field to sort by: "name", "avg_duration", "last_status", "last_ran_at" (default: "last_ran_at")
+    * `:sort_order` - Sort order: "asc" or "desc" (default: "desc")
+    * `:filters` - List of filter maps with :field, :op, :value
+    * `:search` - Search string to filter test cases by name (default: "")
+  """
+  def list_unique_test_cases(project_id, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    sort_by = Keyword.get(opts, :sort_by, "last_ran_at")
+    sort_order = Keyword.get(opts, :sort_order, "desc")
+    filters = Keyword.get(opts, :filters, [])
+    search = Keyword.get(opts, :search, "")
+
+    offset = (page - 1) * page_size
+
+    # Build filter conditions (WHERE vs HAVING)
+    {where_conditions, having_conditions} = build_unique_test_cases_filter_conditions(filters)
+
+    search_condition =
+      if search != "" do
+        "AND tcr.name ILIKE {search:String}"
+      else
+        ""
+      end
+
+    # Build sort clause
+    sort_field =
+      case sort_by do
+        "name" -> "name"
+        "avg_duration" -> "avg_duration"
+        "last_status" -> "last_status"
+        "last_ran_at" -> "last_ran_at"
+        _ -> "last_ran_at"
+      end
+
+    sort_direction = if sort_order == "asc", do: "ASC", else: "DESC"
+
+    having_clause = if having_conditions == "", do: "", else: "HAVING 1=1 #{having_conditions}"
+
+    query = """
+    SELECT
+      name,
+      module_name,
+      suite_name,
+      avg(duration) as avg_duration,
+      argMax(status, inserted_at) as last_status,
+      max(inserted_at) as last_ran_at
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.inserted_at >= now() - INTERVAL 14 DAY
+      #{where_conditions}
+      #{search_condition}
+    GROUP BY name, module_name, suite_name
+    #{having_clause}
+    ORDER BY #{sort_field} #{sort_direction}
+    LIMIT {limit:Int32}
+    OFFSET {offset:Int32}
+    """
+
+    count_query = """
+    SELECT count() as total
+    FROM (
+      SELECT
+        name,
+        module_name,
+        suite_name
+      FROM test_case_runs tcr
+      JOIN test_runs tr ON tcr.test_run_id = tr.id
+      WHERE tr.project_id = {project_id:Int64}
+        AND tcr.inserted_at >= now() - INTERVAL 14 DAY
+        #{where_conditions}
+        #{search_condition}
+      GROUP BY name, module_name, suite_name
+      #{having_clause}
+    )
+    """
+
+    result =
+      ClickHouseRepo.query!(query, %{
+        project_id: project_id,
+        limit: page_size,
+        offset: offset,
+        search: "%#{search}%"
+      })
+
+    count_result =
+      ClickHouseRepo.query!(count_query, %{
+        project_id: project_id,
+        search: "%#{search}%"
+      })
+
+    test_cases =
+      Enum.map(result.rows, fn [name, module_name, suite_name, avg_duration, last_status, last_ran_at] ->
+        %{
+          name: name,
+          module_name: module_name,
+          suite_name: suite_name,
+          avg_duration: normalize_duration(avg_duration),
+          last_status: last_status,
+          last_ran_at: last_ran_at
+        }
+      end)
+
+    total_count =
+      case count_result.rows do
+        [[count]] -> count
+        _ -> 0
+      end
+
+    total_pages = ceil(total_count / page_size)
+
+    meta = %{
+      current_page: page,
+      page_size: page_size,
+      total_count: total_count,
+      total_pages: total_pages,
+      has_next_page?: page < total_pages,
+      has_previous_page?: page > 1
+    }
+
+    {test_cases, meta}
+  end
+
+  defp build_unique_test_cases_filter_conditions(filters) do
+    {where_parts, having_parts} =
+      Enum.reduce(filters, {[], []}, fn filter, {where_acc, having_acc} ->
+        field = Map.get(filter, :field)
+        op = Map.get(filter, :op)
+        value = Map.get(filter, :value)
+
+        case {field, op} do
+          {"last_status", :==} ->
+            {where_acc, ["AND argMax(tcr.status, tcr.inserted_at) = '#{value}'" | having_acc]}
+
+          {"module_name", :=~} ->
+            {["AND tcr.module_name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+
+          {"suite_name", :=~} ->
+            {["AND tcr.suite_name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+
+          {"name", :=~} ->
+            {["AND tcr.name ILIKE '%#{escape_like(value)}%'" | where_acc], having_acc}
+
+          {"avg_duration", :>} ->
+            {where_acc, ["AND avg(tcr.duration) > #{value}" | having_acc]}
+
+          {"avg_duration", :<} ->
+            {where_acc, ["AND avg(tcr.duration) < #{value}" | having_acc]}
+
+          _ ->
+            {where_acc, having_acc}
+        end
+      end)
+
+    {Enum.join(where_parts, " "), Enum.join(having_parts, " ")}
+  end
+
+  defp escape_like(value) when is_binary(value) do
+    value
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
+  end
+
+  defp escape_like(_), do: ""
+
+  defp normalize_duration(nil), do: 0
+  defp normalize_duration(value) when is_float(value), do: round(value)
+  defp normalize_duration(value) when is_integer(value), do: value
+  defp normalize_duration(value), do: round(value * 1.0)
 end
