@@ -38,22 +38,22 @@
     >
       <.badge
         :if={@test_case_detail.module_name != ""}
-        label={"Module: #{@test_case_detail.module_name}"}
-        color="secondary"
+        label={"#{gettext("Module")}: #{@test_case_detail.module_name}"}
+        color="primary"
         style="light-fill"
         size="large"
       />
       <.badge
         :if={@test_case_detail.suite_name != ""}
-        label={"Suite: #{@test_case_detail.suite_name}"}
-        color="secondary"
+        label={"#{gettext("Suite")}: #{@test_case_detail.suite_name}"}
+        color="primary"
         style="light-fill"
         size="large"
       />
     </div>
   </div>
 
-  <.card title={gettext("Test Case Details")} icon="chart_arcs" data-part="test-case-details">
+  <.card title={gettext("Summary")} icon="chart_arcs" data-part="test-case-details">
     <.card_section data-part="test-case-details-section">
       <div data-part="metadata-grid">
         <div data-part="metadata-row">
@@ -92,7 +92,11 @@
       <div data-part="widgets">
         <.widget
           title={gettext("Test reliability")}
-          description={gettext("Success rate of this test case on the project's default branch.")}
+          description={
+            gettext("Success rate of this test case on the %{branch} branch.",
+              branch: @selected_project.default_branch
+            )
+          }
           value={if @reliability, do: "#{@reliability}%", else: gettext("No data")}
           id="widget-test-reliability"
           empty={is_nil(@reliability)}
