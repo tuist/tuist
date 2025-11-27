@@ -24,7 +24,19 @@ defmodule Tuist.Runs.TestCase do
 
   def create_changeset(test_case, attrs) do
     test_case
-    |> cast(attrs, [:id, :name, :module_name, :suite_name, :project_id, :last_status, :last_duration, :last_ran_at, :inserted_at, :recent_durations, :avg_duration])
+    |> cast(attrs, [
+      :id,
+      :name,
+      :module_name,
+      :suite_name,
+      :project_id,
+      :last_status,
+      :last_duration,
+      :last_ran_at,
+      :inserted_at,
+      :recent_durations,
+      :avg_duration
+    ])
     |> validate_required([:id, :name, :module_name, :suite_name, :project_id, :last_status, :last_duration, :last_ran_at])
   end
 end

@@ -204,23 +204,8 @@ defmodule TuistWeb.TestCaseLive do
         sort_order: sort_order
       )
 
-    account_ids =
-      test_case_runs
-      |> Enum.map(& &1.account_id)
-      |> Enum.uniq()
-
-    accounts_by_id =
-      account_ids
-      |> Accounts.list_accounts_by_ids()
-      |> Map.new(fn account -> {account.id, account} end)
-
-    test_case_runs_with_accounts =
-      Enum.map(test_case_runs, fn run ->
-        Map.put(run, :ran_by_account, Map.get(accounts_by_id, run.account_id))
-      end)
-
     socket
-    |> assign(:test_case_runs, test_case_runs_with_accounts)
+    |> assign(:test_case_runs, test_case_runs)
     |> assign(:test_case_runs_meta, meta)
     |> assign(:test_case_runs_page, page)
     |> assign(:test_case_runs_search, search)

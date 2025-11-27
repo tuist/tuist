@@ -20,9 +20,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCasesTable do
       add :avg_duration, :Int64, null: false, default: 0
     end
 
-    execute(
-      "ALTER TABLE test_cases ADD INDEX idx_id (id) TYPE bloom_filter GRANULARITY 4"
-    )
+    execute("ALTER TABLE test_cases ADD INDEX idx_id (id) TYPE bloom_filter GRANULARITY 4")
   end
 
   def down do

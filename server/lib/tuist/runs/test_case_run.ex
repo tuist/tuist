@@ -38,6 +38,8 @@ defmodule Tuist.Runs.TestCaseRun do
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String"
+
+    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
   end
 
   def create_changeset(test_case_run, attrs) do

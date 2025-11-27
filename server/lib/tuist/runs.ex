@@ -535,7 +535,8 @@ defmodule Tuist.Runs do
         select: %{id: tc.id, recent_durations: tc.recent_durations}
       )
 
-    IngestRepo.all(query)
+    query
+    |> IngestRepo.all()
     |> Map.new(fn row -> {row.id, row} end)
   end
 
@@ -543,12 +544,12 @@ defmodule Tuist.Runs do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
     <<a::32, b::16, c::16, d::16, e::48>> =
-      :crypto.hash(:md5, identity)
+      :md5
+      |> :crypto.hash(identity)
       |> binary_part(0, 16)
 
     # Format as UUID v4 (set version and variant bits)
-    <<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>
-    |> Ecto.UUID.cast!()
+    Ecto.UUID.cast!(<<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>)
   end
 
   @doc """
@@ -612,22 +613,12 @@ defmodule Tuist.Runs do
       |> apply_test_case_run_order(sort_by, sort_order)
       |> limit(^page_size)
       |> offset(^offset)
-      |> select([tcr], %{
-        id: tcr.id,
-        status: tcr.status,
-        duration: tcr.duration,
-        inserted_at: tcr.inserted_at,
-        test_run_id: tcr.test_run_id,
-        scheme: tcr.scheme,
-        is_ci: tcr.is_ci,
-        account_id: tcr.account_id,
-        ran_at: tcr.ran_at
-      })
 
     test_case_runs =
       data_query
       |> ClickHouseRepo.all()
       |> Enum.map(fn row -> %{row | duration: normalize_duration(row.duration)} end)
+      |> Repo.preload(:ran_by_account)
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
 
@@ -833,7 +824,7 @@ defmodule Tuist.Runs do
     offset = (page - 1) * page_size
 
     # Only show test cases that were run in the last 2 weeks
-    two_weeks_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-14, :day)
+    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
     # Query test_cases directly with FINAL to force deduplication
     # Denormalized fields are kept up to date by ReplacingMergeTree
@@ -896,11 +887,11 @@ defmodule Tuist.Runs do
 
   defp apply_test_cases_filters(query, filters, search) do
     query =
-      if search != "" do
+      if search == "" do
+        query
+      else
         search_term = "%#{search}%"
         where(query, [tc], ilike(tc.name, ^search_term))
-      else
-        query
       end
 
     Enum.reduce(filters, query, fn filter, acc ->
