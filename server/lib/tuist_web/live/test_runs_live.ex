@@ -152,7 +152,7 @@ defmodule TuistWeb.TestRunsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "duration_type", type)}",
+          ~p"/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "duration_type", type)}",
         replace: true
       )
 
