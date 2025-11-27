@@ -560,16 +560,6 @@ defmodule Tuist.Runs do
     query =
       from(tc in TestCase,
         where: tc.id == ^id,
-        select: %{
-          id: tc.id,
-          name: tc.name,
-          module_name: tc.module_name,
-          suite_name: tc.suite_name,
-          project_id: tc.project_id,
-          last_status: tc.last_status,
-          last_duration: tc.last_duration,
-          last_ran_at: tc.last_ran_at
-        },
         limit: 1
       )
 
