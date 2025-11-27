@@ -2,18 +2,18 @@
     "aside": {
         "translate": {
             "title": {
-                "text": ""
+                "text": "Çeviri 🌍"
             },
             "description": {
-                "text": ""
+                "text": "Bu sayfayı çevirebilir veya çevirisini iyileştirebilirsiniz."
             },
             "cta": {
-                "text": ""
+                "text": "Katkıda Bulunma"
             }
         }
     },
     "search": {
-        "placeholder": "",
+        "placeholder": "Arama",
         "translations": {
             "button": {
                 "button-text": "",
