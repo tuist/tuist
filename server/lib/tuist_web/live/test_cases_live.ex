@@ -346,4 +346,18 @@ defmodule TuistWeb.TestCasesLive do
 
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
   end
+
+  defp sort_by_patch(uri, sort_by) do
+    "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
+  end
+
+  defp encode_test_case_id(test_case) do
+    %{
+      "name" => test_case.name,
+      "module_name" => test_case.module_name,
+      "suite_name" => test_case.suite_name
+    }
+    |> Jason.encode!()
+    |> Base.url_encode64(padding: false)
+  end
 end

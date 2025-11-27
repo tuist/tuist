@@ -64,6 +64,12 @@
     }
   }
 
+  & [data-part="test-cases"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
   & [data-part="empty-test-cases-table-card-section"] {
     & > [data-part="title"] {
       padding-top: var(--noora-spacing-5);

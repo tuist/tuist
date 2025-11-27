@@ -231,6 +231,42 @@
             value={@test_cases_filter}
           />
         </.form>
+        <.dropdown
+          id="test-cases-sort-by"
+          label={
+            case @test_cases_sort_by do
+              "name" -> gettext("Test Case")
+              "avg_duration" -> gettext("Avg. duration")
+              _ -> gettext("Last ran at")
+            end
+          }
+          secondary_text={gettext("Sort by:")}
+        >
+          <.dropdown_item
+            value="last_ran_at"
+            label={gettext("Last ran at")}
+            patch={sort_by_patch(@uri, "last_ran_at")}
+            data-selected={@test_cases_sort_by == "last_ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="name"
+            label={gettext("Test Case")}
+            patch={sort_by_patch(@uri, "name")}
+            data-selected={@test_cases_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="avg_duration"
+            label={gettext("Avg. duration")}
+            patch={sort_by_patch(@uri, "avg_duration")}
+            data-selected={@test_cases_sort_by == "avg_duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
           label={gettext("Filter")}
@@ -243,7 +279,17 @@
       </div>
 
       <div :if={not Enum.empty?(@test_cases)} data-part="test-cases-table">
-        <.table id="test-cases-table" rows={@test_cases}>
+        <.table
+          id="test-cases-table"
+          rows={@test_cases}
+          row_navigate={
+            fn test_case ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{encode_test_case_id(test_case)}"
+              )
+            end
+          }
+        >
           <:col
             :let={test_case}
             label={gettext("Test Case")}

@@ -621,6 +621,14 @@ defmodule Tuist.Accounts do
     )
   end
 
+  def list_accounts_by_ids(ids) when is_list(ids) do
+    Repo.all(
+      from(a in Account,
+        where: a.id in ^ids
+      )
+    )
+  end
+
   defp create_oauth2_identity(%{
          provider: provider,
          id_in_provider: id_in_provider,

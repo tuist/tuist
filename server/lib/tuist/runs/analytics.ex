@@ -2568,4 +2568,90 @@ defmodule Tuist.Runs.Analytics do
       }
     end)
   end
+
+  @doc """
+  Calculates the test reliability (success rate) for a specific test case on the project's default branch.
+  Returns the percentage of successful runs (0-100) or nil if no runs exist on the default branch.
+  """
+  def test_case_reliability(project_id, name, module_name, suite_name, default_branch) do
+    query = """
+    SELECT
+      countIf(tcr.status = 'success') as success_count,
+      count(*) as total_count
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tr.git_branch = {default_branch:String}
+      AND tcr.name = {name:String}
+      AND tcr.module_name = {module_name:String}
+      AND tcr.suite_name = {suite_name:String}
+    """
+
+    result =
+      ClickHouseRepo.query!(query, %{
+        project_id: project_id,
+        default_branch: default_branch,
+        name: name,
+        module_name: module_name,
+        suite_name: suite_name
+      })
+
+    case result.rows do
+      [[_success_count, 0]] ->
+        nil
+
+      [[success_count, total_count]] when total_count > 0 ->
+        Float.round(success_count / total_count * 100, 1)
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Gets analytics for a specific test case including total runs, failed runs, and average duration.
+  """
+  def test_case_analytics(project_id, name, module_name, suite_name, _opts \\ []) do
+    query = """
+    SELECT
+      count(*) as total_count,
+      countIf(tcr.status = 'failure') as failed_count,
+      avg(tcr.duration) as avg_duration
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.name = {name:String}
+      AND tcr.module_name = {module_name:String}
+      AND tcr.suite_name = {suite_name:String}
+    """
+
+    result =
+      ClickHouseRepo.query!(query, %{
+        project_id: project_id,
+        name: name,
+        module_name: module_name,
+        suite_name: suite_name
+      })
+
+    case result.rows do
+      [[total_count, failed_count, avg_duration]] ->
+        %{
+          total_count: total_count,
+          failed_count: failed_count,
+          avg_duration: normalize_duration(avg_duration)
+        }
+
+      _ ->
+        %{
+          total_count: 0,
+          failed_count: 0,
+          avg_duration: 0
+        }
+    end
+  end
+
+  defp normalize_duration(nil), do: 0
+  defp normalize_duration(value) when is_float(value), do: round(value)
+  defp normalize_duration(value) when is_integer(value), do: value
+  defp normalize_duration(value), do: round(value * 1.0)
 end

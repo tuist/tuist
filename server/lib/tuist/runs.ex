@@ -637,10 +637,10 @@ defmodule Tuist.Runs do
     {where_conditions, having_conditions} = build_unique_test_cases_filter_conditions(filters)
 
     search_condition =
-      if search != "" do
-        "AND tcr.name ILIKE {search:String}"
-      else
+      if search == "" do
         ""
+      else
+        "AND tcr.name ILIKE {search:String}"
       end
 
     # Build sort clause
@@ -789,4 +789,201 @@ defmodule Tuist.Runs do
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
   defp normalize_duration(value), do: round(value * 1.0)
+
+  @doc """
+  Gets detail for a specific test case identified by name, module_name, and suite_name.
+  Returns nil if the test case is not found.
+  """
+  def get_test_case_detail(project_id, name, module_name, suite_name) do
+    query = """
+    SELECT
+      name,
+      module_name,
+      suite_name,
+      argMax(status, inserted_at) as last_status,
+      argMax(duration, inserted_at) as last_duration,
+      max(inserted_at) as last_ran_at
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.name = {name:String}
+      AND tcr.module_name = {module_name:String}
+      AND tcr.suite_name = {suite_name:String}
+    GROUP BY name, module_name, suite_name
+    """
+
+    result =
+      ClickHouseRepo.query!(query, %{
+        project_id: project_id,
+        name: name,
+        module_name: module_name,
+        suite_name: suite_name
+      })
+
+    case result.rows do
+      [[name, module_name, suite_name, last_status, last_duration, last_ran_at]] ->
+        %{
+          name: name,
+          module_name: module_name,
+          suite_name: suite_name,
+          last_status: last_status,
+          last_duration: normalize_duration(last_duration),
+          last_ran_at: last_ran_at
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Lists test case runs for a specific test case across all test runs.
+  Returns a tuple of {test_case_runs, meta} with pagination info.
+  """
+  def list_test_case_runs_for_test_case(project_id, name, module_name, suite_name, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    search = Keyword.get(opts, :search, "")
+    filters = Keyword.get(opts, :filters, [])
+    sort_by = Keyword.get(opts, :sort_by, "ran_at")
+    sort_order = Keyword.get(opts, :sort_order, "desc")
+
+    offset = (page - 1) * page_size
+
+    search_condition =
+      if search == "" do
+        ""
+      else
+        "AND tr.scheme ILIKE {search:String}"
+      end
+
+    filter_conditions = build_test_case_runs_filter_conditions(filters)
+    order_by = build_test_case_runs_order_by(sort_by, sort_order)
+
+    query = """
+    SELECT
+      toString(tcr.id) as id,
+      tcr.status,
+      tcr.duration,
+      tcr.inserted_at,
+      toString(tr.id) as test_run_id,
+      tr.scheme,
+      tr.is_ci,
+      tr.account_id,
+      tr.ran_at
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.name = {name:String}
+      AND tcr.module_name = {module_name:String}
+      AND tcr.suite_name = {suite_name:String}
+      #{search_condition}
+      #{filter_conditions}
+    ORDER BY #{order_by}
+    LIMIT {limit:Int32}
+    OFFSET {offset:Int32}
+    """
+
+    count_query = """
+    SELECT count() as total
+    FROM test_case_runs tcr
+    JOIN test_runs tr ON tcr.test_run_id = tr.id
+    WHERE tr.project_id = {project_id:Int64}
+      AND tcr.name = {name:String}
+      AND tcr.module_name = {module_name:String}
+      AND tcr.suite_name = {suite_name:String}
+      #{search_condition}
+      #{filter_conditions}
+    """
+
+    params = %{
+      project_id: project_id,
+      name: name,
+      module_name: module_name,
+      suite_name: suite_name,
+      limit: page_size,
+      offset: offset,
+      search: "%#{search}%"
+    }
+
+    result = ClickHouseRepo.query!(query, params)
+    count_result = ClickHouseRepo.query!(count_query, params)
+
+    test_case_runs =
+      Enum.map(result.rows, fn [id, status, duration, inserted_at, test_run_id, scheme, is_ci, account_id, ran_at] ->
+        %{
+          id: id,
+          status: status,
+          duration: normalize_duration(duration),
+          inserted_at: inserted_at,
+          test_run_id: test_run_id,
+          scheme: scheme,
+          is_ci: is_ci,
+          account_id: account_id,
+          ran_at: ran_at
+        }
+      end)
+
+    total_count =
+      case count_result.rows do
+        [[count]] -> count
+        _ -> 0
+      end
+
+    total_pages = ceil(total_count / page_size)
+
+    meta = %{
+      current_page: page,
+      page_size: page_size,
+      total_count: total_count,
+      total_pages: total_pages,
+      has_next_page?: page < total_pages,
+      has_previous_page?: page > 1
+    }
+
+    {test_case_runs, meta}
+  end
+
+  defp build_test_case_runs_filter_conditions(filters) do
+    conditions =
+      Enum.reduce(filters, [], fn filter, acc ->
+        field = Map.get(filter, :field)
+        op = Map.get(filter, :op)
+        value = Map.get(filter, :value)
+
+        case {field, op, value} do
+          {"status", :==, status} when status in ["success", "failure", "skipped"] ->
+            ["AND tcr.status = '#{status}'" | acc]
+
+          {"is_ci", :==, true} ->
+            ["AND tr.is_ci = true" | acc]
+
+          {"account_id", :==, account_id} when is_integer(account_id) ->
+            ["AND tr.account_id = #{account_id}" | acc]
+
+          {"account_id", :==, account_id} when is_binary(account_id) ->
+            ["AND tr.account_id = #{account_id}" | acc]
+
+          {"duration", :>, duration_str} when is_binary(duration_str) ->
+            case Integer.parse(duration_str) do
+              {duration_ms, _} -> ["AND tcr.duration > #{duration_ms}" | acc]
+              :error -> acc
+            end
+
+          _ ->
+            acc
+        end
+      end)
+
+    Enum.join(conditions, " ")
+  end
+
+  defp build_test_case_runs_order_by(sort_by, sort_order) do
+    direction = if sort_order == "asc", do: "ASC", else: "DESC"
+
+    case sort_by do
+      "duration" -> "tcr.duration #{direction}"
+      _ -> "tr.ran_at #{direction}"
+    end
+  end
 end

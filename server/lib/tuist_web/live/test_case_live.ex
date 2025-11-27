@@ -1,0 +1,323 @@
+defmodule TuistWeb.TestCaseLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import Noora.Filter
+  import TuistWeb.Runs.RanByBadge
+
+  alias Noora.Filter
+  alias Tuist.Accounts
+  alias Tuist.Runs
+  alias Tuist.Runs.Analytics
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Query
+
+  @table_page_size 20
+
+  def mount(
+        %{"test_case_id" => test_case_id} = _params,
+        _session,
+        %{assigns: %{selected_project: project, selected_account: account}} = socket
+      ) do
+    test_case = decode_test_case_id(test_case_id)
+
+    test_case_detail =
+      Runs.get_test_case_detail(
+        project.id,
+        test_case["name"],
+        test_case["module_name"],
+        test_case["suite_name"]
+      )
+
+    if is_nil(test_case_detail) do
+      raise NotFoundError, gettext("Test case not found.")
+    end
+
+    slug = "#{account.name}/#{project.name}"
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+    end
+
+    {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+    users = Accounts.get_organization_members(organization)
+
+    socket =
+      socket
+      |> assign(:test_case, test_case)
+      |> assign(:test_case_detail, test_case_detail)
+      |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
+      |> assign(:available_filters, define_filters(users))
+
+    {:ok, socket}
+  end
+
+  defp define_filters(users) do
+    [
+      %Filter.Filter{
+        id: "status",
+        field: "status",
+        display_name: gettext("Status"),
+        type: :option,
+        options: ["success", "failure", "skipped"],
+        options_display_names: %{
+          "success" => gettext("Passed"),
+          "failure" => gettext("Failed"),
+          "skipped" => gettext("Skipped")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "ran_by",
+        field: :ran_by,
+        display_name: gettext("Ran by"),
+        type: :option,
+        options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+        options_display_names:
+          Map.merge(
+            %{ci: gettext("CI")},
+            Map.new(users, fn user -> {user.account.id, user.account.name} end)
+          ),
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "duration",
+        field: "duration",
+        display_name: gettext("Duration"),
+        type: :number,
+        operator: :>,
+        value: ""
+      }
+    ]
+  end
+
+  def handle_params(params, _uri, socket) do
+    uri = URI.new!("?" <> URI.encode_query(params))
+
+    socket =
+      socket
+      |> assign(:uri, uri)
+      |> assign_analytics()
+      |> assign_test_case_runs(params)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "search-test-case-runs",
+        %{"search" => search},
+        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case, uri: uri}} = socket
+      ) do
+    encoded_id = encode_test_case_id(test_case)
+
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{uri.query |> Query.put("search", search) |> Query.drop("page")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "add_filter",
+        %{"value" => filter_id},
+        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case}} = socket
+      ) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    encoded_id = encode_test_case_id(test_case)
+
+    {:noreply,
+     socket
+     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{updated_params}")
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event(
+        "update_filter",
+        params,
+        %{assigns: %{selected_account: account, selected_project: project, test_case: test_case}} = socket
+      ) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    encoded_id = encode_test_case_id(test_case)
+
+    {:noreply,
+     socket
+     |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{encoded_id}?#{updated_query_params}")
+     |> push_event("close-dropdown", %{all: true})
+     |> push_event("close-popover", %{all: true})}
+  end
+
+  def handle_info({:test_created, %{name: "test"}}, socket) do
+    socket =
+      socket
+      |> assign_analytics()
+      |> assign_test_case_runs(URI.decode_query(socket.assigns.uri.query))
+
+    {:noreply, socket}
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
+  end
+
+  defp assign_analytics(%{assigns: %{selected_project: project, test_case: test_case}} = socket) do
+    name = test_case["name"]
+    module_name = test_case["module_name"]
+    suite_name = test_case["suite_name"]
+
+    [reliability, analytics] =
+      Task.await_many(
+        [
+          Task.async(fn ->
+            Analytics.test_case_reliability(
+              project.id,
+              name,
+              module_name,
+              suite_name,
+              project.default_branch
+            )
+          end),
+          Task.async(fn ->
+            Analytics.test_case_analytics(
+              project.id,
+              name,
+              module_name,
+              suite_name
+            )
+          end)
+        ],
+        30_000
+      )
+
+    socket
+    |> assign(:reliability, reliability)
+    |> assign(:analytics, analytics)
+  end
+
+  defp assign_test_case_runs(
+         %{assigns: %{selected_project: project, test_case: test_case, available_filters: available_filters}} = socket,
+         params
+       ) do
+    page = parse_page(params["page"])
+    search = params["search"] || ""
+    sort_by = params["sort_by"] || "ran_at"
+    sort_order = params["sort_order"] || "desc"
+
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
+    run_filters = build_run_filters(filters)
+
+    {test_case_runs, meta} =
+      Runs.list_test_case_runs_for_test_case(
+        project.id,
+        test_case["name"],
+        test_case["module_name"],
+        test_case["suite_name"],
+        page: page,
+        page_size: @table_page_size,
+        search: search,
+        filters: run_filters,
+        sort_by: sort_by,
+        sort_order: sort_order
+      )
+
+    account_ids =
+      test_case_runs
+      |> Enum.map(& &1.account_id)
+      |> Enum.uniq()
+
+    accounts_by_id =
+      account_ids
+      |> Accounts.list_accounts_by_ids()
+      |> Map.new(fn account -> {account.id, account} end)
+
+    test_case_runs_with_accounts =
+      Enum.map(test_case_runs, fn run ->
+        Map.put(run, :ran_by_account, Map.get(accounts_by_id, run.account_id))
+      end)
+
+    socket
+    |> assign(:test_case_runs, test_case_runs_with_accounts)
+    |> assign(:test_case_runs_meta, meta)
+    |> assign(:test_case_runs_page, page)
+    |> assign(:test_case_runs_search, search)
+    |> assign(:test_case_runs_sort_by, sort_by)
+    |> assign(:test_case_runs_sort_order, sort_order)
+    |> assign(:active_filters, filters)
+  end
+
+  defp build_run_filters(filters) do
+    {ran_by, other_filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+
+    base_filters =
+      other_filters
+      |> Enum.map(fn filter ->
+        %{
+          field: filter.field,
+          op: filter.operator,
+          value: filter.value
+        }
+      end)
+      |> Enum.reject(fn filter -> is_nil(filter.value) or filter.value == "" end)
+
+    ran_by_filters =
+      Enum.flat_map(ran_by, fn
+        %{value: :ci, operator: op} ->
+          [%{field: "is_ci", op: op, value: true}]
+
+        %{value: value, operator: op} when not is_nil(value) ->
+          [%{field: "account_id", op: op, value: value}]
+
+        _ ->
+          []
+      end)
+
+    base_filters ++ ran_by_filters
+  end
+
+  defp parse_page(nil), do: 1
+  defp parse_page(page) when is_binary(page), do: String.to_integer(page)
+  defp parse_page(page) when is_integer(page), do: page
+
+  defp sort_by_patch(uri, sort_by) do
+    "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
+  end
+
+  defp sort_icon("asc"), do: "square_rounded_arrow_up"
+  defp sort_icon("desc"), do: "square_rounded_arrow_down"
+
+  defp toggle_sort_order("asc"), do: "desc"
+  defp toggle_sort_order("desc"), do: "asc"
+
+  defp column_sort_patch(assigns, column) do
+    new_order =
+      if assigns.test_case_runs_sort_by == column do
+        toggle_sort_order(assigns.test_case_runs_sort_order)
+      else
+        "desc"
+      end
+
+    "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
+  end
+
+  defp decode_test_case_id(encoded) do
+    encoded
+    |> Base.url_decode64!(padding: false)
+    |> Jason.decode!()
+  end
+
+  defp encode_test_case_id(test_case) do
+    %{
+      "name" => test_case["name"],
+      "module_name" => test_case["module_name"],
+      "suite_name" => test_case["suite_name"]
+    }
+    |> Jason.encode!()
+    |> Base.url_encode64(padding: false)
+  end
+end
