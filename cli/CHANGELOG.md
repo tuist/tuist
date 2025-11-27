@@ -1,13 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.108.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* link tests to builds by [@fortmarek](https://github.com/fortmarek) in [#8771](https://github.com/tuist/tuist/pull/8771)
 ### 🐛 Bug Fixes
 
 * Remove CLANG_CXX_LIBRARY essential build setting by [@alexmx](https://github.com/alexmx) in [#8763](https://github.com/tuist/tuist/pull/8763)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.108.0...4.108.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.108.0...4.109.0
 
 ## What's Changed in 4.108.0<!-- RELEASE NOTES START -->
 
