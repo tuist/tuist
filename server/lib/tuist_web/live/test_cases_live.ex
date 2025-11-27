@@ -115,7 +115,7 @@ defmodule TuistWeb.TestCasesLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+          ~p"/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
         replace: true
       )
 
@@ -131,7 +131,7 @@ defmodule TuistWeb.TestCasesLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "duration_type", type)}",
+          ~p"/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "duration_type", type)}",
         replace: true
       )
 
@@ -151,7 +151,7 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       push_patch(
         socket,
-        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query}",
+        to: ~p"/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query}",
         replace: true
       )
 
