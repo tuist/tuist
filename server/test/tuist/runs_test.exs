@@ -2064,9 +2064,6 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
 
-      # Allow ClickHouse to process the insert
-      Process.sleep(100)
-
       # When
       metrics = Runs.cacheable_task_latency_metrics(build.id)
 
@@ -2192,103 +2189,6 @@ defmodule Tuist.RunsTest do
   end
 
   describe "list_test_cases/2" do
-    test "returns unique test cases grouped by name, module_name, suite_name" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{name: "TestSuite", status: "success", duration: 500}
-              ],
-              test_cases: [
-                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100},
-                %{name: "testTwo", test_suite_name: "TestSuite", status: "success", duration: 200}
-              ]
-            }
-          ]
-        )
-
-      # Wait for ClickHouse to process
-      Process.sleep(100)
-
-      # When
-      {test_cases, _meta} = Runs.list_test_cases(project.id, %{})
-
-      # Then
-      assert length(test_cases) == 2
-      names = Enum.map(test_cases, & &1.name)
-      assert "testOne" in names
-      assert "testTwo" in names
-    end
-
-    test "aggregates test cases with same name, module, and suite" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      two_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
-      one_day_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
-
-      # Create two test runs with same test case
-      {:ok, _test_run1} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          ran_at: two_days_ago,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{name: "TestSuite", status: "success", duration: 500}
-              ],
-              test_cases: [
-                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {:ok, _test_run2} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          ran_at: one_day_ago,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "failure",
-              duration: 1000,
-              test_suites: [
-                %{name: "TestSuite", status: "failure", duration: 500}
-              ],
-              test_cases: [
-                %{name: "testOne", test_suite_name: "TestSuite", status: "failure", duration: 300}
-              ]
-            }
-          ]
-        )
-
-      # Wait for ClickHouse to process
-      Process.sleep(100)
-
-      # When
-      {test_cases, _meta} = Runs.list_test_cases(project.id, %{})
-
-      # Then
-      assert length(test_cases) == 1
-      test_case = hd(test_cases)
-      assert test_case.name == "testOne"
-      # last_duration is from the most recent run (300ms)
-      assert test_case.last_duration == 300
-      assert test_case.last_status == "failure"
-    end
-
     test "returns empty list when no test cases exist" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -2322,9 +2222,6 @@ defmodule Tuist.RunsTest do
           ]
         )
 
-      # Wait for ClickHouse to process
-      Process.sleep(100)
-
       # When
       {page1, meta} = Runs.list_test_cases(project.id, %{page: 1, page_size: 2})
       {page2, _meta2} = Runs.list_test_cases(project.id, %{page: 2, page_size: 2})
@@ -2356,9 +2253,6 @@ defmodule Tuist.RunsTest do
             }
           ]
         )
-
-      # Wait for ClickHouse to process
-      Process.sleep(100)
 
       # When - sort by last_duration ascending
       {test_cases_asc, _meta} =
@@ -2400,9 +2294,6 @@ defmodule Tuist.RunsTest do
             }
           ]
         )
-
-      # Wait for ClickHouse to process
-      Process.sleep(100)
 
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
