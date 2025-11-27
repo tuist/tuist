@@ -191,17 +191,21 @@ defmodule TuistWeb.TestCaseLive do
     sort_order = params["sort_order"] || "desc"
 
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
-    run_filters = build_run_filters(filters)
+    flop_filters = build_flop_filters(filters, search)
+
+    order_directions = [if(sort_order == "asc", do: :asc, else: :desc)]
+    order_by = [String.to_existing_atom(sort_by)]
 
     {test_case_runs, meta} =
       Runs.list_test_case_runs_by_test_case_id(
         test_case_id,
-        page: page,
-        page_size: @table_page_size,
-        search: search,
-        filters: run_filters,
-        sort_by: sort_by,
-        sort_order: sort_order
+        %{
+          page: page,
+          page_size: @table_page_size,
+          filters: flop_filters,
+          order_by: order_by,
+          order_directions: order_directions
+        }
       )
 
     socket
@@ -214,33 +218,27 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:active_filters, filters)
   end
 
-  defp build_run_filters(filters) do
-    {ran_by, other_filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
-
+  defp build_flop_filters(filters, search) do
     base_filters =
-      other_filters
-      |> Enum.map(fn filter ->
-        %{
-          field: filter.field,
-          op: filter.operator,
-          value: filter.value
-        }
-      end)
-      |> Enum.reject(fn filter -> is_nil(filter.value) or filter.value == "" end)
+      Enum.flat_map(filters, fn
+        %{id: "ran_by", value: :ci, operator: :==} ->
+          [%{field: :is_ci, op: :==, value: true}]
 
-    ran_by_filters =
-      Enum.flat_map(ran_by, fn
-        %{value: :ci, operator: op} ->
-          [%{field: "is_ci", op: op, value: true}]
+        %{id: "ran_by", value: value, operator: :==} when not is_nil(value) ->
+          [%{field: :account_id, op: :==, value: value}]
 
-        %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: "account_id", op: op, value: value}]
+        %{field: field, operator: op, value: value} when not is_nil(value) and value != "" ->
+          [%{field: field, op: op, value: value}]
 
         _ ->
           []
       end)
 
-    base_filters ++ ran_by_filters
+    if search == "" do
+      base_filters
+    else
+      base_filters ++ [%{field: :scheme, op: :ilike_and, value: search}]
+    end
   end
 
   defp parse_page(nil), do: 1

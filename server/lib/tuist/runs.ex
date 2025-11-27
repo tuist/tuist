@@ -570,58 +570,17 @@ defmodule Tuist.Runs do
   Lists test case runs for a specific test case by its UUID.
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
-  def list_test_case_runs_by_test_case_id(test_case_id, opts \\ []) do
-    page = Keyword.get(opts, :page, 1)
-    page_size = Keyword.get(opts, :page_size, 20)
-    search = Keyword.get(opts, :search, "")
-    filters = Keyword.get(opts, :filters, [])
-    sort_by = Keyword.get(opts, :sort_by, "ran_at")
-    sort_order = Keyword.get(opts, :sort_order, "desc")
-
-    offset = (page - 1) * page_size
-
+  def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
     base_query =
       from(tcr in TestCaseRun,
         where: tcr.test_case_id == ^test_case_id
       )
 
-    base_query =
-      if search == "" do
-        base_query
-      else
-        search_term = "%#{search}%"
-        where(base_query, [tcr], ilike(tcr.scheme, ^search_term))
-      end
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
-    base_query = apply_test_case_run_filters(base_query, filters)
+    results = Repo.preload(results, :ran_by_account)
 
-    count_query = select(base_query, [tcr], count(tcr.id))
-    total_count = ClickHouseRepo.one(count_query) || 0
-
-    data_query =
-      base_query
-      |> apply_test_case_run_order(sort_by, sort_order)
-      |> limit(^page_size)
-      |> offset(^offset)
-
-    test_case_runs =
-      data_query
-      |> ClickHouseRepo.all()
-      |> Enum.map(fn row -> %{row | duration: normalize_duration(row.duration)} end)
-      |> Repo.preload(:ran_by_account)
-
-    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
-
-    meta = %{
-      current_page: page,
-      page_size: page_size,
-      total_count: total_count,
-      total_pages: total_pages,
-      has_next_page?: page < total_pages,
-      has_previous_page?: page > 1
-    }
-
-    {test_case_runs, meta}
+    {results, meta}
   end
 
   defp create_test_modules(test, test_modules) do
@@ -806,53 +765,5 @@ defmodule Tuist.Runs do
       )
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
-  end
-
-  defp normalize_duration(nil), do: 0
-  defp normalize_duration(value) when is_float(value), do: round(value)
-  defp normalize_duration(value) when is_integer(value), do: value
-  defp normalize_duration(value), do: round(value * 1.0)
-
-  defp apply_test_case_run_filters(query, filters) do
-    Enum.reduce(filters, query, fn filter, acc ->
-      field = Map.get(filter, :field)
-      op = Map.get(filter, :op)
-      value = Map.get(filter, :value)
-
-      case {field, op, value} do
-        {"status", :==, status} when status in ["success", "failure", "skipped"] ->
-          where(acc, [tcr], tcr.status == ^status)
-
-        {"is_ci", :==, true} ->
-          where(acc, [tcr], tcr.is_ci == true)
-
-        {"account_id", :==, account_id} when is_integer(account_id) ->
-          where(acc, [tcr], tcr.account_id == ^account_id)
-
-        {"account_id", :==, account_id} when is_binary(account_id) ->
-          case Integer.parse(account_id) do
-            {id, _} -> where(acc, [tcr], tcr.account_id == ^id)
-            :error -> acc
-          end
-
-        {"duration", :>, duration_str} when is_binary(duration_str) ->
-          case Integer.parse(duration_str) do
-            {duration_ms, _} -> where(acc, [tcr], tcr.duration > ^duration_ms)
-            :error -> acc
-          end
-
-        _ ->
-          acc
-      end
-    end)
-  end
-
-  defp apply_test_case_run_order(query, sort_by, sort_order) do
-    direction = if sort_order == "asc", do: :asc, else: :desc
-
-    case sort_by do
-      "duration" -> order_by(query, [tcr], [{^direction, tcr.duration}])
-      _ -> order_by(query, [tcr], [{^direction, tcr.ran_at}])
-    end
   end
 end

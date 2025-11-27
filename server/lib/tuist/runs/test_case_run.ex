@@ -13,11 +13,15 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_run_id,
       :test_module_run_id,
       :test_suite_run_id,
+      :test_case_id,
       :name,
       :status,
-      :duration
+      :duration,
+      :is_ci,
+      :account_id,
+      :scheme
     ],
-    sortable: [:inserted_at, :duration, :name]
+    sortable: [:inserted_at, :duration, :name, :ran_at]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
