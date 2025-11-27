@@ -127,11 +127,15 @@ defmodule TuistWeb.TestCasesLive do
         %{"type" => type},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
       ) do
+    query =
+      uri.query
+      |> Query.put("duration_type", type)
+      |> Query.put("analytics_selected_widget", "test_case_run_duration")
+
     socket =
       push_patch(
         socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "duration_type", type)}",
+        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query}",
         replace: true
       )
 

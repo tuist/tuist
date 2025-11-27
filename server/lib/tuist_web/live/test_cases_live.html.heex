@@ -151,6 +151,7 @@
     <.card_section :if={@test_case_runs_analytics.count != 0}>
       <div data-part="analytics-chart">
         <.chart
+          :if={@analytics_selected_widget != "test_case_run_duration"}
           id="test-cases-analytics-chart"
           type="line"
           extra_options={
@@ -203,6 +204,121 @@
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: @analytics_chart_data.name,
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+        <.chart
+          :if={@analytics_selected_widget == "test_case_run_duration"}
+          id="test-cases-duration-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              legend: %{
+                left: "left",
+                top: "bottom",
+                orient: "horizontal",
+                textStyle: %{
+                  color: "var:noora-surface-label-secondary",
+                  fontFamily: "monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  lineHeight: 12
+                },
+                icon:
+                  "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                itemWidth: 8,
+                itemHeight: 4
+              },
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "60%",
+                top: "10%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @test_case_runs_duration_analytics.dates |> List.first(),
+                    @test_case_runs_duration_analytics.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatMilliseconds"
+                }
+              },
+              tooltip: %{
+                valueFormat: "fn:formatMilliseconds"
+              }
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-secondary",
+              data:
+                Enum.zip(
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("Average"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p99",
+              data:
+                Enum.zip(
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p99_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p99"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p90",
+              data:
+                Enum.zip(
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p90_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p90"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p50",
+              data:
+                Enum.zip(
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p50_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("p50"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
