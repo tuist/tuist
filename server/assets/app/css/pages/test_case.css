@@ -1,4 +1,4 @@
-#test-case-detail {
+#test-case {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
