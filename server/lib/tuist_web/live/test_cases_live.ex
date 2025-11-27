@@ -327,7 +327,7 @@ defmodule TuistWeb.TestCasesLive do
     if search == "" do
       flop_filters
     else
-      flop_filters ++ [%{field: :name, op: :ilike, value: "%#{search}%"}]
+      flop_filters ++ [%{field: :name, op: :ilike_and, value: search}]
     end
   end
 
