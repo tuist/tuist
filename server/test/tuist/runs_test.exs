@@ -2219,7 +2219,7 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {test_cases, _meta} = Runs.list_test_cases(project.id)
+      {test_cases, _meta} = Runs.list_test_cases(project.id, %{})
 
       # Then
       assert length(test_cases) == 2
@@ -2232,11 +2232,14 @@ defmodule Tuist.RunsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
+      two_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      one_day_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
       # Create two test runs with same test case
       {:ok, _test_run1} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          ran_at: ~N[2024-04-29 10:00:00],
+          ran_at: two_days_ago,
           test_modules: [
             %{
               name: "TestModule",
@@ -2255,7 +2258,7 @@ defmodule Tuist.RunsTest do
       {:ok, _test_run2} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          ran_at: ~N[2024-04-30 10:00:00],
+          ran_at: one_day_ago,
           test_modules: [
             %{
               name: "TestModule",
@@ -2275,7 +2278,7 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {test_cases, _meta} = Runs.list_test_cases(project.id)
+      {test_cases, _meta} = Runs.list_test_cases(project.id, %{})
 
       # Then
       assert length(test_cases) == 1
@@ -2291,7 +2294,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
 
       # When
-      {test_cases, meta} = Runs.list_test_cases(project.id)
+      {test_cases, meta} = Runs.list_test_cases(project.id, %{})
 
       # Then
       assert test_cases == []
@@ -2323,8 +2326,8 @@ defmodule Tuist.RunsTest do
       Process.sleep(100)
 
       # When
-      {page1, meta} = Runs.list_test_cases(project.id, page: 1, page_size: 2)
-      {page2, _meta2} = Runs.list_test_cases(project.id, page: 2, page_size: 2)
+      {page1, meta} = Runs.list_test_cases(project.id, %{page: 1, page_size: 2})
+      {page2, _meta2} = Runs.list_test_cases(project.id, %{page: 2, page_size: 2})
 
       # Then
       assert length(page1) == 2
@@ -2359,7 +2362,7 @@ defmodule Tuist.RunsTest do
 
       # When - sort by last_duration ascending
       {test_cases_asc, _meta} =
-        Runs.list_test_cases(project.id, sort_by: "last_duration", sort_order: "asc")
+        Runs.list_test_cases(project.id, %{order_by: [:last_duration], order_directions: [:asc]})
 
       # Then
       assert Enum.at(test_cases_asc, 0).name == "fastTest"
@@ -2367,7 +2370,7 @@ defmodule Tuist.RunsTest do
 
       # When - sort by last_duration descending
       {test_cases_desc, _meta} =
-        Runs.list_test_cases(project.id, sort_by: "last_duration", sort_order: "desc")
+        Runs.list_test_cases(project.id, %{order_by: [:last_duration], order_directions: [:desc]})
 
       # Then
       assert Enum.at(test_cases_desc, 0).name == "slowTest"

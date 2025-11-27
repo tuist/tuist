@@ -292,17 +292,20 @@ defmodule TuistWeb.TestCasesLive do
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
-    run_filters = build_run_filters(filters)
+    flop_filters = build_flop_filters(filters, search)
 
-    {test_cases, test_cases_meta} =
-      Runs.list_test_cases(project.id,
-        page: page,
-        page_size: 20,
-        sort_by: sort_by,
-        sort_order: sort_order,
-        filters: run_filters,
-        search: search
-      )
+    order_by = [String.to_existing_atom(sort_by)]
+    order_directions = [String.to_existing_atom(sort_order)]
+
+    options = %{
+      filters: flop_filters,
+      order_by: order_by,
+      order_directions: order_directions,
+      page: page,
+      page_size: 20
+    }
+
+    {test_cases, test_cases_meta} = Runs.list_test_cases(project.id, options)
 
     socket
     |> assign(:active_filters, filters)
@@ -318,16 +321,14 @@ defmodule TuistWeb.TestCasesLive do
   defp parse_page(page) when is_binary(page), do: String.to_integer(page)
   defp parse_page(page) when is_integer(page), do: page
 
-  defp build_run_filters(filters) do
-    filters
-    |> Enum.map(fn filter ->
-      %{
-        field: filter.field,
-        op: filter.operator,
-        value: filter.value
-      }
-    end)
-    |> Enum.reject(fn filter -> is_nil(filter.value) or filter.value == "" end)
+  defp build_flop_filters(filters, search) do
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    if search == "" do
+      flop_filters
+    else
+      flop_filters ++ [%{field: :name, op: :ilike, value: "%#{search}%"}]
+    end
   end
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"

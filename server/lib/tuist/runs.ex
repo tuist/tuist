@@ -804,139 +804,18 @@ defmodule Tuist.Runs do
   Lists test cases for a project directly from the test_cases table.
   Denormalized fields (last_status, last_duration, last_ran_at) are kept up to date
   by ReplacingMergeTree on each test run.
-
-  ## Options
-    * `:page` - Page number (default: 1)
-    * `:page_size` - Number of items per page (default: 20)
-    * `:sort_by` - Field to sort by: "name", "last_duration", "last_ran_at" (default: "last_ran_at")
-    * `:sort_order` - Sort order: "asc" or "desc" (default: "desc")
-    * `:filters` - List of filter maps with :field, :op, :value
-    * `:search` - Search string to filter test cases by name (default: "")
   """
-  def list_test_cases(project_id, opts \\ []) do
-    page = Keyword.get(opts, :page, 1)
-    page_size = Keyword.get(opts, :page_size, 20)
-    sort_by = Keyword.get(opts, :sort_by, "last_ran_at")
-    sort_order = Keyword.get(opts, :sort_order, "desc")
-    filters = Keyword.get(opts, :filters, [])
-    search = Keyword.get(opts, :search, "")
-
-    offset = (page - 1) * page_size
-
-    # Only show test cases that were run in the last 2 weeks
+  def list_test_cases(project_id, attrs) do
     two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
-    # Query test_cases directly with FINAL to force deduplication
-    # Denormalized fields are kept up to date by ReplacingMergeTree
     base_query =
       from(tc in TestCase,
         hints: ["FINAL"],
         where: tc.project_id == ^project_id,
-        where: tc.last_ran_at >= ^two_weeks_ago,
-        select: %{
-          id: tc.id,
-          name: tc.name,
-          module_name: tc.module_name,
-          suite_name: tc.suite_name,
-          last_duration: tc.last_duration,
-          avg_duration: tc.avg_duration,
-          last_status: tc.last_status,
-          last_ran_at: tc.last_ran_at
-        }
+        where: tc.last_ran_at >= ^two_weeks_ago
       )
 
-    # Apply filters
-    base_query = apply_test_cases_filters(base_query, filters, search)
-
-    # Apply sorting
-    base_query = apply_test_cases_order(base_query, sort_by, sort_order)
-
-    # Get count with FINAL for deduplication
-    count_query =
-      from(tc in TestCase,
-        hints: ["FINAL"],
-        where: tc.project_id == ^project_id,
-        where: tc.last_ran_at >= ^two_weeks_ago,
-        select: count()
-      )
-
-    count_query = apply_test_cases_filters(count_query, filters, search)
-    total_count = ClickHouseRepo.one(count_query) || 0
-
-    # Get paginated data
-    data_query =
-      base_query
-      |> limit(^page_size)
-      |> offset(^offset)
-
-    test_cases = ClickHouseRepo.all(data_query)
-
-    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
-
-    meta = %{
-      current_page: page,
-      page_size: page_size,
-      total_count: total_count,
-      total_pages: total_pages,
-      has_next_page?: page < total_pages,
-      has_previous_page?: page > 1
-    }
-
-    {test_cases, meta}
-  end
-
-  defp apply_test_cases_filters(query, filters, search) do
-    query =
-      if search == "" do
-        query
-      else
-        search_term = "%#{search}%"
-        where(query, [tc], ilike(tc.name, ^search_term))
-      end
-
-    Enum.reduce(filters, query, fn filter, acc ->
-      field = Map.get(filter, :field)
-      op = Map.get(filter, :op)
-      value = Map.get(filter, :value)
-
-      case {field, op} do
-        {"module_name", :=~} ->
-          search_term = "%#{value}%"
-          where(acc, [tc], ilike(tc.module_name, ^search_term))
-
-        {"suite_name", :=~} ->
-          search_term = "%#{value}%"
-          where(acc, [tc], ilike(tc.suite_name, ^search_term))
-
-        {"name", :=~} ->
-          search_term = "%#{value}%"
-          where(acc, [tc], ilike(tc.name, ^search_term))
-
-        {"last_status", :==} ->
-          where(acc, [tc], tc.last_status == ^value)
-
-        _ ->
-          acc
-      end
-    end)
-  end
-
-  defp apply_test_cases_order(query, sort_by, sort_order) do
-    direction = if sort_order == "asc", do: :asc, else: :desc
-
-    case sort_by do
-      "name" ->
-        order_by(query, [tc], [{^direction, tc.name}])
-
-      "last_duration" ->
-        order_by(query, [tc], [{^direction, tc.last_duration}])
-
-      "avg_duration" ->
-        order_by(query, [tc], [{^direction, tc.avg_duration}])
-
-      _ ->
-        order_by(query, [tc], [{^direction, tc.last_ran_at}])
-    end
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
   end
 
   defp normalize_duration(nil), do: 0

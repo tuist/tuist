@@ -8,6 +8,19 @@ defmodule Tuist.Runs.TestCase do
 
   import Ecto.Changeset
 
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :project_id,
+      :name,
+      :module_name,
+      :suite_name,
+      :last_status
+    ],
+    sortable: [:name, :last_duration, :avg_duration, :last_ran_at],
+    default_order: %{order_by: [:last_ran_at], order_directions: [:desc]}
+  }
+
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_cases" do
     field :name, :string
