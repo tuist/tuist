@@ -593,4 +593,4 @@ When running Xcode builds, use Argus to capture and analyze build data:
 
 If you have ideas for how to improve things, open PRs or issues on the [Argus repository](https://github.com/tuist/argus). We'd love to see what you build with it, so share your learnings on [Mastodon](https://fosstodon.org/@tuist), [Bluesky](https://bsky.app/profile/tuist.dev), or [LinkedIn](https://www.linkedin.com/company/tuistio) and tag us.
 
-Check out the [swift-build repository](https://github.com/swiftlang/swift-build) to see the protocol definitions, join the [Tuist community](https://community.tuist.dev/) to discuss build optimization, or [book a call](https://cal.tuist.dev) if you need help scaling your development workflows.
+Check out the [swift-build repository](https://github.com/swiftlang/swift-build) to see the protocol definitions, join the [Tuist community](https://community.tuist.dev/) to discuss build optimization, or [book a call](https://cal.tuist.dev/team/tuist/tuist) if you need help scaling your development workflows.
