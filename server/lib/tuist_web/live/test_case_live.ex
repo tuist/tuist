@@ -20,11 +20,11 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
-    test_case_detail = Runs.get_test_case_by_id(test_case_id)
-
-    if is_nil(test_case_detail) do
-      raise NotFoundError, gettext("Test case not found.")
-    end
+    test_case_detail =
+      case Runs.get_test_case_by_id(test_case_id) do
+        {:ok, test_case} -> test_case
+        {:error, :not_found} -> raise NotFoundError, gettext("Test case not found.")
+      end
 
     # Verify project ownership
     if test_case_detail.project_id != project.id do

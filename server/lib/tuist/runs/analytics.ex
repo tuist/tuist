@@ -1305,34 +1305,29 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: %{
+          p50: fragment("quantile(0.50)(?)", t.duration),
+          p90: fragment("quantile(0.90)(?)", t.duration),
+          p99: fragment("quantile(0.99)(?)", t.duration)
+        }
+      )
+
+    query =
       case is_ci do
-        nil -> ""
-        true -> "AND t.is_ci = true"
-        false -> "AND t.is_ci = false"
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
       end
 
-    query = """
-    SELECT
-      quantile(0.50)(t.duration) as p50,
-      quantile(0.90)(t.duration) as p90,
-      quantile(0.99)(t.duration) as p99
-    FROM test_runs t
-    WHERE t.project_id = {project_id:Int64}
-      AND t.ran_at >= {start_dt:DateTime64(6)}
-      AND t.ran_at <= {end_dt:DateTime64(6)}
-      #{is_ci_filter}
-    """
+    result = ClickHouseRepo.one(query)
 
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        start_dt: start_dt,
-        end_dt: end_dt
-      })
-
-    case result.rows do
-      [[p50, p90, p99]] ->
+    case result do
+      %{p50: p50, p90: p90, p99: p99} ->
         %{
           p50: normalize_percentile(p50),
           p90: normalize_percentile(p90),
@@ -1351,41 +1346,36 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          p50: fragment("quantile(0.5)(?)", t.duration),
+          p90: fragment("quantile(0.9)(?)", t.duration),
+          p99: fragment("quantile(0.99)(?)", t.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+      )
+
+    query =
       case is_ci do
-        nil -> ""
-        true -> "AND t.is_ci = true"
-        false -> "AND t.is_ci = false"
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
       end
 
-    query = """
-    SELECT
-      formatDateTime(t.ran_at, '#{date_format}') as date,
-      quantile(0.5)(t.duration) as p50,
-      quantile(0.9)(t.duration) as p90,
-      quantile(0.99)(t.duration) as p99
-    FROM test_runs t
-    WHERE t.project_id = {project_id:Int64}
-      AND t.ran_at >= {start_dt:DateTime}
-      AND t.ran_at <= {end_dt:DateTime}
-      #{is_ci_filter}
-    GROUP BY formatDateTime(t.ran_at, '#{date_format}')
-    ORDER BY date
-    """
-
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        start_dt: start_dt,
-        end_dt: end_dt
-      })
-
-    Enum.map(result.rows, fn [date, p50, p90, p99] ->
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
       %{
-        date: date,
-        p50: p50 || 0,
-        p90: p90 || 0,
-        p99: p99 || 0
+        date: row.date,
+        p50: row.p50 || 0,
+        p90: row.p90 || 0,
+        p99: row.p99 || 0
       }
     end)
   end
@@ -2574,34 +2564,29 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        select: %{
+          p50: fragment("quantile(0.50)(?)", tcr.duration),
+          p90: fragment("quantile(0.90)(?)", tcr.duration),
+          p99: fragment("quantile(0.99)(?)", tcr.duration)
+        }
+      )
+
+    query =
       case is_ci do
-        nil -> ""
-        true -> "AND tcr.is_ci = true"
-        false -> "AND tcr.is_ci = false"
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
-    query = """
-    SELECT
-      quantile(0.50)(tcr.duration) as p50,
-      quantile(0.90)(tcr.duration) as p90,
-      quantile(0.99)(tcr.duration) as p99
-    FROM test_case_runs tcr
-    WHERE tcr.project_id = {project_id:Int64}
-      AND tcr.inserted_at >= {start_dt:DateTime64(6)}
-      AND tcr.inserted_at <= {end_dt:DateTime64(6)}
-      #{is_ci_filter}
-    """
+    result = ClickHouseRepo.one(query)
 
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        start_dt: start_dt,
-        end_dt: end_dt
-      })
-
-    case result.rows do
-      [[p50, p90, p99]] ->
+    case result do
+      %{p50: p50, p90: p90, p99: p99} ->
         %{
           p50: normalize_percentile(p50),
           p90: normalize_percentile(p90),
@@ -2654,41 +2639,36 @@ defmodule Tuist.Runs.Analytics do
 
     is_ci = Keyword.get(opts, :is_ci)
 
-    is_ci_filter =
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+          p50: fragment("quantile(0.5)(?)", tcr.duration),
+          p90: fragment("quantile(0.9)(?)", tcr.duration),
+          p99: fragment("quantile(0.99)(?)", tcr.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
+      )
+
+    query =
       case is_ci do
-        nil -> ""
-        true -> "AND tcr.is_ci = true"
-        false -> "AND tcr.is_ci = false"
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
       end
 
-    query = """
-    SELECT
-      formatDateTime(tcr.inserted_at, '#{date_format}') as date,
-      quantile(0.5)(tcr.duration) as p50,
-      quantile(0.9)(tcr.duration) as p90,
-      quantile(0.99)(tcr.duration) as p99
-    FROM test_case_runs tcr
-    WHERE tcr.project_id = {project_id:Int64}
-      AND tcr.inserted_at >= {start_dt:DateTime}
-      AND tcr.inserted_at <= {end_dt:DateTime}
-      #{is_ci_filter}
-    GROUP BY formatDateTime(tcr.inserted_at, '#{date_format}')
-    ORDER BY date
-    """
-
-    result =
-      ClickHouseRepo.query!(query, %{
-        project_id: project_id,
-        start_dt: start_dt,
-        end_dt: end_dt
-      })
-
-    Enum.map(result.rows, fn [date, p50, p90, p99] ->
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
       %{
-        date: date,
-        p50: p50 || 0,
-        p90: p90 || 0,
-        p99: p99 || 0
+        date: row.date,
+        p50: row.p50 || 0,
+        p90: row.p90 || 0,
+        p99: row.p99 || 0
       }
     end)
   end

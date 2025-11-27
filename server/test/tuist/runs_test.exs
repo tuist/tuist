@@ -2377,4 +2377,55 @@ defmodule Tuist.RunsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
   end
+
+  describe "get_test_case_by_id/1" do
+    test "returns {:ok, test_case} when test case exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{name: "TestSuite", status: "success", duration: 500}
+              ],
+              test_cases: [
+                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      # Wait for ClickHouse to process
+      Process.sleep(100)
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # When
+      result = Runs.get_test_case_by_id(test_case.id)
+
+      # Then
+      assert {:ok, found_test_case} = result
+      assert found_test_case.id == test_case.id
+      assert found_test_case.name == "testOne"
+      assert found_test_case.module_name == "TestModule"
+      assert found_test_case.suite_name == "TestSuite"
+    end
+
+    test "returns {:error, :not_found} when test case does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = Runs.get_test_case_by_id(non_existent_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
 end

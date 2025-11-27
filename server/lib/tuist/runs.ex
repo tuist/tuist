@@ -554,7 +554,7 @@ defmodule Tuist.Runs do
 
   @doc """
   Gets a test case by its UUID with all denormalized fields.
-  Returns nil if the test case is not found.
+  Returns {:ok, test_case} or {:error, :not_found}.
   """
   def get_test_case_by_id(id) do
     query =
@@ -563,7 +563,10 @@ defmodule Tuist.Runs do
         limit: 1
       )
 
-    ClickHouseRepo.one(query)
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test_case -> {:ok, test_case}
+    end
   end
 
   @doc """
