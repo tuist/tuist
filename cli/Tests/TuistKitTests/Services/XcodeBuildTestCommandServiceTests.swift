@@ -28,6 +28,7 @@ struct XcodeBuildTestCommandServiceTests {
     private let selectiveTestingService = MockSelectiveTestingServicing()
     private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     private let uniqueIDGenerator = MockUniqueIDGenerating()
+    private let derivedDataLocator = MockDerivedDataLocating()
     private let subject: XcodeBuildTestCommandService
     init() {
         let cacheStorageFactory = MockCacheStorageFactorying()
@@ -49,6 +50,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(uniqueIDGenerator)
             .uniqueID()
             .willReturn("unique-id")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(try! AbsolutePath(validating: "/tmp/DerivedData"))
 
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
@@ -58,7 +62,8 @@ struct XcodeBuildTestCommandServiceTests {
             uniqueIDGenerator: uniqueIDGenerator,
             cacheStorageFactory: cacheStorageFactory,
             selectiveTestingGraphHasher: selectiveTestingGraphHasher,
-            selectiveTestingService: selectiveTestingService
+            selectiveTestingService: selectiveTestingService,
+            derivedDataLocator: derivedDataLocator
         )
     }
 

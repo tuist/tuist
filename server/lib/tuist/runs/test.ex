@@ -37,12 +37,14 @@ defmodule Tuist.Runs.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :build_run_id, Ecto.UUID
     field :ci_run_id, :string
     field :ci_project_handle, :string
     field :ci_host, :string
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :build_run, Tuist.Runs.Build, foreign_key: :build_run_id, define_field: false
 
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
@@ -65,6 +67,7 @@ defmodule Tuist.Runs.Test do
       :git_ref,
       :ran_at,
       :inserted_at,
+      :build_run_id,
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
