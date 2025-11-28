@@ -517,13 +517,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
     end
   end
 
-  describe "create_package_release/1 with submodules" do
+  describe "create_package_release/1" do
     setup do
       stub(Storage, :put_object, fn _object_key, _content, _actor -> :ok end)
-      :ok
+      {:ok, temp_dir} = Briefly.create(type: :directory)
+      {:ok, temp_dir: temp_dir}
     end
 
-    test "uses zipball for packages without submodules" do
+    test "uses zipball for packages without submodules", %{temp_dir: temp_dir} do
       # Given
       package =
         PackagesFixtures.package_fixture(
@@ -531,6 +532,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
           name: "TestName",
           repository_full_handle: "TestScope/TestName"
         )
+
+      # Create the directory structure that unzip would create
+      source_dir = Path.join(temp_dir, "TestName-1.0.0")
+      File.mkdir_p!(source_dir)
+      File.write!(Path.join(source_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
 
       stub(VCS, :get_repository_content, fn
         _, [reference: "1.0.0", path: ".gitmodules"] ->
@@ -548,23 +554,13 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       end)
 
       stub(Briefly, :create, fn [type: :directory] ->
-        {:ok, "/tmp/briefly-test"}
+        {:ok, temp_dir}
       end)
 
       stub(System, :cmd, fn
-        "unzip", ["/tmp/source_archive.zip", "-d", "/tmp/briefly-test"] ->
+        "unzip", ["/tmp/source_archive.zip", "-d", ^temp_dir] ->
           {"", 0}
       end)
-
-      stub(System, :cmd, fn
-        "zip",
-        ["--symlinks", "-r", "/tmp/briefly-test/source_archive.zip", "TestName-1.0.0"],
-        [cd: "/tmp/briefly-test"] ->
-          {"", 0}
-      end)
-
-      stub(File, :ls!, fn "/tmp/briefly-test" -> ["TestName-1.0.0"] end)
-      stub(File, :read!, fn "/tmp/briefly-test/source_archive.zip" -> "zip_content" end)
 
       # When
       package_release =
@@ -578,7 +574,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       assert package_release.version == "1.0.0"
     end
 
-    test "uses git clone for packages with submodules" do
+    test "uses git clone for packages with submodules", %{temp_dir: temp_dir} do
       # Given
       package =
         PackagesFixtures.package_fixture(
@@ -586,6 +582,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
           name: "swift-protobuf",
           repository_full_handle: "apple/swift-protobuf"
         )
+
+      # Create the directory structure that git clone would create
+      clone_dir = Path.join(temp_dir, "swift-protobuf-1.0.0")
+      File.mkdir_p!(clone_dir)
+      File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
 
       stub(VCS, :get_repository_content, fn
         _, [reference: "1.0.0", path: ".gitmodules"] ->
@@ -603,32 +604,18 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       end)
 
       stub(Briefly, :create, fn [type: :directory] ->
-        {:ok, "/tmp/briefly-test"}
+        {:ok, temp_dir}
       end)
 
-      stub(System, :cmd, fn cmd, args ->
-        case {cmd, args} do
-          {"find", _} -> {"", 0}
-          _ -> {"", 0}
-        end
+      stub(System, :cmd, fn
+        "git", _, [stderr_to_stdout: true] ->
+          {"Cloning...", 0}
+
+        "zip", [_, "-r", archive_path, _], [cd: _] ->
+          # Create a minimal zip file for the test
+          File.write!(archive_path, "PK\x03\x04minimal zip content")
+          {"", 0}
       end)
-
-      stub(System, :cmd, fn cmd, args, opts ->
-        case {cmd, args, opts} do
-          {"git", _, [stderr_to_stdout: true]} ->
-            {"Cloning...", 0}
-
-          {"zip", ["--symlinks", "-r", "/tmp/briefly-test/source_archive.zip", "swift-protobuf-1.0.0"],
-           [cd: "/tmp/briefly-test"]} ->
-            {"", 0}
-
-          _ ->
-            {"", 0}
-        end
-      end)
-
-      stub(File, :exists?, fn "/tmp/briefly-test/swift-protobuf-1.0.0/.gitmodules" -> false end)
-      stub(File, :read!, fn "/tmp/briefly-test/source_archive.zip" -> "zip_content" end)
 
       # When
       package_release =
@@ -642,7 +629,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       assert package_release.version == "1.0.0"
     end
 
-    test "handles git clone failure gracefully" do
+    test "handles git clone failure gracefully", %{temp_dir: temp_dir} do
       # Given
       package =
         PackagesFixtures.package_fixture(
@@ -660,7 +647,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       end)
 
       stub(Briefly, :create, fn [type: :directory] ->
-        {:ok, "/tmp/briefly-test"}
+        {:ok, temp_dir}
       end)
 
       stub(System, :cmd, fn
