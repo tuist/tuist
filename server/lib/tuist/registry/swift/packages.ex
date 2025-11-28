@@ -159,7 +159,7 @@ defmodule Tuist.Registry.Swift.Packages do
       }) do
     {:ok, source_archive_directory} = Briefly.create(type: :directory)
 
-    {:ok, source_directory} =
+    source_result =
       if has_submodules?(%{repository_full_handle: repository_full_handle, token: token, tag: version}) do
         Logger.info("Using git clone with submodules for #{repository_full_handle}@#{version}")
         repo_name = repository_full_handle |> String.split("/") |> List.last()
@@ -180,6 +180,34 @@ defmodule Tuist.Registry.Swift.Packages do
         })
       end
 
+    case source_result do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, source_directory} ->
+        create_package_release_from_source(%{
+          package: package,
+          package_id: package_id,
+          scope: scope,
+          name: name,
+          version: version,
+          token: token,
+          source_archive_directory: source_archive_directory,
+          source_directory: source_directory
+        })
+    end
+  end
+
+  defp create_package_release_from_source(%{
+         package: package,
+         package_id: package_id,
+         scope: scope,
+         name: name,
+         version: version,
+         token: token,
+         source_archive_directory: source_archive_directory,
+         source_directory: source_directory
+       }) do
     new_source_archive_path = "#{source_archive_directory}/source_archive.zip"
 
     {_, 0} =

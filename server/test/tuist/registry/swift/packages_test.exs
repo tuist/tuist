@@ -655,14 +655,16 @@ defmodule Tuist.Registry.Swift.PackagesTest do
           {"fatal: repository not found", 128}
       end)
 
-      # When/Then
-      assert_raise MatchError, fn ->
+      # When
+      result =
         Packages.create_package_release(%{
           package: package,
           version: "1.0.0",
           token: "test_token"
         })
-      end
+
+      # Then
+      assert {:error, "Git clone failed (exit 128): fatal: repository not found"} = result
     end
   end
 end
