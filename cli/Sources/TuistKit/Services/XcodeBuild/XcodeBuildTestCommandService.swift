@@ -219,7 +219,7 @@ struct XcodeBuildTestCommandService {
                 selectiveTestingHashes: selectiveTestingHashes,
                 targetTestCacheItems: targetTestCacheItems
             )
-            try? await inspectResultBundleIfNeeded(
+            await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
@@ -240,7 +240,7 @@ struct XcodeBuildTestCommandService {
             cacheStorage: cacheStorage
         )
 
-        try await inspectResultBundleIfNeeded(
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config
@@ -383,15 +383,19 @@ struct XcodeBuildTestCommandService {
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath,
         config: Tuist
-    ) async throws {
+    ) async {
         guard let resultBundlePath, config.fullHandle != nil,
-              try await fileSystem.exists(resultBundlePath)
+              (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
 
-        _ = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            projectDerivedDataDirectory: projectDerivedDataDirectory,
-            config: config
-        )
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 }
