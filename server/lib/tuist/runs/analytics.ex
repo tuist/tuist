@@ -718,6 +718,8 @@ defmodule Tuist.Runs.Analytics do
         is_ci: is_ci
       )
 
+    dates = Enum.map(selective_testing_hit_rates, & &1.date)
+
     %{
       trend:
         trend(
@@ -725,17 +727,116 @@ defmodule Tuist.Runs.Analytics do
           current_value: current_selective_testing_hit_rate
         ),
       hit_rate: current_selective_testing_hit_rate,
-      dates:
-        Enum.map(
-          selective_testing_hit_rates,
-          & &1.date
-        ),
+      dates: dates,
       values:
         Enum.map(
           selective_testing_hit_rates,
           & &1.hit_rate
         )
     }
+  end
+
+  def selective_testing_analytics_with_percentiles(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket_for_date_period(date_period))
+
+    base_analytics = selective_testing_analytics(opts)
+
+    [p50_period, p90_period, p99_period, p50_values, p90_values, p99_values] =
+      Task.await_many(
+        [
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.99,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.99,
+              is_ci: is_ci
+            )
+          end)
+        ],
+        30_000
+      )
+
+    dates = base_analytics.dates
+
+    Map.merge(base_analytics, %{
+      p50: normalize_percentile_result(p50_period),
+      p90: normalize_percentile_result(p90_period),
+      p99: normalize_percentile_result(p99_period),
+      p50_values: process_percentile_hit_rates(p50_values, dates, date_period),
+      p90_values: process_percentile_hit_rates(p90_values, dates, date_period),
+      p99_values: process_percentile_hit_rates(p99_values, dates, date_period)
+    })
+  end
+
+  defp normalize_percentile_result(nil), do: 0.0
+  defp normalize_percentile_result(value) when is_float(value), do: value
+  defp normalize_percentile_result(%Decimal{} = value), do: Decimal.to_float(value)
+
+  defp process_percentile_hit_rates(percentile_data, dates, date_period) do
+    percentile_map =
+      Map.new(percentile_data, fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
+
+    Enum.map(dates, fn date ->
+      case Map.get(percentile_map, date) do
+        nil -> 0.0
+        value -> value / 100.0
+      end
+    end)
   end
 
   defp selective_testing_hit_rate(project_id, opts) do
