@@ -693,8 +693,6 @@ defmodule Tuist.Runs.Analytics do
     days_delta = Date.diff(end_date, start_date)
 
     date_period = date_period(start_date: start_date, end_date: end_date)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
     current_selective_testing_hit_rate =
       selective_testing_hit_rate(
@@ -720,7 +718,35 @@ defmodule Tuist.Runs.Analytics do
         is_ci: is_ci
       )
 
-    # Fetch percentile data in parallel
+    dates = Enum.map(selective_testing_hit_rates, & &1.date)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_selective_testing_hit_rate,
+          current_value: current_selective_testing_hit_rate
+        ),
+      hit_rate: current_selective_testing_hit_rate,
+      dates: dates,
+      values:
+        Enum.map(
+          selective_testing_hit_rates,
+          & &1.hit_rate
+        )
+    }
+  end
+
+  def selective_testing_analytics_with_percentiles(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket_for_date_period(date_period))
+
+    base_analytics = selective_testing_analytics(opts)
+
     [p50_period, p90_period, p99_period, p50_values, p90_values, p99_values] =
       Task.await_many(
         [
@@ -756,7 +782,6 @@ defmodule Tuist.Runs.Analytics do
               project_id,
               start_date,
               end_date,
-              date_period,
               clickhouse_time_bucket,
               0.50,
               is_ci: is_ci
@@ -767,7 +792,6 @@ defmodule Tuist.Runs.Analytics do
               project_id,
               start_date,
               end_date,
-              date_period,
               clickhouse_time_bucket,
               0.90,
               is_ci: is_ci
@@ -778,7 +802,6 @@ defmodule Tuist.Runs.Analytics do
               project_id,
               start_date,
               end_date,
-              date_period,
               clickhouse_time_bucket,
               0.99,
               is_ci: is_ci
@@ -788,28 +811,16 @@ defmodule Tuist.Runs.Analytics do
         30_000
       )
 
-    dates = Enum.map(selective_testing_hit_rates, & &1.date)
+    dates = base_analytics.dates
 
-    %{
-      trend:
-        trend(
-          previous_value: previous_selective_testing_hit_rate,
-          current_value: current_selective_testing_hit_rate
-        ),
-      hit_rate: current_selective_testing_hit_rate,
+    Map.merge(base_analytics, %{
       p50: normalize_percentile_result(p50_period),
       p90: normalize_percentile_result(p90_period),
       p99: normalize_percentile_result(p99_period),
-      dates: dates,
-      values:
-        Enum.map(
-          selective_testing_hit_rates,
-          & &1.hit_rate
-        ),
       p50_values: process_percentile_hit_rates(p50_values, dates, date_period),
       p90_values: process_percentile_hit_rates(p90_values, dates, date_period),
       p99_values: process_percentile_hit_rates(p99_values, dates, date_period)
-    }
+    })
   end
 
   defp normalize_percentile_result(nil), do: 0.0

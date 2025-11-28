@@ -184,7 +184,7 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
-    selective_testing_analytics = Analytics.selective_testing_analytics(opts)
+    selective_testing_analytics = Analytics.selective_testing_analytics_with_percentiles(opts)
 
     socket
     |> assign(:selective_testing_analytics, selective_testing_analytics)

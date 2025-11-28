@@ -570,15 +570,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rate_percentiles(
-        project_id,
-        start_date,
-        end_date,
-        _date_period,
-        time_bucket,
-        percentile,
-        opts
-      ) do
+  def selective_testing_hit_rate_percentiles(project_id, start_date, end_date, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
     # For hit rate (higher is better), flip the percentile to get descending order

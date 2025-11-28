@@ -731,21 +731,6 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.values == [0, 0, 0.5]
       assert got.hit_rate == 0.5
-      assert Map.has_key?(got, :p50)
-      assert Map.has_key?(got, :p90)
-      assert Map.has_key?(got, :p99)
-      assert Map.has_key?(got, :p50_values)
-      assert Map.has_key?(got, :p90_values)
-      assert Map.has_key?(got, :p99_values)
-      assert is_float(got.p50)
-      assert is_float(got.p90)
-      assert is_float(got.p99)
-      assert is_list(got.p50_values)
-      assert is_list(got.p90_values)
-      assert is_list(got.p99_values)
-      assert length(got.p50_values) == length(got.dates)
-      assert length(got.p90_values) == length(got.dates)
-      assert length(got.p99_values) == length(got.dates)
     end
 
     test "returns selective testing analytics for tuist xcodebuild test" do
@@ -843,6 +828,68 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.values == [0, 0.5, 0.5]
       assert got.hit_rate == 0.5
+    end
+  end
+
+  describe "selective_testing_analytics_with_percentiles/1" do
+    test "returns selective testing analytics with percentile values" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics_with_percentiles(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+      assert Map.has_key?(got, :p50)
+      assert Map.has_key?(got, :p90)
+      assert Map.has_key?(got, :p99)
+      assert Map.has_key?(got, :p50_values)
+      assert Map.has_key?(got, :p90_values)
+      assert Map.has_key?(got, :p99_values)
+      assert is_float(got.p50)
+      assert is_float(got.p90)
+      assert is_float(got.p99)
+      assert is_list(got.p50_values)
+      assert is_list(got.p90_values)
+      assert is_list(got.p99_values)
+      assert length(got.p50_values) == length(got.dates)
+      assert length(got.p90_values) == length(got.dates)
+      assert length(got.p99_values) == length(got.dates)
     end
   end
 

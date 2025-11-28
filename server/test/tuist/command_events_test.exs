@@ -1446,7 +1446,7 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "selective_testing_hit_rate_percentiles/7" do
+  describe "selective_testing_hit_rate_percentiles/6" do
     test "returns percentile hit rates grouped by date" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -1510,7 +1510,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-29],
           ~D[2024-04-30],
-          :day,
           "1 day",
           0.5,
           []
@@ -1555,7 +1554,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-30],
           ~D[2024-04-30],
-          :day,
           "1 day",
           0.9,
           []
@@ -1611,7 +1609,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-30],
           ~D[2024-04-30],
-          :day,
           "1 day",
           0.5,
           is_ci: true
@@ -1655,7 +1652,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-30],
           ~D[2024-04-30],
-          :day,
           "1 day",
           0.5,
           []
@@ -1699,7 +1695,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-30],
           ~D[2024-04-30],
-          :day,
           "1 hour",
           0.5,
           []
@@ -1726,7 +1721,6 @@ defmodule Tuist.CommandEventsTest do
           project.id,
           ~D[2024-04-30],
           ~D[2024-04-30],
-          :day,
           "1 day",
           0.5,
           []
