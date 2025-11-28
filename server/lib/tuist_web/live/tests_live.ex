@@ -38,6 +38,7 @@ defmodule TuistWeb.TestsLive do
               "analytics_date_range",
               "analytics_selected_widget",
               "duration_type",
+              "selective_testing_environment",
               "selective_testing_date_range",
               "selective_testing_duration_type"
             ])
@@ -165,6 +166,7 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_selective_testing(%{assigns: %{selected_project: project}} = socket, params) do
+    selective_testing_environment = params["selective_testing_environment"] || "any"
     selective_testing_date_range = params["selective_testing_date_range"] || "last_30_days"
     selective_testing_duration_type = params["selective_testing_duration_type"] || "avg"
 
@@ -175,10 +177,19 @@ defmodule TuistWeb.TestsLive do
       start_date: start_date
     ]
 
+    opts =
+      case selective_testing_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
     selective_testing_analytics = Analytics.selective_testing_analytics(opts)
 
     socket
     |> assign(:selective_testing_analytics, selective_testing_analytics)
+    |> assign(:selective_testing_environment, selective_testing_environment)
+    |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
     |> assign(:selective_testing_date_range, selective_testing_date_range)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
   end

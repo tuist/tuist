@@ -387,6 +387,36 @@
 
   <.card title={gettext("Selective Testing")} icon="subtask" data-part="selective-testing">
     <:actions>
+      <.dropdown
+        id="selective-testing-environment-dropdown"
+        label={@selective_testing_environment_label}
+        secondary_text={gettext("Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={gettext("Any")}
+          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "any")}"}
+          data-selected={@selective_testing_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={gettext("Local")}
+          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "local")}"}
+          data-selected={@selective_testing_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={gettext("CI")}
+          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "ci")}"}
+          data-selected={@selective_testing_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "selective_testing_date_range", "last_7_days")}"}
