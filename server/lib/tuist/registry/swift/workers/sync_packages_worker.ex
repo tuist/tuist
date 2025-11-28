@@ -29,7 +29,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
   @unsupported_packages [
     "monzo/nearby",
     "awslabs/aws-crt-swift",
-    "apple/swift-protobuf"
+    "apple/swift-protobuf",
+    "RevenueCat/purchases-ios-spm"
   ]
 
   @impl Oban.Worker
