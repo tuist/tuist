@@ -147,7 +147,7 @@ defmodule TuistWeb.AppLayoutComponents do
       </.sidebar_group>
       <.sidebar_item
         label={gettext("Xcode Cache")}
-        icon="cube_send"
+        icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
         selected={
           ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
