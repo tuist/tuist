@@ -1218,7 +1218,6 @@ components:
               x-struct:
               x-validate:
           required:
-            - type
             - id
             - duration
             - is_ci
@@ -1227,6 +1226,11 @@ components:
           x-struct:
           x-validate:
         - properties:
+            build_run_id:
+              description: The UUID of an associated build run.
+              type: string
+              x-struct:
+              x-validate:
             ci_host:
               description: The CI host URL (optional, for self-hosted instances).
               type: string
@@ -1682,6 +1686,11 @@ components:
       x-validate:
     TestRun:
       properties:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
         ci_host:
           description: The CI host URL (optional, for self-hosted instances).
           type: string
@@ -2844,7 +2853,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - type
         - id
         - duration
         - is_ci
@@ -3811,22 +3819,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -3847,6 +3839,22 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -7308,7 +7316,6 @@ paths:
                       x-struct:
                       x-validate:
                   required:
-                    - type
                     - id
                     - duration
                     - is_ci
@@ -7317,6 +7324,11 @@ paths:
                   x-struct:
                   x-validate:
                 - properties:
+                    build_run_id:
+                      description: The UUID of an associated build run.
+                      type: string
+                      x-struct:
+                      x-validate:
                     ci_host:
                       description: The CI host URL (optional, for self-hosted instances).
                       type: string

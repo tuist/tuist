@@ -79,7 +79,7 @@ struct InspectTestCommandService {
 
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
-        let resolvedResultBundlePath = try await resolveResultBundlePath(
+        let (resolvedResultBundlePath, projectDerivedDataDirectory) = try await resolveResultBundlePath(
             resultBundlePath: resultBundlePath,
             basePath: path,
             derivedDataPath: derivedDataPath
@@ -89,6 +89,7 @@ struct InspectTestCommandService {
         let config = try await configLoader.loadConfig(path: projectPath)
         let test = try await inspectResultBundleService.inspectResultBundle(
             resultBundlePath: resolvedResultBundlePath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config
         )
 
@@ -101,13 +102,24 @@ struct InspectTestCommandService {
         resultBundlePath: String?,
         basePath: AbsolutePath,
         derivedDataPath: String?
-    ) async throws -> AbsolutePath {
+    ) async throws -> (resultBundlePath: AbsolutePath, derivedDataDirectory: AbsolutePath?) {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
 
         if let resultBundlePath {
-            return try AbsolutePath(
-                validating: resultBundlePath,
-                relativeTo: currentWorkingDirectory
+            let derivedDataDirectory: AbsolutePath? = if let derivedDataPath {
+                try AbsolutePath(
+                    validating: derivedDataPath,
+                    relativeTo: currentWorkingDirectory
+                )
+            } else {
+                nil
+            }
+            return (
+                try AbsolutePath(
+                    validating: resultBundlePath,
+                    relativeTo: currentWorkingDirectory
+                ),
+                derivedDataDirectory
             )
         }
 
@@ -126,6 +138,6 @@ struct InspectTestCommandService {
         else {
             throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
         }
-        return xcResultPath
+        return (xcResultPath, projectDerivedDataDirectory)
     }
 }

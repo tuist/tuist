@@ -651,7 +651,7 @@ test_suite_runs =
 
       case_count =
         Enum.random(
-          (div(module_run.test_case_count, suite_count) - 2)..(div(module_run.test_case_count, suite_count) + 2)
+          max(1, div(module_run.test_case_count, suite_count) - 2)..(div(module_run.test_case_count, suite_count) + 2)
         )
 
       suite_duration = Enum.random(500..div(module_run.duration, suite_count))
@@ -727,7 +727,7 @@ test_case_runs =
           Enum.random([0, 0, 1, 2])
         end
 
-      case_duration = Enum.random(10..(div(suite_run.duration, max(case_count, 1)) * 2))
+      case_duration = Enum.random(10..max(10, div(suite_run.duration, max(case_count, 1)) * 2))
 
       %{
         id: UUIDv7.generate(),
@@ -901,119 +901,6 @@ command_events
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Event, chunk)
-end)
-
-test_command_events =
-  Enum.filter(command_events, &(&1.name == "test"))
-
-test_command_events
-|> Enum.shuffle()
-|> Enum.take(100)
-|> Enum.map(fn command_event ->
-  name = "test#{System.unique_integer([:positive])}"
-
-  module_name =
-    Enum.random(["ModuleOne", "ModuleTwo", "ModuleThree", "ModuleFour", "ModuleFive"])
-
-  identifier = "#{module_name}/#{name}"
-  test_case = CommandEvents.get_test_case_by_identifier(identifier)
-
-  test_case =
-    if is_nil(test_case) do
-      CommandEvents.create_test_case(
-        %{
-          name: name,
-          module_name: module_name,
-          identifier: identifier,
-          project_identifier: "AppTests/AppTests.xcodeproj",
-          project_id: tuist_project.id
-        },
-        flaky: Enum.random([true, false, false, false, false])
-      )
-    else
-      test_case
-    end
-
-  target_names = [
-    "App",
-    "AppKit",
-    "AppUI",
-    "AppCore",
-    "Authentication",
-    "Networking",
-    "DataLayer",
-    "Analytics",
-    "Settings",
-    "Profile",
-    "UIComponents",
-    "DesignSystem",
-    "Utilities",
-    "Extensions",
-    "UserManagement",
-    "ContentDelivery",
-    "PaymentProcessing",
-    "Notifications",
-    "CacheManager",
-    "LoggingFramework"
-  ]
-
-  generate_sha1_hash = fn ->
-    1..40
-    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
-    |> List.to_string()
-  end
-
-  targets =
-    target_names
-    |> Enum.take(Enum.random(15..20))
-    |> Enum.map(fn target_name ->
-      hit_status = Enum.random(["local", "local", "remote", "remote", "remote", "miss"])
-
-      %{
-        "name" => target_name,
-        "binary_cache_metadata" => %{
-          "hash" => generate_sha1_hash.(),
-          "hit" => hit_status
-        }
-      }
-    end)
-
-  {:ok, _graph} =
-    Xcode.create_xcode_graph(%{
-      command_event: command_event,
-      xcode_graph: %{
-        name: "Graph",
-        binary_build_duration: Enum.random(1_000..1_800_000),
-        projects: [
-          %{
-            "name" => name,
-            "path" => module_name,
-            "targets" => targets
-          }
-        ]
-      }
-    })
-
-  Tuist.Xcode.XcodeGraph.Buffer.flush()
-  Tuist.Xcode.XcodeProject.Buffer.flush()
-  Tuist.Xcode.XcodeTarget.Buffer.flush()
-
-  xcode_targets =
-    command_event.id
-    |> Xcode.xcode_targets_for_command_event()
-    |> Enum.map(& &1.id)
-
-  for _ <- 1..100 do
-    CommandEvents.create_test_case_run(
-      %{
-        status: Enum.random([:success, :failure]),
-        test_case_id: test_case.id,
-        command_event_id: command_event.id,
-        xcode_target_id: Enum.random(xcode_targets)
-      },
-      flaky: Enum.random([test_case.flaky, false, false, false])
-    )
-  end
 end)
 
 bundle_identifiers = [

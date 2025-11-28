@@ -12,20 +12,34 @@
   </.button>
 
   <div data-part="header">
-    <div data-part="title">
-      <div :if={@run.status == "success"} data-part="badge-success">
-        <div data-part="icon">
-          <.circle_check />
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@run.status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
         </div>
-      </div>
-      <div :if={@run.status == "failure"} data-part="badge-failure">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@run.status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
+        <h1 data-part="label">
+          {@run.scheme || gettext("Unknown")}
+        </h1>
       </div>
-      <h1 data-part="label">
-        {@run.scheme || gettext("Unknown")}
-      </h1>
+      <.link_button
+        :if={@run.build_run}
+        target="_blank"
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.build_run.id}"
+        }
+        label={gettext("Build: %{scheme}", scheme: @run.build_run.scheme || gettext("Unknown"))}
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button

@@ -164,6 +164,62 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "get_latest_test_by_build_run_id/1" do
+    test "returns test when it exists for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          build_run_id: build.id,
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      # When
+      result = Runs.get_latest_test_by_build_run_id(build.id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == test.id
+      assert found_test.build_run_id == build.id
+    end
+
+    test "returns the latest test when multiple tests exist for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      {:ok, _older_test} =
+        RunsFixtures.test_fixture(
+          build_run_id: build.id,
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      {:ok, latest_test} =
+        RunsFixtures.test_fixture(
+          build_run_id: build.id,
+          ran_at: ~N[2024-03-04 02:00:00]
+        )
+
+      # When
+      result = Runs.get_latest_test_by_build_run_id(build.id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == latest_test.id
+    end
+
+    test "returns error when no test exists for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture()
+
+      # When
+      result = Runs.get_latest_test_by_build_run_id(build.id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
   describe "list_test_runs/1" do
     test "lists test runs with pagination" do
       # Given

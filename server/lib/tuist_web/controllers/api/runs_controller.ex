@@ -520,7 +520,6 @@ defmodule TuistWeb.API.RunsController do
                }
              },
              required: [
-               :type,
                :id,
                :duration,
                :is_ci
@@ -579,6 +578,10 @@ defmodule TuistWeb.API.RunsController do
                git_remote_url_origin: %Schema{
                  type: :string,
                  description: "The git remote URL origin."
+               },
+               build_run_id: %Schema{
+                 type: :string,
+                 description: "The UUID of an associated build run."
                },
                ci_run_id: %Schema{
                  type: :string,
@@ -729,7 +732,7 @@ defmodule TuistWeb.API.RunsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
-    case Map.get(body_params, :type) do
+    case Map.get(body_params, :type, "build") do
       "build" ->
         case get_or_create_build(run_params) do
           {:ok, build} ->
@@ -846,7 +849,8 @@ defmodule TuistWeb.API.RunsController do
           ci_host: Map.get(params, :ci_host),
           ci_provider: Map.get(params, :ci_provider),
           test_modules: Map.get(params, :test_modules, []),
-          test_cases: Map.get(params, :test_cases, [])
+          test_cases: Map.get(params, :test_cases, []),
+          build_run_id: Map.get(params, :build_run_id)
         })
     end
   end
