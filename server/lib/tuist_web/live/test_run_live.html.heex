@@ -401,7 +401,19 @@
           <div :if={Enum.any?(@test_cases_active_filters)} data-part="active-filters">
             <.active_filter :for={filter <- @test_cases_active_filters} filter={filter} />
           </div>
-          <.table id="test-cases-table" rows={@test_cases}>
+          <.table
+            id="test-cases-table"
+            rows={@test_cases}
+            row_navigate={
+              fn test_case ->
+                if test_case.test_case_id do
+                  url(
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.test_case_id}"
+                  )
+                end
+              end
+            }
+          >
             <:col
               :let={test_case}
               label={gettext("Test case")}

@@ -16,6 +16,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestModuleRun
@@ -483,6 +484,122 @@ defmodule Tuist.Runs do
     end
   end
 
+  @doc """
+  Creates test cases and returns a map of {name, module_name, suite_name} => test_case_id.
+  Uses deterministic UUIDs based on the test case identity, so duplicates are handled
+  by ClickHouse's ReplacingMergeTree engine (keeps the row with the latest inserted_at).
+
+  Each test case data map should contain:
+  - :name, :module_name, :suite_name - identity fields
+  - :status, :duration, :ran_at - latest run data
+  """
+  def create_test_cases(project_id, test_case_data_list) do
+    now = NaiveDateTime.utc_now()
+
+    test_case_ids_with_data =
+      Enum.map(test_case_data_list, fn data ->
+        id = generate_test_case_id(project_id, data.name, data.module_name, data.suite_name)
+        {id, data}
+      end)
+
+    test_case_ids = Enum.map(test_case_ids_with_data, fn {id, _} -> id end)
+
+    existing_data = fetch_existing_test_case_data(project_id, test_case_ids)
+
+    test_cases =
+      Enum.map(test_case_ids_with_data, fn {id, data} ->
+        existing = Map.get(existing_data, id, %{recent_durations: []})
+        new_durations = Enum.take([data.duration | existing.recent_durations], 50)
+
+        new_avg =
+          if Enum.empty?(new_durations),
+            do: 0,
+            else: div(Enum.sum(new_durations), length(new_durations))
+
+        %{
+          id: id,
+          name: data.name,
+          module_name: data.module_name,
+          suite_name: data.suite_name,
+          project_id: project_id,
+          last_status: data.status,
+          last_duration: data.duration,
+          last_ran_at: data.ran_at,
+          inserted_at: now,
+          recent_durations: new_durations,
+          avg_duration: new_avg
+        }
+      end)
+
+    IngestRepo.insert_all(TestCase, test_cases)
+
+    Map.new(test_cases, fn tc ->
+      {{tc.name, tc.module_name, tc.suite_name}, tc.id}
+    end)
+  end
+
+  defp fetch_existing_test_case_data(_project_id, []), do: %{}
+
+  defp fetch_existing_test_case_data(project_id, test_case_ids) do
+    query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        where: tc.id in ^test_case_ids,
+        select: %{id: tc.id, recent_durations: tc.recent_durations}
+      )
+
+    query
+    |> IngestRepo.all()
+    |> Map.new(fn row -> {row.id, row} end)
+  end
+
+  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+    identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
+
+    <<a::32, b::16, c::16, d::16, e::48>> =
+      :md5
+      |> :crypto.hash(identity)
+      |> binary_part(0, 16)
+
+    # Format as UUID v4 (set version and variant bits)
+    Ecto.UUID.cast!(<<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>)
+  end
+
+  @doc """
+  Gets a test case by its UUID with all denormalized fields.
+  Returns {:ok, test_case} or {:error, :not_found}.
+  """
+  def get_test_case_by_id(id) do
+    query =
+      from(tc in TestCase,
+        where: tc.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test_case -> {:ok, test_case}
+    end
+  end
+
+  @doc """
+  Lists test case runs for a specific test case by its UUID.
+  Returns a tuple of {test_case_runs, meta} with pagination info.
+  """
+  def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id
+      )
+
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
+
+    results = Repo.preload(results, :ran_by_account)
+
+    {results, meta}
+  end
+
   defp create_test_modules(test, test_modules) do
     Enum.each(test_modules, fn module_attrs ->
       module_id = Ecto.UUID.generate()
@@ -561,6 +678,24 @@ defmodule Tuist.Runs do
   end
 
   defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
+    # Build test case data with identity and latest run info
+    test_case_data_list =
+      test_cases
+      |> Enum.map(fn case_attrs ->
+        %{
+          name: Map.get(case_attrs, :name),
+          module_name: module_name,
+          suite_name: Map.get(case_attrs, :test_suite_name, "") || "",
+          status: Map.get(case_attrs, :status),
+          duration: Map.get(case_attrs, :duration, 0),
+          ran_at: test.ran_at
+        }
+      end)
+      |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
+
+    # Create test cases (duplicates handled by ReplacingMergeTree)
+    test_case_id_map = create_test_cases(test.project_id, test_case_data_list)
+
     {test_case_runs, all_failures} =
       Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "")
@@ -569,12 +704,24 @@ defmodule Tuist.Runs do
 
         test_case_run_id = Ecto.UUID.generate()
 
+        # Lookup the test_case_id from our map
+        case_name = Map.get(case_attrs, :name)
+        identity_key = {case_name, module_name, suite_name || ""}
+        test_case_id = Map.get(test_case_id_map, identity_key)
+
         test_case_run = %{
           id: test_case_run_id,
-          name: Map.get(case_attrs, :name),
+          name: case_name,
           test_run_id: test.id,
           test_module_run_id: module_id,
           test_suite_run_id: test_suite_run_id,
+          test_case_id: test_case_id,
+          project_id: test.project_id,
+          is_ci: test.is_ci,
+          scheme: test.scheme,
+          account_id: test.account_id,
+          ran_at: test.ran_at,
+          git_branch: test.git_branch,
           status: Map.get(case_attrs, :status),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
@@ -617,5 +764,23 @@ defmodule Tuist.Runs do
     else
       0
     end
+  end
+
+  @doc """
+  Lists test cases for a project directly from the test_cases table.
+  Denormalized fields (last_status, last_duration, last_ran_at) are kept up to date
+  by ReplacingMergeTree on each test run.
+  """
+  def list_test_cases(project_id, attrs) do
+    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+
+    base_query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        where: tc.last_ran_at >= ^two_weeks_ago
+      )
+
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
   end
 end

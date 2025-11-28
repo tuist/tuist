@@ -677,16 +677,49 @@ test_suite_runs
   IngestRepo.insert_all(Tuist.Runs.TestSuiteRun, chunk)
 end)
 
-# Generate test case runs
+# Create test cases first with all unique combinations of (module_name, suite_name, test_case_name)
+# This creates the test_cases and returns a map of {name, module_name, suite_name} => test_case_id
+test_case_definitions =
+  for module_name <- module_names,
+      suite_name <- suite_names,
+      test_case_name <- test_case_names do
+    %{
+      name: test_case_name,
+      module_name: module_name,
+      suite_name: suite_name,
+      status: Enum.random(["success", "failure", "skipped"]),
+      duration: Enum.random(10..500),
+      ran_at: NaiveDateTime.utc_now()
+    }
+  end
+
+test_case_id_map = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+
+# Convert to a list of test cases with their IDs for easy random selection
+test_cases_with_ids =
+  Enum.map(test_case_id_map, fn {{name, module_name, suite_name}, id} ->
+    %{id: id, name: name, module_name: module_name, suite_name: suite_name}
+  end)
+
+# Generate test case runs by selecting from existing test cases
 test_case_runs =
   Enum.flat_map(test_suite_runs, fn suite_run ->
-    # Create the number of test cases specified in test_case_count
     case_count = suite_run.test_case_count
     module_run = Enum.find(test_module_runs, &(&1.id == suite_run.test_module_run_id))
+    test_run = Enum.find(tests, &(&1.id == suite_run.test_run_id))
+
+    # Filter test cases matching this module and suite
+    matching_test_cases =
+      Enum.filter(test_cases_with_ids, fn tc ->
+        tc.module_name == module_run.name && tc.suite_name == suite_run.name
+      end)
+
+    # If no exact match, use all test cases (fallback)
+    available_test_cases = if Enum.empty?(matching_test_cases), do: test_cases_with_ids, else: matching_test_cases
 
     Enum.map(1..case_count, fn _ ->
-      test_case_name = Enum.random(test_case_names)
-      # Inherit status from suite, but allow some variation
+      test_case = Enum.random(available_test_cases)
+
       case_status =
         if suite_run.status == 0 do
           Enum.random([0, 0, 0, 0, 0, 0, 0, 0, 1, 2])
@@ -698,14 +731,21 @@ test_case_runs =
 
       %{
         id: UUIDv7.generate(),
-        name: test_case_name,
+        name: test_case.name,
         test_run_id: suite_run.test_run_id,
         test_module_run_id: suite_run.test_module_run_id,
         test_suite_run_id: suite_run.id,
+        test_case_id: test_case.id,
+        project_id: test_run.project_id,
+        is_ci: test_run.is_ci,
+        scheme: test_run.scheme,
+        account_id: test_run.account_id,
+        ran_at: test_run.ran_at,
+        git_branch: test_run.git_branch,
         status: case_status,
         duration: case_duration,
-        module_name: module_run.name,
-        suite_name: suite_run.name,
+        module_name: test_case.module_name,
+        suite_name: test_case.suite_name,
         inserted_at: suite_run.inserted_at
       }
     end)

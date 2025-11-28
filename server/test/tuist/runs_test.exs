@@ -2120,9 +2120,6 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
 
-      # Allow ClickHouse to process the insert
-      Process.sleep(100)
-
       # When
       metrics = Runs.cacheable_task_latency_metrics(build.id)
 
@@ -2244,6 +2241,138 @@ defmodule Tuist.RunsTest do
       node_ids = Enum.map(outputs, & &1.node_id)
       assert "node1" in node_ids
       assert "node2" in node_ids
+    end
+  end
+
+  describe "list_test_cases/2" do
+    test "returns empty list when no test cases exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {test_cases, meta} = Runs.list_test_cases(project.id, %{})
+
+      # Then
+      assert test_cases == []
+      assert meta.total_count == 0
+    end
+
+    test "supports pagination" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testA", status: "success", duration: 100},
+                %{name: "testB", status: "success", duration: 200},
+                %{name: "testC", status: "success", duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {page1, meta} = Runs.list_test_cases(project.id, %{page: 1, page_size: 2})
+      {page2, _meta2} = Runs.list_test_cases(project.id, %{page: 2, page_size: 2})
+
+      # Then
+      assert length(page1) == 2
+      assert length(page2) == 1
+      assert meta.total_count == 3
+      assert meta.total_pages == 2
+    end
+
+    test "supports sorting by last_duration" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "slowTest", status: "success", duration: 500},
+                %{name: "fastTest", status: "success", duration: 100},
+                %{name: "mediumTest", status: "success", duration: 300}
+              ]
+            }
+          ]
+        )
+
+      # When - sort by last_duration ascending
+      {test_cases_asc, _meta} =
+        Runs.list_test_cases(project.id, %{order_by: [:last_duration], order_directions: [:asc]})
+
+      # Then
+      assert Enum.at(test_cases_asc, 0).name == "fastTest"
+      assert Enum.at(test_cases_asc, 2).name == "slowTest"
+
+      # When - sort by last_duration descending
+      {test_cases_desc, _meta} =
+        Runs.list_test_cases(project.id, %{order_by: [:last_duration], order_directions: [:desc]})
+
+      # Then
+      assert Enum.at(test_cases_desc, 0).name == "slowTest"
+      assert Enum.at(test_cases_desc, 2).name == "fastTest"
+    end
+  end
+
+  describe "get_test_case_by_id/1" do
+    test "returns {:ok, test_case} when test case exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{name: "TestSuite", status: "success", duration: 500}
+              ],
+              test_cases: [
+                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # When
+      result = Runs.get_test_case_by_id(test_case.id)
+
+      # Then
+      assert {:ok, found_test_case} = result
+      assert found_test_case.id == test_case.id
+      assert found_test_case.name == "testOne"
+      assert found_test_case.module_name == "TestModule"
+      assert found_test_case.suite_name == "TestSuite"
+    end
+
+    test "returns {:error, :not_found} when test case does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = Runs.get_test_case_by_id(non_existent_id)
+
+      # Then
+      assert result == {:error, :not_found}
     end
   end
 end

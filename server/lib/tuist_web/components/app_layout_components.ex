@@ -64,6 +64,17 @@ defmodule TuistWeb.AppLayoutComponents do
           )
         }
       />
+      <.sidebar_item
+        label={gettext("Test Cases")}
+        icon="exchange"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
+          )
+        }
+      />
       <.sidebar_group
         id="sidebar-module-cache"
         label={gettext("Module Cache")}

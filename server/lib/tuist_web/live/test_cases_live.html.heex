@@ -1,8 +1,8 @@
-<div id="test-runs">
+<div id="test-cases">
   <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
     <:actions>
       <.dropdown
-        id="test-runs-analytics-environment-dropdown"
+        id="test-cases-analytics-environment-dropdown"
         label={@analytics_environment_label}
         secondary_text={gettext("Environment:")}
       >
@@ -51,46 +51,48 @@
     </:actions>
     <div data-part="widgets">
       <.widget
-        title={gettext("Test run count")}
+        title={gettext("Test case runs")}
         description={
           gettext(
-            "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+            "Test case runs represents the total number of individual test case executions during a given period."
           )
         }
-        value={@test_runs_analytics.count}
-        id="widget-test-run-count"
-        trend_value={@test_runs_analytics.trend}
+        value={Number.Delimit.number_to_delimited(@test_case_runs_analytics.count, precision: 0)}
+        id="widget-test-case-run-count"
+        trend_value={@test_case_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
-        phx_value_widget="test_run_count"
-        selected={@analytics_selected_widget == "test_run_count"}
-        empty={@test_runs_analytics.count == 0}
+        phx_value_widget="test_case_run_count"
+        selected={@analytics_selected_widget == "test_case_run_count"}
+        empty={@test_case_runs_analytics.count == 0}
       />
       <.widget
-        title={gettext("Failed run count")}
+        title={gettext("Failed test case runs")}
         description={
           gettext(
-            "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+            "Failed test case runs represents the number of individual test case executions that failed during a given period."
           )
         }
-        value={@failed_test_runs_analytics.count}
-        id="widget-failed-test-run-count"
-        trend_value={@failed_test_runs_analytics.trend}
+        value={
+          Number.Delimit.number_to_delimited(@failed_test_case_runs_analytics.count, precision: 0)
+        }
+        id="widget-failed-test-case-run-count"
+        trend_value={@failed_test_case_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
         phx_click="select_widget"
-        phx_value_widget="failed_test_run_count"
-        selected={@analytics_selected_widget == "failed_test_run_count"}
-        empty={@test_runs_analytics.count == 0}
+        phx_value_widget="failed_test_case_run_count"
+        selected={@analytics_selected_widget == "failed_test_case_run_count"}
+        empty={@test_case_runs_analytics.count == 0}
       />
       <.percentile_dropdown_widget
-        id="widget-test-run-duration"
+        id="widget-test-case-run-duration"
         title={
           case @selected_duration_type do
-            "avg" -> gettext("Avg. test run duration")
-            "p99" -> gettext("p99 test run duration")
-            "p90" -> gettext("p90 test run duration")
-            "p50" -> gettext("p50 test run duration")
+            "avg" -> gettext("Avg. test case run duration")
+            "p99" -> gettext("p99 test case run duration")
+            "p90" -> gettext("p90 test case run duration")
+            "p50" -> gettext("p50 test case run duration")
           end
         }
         legend_color={
@@ -101,14 +103,16 @@
             _ -> "primary"
           end
         }
-        description={gettext("Average duration of test runs during a given period.")}
+        description={
+          gettext("Average duration of individual test case executions during a given period.")
+        }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_duration_type do
-              "avg" -> @test_runs_duration_analytics.total_average_duration
-              "p99" -> @test_runs_duration_analytics.p99
-              "p90" -> @test_runs_duration_analytics.p90
-              "p50" -> @test_runs_duration_analytics.p50
+              "avg" -> @test_case_runs_duration_analytics.total_average_duration
+              "p99" -> @test_case_runs_duration_analytics.p99
+              "p90" -> @test_case_runs_duration_analytics.p90
+              "p50" -> @test_case_runs_duration_analytics.p50
             end
           )
         }
@@ -116,39 +120,39 @@
           %{
             avg:
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.total_average_duration
+                @test_case_runs_duration_analytics.total_average_duration
               ),
             p99:
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p99
+                @test_case_runs_duration_analytics.p99
               ),
             p90:
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p90
+                @test_case_runs_duration_analytics.p90
               ),
             p50:
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p50
+                @test_case_runs_duration_analytics.p50
               )
           }
         }
         selected_type={@selected_duration_type}
         event_name="select_duration_type"
-        trend_value={@test_runs_duration_analytics.trend}
+        trend_value={@test_case_runs_duration_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
         phx_click="select_widget"
-        phx_value_widget="test_run_duration"
-        selected={@analytics_selected_widget == "test_run_duration"}
-        empty={@test_runs_analytics.count == 0}
+        phx_value_widget="test_case_run_duration"
+        selected={@analytics_selected_widget == "test_case_run_duration"}
+        empty={@test_case_runs_analytics.count == 0}
         empty_label={gettext("No data")}
       />
     </div>
-    <.card_section :if={@test_runs_analytics.count != 0}>
+    <.card_section :if={@test_case_runs_analytics.count != 0}>
       <div data-part="analytics-chart">
         <.chart
-          :if={@analytics_selected_widget != "test_run_duration"}
-          id="test-runs-analytics-chart"
+          :if={@analytics_selected_widget != "test_case_run_duration"}
+          id="test-cases-analytics-chart"
           type="line"
           extra_options={
             %{
@@ -208,8 +212,8 @@
           y_axis_min={0}
         />
         <.chart
-          :if={@analytics_selected_widget == "test_run_duration"}
-          id="test-runs-duration-analytics-chart"
+          :if={@analytics_selected_widget == "test_case_run_duration"}
+          id="test-cases-duration-analytics-chart"
           type="line"
           extra_options={
             %{
@@ -243,8 +247,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @test_runs_duration_analytics.dates |> List.first(),
-                    @test_runs_duration_analytics.dates |> List.last()
+                    @test_case_runs_duration_analytics.dates |> List.first(),
+                    @test_case_runs_duration_analytics.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -271,8 +275,8 @@
               color: "var:noora-chart-secondary",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.values
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("Average"),
@@ -284,8 +288,8 @@
               color: "var:noora-chart-p99",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p99_values
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p99_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("p99"),
@@ -297,8 +301,8 @@
               color: "var:noora-chart-p90",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p90_values
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p90_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("p90"),
@@ -310,8 +314,8 @@
               color: "var:noora-chart-p50",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p50_values
+                  @test_case_runs_duration_analytics.dates,
+                  @test_case_runs_duration_analytics.p50_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("p50"),
@@ -324,93 +328,177 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_runs_analytics.count == 0} title={gettext("No data yet")}>
+    <.empty_card_section :if={@test_case_runs_analytics.count == 0} title={gettext("No data yet")}>
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
-    <.card_section data-part="test-runs-section">
+  <.card title={gettext("Test Cases")} icon="exchange" data-part="test-cases">
+    <.card_section data-part="test-cases-section">
       <div data-part="filters">
+        <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-test-cases"
+            name="search"
+            placeholder={gettext("Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@test_cases_filter}
+          />
+        </.form>
+        <.dropdown
+          id="test-cases-sort-by"
+          label={
+            case @test_cases_sort_by do
+              "name" -> gettext("Test Case")
+              "avg_duration" -> gettext("Avg. duration")
+              _ -> gettext("Last ran at")
+            end
+          }
+          secondary_text={gettext("Sort by:")}
+        >
+          <.dropdown_item
+            value="last_ran_at"
+            label={gettext("Last ran at")}
+            patch={sort_by_patch(@uri, "last_ran_at")}
+            data-selected={@test_cases_sort_by == "last_ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="name"
+            label={gettext("Test Case")}
+            patch={sort_by_patch(@uri, "name")}
+            data-selected={@test_cases_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="avg_duration"
+            label={gettext("Avg. duration")}
+            patch={sort_by_patch(@uri, "avg_duration")}
+            data-selected={@test_cases_sort_by == "avg_duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
           label={gettext("Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
-        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
-        </div>
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
-      <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
+      <div :if={not Enum.empty?(@test_cases)} data-part="test-cases-table">
         <.table
-          id="test-runs-table"
-          rows={@test_runs}
+          id="test-cases-table"
+          rows={@test_cases}
           row_navigate={
-            fn test_run ->
+            fn test_case ->
               url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
               )
             end
           }
         >
-          <:col :let={test_run} label={gettext("Scheme")}>
-            <.text_and_description_cell label={
-              (test_run.scheme !== "" && test_run.scheme) || "Unknown"
-            } />
-          </:col>
-          <:col :let={test_run} label="Status">
-            <.status_badge_cell
-              :if={test_run.status == "success"}
-              label={gettext("Passed")}
-              status="success"
-            />
-            <.status_badge_cell
-              :if={test_run.status == "failure"}
-              label={gettext("Failed")}
-              status="error"
-            />
-          </:col>
-          <:col :let={test_run} label={gettext("Branch")}>
-            <.text_cell
-              icon="git_branch"
-              label={
-                if test_run.git_branch == "", do: gettext("Unknown"), else: test_run.git_branch
+          <:col
+            :let={test_case}
+            label={gettext("Test Case")}
+            patch={
+              @test_cases_sort_by == "name" &&
+                column_sort_patch(assigns, "name")
+            }
+            icon={
+              @test_cases_sort_by == "name" &&
+                sort_icon(@test_cases_sort_order)
+            }
+          >
+            <.text_and_description_cell
+              label={test_case.name}
+              description={
+                case {test_case.module_name, test_case.suite_name} do
+                  {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                    "#{module_name} \u2022 #{suite_name}"
+
+                  {module_name, _} when module_name != "" ->
+                    module_name
+
+                  _ ->
+                    nil
+                end
               }
             />
           </:col>
-          <:col :let={test_run} label={gettext("Ran by")}>
-            <.test_ran_by_badge_cell test={test_run} />
-          </:col>
-          <:col :let={test_run} label={gettext("Duration")}>
+          <:col
+            :let={test_case}
+            label={gettext("Avg. duration")}
+            patch={
+              @test_cases_sort_by == "avg_duration" &&
+                column_sort_patch(assigns, "avg_duration")
+            }
+            icon={
+              @test_cases_sort_by == "avg_duration" &&
+                sort_icon(@test_cases_sort_order)
+            }
+          >
             <.text_cell
               label={
-                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(test_run.duration)
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  test_case.avg_duration
+                )
               }
               icon="history"
             />
           </:col>
-          <:col :let={test_run} label={gettext("Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+          <:col :let={test_case} label={gettext("Last status")}>
+            <%= case test_case.last_status do %>
+              <% "success" -> %>
+                <.status_badge_cell label={gettext("Passed")} status="success" />
+              <% "failure" -> %>
+                <.status_badge_cell label={gettext("Failed")} status="error" />
+              <% "skipped" -> %>
+                <.status_badge_cell label={gettext("Skipped")} status="warning" />
+            <% end %>
+          </:col>
+          <:col
+            :let={test_case}
+            label={gettext("Last ran at")}
+            patch={
+              @test_cases_sort_by == "last_ran_at" &&
+                column_sort_patch(assigns, "last_ran_at")
+            }
+            icon={
+              @test_cases_sort_by == "last_ran_at" &&
+                sort_icon(@test_cases_sort_order)
+            }
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />
           </:col>
         </.table>
-        <.pagination
-          uri={@uri}
-          has_previous_page={@test_runs_meta.has_previous_page?}
-          has_next_page={@test_runs_meta.has_next_page?}
-          start_cursor={@test_runs_meta.start_cursor}
-          end_cursor={@test_runs_meta.end_cursor}
+        <.pagination_group
+          :if={@test_cases_meta.total_pages > 1}
+          current_page={@test_cases_page}
+          number_of_pages={@test_cases_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "page", page)}"
+            end
+          }
         />
       </div>
 
-      <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
+      <div :if={Enum.empty?(@test_cases)} data-part="empty-test-cases">
         <.empty_card_section
           title={gettext("No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
-          data-part="empty-test-runs-table-card-section"
+          data-part="empty-test-cases-table-card-section"
         >
           <:image>
             <img src="/images/empty_table_light.png" data-theme="light" />

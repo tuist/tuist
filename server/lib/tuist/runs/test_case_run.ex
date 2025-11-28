@@ -13,11 +13,15 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_run_id,
       :test_module_run_id,
       :test_suite_run_id,
+      :test_case_id,
       :name,
       :status,
-      :duration
+      :duration,
+      :is_ci,
+      :account_id,
+      :scheme
     ],
-    sortable: [:inserted_at, :duration, :name]
+    sortable: [:inserted_at, :duration, :name, :ran_at]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -26,11 +30,20 @@ defmodule Tuist.Runs.TestCaseRun do
     field :test_run_id, Ecto.UUID
     field :test_module_run_id, Ecto.UUID
     field :test_suite_run_id, Ecto.UUID
+    field :test_case_id, Ch, type: "Nullable(UUID)"
+    field :project_id, Ch, type: "Nullable(Int64)"
+    field :is_ci, :boolean, default: false
+    field :scheme, :string, default: ""
+    field :account_id, Ch, type: "Nullable(Int64)"
+    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
+    field :git_branch, :string, default: ""
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String"
+
+    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
   end
 
   def create_changeset(test_case_run, attrs) do
@@ -41,6 +54,13 @@ defmodule Tuist.Runs.TestCaseRun do
       :test_run_id,
       :test_module_run_id,
       :test_suite_run_id,
+      :test_case_id,
+      :project_id,
+      :is_ci,
+      :scheme,
+      :account_id,
+      :ran_at,
+      :git_branch,
       :status,
       :duration,
       :inserted_at,
