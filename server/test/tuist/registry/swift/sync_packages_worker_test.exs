@@ -129,37 +129,6 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert updated_package.last_updated_releases_at == ~U[2024-07-31 00:03:00Z]
     end
 
-    test "skips unsupported packages" do
-      # Given
-      stub(VCS, :get_repository_content, fn _, _ ->
-        {:ok,
-         %Content{
-           path: "packages.json",
-           content: ~s([\n  "https://github.com/monzo/nearby.git",\n  "https://github.com/onevcat/Kingfisher.git"])
-         }}
-      end)
-
-      expect(Packages, :get_missing_package_versions, 1, fn
-        %{package: %Package{scope: "onevcat", name: "Kingfisher"}, token: "releases_token"} ->
-          [%{scope: "onevcat", name: "Kingfisher", version: "7.0.0"}]
-      end)
-
-      # When
-      result =
-        SyncPackagesWorker.perform(%Oban.Job{
-          args: %{update_packages: true, update_releases: false}
-        })
-
-      # Then
-      assert result == :ok
-
-      # Verify unsupported package was not created
-      refute Packages.get_package_by_scope_and_name(%{scope: "monzo", name: "nearby"})
-
-      # Verify supported package was created
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
-    end
-
     test "removes packages no longer present in SwiftPackageIndex" do
       # Given - existing package that will be removed
       existing_package =

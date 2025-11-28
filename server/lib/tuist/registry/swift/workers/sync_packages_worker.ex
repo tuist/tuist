@@ -25,13 +25,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
 
   require Logger
 
-  # Packages with git submodules are not supported to be automatically mirrored in our registry.
-  @unsupported_packages [
-    "monzo/nearby",
-    "awslabs/aws-crt-swift",
-    "apple/swift-protobuf",
-    "RevenueCat/purchases-ios-spm"
-  ]
+  # Note: packages with git submodules are now supported via git clone.
+  @unsupported_packages []
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
