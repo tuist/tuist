@@ -2674,11 +2674,13 @@ defmodule Tuist.Runs.Analytics do
   end
 
   @doc """
-  Calculates the test reliability (success rate) for a specific test case by its UUID on the project's default branch.
-  Returns the percentage of successful runs (0-100) or nil if no runs exist on the default branch.
+  Calculates the test reliability (success rate) for a specific test case by its UUID.
+  First attempts to calculate based on the project's default branch. If no runs exist on the
+  default branch, falls back to calculating reliability across all branches.
+  Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
   """
   def test_case_reliability_by_id(test_case_id, default_branch) do
-    query =
+    default_branch_query =
       from(tcr in TestCaseRun,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.git_branch == ^default_branch,
@@ -2688,17 +2690,31 @@ defmodule Tuist.Runs.Analytics do
         }
       )
 
-    result = ClickHouseRepo.one(query)
+    result = ClickHouseRepo.one(default_branch_query)
 
     case result do
-      %{total_count: 0} ->
-        nil
-
       %{success_count: success_count, total_count: total_count} when total_count > 0 ->
         Float.round(success_count / total_count * 100, 1)
 
       _ ->
-        nil
+        all_branches_query =
+          from(tcr in TestCaseRun,
+            where: tcr.test_case_id == ^test_case_id,
+            select: %{
+              success_count: fragment("countIf(? = 'success')", tcr.status),
+              total_count: count(tcr.id)
+            }
+          )
+
+        all_result = ClickHouseRepo.one(all_branches_query)
+
+        case all_result do
+          %{success_count: success_count, total_count: total_count} when total_count > 0 ->
+            Float.round(success_count / total_count * 100, 1)
+
+          _ ->
+            nil
+        end
     end
   end
 

@@ -105,7 +105,8 @@
         <.widget
           title={gettext("Test reliability")}
           description={
-            gettext("Success rate of this test case on the %{branch} branch.",
+            gettext(
+              "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
               branch: @selected_project.default_branch
             )
           }

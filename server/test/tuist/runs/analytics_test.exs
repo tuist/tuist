@@ -2963,4 +2963,270 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.total_average_duration == 5000.0
     end
   end
+
+  describe "test_case_reliability_by_id/2" do
+    test "returns reliability percentage for test case runs on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:02:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 2 successes out of 3 runs = 66.7%
+      assert got == 66.7
+    end
+
+    test "returns 100% when all runs on default branch are successful" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then
+      assert got == 100.0
+    end
+
+    test "falls back to all branches when no runs exist on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "another-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When - no runs on "main" branch, should fall back to all branches
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 2 successes out of 2 runs = 100%
+      assert got == 100.0
+    end
+
+    test "falls back to all branches and calculates correct reliability when some failed" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "another-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When - no runs on "main" branch, should fall back to all branches
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 1 success out of 2 runs = 50%
+      assert got == 50.0
+    end
+
+    test "returns nil when no runs exist at all" do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then
+      assert got == nil
+    end
+
+    test "prioritizes default branch runs over other branches" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:02:00.000000]
+        }
+      ])
+
+      # When - should use only "main" branch runs
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 0 successes out of 1 run on main = 0%
+      assert got == 0.0
+    end
+  end
 end
