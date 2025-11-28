@@ -818,9 +818,7 @@ defmodule Tuist.Runs.Analytics do
 
   defp process_percentile_hit_rates(percentile_data, dates, date_period) do
     percentile_map =
-      percentile_data
-      |> Enum.map(fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
-      |> Map.new()
+      Map.new(percentile_data, fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
 
     Enum.map(dates, fn date ->
       case Map.get(percentile_map, date) do

@@ -74,10 +74,10 @@
 
   & > [data-part="test-cases"] {
     & > [data-part="slowest-test-cases-section"] {
-      padding: var(--noora-spacing-8);
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-8);
 
       & > [data-part="header"] {
         display: flex;
@@ -87,8 +87,8 @@
         font: var(--noora-font-weight-medium) var(--noora-font-body-large);
 
         & > [data-part="title"] {
-          color: var(--noora-surface-label-primary);
           flex-grow: 1;
+          color: var(--noora-surface-label-primary);
         }
       }
 
@@ -157,17 +157,17 @@
 
       & > [data-part="title"] {
         margin: 0;
+        overflow: hidden;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-        overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       & > [data-part="subtitle"] {
+        overflow: hidden;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
-        overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -175,12 +175,12 @@
 
     & > [data-part="duration"] {
       display: flex;
+      flex-shrink: 0;
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-2);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-      flex-shrink: 0;
 
       & svg {
         width: 16px;

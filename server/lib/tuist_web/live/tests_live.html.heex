@@ -761,8 +761,10 @@
             </span>
           </div>
         </div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two"></div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one"></div>
+        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+        </div>
+        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
+        </div>
       </div>
     </.card_section>
     <.empty_card_section
