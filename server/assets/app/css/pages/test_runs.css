@@ -54,7 +54,7 @@
 
   & .noora-chart {
     width: 105%;
-    height: 148px;
+    height: 200px;
   }
 
   & [data-part="analytics-chart"] {

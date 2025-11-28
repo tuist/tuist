@@ -259,17 +259,51 @@ defmodule Tuist.Storage do
   end
 
   defp s3_config_and_bucket(actor) do
-    if use_tigris?(actor) do
-      {ExAws.Config.new(:s3_tigris), Environment.s3_bucket_name(:tigris, Environment.decrypt_secrets())}
+    cond do
+      has_custom_storage?(actor) ->
+        {custom_s3_config(actor), actor.s3_bucket_name}
+
+      use_tigris?(actor) ->
+        {ExAws.Config.new(:s3_tigris), Environment.s3_bucket_name(:tigris, Environment.decrypt_secrets())}
+
+      true ->
+        {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
+    end
+  end
+
+  defp has_custom_storage?(%Account{
+         s3_bucket_name: bucket,
+         s3_access_key_id: access_key,
+         s3_secret_access_key: secret_key
+       })
+       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+
+  defp has_custom_storage?(_), do: false
+
+  defp custom_s3_config(%Account{} = account) do
+    base_config = %{
+      access_key_id: account.s3_access_key_id,
+      secret_access_key: account.s3_secret_access_key,
+      region: account.s3_region || "us-east-1"
+    }
+
+    if account.s3_endpoint do
+      uri = URI.parse(account.s3_endpoint)
+
+      base_config
+      |> Map.put(:scheme, "#{uri.scheme}://")
+      |> Map.put(:host, uri.host)
+      |> Map.put(:port, uri.port)
     else
-      {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
+      base_config
     end
   end
 
   defp use_tigris?(actor) do
     case actor do
       :registry -> FunWithFlags.enabled?(:tigris)
-      _ -> FunWithFlags.enabled?(:tigris, for: actor)
+      %Account{} = account -> FunWithFlags.enabled?(:tigris, for: account)
+      _ -> false
     end
   end
 
@@ -281,15 +315,19 @@ defmodule Tuist.Storage do
   end
 
   defp region_headers(actor) do
-    case actor do
-      %Account{region: :europe} ->
-        [{"X-Tigris-Regions", "eur"}]
+    if has_custom_storage?(actor) do
+      []
+    else
+      case actor do
+        %Account{region: :europe} ->
+          [{"X-Tigris-Regions", "eur"}]
 
-      %Account{region: :usa} ->
-        [{"X-Tigris-Regions", "usa"}]
+        %Account{region: :usa} ->
+          [{"X-Tigris-Regions", "usa"}]
 
-      _ ->
-        []
+        _ ->
+          []
+      end
     end
   end
 end

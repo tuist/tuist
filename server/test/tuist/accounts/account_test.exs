@@ -181,4 +181,164 @@ defmodule Tuist.AccountTest do
       assert "has already been taken" in errors_on(changeset).namespace_tenant_id
     end
   end
+
+  describe "s3_storage_changeset/2" do
+    test "valid when all required S3 fields are provided" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        })
+
+      assert changeset.valid?
+    end
+
+    test "valid when all S3 fields including optional ones are provided" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          s3_region: "us-west-2",
+          s3_endpoint: "https://s3.us-west-2.amazonaws.com"
+        })
+
+      assert changeset.valid?
+    end
+
+    test "valid when no S3 fields are provided (default storage)" do
+      changeset = Account.s3_storage_changeset(%Account{}, %{})
+      assert changeset.valid?
+    end
+
+    test "invalid when only bucket_name is provided" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket"
+        })
+
+      refute changeset.valid?
+      assert "is required when configuring custom S3 storage" in errors_on(changeset).s3_access_key_id
+      assert "is required when configuring custom S3 storage" in errors_on(changeset).s3_secret_access_key
+    end
+
+    test "invalid when only access_key_id is provided" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE"
+        })
+
+      refute changeset.valid?
+      assert "is required when configuring custom S3 storage" in errors_on(changeset).s3_bucket_name
+      assert "is required when configuring custom S3 storage" in errors_on(changeset).s3_secret_access_key
+    end
+
+    test "invalid when bucket_name is too short" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "ab",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        })
+
+      refute changeset.valid?
+      assert "should be at least 3 character(s)" in errors_on(changeset).s3_bucket_name
+    end
+
+    test "invalid when bucket_name is too long" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: String.duplicate("a", 64),
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        })
+
+      refute changeset.valid?
+      assert "should be at most 63 character(s)" in errors_on(changeset).s3_bucket_name
+    end
+
+    test "invalid when bucket_name has uppercase letters" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "My-Bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        })
+
+      refute changeset.valid?
+
+      assert "must be a valid S3 bucket name (lowercase letters, numbers, hyphens, and periods)" in errors_on(changeset).s3_bucket_name
+    end
+
+    test "invalid when bucket_name starts with a period" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: ".my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        })
+
+      refute changeset.valid?
+
+      assert "must be a valid S3 bucket name (lowercase letters, numbers, hyphens, and periods)" in errors_on(changeset).s3_bucket_name
+    end
+
+    test "invalid when s3_endpoint is not a valid URL" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          s3_endpoint: "not-a-url"
+        })
+
+      refute changeset.valid?
+      assert "must be a valid URL with http or https scheme" in errors_on(changeset).s3_endpoint
+    end
+
+    test "invalid when s3_endpoint has unsupported scheme" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          s3_endpoint: "ftp://s3.example.com"
+        })
+
+      refute changeset.valid?
+      assert "must be a valid URL with http or https scheme" in errors_on(changeset).s3_endpoint
+    end
+
+    test "valid with http endpoint for local development" do
+      changeset =
+        Account.s3_storage_changeset(%Account{}, %{
+          s3_bucket_name: "my-bucket",
+          s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+          s3_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          s3_endpoint: "http://localhost:9000"
+        })
+
+      assert changeset.valid?
+    end
+
+    test "allows clearing S3 configuration by setting all fields to nil" do
+      account = %Account{
+        s3_bucket_name: "my-bucket",
+        s3_access_key_id: "AKIAIOSFODNN7EXAMPLE",
+        s3_secret_access_key: "secret"
+      }
+
+      changeset =
+        Account.s3_storage_changeset(account, %{
+          s3_bucket_name: nil,
+          s3_access_key_id: nil,
+          s3_secret_access_key: nil,
+          s3_region: nil,
+          s3_endpoint: nil
+        })
+
+      assert changeset.valid?
+    end
+  end
 end

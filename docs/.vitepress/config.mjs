@@ -143,8 +143,9 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  pt: getSearchOptionsForLocale("pt"),
   ar: getSearchOptionsForLocale("ar"),
-  zh: getSearchOptionsForLocale("zh"),
+  zh_Hans: getSearchOptionsForLocale("zh_Hans"),
   pl: getSearchOptionsForLocale("pl"),
 };
 
@@ -214,10 +215,10 @@ export default defineConfig({
       dir: "rtl",
       themeConfig: await themeConfig("ar"),
     },
-    zh: {
+    zh_Hans: {
       label: "中文 (Chinese)",
-      lang: "zh",
-      themeConfig: await themeConfig("zh"),
+      lang: "zh_Hans",
+      themeConfig: await themeConfig("zh_Hans"),
     },
     pl: {
       label: "Polski (Polish)",

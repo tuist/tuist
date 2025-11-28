@@ -84,8 +84,8 @@ defmodule Tuist.Authentication do
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
     projects =
       resource
-      |> Projects.get_all_project_accounts(recent: 5)
-      |> Enum.map(& &1.handle)
+      |> Projects.list_accessible_projects(recent: 5)
+      |> Enum.map(&"#{&1.account.name}/#{&1.name}")
 
     claims = Map.put(claims, "projects", projects)
     Tuist.Guardian.encode_and_sign(resource, claims, opts)

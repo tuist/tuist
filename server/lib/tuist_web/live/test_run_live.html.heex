@@ -12,32 +12,58 @@
   </.button>
 
   <div data-part="header">
-    <div data-part="title">
-      <div :if={@run.status == "success"} data-part="badge-success">
-        <div data-part="icon">
-          <.circle_check />
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@run.status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
         </div>
-      </div>
-      <div :if={@run.status == "failure"} data-part="badge-failure">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@run.status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
+        <h1 data-part="label">
+          {@run.scheme || gettext("Unknown")}
+        </h1>
       </div>
-      <h1 data-part="label">
-        {@run.scheme || gettext("Unknown")}
-      </h1>
+      <.link_button
+        :if={@run.build_run}
+        target="_blank"
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.build_run.id}"
+        }
+        label={gettext("Build: %{scheme}", scheme: @run.build_run.scheme || gettext("Unknown"))}
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
-    <.button
-      :if={@has_result_bundle.ok? && @has_result_bundle.result}
-      href={
-        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.id}/download"
-      }
-      label={gettext("Download result")}
-      variant="secondary"
-      size="medium"
-    >
-      <:icon_left><.download /></:icon_left>
-    </.button>
+    <div data-part="actions">
+      <.button
+        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
+        }
+        label={gettext("Download result")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={Tuist.Runs.test_ci_run_url(@run)}
+        href={Tuist.Runs.test_ci_run_url(@run)}
+        label={gettext("CI Run")}
+        variant="secondary"
+        size="medium"
+        target="_blank"
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
+    </div>
   </div>
 
   <.tab_menu_horizontal>
@@ -375,7 +401,19 @@
           <div :if={Enum.any?(@test_cases_active_filters)} data-part="active-filters">
             <.active_filter :for={filter <- @test_cases_active_filters} filter={filter} />
           </div>
-          <.table id="test-cases-table" rows={@test_cases}>
+          <.table
+            id="test-cases-table"
+            rows={@test_cases}
+            row_navigate={
+              fn test_case ->
+                if test_case.test_case_id do
+                  url(
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.test_case_id}"
+                  )
+                end
+              end
+            }
+          >
             <:col
               :let={test_case}
               label={gettext("Test case")}

@@ -2,19 +2,12 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Accounts
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
-  alias Tuist.CommandEvents.TargetTestSummary
-  alias Tuist.CommandEvents.TestCase
-  alias Tuist.CommandEvents.TestCaseRun
-  alias Tuist.CommandEvents.TestSummary
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "create_command_event/1" do
     test "truncates an error message if it's over 255 chars" do
@@ -585,457 +578,6 @@ defmodule Tuist.CommandEventsTest do
       # Then
       assert got ==
                "#{project.account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
-    end
-  end
-
-  describe "get_test_summary/1" do
-    test "returns nil if the invocation record does not exist" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-      {:ok, project} = CommandEvents.get_project_for_command_event(command_event)
-      project = Repo.preload(project, :account)
-
-      base_path =
-        "#{project.account.name}/#{project.name}/runs/#{command_event.id}"
-
-      invocation_record_object_key =
-        "#{base_path}/invocation_record.json"
-
-      stub(Storage, :object_exists?, fn ^invocation_record_object_key, _actor ->
-        false
-      end)
-
-      # When
-      got = CommandEvents.get_test_summary(command_event)
-
-      # Then
-      assert got == nil
-    end
-
-    test "gets test summary" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-      {:ok, project} = CommandEvents.get_project_for_command_event(command_event)
-      project = Repo.preload(project, :account)
-
-      base_path =
-        "#{project.account.name}/#{project.name}/runs/#{command_event.id}"
-
-      invocation_record_object_key =
-        "#{base_path}/invocation_record.json"
-
-      test_plan_object_key =
-        "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
-
-      stub(Storage, :object_exists?, fn object_key, _actor ->
-        case object_key do
-          ^invocation_record_object_key ->
-            true
-
-          ^test_plan_object_key ->
-            true
-        end
-      end)
-
-      stub(Storage, :get_object_as_string, fn object_key, _actor ->
-        case object_key do
-          ^invocation_record_object_key ->
-            CommandEventsFixtures.invocation_record_fixture()
-
-          ^test_plan_object_key ->
-            CommandEventsFixtures.test_plan_object_fixture()
-        end
-      end)
-
-      # When
-      got = CommandEvents.get_test_summary(command_event)
-
-      # Then
-      assert got == %TestSummary{
-               failed_tests_count: 1,
-               successful_tests_count: 4,
-               total_tests_count: 5,
-               project_tests: %{
-                 "App/MainApp.xcodeproj" => %{
-                   "AppTests" => %TargetTestSummary{
-                     tests: [
-                       %ActionTestMetadata{
-                         identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello",
-                         test_status: :success,
-                         name: "testHello()"
-                       }
-                     ],
-                     status: :success
-                   }
-                 },
-                 "Framework1/Framework1.xcodeproj" => %{
-                   "Framework1Tests" => %TargetTestSummary{
-                     tests: [
-                       %ActionTestMetadata{
-                         identifier_url: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
-                         test_status: :success,
-                         name: "testHello()"
-                       },
-                       %ActionTestMetadata{
-                         identifier_url:
-                           "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
-                         test_status: :success,
-                         name: "testHelloFromFramework2()"
-                       }
-                     ],
-                     status: :success
-                   }
-                 },
-                 "Framework2/Framework2.xcodeproj" => %{
-                   "Framework2Tests" => %TargetTestSummary{
-                     tests: [
-                       %ActionTestMetadata{
-                         identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
-                         test_status: :failure,
-                         name: "testHello()"
-                       },
-                       %ActionTestMetadata{
-                         identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
-                         test_status: :success,
-                         name: "testHello()"
-                       }
-                     ],
-                     status: :failure
-                   }
-                 }
-               }
-             }
-    end
-
-    test "gets test summary when there's no result bundle" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-      {:ok, project} = CommandEvents.get_project_for_command_event(command_event)
-      project = Repo.preload(project, :account)
-
-      base_path =
-        "#{project.account.name}/#{project.name}/runs/#{command_event.id}"
-
-      invocation_record_object_key =
-        "#{base_path}/invocation_record.json"
-
-      test_plan_object_key =
-        "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
-
-      stub(Storage, :object_exists?, fn object_key, _actor ->
-        case object_key do
-          ^invocation_record_object_key ->
-            true
-
-          ^test_plan_object_key ->
-            false
-        end
-      end)
-
-      stub(Storage, :get_object_as_string, fn object_key, _actor ->
-        case object_key do
-          ^invocation_record_object_key ->
-            CommandEventsFixtures.invocation_record_fixture()
-
-          ^test_plan_object_key ->
-            CommandEventsFixtures.test_plan_object_fixture()
-        end
-      end)
-
-      # When
-      got = CommandEvents.get_test_summary(command_event)
-
-      assert got == %TestSummary{
-               failed_tests_count: 0,
-               successful_tests_count: 0,
-               total_tests_count: 0,
-               project_tests: %{}
-             }
-    end
-  end
-
-  describe "list_flaky_test_cases/1" do
-    test "lists flaky test cases" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
-      account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      test_case_one =
-        CommandEventsFixtures.test_case_fixture(
-          project_id: project.id,
-          identifier: "test0",
-          flaky: true
-        )
-
-      _test_case_two =
-        CommandEventsFixtures.test_case_fixture(
-          project_id: project.id,
-          identifier: "test1",
-          flaky: false
-        )
-
-      test_case_three =
-        CommandEventsFixtures.test_case_fixture(
-          project_id: project.id,
-          identifier: "test2",
-          flaky: true
-        )
-
-      command_event_one = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      _command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      command_event_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-
-      CommandEventsFixtures.test_case_run_fixture(
-        test_case_id: test_case_one.id,
-        identifier: "test0",
-        command_event_id: command_event_one.id,
-        status: :failure,
-        flaky: true,
-        inserted_at: ~N[2024-03-04 01:00:00]
-      )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        test_case_id: test_case_three.id,
-        identifier: "test2",
-        command_event_id: command_event_three.id,
-        status: :failure,
-        flaky: true,
-        inserted_at: ~N[2024-03-04 03:00:00]
-      )
-
-      # When
-      {got_flaky_tests_first_page, got_meta} =
-        CommandEvents.list_flaky_test_cases(project, %{
-          order_by: [:last_flaky_test_case_run_inserted_at],
-          order_directions: [:desc],
-          first: 1
-        })
-
-      {got_flaky_tests_second_page, got_second_page_meta} =
-        CommandEvents.list_flaky_test_cases(project, Flop.to_next_cursor(got_meta))
-
-      # Then
-      assert Enum.map(got_flaky_tests_first_page, & &1.identifier) == [
-               "test2"
-             ]
-
-      assert Enum.map(got_flaky_tests_second_page, & &1.identifier) == [
-               "test0"
-             ]
-
-      assert got_second_page_meta.has_next_page? == false
-    end
-  end
-
-  describe "list_test_case_runs/1" do
-    test "lists test case runs" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
-      account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      command_event_one = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      _command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      command_event_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      command_event_four = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-
-      test_case_one = CommandEventsFixtures.test_case_fixture(project_id: project.id)
-      test_case_two = CommandEventsFixtures.test_case_fixture(project_id: project.id)
-
-      test_case_run_one =
-        CommandEventsFixtures.test_case_run_fixture(
-          test_case_id: test_case_one.id,
-          command_event_id: command_event_one.id,
-          status: :success,
-          inserted_at: ~N[2024-03-04 03:00:00]
-        )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        test_case_id: test_case_two.id,
-        command_event_id: command_event_one.id,
-        status: :failure
-      )
-
-      test_case_run_two =
-        CommandEventsFixtures.test_case_run_fixture(
-          test_case_id: test_case_one.id,
-          command_event_id: command_event_three.id,
-          status: :success,
-          inserted_at: ~N[2024-03-04 02:00:00]
-        )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        test_case_id: test_case_one.id,
-        command_event_id: command_event_four.id,
-        status: :success,
-        inserted_at: ~N[2024-03-04 01:00:00]
-      )
-
-      # When
-      {got_test_case_runs, _meta} =
-        CommandEvents.list_test_case_runs(%{
-          first: 2,
-          order_by: [:inserted_at],
-          order_directions: [:desc],
-          filters: [%{field: :test_case_id, op: :==, value: test_case_one.id}]
-        })
-
-      # Then
-      assert got_test_case_runs |> Enum.map(& &1.id) |> Enum.sort() ==
-               [
-                 test_case_run_one,
-                 test_case_run_two
-               ]
-               |> Enum.map(& &1.id)
-               |> Enum.sort()
-    end
-  end
-
-  describe "get_test_case_by_identifier/1" do
-    test "gets test case" do
-      # Given
-      test_case = CommandEventsFixtures.test_case_fixture(identifier: "test-case-identifier")
-
-      # When
-      got = CommandEvents.get_test_case_by_identifier("test-case-identifier")
-
-      # Then
-      assert got == test_case
-    end
-  end
-
-  describe "create_test_cases/1" do
-    test "creates missing test cases" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-
-      CommandEventsFixtures.test_case_fixture(
-        identifier: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
-      )
-
-      # When
-      CommandEvents.create_test_cases(%{
-        test_summary: CommandEventsFixtures.test_summary_fixture(),
-        command_event: command_event
-      })
-
-      # Then
-      assert TestCase |> Repo.all() |> Enum.map(& &1.identifier) |> Enum.sort() == [
-               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
-               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
-               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
-               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
-               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-             ]
-    end
-  end
-
-  describe "create_test_case_runs/1" do
-    test "creates test case runs" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-
-      test_summary =
-        CommandEventsFixtures.test_summary_fixture(
-          project_tests: %{
-            "App/MainApp.xcodeproj" => %{
-              "AppTests" => %TargetTestSummary{
-                tests: [
-                  %ActionTestMetadata{
-                    test_status: :success,
-                    name: "testHello()",
-                    identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-                  }
-                ],
-                status: :success
-              }
-            },
-            "Framework2/Framework2.xcodeproj" => %{
-              "Framework2Tests" => %TargetTestSummary{
-                tests: [
-                  %ActionTestMetadata{
-                    test_status: :failure,
-                    name: "testHello()",
-                    identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
-                  },
-                  %ActionTestMetadata{
-                    test_status: :success,
-                    name: "testHello()",
-                    identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
-                  }
-                ],
-                status: :failure
-              }
-            }
-          }
-        )
-
-      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
-
-      xcode_project =
-        XcodeFixtures.xcode_project_fixture(
-          name: "MainApp",
-          path: "App",
-          xcode_graph_id: xcode_graph.id
-        )
-
-      xcode_target =
-        XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
-
-      xcode_project_two =
-        XcodeFixtures.xcode_project_fixture(
-          name: "Framework2",
-          path: "Framework2",
-          xcode_graph_id: xcode_graph.id
-        )
-
-      _xcode_target_two =
-        XcodeFixtures.xcode_target_fixture(
-          name: "Framework2Tests",
-          xcode_project_id: xcode_project_two.id
-        )
-
-      CommandEvents.create_test_cases(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-
-      test_case =
-        CommandEvents.get_test_case_by_identifier("test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello")
-
-      test_case_run =
-        CommandEventsFixtures.test_case_run_fixture(
-          test_case_id: test_case.id,
-          status: :failure,
-          xcode_target_id: xcode_target.id,
-          flaky: false
-        )
-
-      # When
-      CommandEvents.create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-
-      # The
-      test_case_runs =
-        Repo.all(
-          from(t in TestCaseRun,
-            where: t.command_event_id == ^command_event.id,
-            order_by: t.xcode_target_id
-          )
-        )
-
-      assert test_case_runs |> Enum.map(& &1.flaky) |> Enum.sort() == [
-               false,
-               false,
-               true
-             ]
-
-      assert Repo.get(TestCase, test_case.id).flaky == true
-
-      assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
     end
   end
 
@@ -1901,6 +1443,439 @@ defmodule Tuist.CommandEventsTest do
       result = CommandEvents.get_project_last_interaction_data([project.id])
 
       assert result == %{}
+    end
+  end
+
+  describe "selective_testing_hit_rate_percentiles/6" do
+    test "returns percentile hit rates grouped by date" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Day 1: Multiple test runs with different hit rates
+      # Run 1: 50% hit rate (2 hits out of 4 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # Run 2: 75% hit rate (3 hits out of 4 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: ["C"],
+        ran_at: ~U[2024-04-29 12:00:00Z]
+      )
+
+      # Run 3: 100% hit rate (2 hits out of 2 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        ran_at: ~U[2024-04-29 14:00:00Z]
+      )
+
+      # Day 2: Different hit rates
+      # Run 4: 25% hit rate (1 hit out of 4 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run 5: 50% hit rate (2 hits out of 4 targets)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When - p50 (median)
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 2
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      # p50 of [50%, 75%, 100%] = 75%
+      assert day1.percentile_hit_rate == 75.0
+
+      day2 = Enum.find(got, &(&1.date == "2024-04-30"))
+      # p50 of [25%, 50%] = 37.5%
+      assert day2.percentile_hit_rate == 37.5
+    end
+
+    test "returns p90 percentile for high percentile queries" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create test runs with hit rates: 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%
+      for i <- 1..10 do
+        hit_count = i
+        total_count = 10
+
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_targets: List.duplicate("T", total_count),
+          local_test_target_hits: List.duplicate("T", hit_count),
+          remote_test_target_hits: [],
+          ran_at: ~U[2024-04-30 10:00:00Z]
+        )
+      end
+
+      # When - p90 (90th percentile)
+      # With flipped percentile, p90 means 90% of runs achieved this hit rate or BETTER
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          "1 day",
+          0.9,
+          []
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # p90 should be a lower value since 90% of runs are at or above this
+      assert day.percentile_hit_rate <= 20.0
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # CI runs with high hit rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B", "C"],
+        remote_test_target_hits: ["D"],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # Local runs with low hit rates (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        is_ci: false,
+        ran_at: ~U[2024-04-30 12:00:00Z]
+      )
+
+      # When - filter for CI only
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          "1 day",
+          0.5,
+          is_ci: true
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # p50 of [100%, 100%] = 100%
+      assert day.percentile_hit_rate == 100.0
+    end
+
+    test "only includes events with test_targets_count > 0" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Run with test targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run without test targets (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: [],
+        local_test_target_hits: [],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 1
+      day = List.first(got)
+      # Only one event with 50% hit rate
+      assert day.percentile_hit_rate == 50.0
+    end
+
+    test "groups by hour when using hour bucket" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Hour 1
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 10:15:00Z]
+      )
+
+      # Hour 2
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B", "C", "D"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 11:30:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          "1 hour",
+          0.5,
+          []
+        )
+
+      # Then
+      assert length(got) == 2
+
+      hour1 = Enum.find(got, &(&1.date == "2024-04-30 10:00:00"))
+      assert hour1.percentile_hit_rate == 50.0
+
+      hour2 = Enum.find(got, &(&1.date == "2024-04-30 11:00:00"))
+      assert hour2.percentile_hit_rate == 100.0
+    end
+
+    test "returns empty list when no events exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        CommandEvents.selective_testing_hit_rate_percentiles(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          "1 day",
+          0.5,
+          []
+        )
+
+      # Then
+      assert got == []
+    end
+  end
+
+  describe "selective_testing_hit_rate_period_percentile/5" do
+    test "returns single percentile value for entire period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create test runs with different hit rates: 25%, 50%, 75%, 100%
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-29 12:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: ["C"],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When - p50 (median)
+      got =
+        CommandEvents.selective_testing_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-29],
+          ~D[2024-04-30],
+          0.5,
+          []
+        )
+
+      # Then - p50 of [25%, 50%, 75%, 100%] = 62.5%
+      assert got == 62.5
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # CI runs with high hit rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B", "C"],
+        remote_test_target_hits: ["D"],
+        is_ci: true,
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # Local runs with low hit rates (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        is_ci: false,
+        ran_at: ~U[2024-04-30 12:00:00Z]
+      )
+
+      # When - filter for CI only
+      got =
+        CommandEvents.selective_testing_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          0.5,
+          is_ci: true
+        )
+
+      # Then - p50 of [100%, 100%] = 100%
+      assert got == 100.0
+    end
+
+    test "only includes events with test_targets_count > 0" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Run with test targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Run without test targets (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: [],
+        local_test_target_hits: [],
+        remote_test_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got =
+        CommandEvents.selective_testing_hit_rate_period_percentile(
+          project.id,
+          ~D[2024-04-30],
+          ~D[2024-04-30],
+          0.5,
+          []
+        )
+
+      # Then - Only one event with 50% hit rate
+      assert got == 50.0
     end
   end
 end

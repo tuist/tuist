@@ -831,6 +831,68 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
+  describe "selective_testing_analytics_with_percentiles/1" do
+    test "returns selective testing analytics with percentile values" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics_with_percentiles(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+      assert Map.has_key?(got, :p50)
+      assert Map.has_key?(got, :p90)
+      assert Map.has_key?(got, :p99)
+      assert Map.has_key?(got, :p50_values)
+      assert Map.has_key?(got, :p90_values)
+      assert Map.has_key?(got, :p99_values)
+      assert is_float(got.p50)
+      assert is_float(got.p90)
+      assert is_float(got.p99)
+      assert is_list(got.p50_values)
+      assert is_list(got.p90_values)
+      assert is_list(got.p99_values)
+      assert length(got.p50_values) == length(got.dates)
+      assert length(got.p90_values) == length(got.dates)
+      assert length(got.p99_values) == length(got.dates)
+    end
+  end
+
   describe "build_success_rate_analytics/2" do
     test "returns success rate analytics for builds" do
       # Given
@@ -2032,6 +2094,106 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
+  describe "get_test_run_metrics/1" do
+    test "returns correct metrics when test run has test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 1,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testThree",
+          status: 0,
+          duration: 300,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.get_test_run_metrics(test_run.id)
+
+      # Then
+      assert got.total_count == 3
+      assert got.failed_count == 1
+      assert got.avg_duration == 200
+    end
+
+    test "returns zeros when test run has no test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      # When - no test case runs inserted
+      got = Analytics.get_test_run_metrics(test_run.id)
+
+      # Then - should return zeros, not nil
+      assert got.total_count == 0
+      assert got.failed_count == 0
+      assert got.avg_duration == 0
+    end
+  end
+
   describe "test_runs_metrics/1" do
     test "returns metrics and command event data for test runs" do
       # Given
@@ -2238,6 +2400,895 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert result.cache_hit_rate == "0 %"
       assert result.skipped_tests == 0
       assert result.ran_tests == 1
+    end
+  end
+
+  describe "test_case_run_analytics/2" do
+    test "returns test case run count analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 0,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testThree",
+          status: 0,
+          duration: 300,
+          inserted_at: ~N[2024-04-29 10:00:00.000000]
+        }
+      ])
+
+      # When
+      got =
+        Analytics.test_case_run_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.count == 3
+      assert got.values == [0, 1, 2]
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, ci_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, local_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: ci_test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: local_test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 0,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: local_test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testThree",
+          status: 0,
+          duration: 300,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        }
+      ])
+
+      # When - filter by CI only
+      got =
+        Analytics.test_case_run_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          is_ci: true
+        )
+
+      # Then
+      assert got.count == 1
+    end
+
+    test "filters failed test case runs" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 1,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testThree",
+          status: 1,
+          duration: 300,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        }
+      ])
+
+      # When - filter by failed status
+      got =
+        Analytics.test_case_run_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          status: "failure"
+        )
+
+      # Then
+      assert got.count == 2
+    end
+
+    test "returns zero when no test case runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_case_run_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.count == 0
+      assert got.trend == 0
+    end
+  end
+
+  describe "test_case_run_duration_analytics/2" do
+    test "returns duration analytics with percentiles" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 0,
+          duration: 200,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testThree",
+          status: 0,
+          duration: 300,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        }
+      ])
+
+      # When
+      got =
+        Analytics.test_case_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 200.0
+      assert got.p50
+      assert got.p90
+      assert got.p99
+      # Verify percentile time series are returned
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
+      assert length(got.dates) == length(got.p50_values)
+      assert length(got.dates) == length(got.p90_values)
+      assert length(got.dates) == length(got.p99_values)
+    end
+
+    test "returns zero when no test case runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_case_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 0
+      assert got.p50 == 0
+      assert got.p90 == 0
+      assert got.p99 == 0
+      assert got.trend == 0
+      # Verify percentile time series are filled with zeros (one for each day in the range)
+      assert Enum.all?(got.p50_values, &(&1 == 0))
+      assert Enum.all?(got.p90_values, &(&1 == 0))
+      assert Enum.all?(got.p99_values, &(&1 == 0))
+    end
+
+    test "filters by is_ci when specified" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, ci_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, local_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: ci_test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: true,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testOne",
+          status: 0,
+          duration: 500,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: local_test_run.id,
+          test_module_run_id: module_run_id,
+          project_id: project.id,
+          is_ci: false,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testTwo",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        }
+      ])
+
+      # When - filter by CI only
+      got =
+        Analytics.test_case_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          is_ci: true
+        )
+
+      # Then - only CI test case run has 500ms duration
+      assert got.total_average_duration == 500.0
+    end
+  end
+
+  describe "test_run_duration_analytics/2" do
+    test "returns duration analytics with percentiles" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run_1} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _test_run_2} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 2000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _test_run_3} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "ghi789",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 3000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 12:00:00.000000],
+          test_modules: []
+        })
+
+      # When
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 2000.0
+      assert got.p50
+      assert got.p90
+      assert got.p99
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
+      assert length(got.dates) == length(got.p50_values)
+      assert length(got.dates) == length(got.p90_values)
+      assert length(got.dates) == length(got.p99_values)
+    end
+
+    test "returns zero when no test runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2)
+        )
+
+      # Then
+      assert got.total_average_duration == 0.0
+      assert got.p50 == 0.0
+      assert got.p90 == 0.0
+      assert got.p99 == 0.0
+      assert got.dates
+      assert got.values
+      assert got.p50_values
+      assert got.p90_values
+      assert got.p99_values
+    end
+
+    test "filters by is_ci" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _ci_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 5000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      {:ok, _local_test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "def456",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 11:00:00.000000],
+          test_modules: []
+        })
+
+      # When - filter by CI only
+      got =
+        Analytics.test_run_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          is_ci: true
+        )
+
+      # Then - only CI test run has 5000ms duration
+      assert got.total_average_duration == 5000.0
+    end
+  end
+
+  describe "test_case_reliability_by_id/2" do
+    test "returns reliability percentage for test case runs on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:02:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 2 successes out of 3 runs = 66.7%
+      assert got == 66.7
+    end
+
+    test "returns 100% when all runs on default branch are successful" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then
+      assert got == 100.0
+    end
+
+    test "falls back to all branches when no runs exist on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "another-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When - no runs on "main" branch, should fall back to all branches
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 2 successes out of 2 runs = 100%
+      assert got == 100.0
+    end
+
+    test "falls back to all branches and calculates correct reliability when some failed" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "another-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        }
+      ])
+
+      # When - no runs on "main" branch, should fall back to all branches
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 1 success out of 2 runs = 50%
+      assert got == 50.0
+    end
+
+    test "returns nil when no runs exist at all" do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      # When
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then
+      assert got == nil
+    end
+
+    test "prioritizes default branch runs over other branches" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+      test_run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "main",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 1,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:01:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          test_module_run_id: module_run_id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          git_branch: "feature-branch",
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testExample",
+          status: 0,
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:02:00.000000]
+        }
+      ])
+
+      # When - should use only "main" branch runs
+      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+
+      # Then - 0 successes out of 1 run on main = 0%
+      assert got == 0.0
     end
   end
 end

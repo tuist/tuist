@@ -7,20 +7,16 @@ import TuistServer
 import TuistSupport
 
 enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
-    case missingFullHandle
     case noProjectFound(AbsolutePath)
 
     var type: TuistSupport.ErrorType {
         switch self {
-        case .missingFullHandle, .noProjectFound: .abort
+        case .noProjectFound: .abort
         }
     }
 
     var errorDescription: String? {
         switch self {
-        case .missingFullHandle:
-            return
-                "We couldn't set up the registry because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
         case let .noProjectFound(path):
             return
                 "We couldn't find an Xcode, SwiftPM, or Tuist project at \(path.pathString). Make sure you're in the right directory."
@@ -32,7 +28,6 @@ struct RegistrySetupCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
-    private let fullHandleService: FullHandleServicing
     private let manifestFilesLocator: ManifestFilesLocating
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let createAccountTokenService: CreateAccountTokenServicing
@@ -42,7 +37,6 @@ struct RegistrySetupCommandService {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
-        fullHandleService: FullHandleServicing = FullHandleService(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         swiftPackageManagerController: SwiftPackageManagerControlling =
             SwiftPackageManagerController(),
@@ -52,7 +46,6 @@ struct RegistrySetupCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
-        self.fullHandleService = fullHandleService
         self.manifestFilesLocator = manifestFilesLocator
         self.swiftPackageManagerController = swiftPackageManagerController
         self.createAccountTokenService = createAccountTokenService
@@ -64,11 +57,6 @@ struct RegistrySetupCommandService {
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
-
-        guard let fullHandle = config.fullHandle else {
-            throw RegistryCommandSetupServiceError.missingFullHandle
-        }
-
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let swiftPackageManagerPath: AbsolutePath

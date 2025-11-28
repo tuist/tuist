@@ -34,7 +34,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "CLANG_ANALYZER_NONNULL",
         "CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION",
         "CLANG_CXX_LANGUAGE_STANDARD",
-        "CLANG_CXX_LIBRARY",
         "CLANG_ENABLE_MODULES",
         "CLANG_ENABLE_OBJC_ARC",
         "CLANG_ENABLE_OBJC_WEAK",

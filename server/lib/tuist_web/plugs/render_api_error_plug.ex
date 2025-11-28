@@ -9,6 +9,7 @@ defmodule TuistWeb.RenderAPIErrorPlug do
 
   def call(conn, errors) when is_list(errors) do
     conn
+    |> put_resp_header("connection", "close")
     |> put_status(:bad_request)
     |> json(%{message: Enum.map_join(errors, "\n", &to_string/1)})
   end

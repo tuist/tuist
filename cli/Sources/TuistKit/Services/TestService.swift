@@ -864,6 +864,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         } catch {
             try? await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
                 config: config,
                 action: action
             )
@@ -872,6 +873,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         try await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath,
             config: config,
             action: action
         )
@@ -879,6 +881,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction
     ) async throws {
@@ -888,6 +891,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         _ = try await inspectResultBundleService.inspectResultBundle(
             resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: derivedDataPath,
             config: config
         )
     }

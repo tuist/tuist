@@ -1218,7 +1218,6 @@ components:
               x-struct:
               x-validate:
           required:
-            - type
             - id
             - duration
             - is_ci
@@ -1227,6 +1226,38 @@ components:
           x-struct:
           x-validate:
         - properties:
+            build_run_id:
+              description: The UUID of an associated build run.
+              type: string
+              x-struct:
+              x-validate:
+            ci_host:
+              description: The CI host URL (optional, for self-hosted instances).
+              type: string
+              x-struct:
+              x-validate:
+            ci_project_handle:
+              description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+              type: string
+              x-struct:
+              x-validate:
+            ci_provider:
+              description: The CI provider.
+              enum:
+                - github
+                - gitlab
+                - bitrise
+                - circleci
+                - buildkite
+                - codemagic
+              type: string
+              x-struct:
+              x-validate:
+            ci_run_id:
+              description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+              type: string
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -1655,6 +1686,38 @@ components:
       x-validate:
     TestRun:
       properties:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
+        ci_host:
+          description: The CI host URL (optional, for self-hosted instances).
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          description: The CI provider.
+          enum:
+            - github
+            - gitlab
+            - bitrise
+            - circleci
+            - buildkite
+            - codemagic
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+          type: string
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
@@ -2790,7 +2853,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - type
         - id
         - duration
         - is_ci
@@ -7254,7 +7316,6 @@ paths:
                       x-struct:
                       x-validate:
                   required:
-                    - type
                     - id
                     - duration
                     - is_ci
@@ -7263,6 +7324,38 @@ paths:
                   x-struct:
                   x-validate:
                 - properties:
+                    build_run_id:
+                      description: The UUID of an associated build run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_host:
+                      description: The CI host URL (optional, for self-hosted instances).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_project_handle:
+                      description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_provider:
+                      description: The CI provider.
+                      enum:
+                        - github
+                        - gitlab
+                        - bitrise
+                        - circleci
+                        - buildkite
+                        - codemagic
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_run_id:
+                      description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                      type: string
+                      x-struct:
+                      x-validate:
                     duration:
                       description: Duration of the run in milliseconds.
                       type: integer

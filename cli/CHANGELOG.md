@@ -1,17 +1,53 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.107.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.109.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.1
+
+## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* link tests to builds by [@fortmarek](https://github.com/fortmarek) in [#8771](https://github.com/tuist/tuist/pull/8771)
+### 🐛 Bug Fixes
+
+* Remove CLANG_CXX_LIBRARY essential build setting by [@alexmx](https://github.com/alexmx) in [#8763](https://github.com/tuist/tuist/pull/8763)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.108.0...4.109.0
+
+## What's Changed in 4.108.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track CI run id for test insights by [@fortmarek](https://github.com/fortmarek) in [#8769](https://github.com/tuist/tuist/pull/8769)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.2...4.108.0
+
+## What's Changed in 4.107.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* remove fullHandle requirement for tuist registry setup by [@fortmarek](https://github.com/fortmarek) in [#8750](https://github.com/tuist/tuist/pull/8750)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.1...4.107.2
+
+## What's Changed in 4.107.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
 * add test insights by [@fortmarek](https://github.com/fortmarek) in [#8347](https://github.com/tuist/tuist/pull/8347)
 ### 🐛 Bug Fixes
 
+* duplicated XCFrameworks in embed phase by [@fortmarek](https://github.com/fortmarek) in [#8736](https://github.com/tuist/tuist/pull/8736)
 * skip warning Swift flags when hashing by [@fortmarek](https://github.com/fortmarek) in [#8728](https://github.com/tuist/tuist/pull/8728)
 * prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.1
 
 ## What's Changed in 4.106.1<!-- RELEASE NOTES START -->
 

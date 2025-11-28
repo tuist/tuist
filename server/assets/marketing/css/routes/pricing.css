@@ -472,6 +472,7 @@
 
   & > [data-part="cta"] {
     margin-right: var(--noora-spacing-6);
+    margin-bottom: var(--noora-spacing-11);
     margin-left: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-9);
 
@@ -479,6 +480,7 @@
       margin-right: var(--noora-spacing-14);
       margin-left: var(--noora-spacing-14);
       padding-top: var(--noora-spacing-14);
+      width: 100%;
     }
   }
 }

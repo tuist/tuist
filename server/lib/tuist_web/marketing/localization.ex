@@ -10,7 +10,7 @@ defmodule TuistWeb.Marketing.Localization do
 
   import Plug.Conn
 
-  @additional_locales ["ko", "ru"]
+  @additional_locales ["ko", "ru", "zh_Hans"]
 
   def init(:put_locale), do: :put_locale
   def init(:redirect_to_localized_route), do: :redirect_to_localized_route

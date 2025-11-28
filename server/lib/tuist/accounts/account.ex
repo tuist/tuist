@@ -10,6 +10,7 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
+  alias Tuist.Vault.Binary
   alias Tuist.VCS.GitHubAppInstallation
 
   @derive {
@@ -25,6 +26,12 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :namespace_tenant_id, :string
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
+
+    field :s3_bucket_name, :string
+    field :s3_access_key_id, Binary
+    field :s3_secret_access_key, Binary
+    field :s3_region, :string
+    field :s3_endpoint, :string
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -93,6 +100,53 @@ defmodule Tuist.Accounts.Account do
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> unique_constraint(:namespace_tenant_id)
+  end
+
+  @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]
+
+  def s3_storage_changeset(account, attrs) do
+    account
+    |> cast(attrs, @s3_fields)
+    |> validate_s3_configuration()
+  end
+
+  defp validate_s3_configuration(changeset) do
+    bucket_name = get_field(changeset, :s3_bucket_name)
+    access_key_id = get_field(changeset, :s3_access_key_id)
+    secret_access_key = get_field(changeset, :s3_secret_access_key)
+
+    has_any_s3_field? =
+      Enum.any?([bucket_name, access_key_id, secret_access_key], &(not is_nil(&1)))
+
+    if has_any_s3_field? do
+      changeset
+      |> validate_required([:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key],
+        message: "is required when configuring custom S3 storage"
+      )
+      |> validate_length(:s3_bucket_name, min: 3, max: 63)
+      |> validate_format(:s3_bucket_name, ~r/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/,
+        message: "must be a valid S3 bucket name (lowercase letters, numbers, hyphens, and periods)"
+      )
+      |> validate_s3_endpoint()
+    else
+      changeset
+    end
+  end
+
+  defp validate_s3_endpoint(changeset) do
+    case get_field(changeset, :s3_endpoint) do
+      nil ->
+        changeset
+
+      endpoint ->
+        case URI.parse(endpoint) do
+          %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) ->
+            changeset
+
+          _ ->
+            add_error(changeset, :s3_endpoint, "must be a valid URL with http or https scheme")
+        end
+    end
   end
 
   defp validate_handle(changeset) do

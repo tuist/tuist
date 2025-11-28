@@ -26,6 +26,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
       _ ->
         conn
+        |> put_resp_header("connection", "close")
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
@@ -65,6 +66,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
       {:enterprise, false, _, account_handle} ->
         conn
+        |> put_resp_header("connection", "close")
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
@@ -78,6 +80,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
       {:air, _, true, account_handle} ->
         conn
+        |> put_resp_header("connection", "close")
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
@@ -88,6 +91,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
       {:pro, false, _, account_handle} ->
         conn
+        |> put_resp_header("connection", "close")
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
@@ -101,6 +105,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
       {:open_source, false, _, account_handle} ->
         conn
+        |> put_resp_header("connection", "close")
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""

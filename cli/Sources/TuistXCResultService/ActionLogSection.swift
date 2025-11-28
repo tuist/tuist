@@ -158,6 +158,7 @@ extension ActionLogSection {
               let millisecondRange = Range(match.range(at: 7), in: text)
         else { return nil }
 
+        let timeZone = TimeZone.current()
         var dateComponents = DateComponents()
         dateComponents.year = Int(text[yearRange]) ?? 0
         dateComponents.month = Int(text[monthRange]) ?? 0
@@ -166,10 +167,10 @@ extension ActionLogSection {
         dateComponents.minute = Int(text[minuteRange]) ?? 0
         dateComponents.second = Int(text[secondRange]) ?? 0
         dateComponents.nanosecond = (Int(text[millisecondRange]) ?? 0) * 1_000_000
-        dateComponents.timeZone = TimeZone.current
+        dateComponents.timeZone = timeZone
 
         var calendar = Calendar.current
-        calendar.timeZone = TimeZone.current
+        calendar.timeZone = timeZone
         guard let date = calendar.date(from: dateComponents) else { return nil }
 
         return date.timeIntervalSince1970

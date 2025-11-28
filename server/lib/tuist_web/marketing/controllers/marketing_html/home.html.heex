@@ -107,29 +107,50 @@
       id="orgs-list-scroll"
     >
       <div data-part="rows">
-        <div
-          data-part="org-logo"
-          aria-label="Trendyol"
-        >
-          <.trendyol_org_logo />
-        </div>
+        <%= if Gettext.get_locale() == "ko" do %>
+          <div
+            data-part="org-logo"
+            aria-label="Socar"
+          >
+            <.socar_org_logo />
+          </div>
+        <% else %>
+          <div
+            data-part="org-logo"
+            aria-label="Trendyol"
+          >
+            <.trendyol_org_logo />
+          </div>
+        <% end %>
         <div
           data-part="org-logo"
           aria-label="Adidas"
         >
-          <.adidas_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.adidas_org_logo_color />
+          <% else %>
+            <.adidas_org_logo />
+          <% end %>
         </div>
         <div
           data-part="org-logo"
           aria-label="monday.com"
         >
-          <.monday_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.monday_org_logo_color />
+          <% else %>
+            <.monday_org_logo />
+          <% end %>
         </div>
         <div
           data-part="org-logo"
           aria-label="Chegg"
         >
-          <.chegg_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.chegg_org_logo_color />
+          <% else %>
+            <.chegg_org_logo />
+          <% end %>
         </div>
       </div>
       <div data-part="rows">
@@ -137,25 +158,41 @@
           data-part="org-logo"
           aria-label="Bumble"
         >
-          <.bumble_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.bumble_org_logo_color />
+          <% else %>
+            <.bumble_org_logo />
+          <% end %>
         </div>
         <div
           data-part="org-logo"
           aria-label="Asana"
         >
-          <.asana_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.asana_org_logo_color />
+          <% else %>
+            <.asana_org_logo />
+          <% end %>
         </div>
         <div
           data-part="org-logo"
           aria-label="Bending Spoons"
         >
-          <.bending_spoons_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.bending_spoons_org_logo_color />
+          <% else %>
+            <.bending_spoons_org_logo />
+          <% end %>
         </div>
         <div
           data-part="org-logo"
           aria-label="Etsy"
         >
-          <.etsy_org_logo />
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.etsy_org_logo_color />
+          <% else %>
+            <.etsy_org_logo />
+          <% end %>
         </div>
       </div>
     </section>
@@ -411,6 +448,29 @@
       </div>
     </section>
 
+    <section data-part="public-dashboard">
+      <h2 data-part="title">
+        <span>{dgettext("marketing", "Explore features")}</span>
+        <span>{dgettext("marketing", "live on our dashboard")}</span>
+      </h2>
+      <main data-part="dashboard">
+        <a
+          data-part="overlay-link"
+          href="/tuist/tuist"
+          aria-label={dgettext("marketing", "Explore Tuist's features")}
+        >
+        </a>
+        <img data-part="default" src="/marketing/images/home/dashboard.webp" />
+        <img data-part="hover" src="/marketing/images/home/dashboard-hover.webp" />
+        <img data-part="default-mobile" src="/marketing/images/home/dashboard-mobile.webp" />
+        <img data-part="hover-mobile" src="/marketing/images/home/dashboard-hover-mobile.webp" />
+        <.button
+          href="/tuist/tuist"
+          label={dgettext("marketing", "Explore Tuist's features")}
+        />
+      </main>
+    </section>
+
     <section data-part="testimonial">
       <blockquote data-part="quote">
         <h3>
@@ -453,7 +513,7 @@
             <.button
               href="/blog/2023/09/08/trendyol-and-tuist"
               variant="secondary"
-              label="Read customer story"
+              label={dgettext("marketing", "Read customer story")}
               data-part="customer-story-button"
             >
               <:icon_right><.chevron_right /></:icon_right>
@@ -485,7 +545,7 @@
             <.button
               href="https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7"
               variant="secondary"
-              label="Read customer story"
+              label={dgettext("marketing", "Read the Bumble customer story")}
               data-part="customer-story-button"
             >
               <:icon_right><.chevron_right /></:icon_right>
@@ -599,7 +659,7 @@
             <:icon_left><.brand_slack /></:icon_left>
           </.button>
           <.button
-            label="Community forum"
+            label={dgettext("marketing", "Community forum")}
             variant="secondary"
             href="https://community.tuist.dev"
             target="_blank"
