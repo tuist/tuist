@@ -276,7 +276,10 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp remove_git_metadata(directory) do
-    System.cmd("find", [directory, "-name", ".git", "-type", "d", "-prune", "-exec", "rm", "-rf", "{}", ";"])
+    directory
+    |> Path.join("**/.git")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.each(&File.rm_rf!/1)
 
     gitmodules_path = Path.join(directory, ".gitmodules")
     if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
