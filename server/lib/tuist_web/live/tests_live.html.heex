@@ -713,7 +713,7 @@
     <.empty_card_section
       :if={Enum.empty?(@recent_test_runs)}
       title={gettext("No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -770,7 +770,7 @@
     <.empty_card_section
       :if={Enum.empty?(@slowest_test_cases)}
       title={gettext("No test cases yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >
       <:image>
         <img src="/images/empty_table_light.png" data-theme="light" />
