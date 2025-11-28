@@ -405,10 +405,6 @@
         />
       </.button_group>
     </:actions>
-    <% selective_testing_hit_rate =
-      (@selective_testing_analytics.hit_rate * 100)
-      |> Decimal.from_float()
-      |> Decimal.round(1) %>
     <.card_section
       :if={@selective_testing_analytics.hit_rate != 0.0}
       data-part="selective-testing-chart-section"
@@ -418,7 +414,10 @@
           title={gettext("Selective test effectiveness")}
           value={
             gettext("%{selective_test_effectiveness}%",
-              selective_test_effectiveness: selective_testing_hit_rate
+              selective_test_effectiveness:
+                (@selective_testing_analytics.hit_rate * 100)
+                |> Decimal.from_float()
+                |> Decimal.round(1)
             )
           }
           style="primary"
@@ -631,7 +630,7 @@
       </div>
       <.table
         id="recent-test-runs-table"
-        rows={@recent_test_runs |> Enum.take(7)}
+        rows={@recent_test_runs |> Enum.reverse() |> Enum.take(7)}
         row_navigate={
           fn test_run ->
             url(
@@ -710,36 +709,30 @@
         />
       </div>
       <div data-part="slowest-test-cases-list">
-        <%= for test_case <- Enum.take(@slowest_test_cases, 4) do %>
-          <div class="test-case-card">
-            <div data-part="header">
-              <div data-part="icon">
-                <.history />
-              </div>
-              <div data-part="title-and-subtitle">
-                <h3 data-part="title">{test_case.name}</h3>
-                <%= if test_case.module_name != "" and test_case.suite_name != "" do %>
-                  <span data-part="subtitle">
-                    {test_case.module_name} • {test_case.suite_name}
-                  </span>
-                <% else %>
-                  <%= if test_case.module_name != "" do %>
-                    <span data-part="subtitle">{test_case.module_name}</span>
-                  <% end %>
-                <% end %>
-              </div>
-              <span data-part="duration">
-                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
-                )}
+        <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
+          <div data-part="header">
+            <div data-part="icon">
+              <.clock_hour_4 />
+            </div>
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">{test_case.name}</h3>
+              <span
+                :if={test_case.module_name != "" or test_case.suite_name != ""}
+                data-part="subtitle"
+              >
+                {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
               </span>
             </div>
+            <span data-part="duration">
+              <.clock_hour_4 />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                test_case.avg_duration
+              )}
+            </span>
           </div>
-        <% end %>
-        <%= if Enum.count(@slowest_test_cases) > 4 do %>
-          <div data-part="more-card" data-index="two"></div>
-          <div data-part="more-card" data-index="one"></div>
-        <% end %>
+        </div>
+        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two"></div>
+        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one"></div>
       </div>
     </.card_section>
     <.empty_card_section

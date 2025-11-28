@@ -816,10 +816,10 @@ defmodule Tuist.Runs.Analytics do
   defp normalize_percentile_result(value) when is_float(value), do: value
   defp normalize_percentile_result(%Decimal{} = value), do: Decimal.to_float(value)
 
-  defp process_percentile_hit_rates(percentile_data, dates, _date_period) do
+  defp process_percentile_hit_rates(percentile_data, dates, date_period) do
     percentile_map =
       percentile_data
-      |> Enum.map(fn row -> {row.date, row.percentile_hit_rate} end)
+      |> Enum.map(fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
       |> Map.new()
 
     Enum.map(dates, fn date ->
