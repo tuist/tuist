@@ -6,7 +6,7 @@ excerpt: "From debugging build issues to building agent-friendly build observabi
 author: pepicrft
 ---
 
-When an Xcode build fails, developers instinctively reach for logs. We scroll through walls of text, searching for that one cryptic linker error or mysterious crash buried in noise. The build system knows exactly what happened (every compilation, every dependency resolution, every timing metric) but it speaks a language optimized for machines, not humans. And certainly not for AI agents.
+When an Xcode build fails, developers instinctively reach for logs. We scroll through walls of text, searching for that one cryptic linker error or mysterious crash buried in the noise. The build system knows exactly what happened (every compilation, every dependency resolution, every timing metric) but it speaks a language optimized for machines, not humans. And certainly not for AI agents.
 
 What if we could change that? What if AI agents could actually understand builds, not just parse their text output?
 
