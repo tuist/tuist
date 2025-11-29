@@ -4,6 +4,7 @@ category: "engineering"
 tags: ["ai", "builds", "devtools"]
 excerpt: "From debugging build issues to building agent-friendly build observability. Exploring how structured build data could transform how AI agents understand and optimize Xcode builds."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/11/27/teaching-ai-to-read-xcode-builds/og.jpg
 ---
 
 When an Xcode build fails, developers instinctively reach for logs. We scroll through walls of text, searching for that one cryptic linker error or mysterious crash buried in the noise. The build system knows exactly what happened (every compilation, every dependency resolution, every timing metric) but it speaks a language optimized for machines, not humans. And certainly not for AI agents.
@@ -434,7 +435,7 @@ You could support convenient aliases too. Instead of requiring exact build IDs, 
 
 ## Real Build Analysis: Wikipedia iOS
 
-<img style="width: 100px; max-width: 100px;" alt="Wikipedia iOS app icon" src="/marketing/images/blog/2025/11/27/wikipedia-app-icon.png"/>
+<img style="width: 100px; max-width: 100px;" alt="Wikipedia iOS app icon" src="/marketing/images/blog/2025/11/27/teaching-ai-to-read-xcode-builds/wikipedia-app-icon.png"/>
 
 To validate this approach, we instrumented a real build of the [Wikipedia iOS app](https://github.com/wikimedia/wikipedia-ios), a large open-source project with 19 targets and thousands of tasks. Here's what the build service captured:
 
@@ -492,21 +493,43 @@ This exploration demonstrates what's possible, but turning it into a robust tool
 
 The swift-build protocol is now open source, which is a significant step forward. What would make this truly useful is Apple officializing it: giving `xcodebuild` a flag to specify where to store build trace data (a SQLite database path), and providing a CLI interface to query that data. We've built exactly this in our exploration, and Apple could do the same with proper support. They'd need to standardize the data schema and handle migrations when the schema evolves across Xcode versions.
 
-### Comparison with Existing Tools
+### What's already possible with post-build artifacts
 
-Tools like [xclogparser](https://github.com/MobileNativeFoundation/xclogparser) parse Xcode's `.xcactivitylog` files, which are also structured but post-hoc. The key difference is timing: xclogparser works after the build completes by parsing saved logs, while tapping into the build service gives you real-time data as it happens. The internal protocol also exposes information that doesn't make it into activity logs, like the dependency graph and cache signatures.
+Before diving into what protocol-level access would unlock, it's worth recognizing what's already achievable today. Xcode generates `.xcactivitylog` files (gzip-compressed build logs with structured data) and `.xcresultbundle` directories (containing test results, code coverage, and build metadata). These artifacts contain a wealth of information that tools can parse after builds complete.
 
-### What Would Make This Better
+Tools like [xclogparser](https://github.com/MobileNativeFoundation/xclogparser) have been parsing these files for years, extracting timing data, warnings, and errors into queryable formats. This post-hoc approach works well for many use cases: you can analyze build performance, track warning trends over time, and identify slow compilation units.
 
-This is exactly what we're building at [Tuist](https://tuist.dev/). Today, we parse `.xcactivitylog` and `.xcresultbundle` files to extract build insights and present them in web-based dashboards that teams can access from anywhere. But we'd love to hook into the build event stream in real-time, not just post-hoc. Real-time data would let us build richer experiences: live build monitoring, instant notifications when something goes wrong, and AI agents that can intervene during the build rather than after.
+At [Tuist](https://tuist.dev/), we've built exactly this. Our [Build Insights](https://docs.tuist.dev/en/guides/features/insights) feature parses `.xcactivitylog` and `.xcresultbundle` files to provide teams with dashboards showing build times, cache effectiveness, and historical trends. The data spans across developers, CI pipelines, and time, giving teams visibility into patterns they'd never notice from individual builds. And we're extending this to tests too: [Test Insights](https://tuist.dev/tuist/tuist/tests/) (already available in our public dashboard) will bring the same cross-time, cross-space analysis to your test suite. Adopting it is as simple as adding a post-action to your Xcode schemes.
 
-If Apple designed an extensible architecture where anyone can hook into the build event stream, the community could build all sorts of tooling on top of it. A stable contract for build events would enable local AI agents, cloud-based observability platforms, CI integrations, and custom workflows we haven't even imagined yet.
+This matters because much of what we've described in the "Vision" section, like team-wide build intelligence and build archaeology, is achievable with post-build artifacts. You don't need Apple to bless a new extension point to start getting value from structured build data.
+
+### Why protocol-level access would still matter
+
+So if we can already parse `.xcactivitylog` files, why bother with the build protocol at all?
+
+The key differences come down to timing and data availability.
+
+**Real-time intervention.** When you parse post-build artifacts, the build is already done. An AI agent watching the protocol stream could notice a problem mid-build and take action: pause the build, alert the developer, or even suggest a fix while there's still time to act on it. With post-hoc parsing, you're always reacting to something that already happened.
+
+**Rebuild causality.** The protocol includes `BuildOperationBacktraceFrameEmitted` messages that explain *why* each task was rebuilt: was it because the rule never ran before? Because the signature changed? Because an input was rebuilt? This causal chain is invaluable for debugging incremental build issues, but it's ephemeral. It flows through the protocol during planning and execution, then disappears. Result bundles record that a task ran, but not the decision tree that led to it running.
+
+**Live dependency graph computation.** The protocol exposes `ComputeDependencyGraphRequest` and `ComputeDependencyGraphResponse` messages showing how dependencies are resolved during planning. You can see the actual adjacency lists of target-to-target dependencies as the build system computes them. This information exists in the protocol as it happens, but the result bundle only contains the final build output, not the planning decisions.
+
+**Real-time progress.** `BuildOperationProgressUpdated` messages stream live status with target names, status messages, and completion percentages. You could build a web dashboard showing your build's progress in real-time, with tasks appearing and completing as they happen. This enables experiences like watching your CI build live from anywhere, something that's not possible with post-hoc parsing.
+
+**Per-task resource attribution.** While result bundles contain aggregate timing data, the protocol streams per-task metrics as each task completes: user-mode CPU time, system CPU time, peak memory usage, and wall-clock duration. This granularity makes it possible to identify not just which targets are slow, but which specific compilation units within those targets are consuming resources.
+
+### What would make this better
+
+If Apple designed an extensible architecture where anyone can hook into the build event stream, the community could build powerful tooling on top of it. A stable contract for build events would enable real-time build monitoring in CI dashboards, AI agents that can intervene during builds, and custom workflows we haven't imagined yet.
 
 The pieces are already there in swift-build. What's missing is Apple blessing this as an official extension point rather than an implementation detail that might change without notice.
 
 ## The Vision: Where This Could Go
 
 The Wikipedia iOS analysis shows what's possible with a single build. But the real potential emerges when you think about builds over time.
+
+Much of what follows is achievable today by parsing `.xcactivitylog` and `.xcresultbundle` files after builds complete. That's exactly what we're building at Tuist with [Build Insights](https://docs.tuist.dev/en/guides/features/insights). Protocol-level access would add real-time capabilities and richer causality data, but you don't need to wait for Apple to start getting value from structured build observability.
 
 ### Team-Wide Build Intelligence
 
@@ -517,7 +540,7 @@ Imagine a CI system that captures structured build data from every pull request.
 - What times of day have the slowest builds (and why)
 - How merge queue builds differ from individual PR builds
 
-This isn't theoretical, it's the kind of analysis that large companies do manually with custom tooling. Structured build data makes it accessible to everyone.
+This isn't theoretical, it's the kind of analysis that large companies do manually with custom tooling. Structured build data makes it accessible to everyone. And it's achievable today: post-build artifacts contain all the timing data, target information, and warning counts you need to build these dashboards.
 
 ### Proactive Developer Assistance
 
@@ -529,11 +552,15 @@ Or during code review:
 
 > "This PR adds a new import to `SharedFramework.h`. Our build data shows this header is included by 12 targets. This change will add approximately 45 seconds to incremental builds for those targets."
 
+These insights come from correlating build data over time with code changes. The build artifacts contain timing data; the git history contains what changed. An AI agent with access to both can make these connections.
+
 ### Real-Time Build Monitoring
 
-The build service generates events in real time. An agent could watch these events as they happen:
+This is where protocol-level access becomes essential. The build service generates events in real time, and an agent could watch these events as they happen:
 
 > "Build in progress... The `Analytics` target is taking longer than usual (45s vs. typical 30s). This started after yesterday's PR that added 3 new tracking events. The additional compile time is coming from type inference in `EventBuilder.swift`."
+
+Post-hoc parsing can tell you that `Analytics` was slow after the fact. Protocol-level access could tell you while it's happening, giving you the option to stop the build, investigate, or take corrective action before wasting more CI minutes.
 
 ### Build Archaeology
 
@@ -541,7 +568,9 @@ When something goes wrong weeks later, structured data lets you investigate:
 
 > "This linker error started appearing 3 days ago. Looking at build history, the last successful build was commit `abc123`. Between then and the first failure, there were 7 commits. The failure correlates with the addition of `NewFeature.framework` without updating the library search paths."
 
-The build system already knows everything it needs to answer these questions. We just need to capture and expose the data.
+This kind of analysis is entirely achievable with post-build artifacts. You need a database of historical builds with their errors, timing, and associated commits. Then it's a matter of querying and correlation, exactly what AI agents excel at.
+
+The build system already knows everything it needs to answer these questions. The data is available in post-build artifacts. We just need to capture and expose it in a way that's useful.
 
 ## Key Learnings
 
@@ -559,7 +588,22 @@ Building this exploration taught us several things:
 
 ## What's Next
 
-We've open-sourced this work as [Argus](https://github.com/tuist/argus), a fork of swift-build that provides an agentic interface for AI agents to help you understand and optimize your Xcode builds. This is very much an experiment, and we'd love for you to try it out and share your results publicly.
+There are two parallel paths forward, and we're actively working on both.
+
+### What you can use today
+
+At Tuist, we're building [Build Insights](https://docs.tuist.dev/en/guides/features/insights) and [Test Insights](https://tuist.dev/tuist/tuist/tests/) using post-build artifacts. This works today, requires no experimental tooling, and gives teams visibility into build performance across developers, CI pipelines, and time. Adopting it is as simple as adding a post-action to your Xcode schemes that uploads your `.xcactivitylog` and `.xcresultbundle` files.
+
+This is the pragmatic path: you don't need Apple to bless anything, you don't need to swap out your build service, and you can start getting value immediately. Team-wide build intelligence, historical trends, warning tracking, and build archaeology are all achievable with post-build parsing.
+
+### Exploring real-time protocol access
+
+For real-time features and richer causality data, we've open-sourced [Argus](https://github.com/tuist/argus), a fork of swift-build that provides an agentic interface for AI agents. This is very much an experiment. It demonstrates what's possible when you tap into the build event stream directly, including features that post-hoc parsing cannot provide:
+
+- **Real-time monitoring**: Watch your build progress live in a dashboard
+- **Mid-build intervention**: An agent could pause a build when it detects a problem
+- **Rebuild causality**: Understand *why* tasks were rebuilt, not just that they were
+- **Live dependency resolution**: See how the build system computes dependencies during planning
 
 Install Argus globally using [mise](https://mise.jdx.dev/):
 
