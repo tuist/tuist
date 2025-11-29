@@ -608,7 +608,7 @@ For real-time features and richer causality data, we've open-sourced [Argus](htt
 Install Argus globally using [mise](https://mise.jdx.dev/):
 
 ```bash
-mise use -g ubi:tuist/argus
+mise use -g github:tuist/argus
 ```
 
 Then add the following to your agent's memory or system prompt to enable build observability:
