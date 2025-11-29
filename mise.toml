@@ -6,6 +6,7 @@
     sops = "3.9.3"
     age = "1.2.1"
     protoc = "32.1"
+    "github:tuist/argus" = "0.1.7"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

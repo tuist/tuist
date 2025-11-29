@@ -43,6 +43,36 @@ Examples:
   ```
 - Do not modify CHANGELOG.md as it is auto-generated
 
+## Build Analysis with Argus
+
+When running Xcode builds, use Argus to capture and analyze build data:
+
+1. Run builds with Argus and a session ID for correlation:
+   ```bash
+   BUILD_TRACE_ID=$(uuidgen)
+   XCBBUILDSERVICE_PATH=$(which argus) BUILD_TRACE_ID=$BUILD_TRACE_ID xcodebuild build -scheme MyScheme
+   ```
+
+2. Query build results using the session ID:
+   ```bash
+   argus trace summary --build $BUILD_TRACE_ID
+   argus trace errors --build $BUILD_TRACE_ID
+   argus trace slowest-targets --build $BUILD_TRACE_ID --limit 5
+   argus trace bottlenecks --build $BUILD_TRACE_ID
+   ```
+
+   Or use "latest" to query the most recent build:
+   ```bash
+   argus trace summary --build latest
+   ```
+
+3. Use `--json` flag for programmatic access:
+   ```bash
+   argus trace summary --build $BUILD_TRACE_ID --json
+   ```
+
+4. Run `argus trace --help` to discover all available commands.
+
 ## Linting
 - To check for linting issues: `mise run lint`
 - To automatically fix fixable linting issues: `mise run lint --fix`
