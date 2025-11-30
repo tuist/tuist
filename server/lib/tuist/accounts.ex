@@ -454,6 +454,69 @@ defmodule Tuist.Accounts do
     end
   end
 
+  @doc """
+  Checks if an OAuth2 identity already exists for the given provider and id.
+  Used to determine if a user signing in via OAuth is new or existing.
+  """
+  def oauth2_identity_exists?(provider, id_in_provider) do
+    not is_nil(get_oauth2_identity_by_provider_and_id(provider, id_in_provider))
+  end
+
+  @doc """
+  Extracts the provider organization ID from an OAuth auth struct.
+  Used during OAuth sign-up to store the SSO organization info.
+  """
+  def extract_provider_organization_id(auth) do
+    case auth.provider do
+      :google ->
+        auth.extra.raw_info.user["hd"]
+
+      :github ->
+        nil
+
+      :apple ->
+        nil
+
+      :okta ->
+        auth.extra.raw_info.token.other_params["id_token"]
+        |> JOSE.JWT.peek_payload()
+        |> Map.get(:fields)
+        |> Map.get("iss")
+        |> URI.parse()
+        |> Map.get(:host)
+    end
+  end
+
+  @doc """
+  Creates a user from pending OAuth sign-up data with a specific username.
+  Used after the user selects their username during OAuth sign-up flow.
+  """
+  def create_user_from_pending_oauth(oauth_data, username) do
+    oauth2_attrs = %{
+      provider: String.to_existing_atom(oauth_data["provider"]),
+      id_in_provider: oauth_data["uid"],
+      provider_organization_id: oauth_data["provider_organization_id"]
+    }
+
+    case create_user(oauth_data["email"],
+           password: generate_random_string(16),
+           handle: username,
+           oauth2_identity: oauth2_attrs
+         ) do
+      {:ok, user} ->
+        assign_sso_user_to_organization(
+          user,
+          String.to_existing_atom(oauth_data["provider"]),
+          oauth_data["provider_organization_id"]
+        )
+
+        {:ok, user}
+
+      error ->
+        error
+    end
+  end
+
   def find_oauth2_identity(%{user: %{id: user_id}, provider: provider}, opts \\ []) do
     provider_organization_id = Keyword.get(opts, :provider_organization_id)
 
@@ -566,8 +629,13 @@ defmodule Tuist.Accounts do
   defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
     attempt = Keyword.get(opts, :attempt, 0)
     suffix = Keyword.get(opts, :suffix, "")
+    explicit_handle = Keyword.has_key?(opts, :handle)
 
     cond do
+      # If an explicit handle was provided, don't retry - just return the error
+      Utils.unique_error?(changeset, :name) and explicit_handle ->
+        {:error, :account_handle_taken}
+
       Utils.unique_error?(changeset, :name) and attempt < 20 ->
         next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
 

@@ -9,6 +9,7 @@
 #reset-password,
 #create-project,
 #create-organization,
+#choose-username,
 #error-page {
   display: flex;
   position: relative;
