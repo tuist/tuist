@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-30 00:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-30 01:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 # # This file is a PO Template file.
 # #
@@ -889,25 +889,25 @@ msgid "AI writes faster. So should your builds."
 msgstr "AI는 더 빠르게 작성해서 당신의 빌드를 합니다."
 
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
-msgstr ""
+msgstr "서버와 상호 작용하여 테스트 결과를 가져오는 Tuist 명령 실행 입니다. 대략 CI에서 테스트 실행 횟수와 거의 같습니다."
 
 msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
-msgstr ""
+msgstr "서버와 상호 작용해서 모듈 바이너리를 가져오는 Tuist 명령 입니다. 대략 CI에서 clean 빌드하는 횟수에 로컬에서 캐시 되지 않는 로컬 프로젝트 생성 횟수를 더한 것과 같습니다."
 
 msgid "About us"
-msgstr ""
+msgstr "제작자 소개"
 
 msgid "Hits"
-msgstr ""
+msgstr "조회수"
 
 msgid "Read customer story"
-msgstr ""
+msgstr "사용자 경험 읽기"
 
 msgid "Explore Tuist's features"
-msgstr ""
+msgstr "Tuist의 기능 사용 현황을 보세요"
 
 msgid "Explore features"
-msgstr ""
+msgstr "기능 사용 현황을 보세요,"
 
 msgid "live on our dashboard"
-msgstr ""
+msgstr "현황판에서 실시간으로"
