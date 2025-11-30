@@ -862,7 +862,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
-            try? await inspectResultBundleIfNeeded(
+            await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 config: config,
@@ -871,7 +871,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
-        try await inspectResultBundleIfNeeded(
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
             config: config,
@@ -884,16 +884,20 @@ final class TestService { // swiftlint:disable:this type_body_length
         derivedDataPath: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction
-    ) async throws {
+    ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
-              try await fileSystem.exists(resultBundlePath)
+              (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
 
-        _ = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            projectDerivedDataDirectory: derivedDataPath,
-            config: config
-        )
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: derivedDataPath,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 
     private func destination(
