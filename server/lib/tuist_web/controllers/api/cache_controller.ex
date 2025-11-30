@@ -737,15 +737,14 @@ defmodule TuistWeb.API.CacheController do
     send_resp(conn, :no_content, "")
   end
 
-  defp retry_get_object_size(object_key, actor, retries_left, attempt, skip_sleep)
-       when retries_left > 0 do
+  defp retry_get_object_size(object_key, actor, retries_left, attempt, skip_sleep) when retries_left > 0 do
     case Storage.get_object_size(object_key, actor) do
       {:ok, size} ->
         {:ok, size}
 
       {:error, :not_found} ->
         # Wait with exponential backoff: 100ms, 200ms, 400ms
-        unless skip_sleep do
+        if !skip_sleep do
           (100 * :math.pow(2, attempt - 1)) |> round() |> Process.sleep()
         end
 
