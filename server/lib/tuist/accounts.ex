@@ -568,7 +568,7 @@ defmodule Tuist.Accounts do
     suffix = Keyword.get(opts, :suffix, "")
 
     cond do
-      Utils.unique_error?(changeset, :name) and attempt < 5 ->
+      Utils.unique_error?(changeset, :name) and attempt < 20 ->
         next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
 
         opts =
@@ -578,7 +578,7 @@ defmodule Tuist.Accounts do
 
         create_user(email, opts)
 
-      Utils.unique_error?(changeset, :name) and attempt >= 5 ->
+      Utils.unique_error?(changeset, :name) and attempt >= 20 ->
         {:error, :account_handle_taken}
 
       true ->

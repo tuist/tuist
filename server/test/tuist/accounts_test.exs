@@ -1605,11 +1605,10 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       Accounts.create_user("foo@tuist.io")
-      Accounts.create_user("foo1@tuist.io")
-      Accounts.create_user("foo2@tuist.io")
-      Accounts.create_user("foo3@tuist.io")
-      Accounts.create_user("foo4@tuist.io")
-      Accounts.create_user("foo5@tuist.io")
+
+      for i <- 1..20 do
+        Accounts.create_user("foo#{i}@tuist.io")
+      end
 
       # When
       {:error, :account_handle_taken} = Accounts.create_user("foo@tuist.test")
