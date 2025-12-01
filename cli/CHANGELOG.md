@@ -1,14 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.109.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.110.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* deprecate tuist build command by [@pepicrft](https://github.com/pepicrft) in [#8401](https://github.com/tuist/tuist/pull/8401)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.2...4.110.0
+
+## What's Changed in 4.109.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * relegate test result upload error to a warning by [@fortmarek](https://github.com/fortmarek) in [#8790](https://github.com/tuist/tuist/pull/8790)
 * Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.2
 
 ## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
 
