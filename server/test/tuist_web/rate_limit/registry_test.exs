@@ -20,7 +20,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       hit_key = "registry:auth:project:#{project_id}"
       timeout = to_timeout(minute: 1)
 
-      expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
+      expect(InMemory, :hit, fn ^hit_key, ^timeout, 100_000 ->
         {:allow, 1}
       end)
 
@@ -46,7 +46,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       hit_key = "registry:auth:account:#{account_id}"
       timeout = to_timeout(minute: 1)
 
-      expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
+      expect(InMemory, :hit, fn ^hit_key, ^timeout, 100_000 ->
         {:allow, 1}
       end)
 
@@ -67,7 +67,7 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       hit_key = "registry:unauth:#{ip}"
       timeout = to_timeout(minute: 1)
 
-      expect(InMemory, :hit, fn ^hit_key, ^timeout, 1_000 ->
+      expect(InMemory, :hit, fn ^hit_key, ^timeout, 10_000 ->
         {:allow, 1}
       end)
 
@@ -87,8 +87,8 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       hit_key = "registry:auth:project:#{project_id}"
       timeout = to_timeout(minute: 1)
 
-      expect(InMemory, :hit, fn ^hit_key, ^timeout, 20_000 ->
-        {:deny, 20_000}
+      expect(InMemory, :hit, fn ^hit_key, ^timeout, 100_000 ->
+        {:deny, 100_000}
       end)
 
       # When
@@ -108,8 +108,8 @@ defmodule TuistWeb.RateLimit.RegistryTest do
       hit_key = "registry:unauth:#{ip}"
       timeout = to_timeout(minute: 1)
 
-      expect(InMemory, :hit, fn ^hit_key, ^timeout, 1_000 ->
-        {:deny, 1_000}
+      expect(InMemory, :hit, fn ^hit_key, ^timeout, 10_000 ->
+        {:deny, 10_000}
       end)
 
       # When

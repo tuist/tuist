@@ -199,5 +199,62 @@ defmodule Tuist.Runs.TestTest do
       assert changeset.valid?
       assert changeset.changes.is_ci == false
     end
+
+    test "includes optional ci_run_id" do
+      attrs = Map.put(@valid_attrs, :ci_run_id, "19683527895")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.ci_run_id == "19683527895"
+    end
+
+    test "includes optional ci_project_handle" do
+      attrs = Map.put(@valid_attrs, :ci_project_handle, "tuist/tuist")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.ci_project_handle == "tuist/tuist"
+    end
+
+    test "includes optional ci_host" do
+      attrs = Map.put(@valid_attrs, :ci_host, "gitlab.example.com")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.ci_host == "gitlab.example.com"
+    end
+
+    test "accepts ci_provider 'github'" do
+      attrs = Map.put(@valid_attrs, :ci_provider, "github")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.ci_provider == "github"
+    end
+
+    test "rejects invalid ci_provider" do
+      attrs = Map.put(@valid_attrs, :ci_provider, "invalid_provider")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).ci_provider
+    end
+
+    test "accepts all CI fields together" do
+      attrs =
+        @valid_attrs
+        |> Map.put(:ci_run_id, "19683527895")
+        |> Map.put(:ci_project_handle, "tuist/tuist")
+        |> Map.put(:ci_host, "github.com")
+        |> Map.put(:ci_provider, "github")
+
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.ci_run_id == "19683527895"
+      assert changeset.changes.ci_project_handle == "tuist/tuist"
+      assert changeset.changes.ci_host == "github.com"
+      assert changeset.changes.ci_provider == "github"
+    end
   end
 end

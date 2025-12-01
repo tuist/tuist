@@ -21,8 +21,7 @@ approach not only accelerates feedback loops but also minimizes the need for
 context switching, ultimately boosting productivity.
 
 We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module
-  cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">模块缓存</LocalizedLink>
 - <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
   cache</LocalizedLink>
 

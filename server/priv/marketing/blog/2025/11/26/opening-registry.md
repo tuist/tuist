@@ -30,7 +30,7 @@ swift package-registry set https://tuist.dev/api/registry/swift
 
 Either of these commands will create a configuration file, with its location depending on your setup. For Swift packages, this would be in `.swiftpm/configuration/registries.json`, for Xcode projects, it would be in `YourProject.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json`. Make sure to commit this configuration file, so all your colleagues and your CI have access to the registry.
 
-When unauthenticated, you will be rate-limited to 1000 requests per minute – more than enough for resolving hundreds of packages in a typical clean build. If you are running into limits, you can still authenticate with your Tuist account to increase your rate limit to 10,000 requests per minute:
+When unauthenticated, you will be rate-limited to 10,000 requests per minute – more than enough for resolving hundreds of packages in a typical clean build. If you are running into limits, you can still authenticate with your Tuist account to increase your rate limit to 100,000 requests per minute:
 
 ```sh
 tuist registry login

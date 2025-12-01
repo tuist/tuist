@@ -199,4 +199,79 @@ defmodule TuistWeb.AuthControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
     end
   end
+
+  describe "GET /auth/complete-signup" do
+    test "logs in user and redirects when token is valid", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      token = Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: nil})
+
+      # When
+      conn = get(conn, "/auth/complete-signup?token=#{token}")
+
+      # Then
+      assert redirected_to(conn) =~ "/#{user.account.name}"
+    end
+
+    test "redirects to oauth_return_url when provided in token", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      return_url = "/some/return/path"
+
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: return_url})
+
+      # When
+      conn = get(conn, "/auth/complete-signup?token=#{token}")
+
+      # Then
+      assert redirected_to(conn) == return_url
+    end
+
+    test "redirects to login with error when token is invalid", %{conn: conn} do
+      # When
+      conn = get(conn, "/auth/complete-signup?token=invalid-token")
+
+      # Then
+      assert redirected_to(conn) == "/users/log_in"
+    end
+
+    test "redirects to login with error when token is expired", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      # Create an expired token (max_age is 300 seconds, so we simulate by using a very old timestamp)
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: nil},
+          signed_at: System.system_time(:second) - 400
+        )
+
+      # When
+      conn = get(conn, "/auth/complete-signup?token=#{token}")
+
+      # Then
+      assert redirected_to(conn) == "/users/log_in"
+    end
+
+    test "redirects to login with error when token is missing", %{conn: conn} do
+      # When
+      conn = get(conn, "/auth/complete-signup")
+
+      # Then
+      assert redirected_to(conn) == "/users/log_in"
+    end
+
+    test "redirects to login with error when user does not exist", %{conn: conn} do
+      # Given
+      non_existent_user_id = 999_999_999
+
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: non_existent_user_id, oauth_return_url: nil})
+
+      # When
+      conn = get(conn, "/auth/complete-signup?token=#{token}")
+
+      # Then
+      assert redirected_to(conn) == "/users/log_in"
+    end
+  end
 end

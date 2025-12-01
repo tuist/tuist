@@ -42,6 +42,7 @@ struct XcodeBuildTestCommandService {
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
     private let selectiveTestingService: SelectiveTestingServicing
     private let inspectResultBundleService: InspectResultBundleServicing
+    private let derivedDataLocator: DerivedDataLocating
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -53,7 +54,8 @@ struct XcodeBuildTestCommandService {
         cacheStorageFactory: CacheStorageFactorying,
         selectiveTestingGraphHasher: SelectiveTestingGraphHashing,
         selectiveTestingService: SelectiveTestingServicing,
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
     ) {
         self.fileSystem = fileSystem
         self.xcodeGraphMapper = xcodeGraphMapper
@@ -65,6 +67,7 @@ struct XcodeBuildTestCommandService {
         self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
         self.selectiveTestingService = selectiveTestingService
         self.inspectResultBundleService = inspectResultBundleService
+        self.derivedDataLocator = derivedDataLocator
     }
 
     func run(
@@ -85,6 +88,19 @@ struct XcodeBuildTestCommandService {
         path: AbsolutePath,
         config: Tuist
     ) async throws {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let projectDerivedDataDirectory: AbsolutePath
+        if let derivedDataPathString = Self.passedValue(
+            for: "-derivedDataPath", arguments: passthroughXcodebuildArguments
+        ) {
+            projectDerivedDataDirectory = try AbsolutePath(
+                validating: derivedDataPathString,
+                relativeTo: currentWorkingDirectory
+            )
+        } else {
+            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: path)
+        }
+
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         guard let schemeName = Self.passedValue(
             for: "-scheme", arguments: passthroughXcodebuildArguments
@@ -203,8 +219,9 @@ struct XcodeBuildTestCommandService {
                 selectiveTestingHashes: selectiveTestingHashes,
                 targetTestCacheItems: targetTestCacheItems
             )
-            try? await inspectResultBundleIfNeeded(
+            await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
             )
             throw error
@@ -223,8 +240,9 @@ struct XcodeBuildTestCommandService {
             cacheStorage: cacheStorage
         )
 
-        try await inspectResultBundleIfNeeded(
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config
         )
     }
@@ -363,15 +381,21 @@ struct XcodeBuildTestCommandService {
 
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
+        projectDerivedDataDirectory: AbsolutePath,
         config: Tuist
-    ) async throws {
+    ) async {
         guard let resultBundlePath, config.fullHandle != nil,
-              try await fileSystem.exists(resultBundlePath)
+              (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
 
-        _ = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            config: config
-        )
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 }

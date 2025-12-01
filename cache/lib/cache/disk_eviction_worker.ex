@@ -79,7 +79,7 @@ defmodule Cache.DiskEvictionWorker do
         :ok
       else
         {next_used_bytes, next_summary, removed} =
-          process_batch(batch, storage_dir, stats, config, used_bytes, summary)
+          process_batch(batch, stats, config, used_bytes, summary)
 
         if removed == 0 do
           Logger.info(
@@ -94,43 +94,46 @@ defmodule Cache.DiskEvictionWorker do
     end
   end
 
-  defp process_batch(batch, storage_dir, stats, config, used_bytes, summary) do
-    Enum.reduce_while(batch, {used_bytes, summary, 0}, fn entry, {acc_used, acc_summary, removed} ->
-      current_percent = percent_used(acc_used, stats.total_bytes)
+  defp process_batch(batch, stats, config, used_bytes, summary) do
+    {final_used, final_summary, _removed, keys_to_delete} =
+      Enum.reduce_while(batch, {used_bytes, summary, 0, []}, fn entry, {acc_used, acc_summary, removed, keys} ->
+        current_percent = percent_used(acc_used, stats.total_bytes)
 
-      if current_percent <= config.target_percent do
-        {:halt, {acc_used, acc_summary, removed}}
-      else
-        {next_used, next_summary, removed_delta} =
-          handle_entry(entry, storage_dir, acc_used, acc_summary)
+        if current_percent <= config.target_percent do
+          {:halt, {acc_used, acc_summary, removed, keys}}
+        else
+          {next_used, next_summary, removed_delta, key_to_delete} =
+            handle_entry(entry, acc_used, acc_summary)
 
-        {:cont, {next_used, next_summary, removed + removed_delta}}
-      end
-    end)
+          next_keys = if key_to_delete, do: [key_to_delete | keys], else: keys
+          {:cont, {next_used, next_summary, removed + removed_delta, next_keys}}
+        end
+      end)
+
+    :ok = CASArtifacts.delete_by_keys(keys_to_delete)
+
+    {final_used, final_summary, length(keys_to_delete)}
   end
 
-  defp handle_entry(entry, storage_dir, used_bytes, summary) do
+  defp handle_entry(entry, used_bytes, summary) do
     path = Disk.artifact_path(entry.key)
     size = entry.size_bytes || file_size(path) || 0
 
     case File.rm(path) do
       :ok ->
-        cleanup_empty_parents(path, storage_dir)
-        :ok = CASArtifacts.delete_by_key(entry.key)
-
         {
           max(used_bytes - size, 0),
           %{summary | freed_bytes: summary.freed_bytes + size, files: summary.files + 1},
-          1
+          1,
+          entry.key
         }
 
       {:error, :enoent} ->
-        :ok = CASArtifacts.delete_by_key(entry.key)
-        {used_bytes, summary, 1}
+        {used_bytes, summary, 1, entry.key}
 
       {:error, reason} ->
         Logger.warning("Failed to evict #{entry.key}: #{inspect(reason)}")
-        {used_bytes, summary, 0}
+        {used_bytes, summary, 0, nil}
     end
   end
 
@@ -150,28 +153,6 @@ defmodule Cache.DiskEvictionWorker do
     )
 
     :ok
-  end
-
-  defp cleanup_empty_parents(path, storage_dir) do
-    dir = Path.dirname(path)
-
-    cond do
-      dir == storage_dir ->
-        :ok
-
-      String.starts_with?(dir, storage_dir) ->
-        case File.ls(dir) do
-          {:ok, []} ->
-            _ = File.rmdir(dir)
-            cleanup_empty_parents(dir, storage_dir)
-
-          _ ->
-            :ok
-        end
-
-      true ->
-        :ok
-    end
   end
 
   defp file_size(path) do

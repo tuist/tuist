@@ -24,6 +24,9 @@
 @import "./pages/qa_settings.css";
 @import "./pages/run_detail.css";
 @import "./pages/connect.css";
+@import "./pages/tests.css";
 @import "./pages/test_runs.css";
 @import "./pages/test_run.css";
+@import "./pages/test_cases.css";
+@import "./pages/test_case.css";
 @import "./pages/xcode_cache.css";

@@ -1,6 +1,50 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.110.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duration for test cases with custom label by [@fortmarek](https://github.com/fortmarek) in [#8800](https://github.com/tuist/tuist/pull/8800)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.0...4.110.1
+
+## What's Changed in 4.110.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* deprecate tuist build command by [@pepicrft](https://github.com/pepicrft) in [#8401](https://github.com/tuist/tuist/pull/8401)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.2...4.110.0
+
+## What's Changed in 4.109.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* relegate test result upload error to a warning by [@fortmarek](https://github.com/fortmarek) in [#8790](https://github.com/tuist/tuist/pull/8790)
+* Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.2
+
+## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* link tests to builds by [@fortmarek](https://github.com/fortmarek) in [#8771](https://github.com/tuist/tuist/pull/8771)
+### 🐛 Bug Fixes
+
+* Remove CLANG_CXX_LIBRARY essential build setting by [@alexmx](https://github.com/alexmx) in [#8763](https://github.com/tuist/tuist/pull/8763)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.108.0...4.109.0
+
+## What's Changed in 4.108.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track CI run id for test insights by [@fortmarek](https://github.com/fortmarek) in [#8769](https://github.com/tuist/tuist/pull/8769)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.2...4.108.0
+
 ## What's Changed in 4.107.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

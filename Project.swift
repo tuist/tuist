@@ -21,6 +21,18 @@ func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
     )
 }
 
+func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect test",
+        scriptText: """
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+        tuist inspect test
+        """,
+        target: target
+    )
+}
+
 func releaseSettings() -> SettingsDictionary {
     baseSettings
 }
@@ -73,7 +85,10 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.testTargets).map {
                     .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : [])
+                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : []),
+                postActions: [
+                    inspectTestPostAction(target: "tuist"),
+                ]
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -94,7 +109,10 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : [])
+                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : []),
+                postActions: [
+                    inspectTestPostAction(target: "TuistKitAcceptanceTests"),
+                ]
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -115,6 +133,9 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 tuistTestUnitTargets(),
                 attachDebugger: false,
+                postActions: [
+                    inspectTestPostAction(target: "TuistKitTests"),
+                ],
                 options: .options(
                     language: "en"
                 )
@@ -153,6 +174,9 @@ func schemes() -> [Scheme] {
             ),
             testAction: .targets(
                 [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))],
+                postActions: [
+                    inspectTestPostAction(target: "TuistCacheEEAcceptanceTests"),
+                ],
                 options: .options(
                     language: "en"
                 )
@@ -174,6 +198,9 @@ func schemes() -> [Scheme] {
             ),
             testAction: .targets(
                 [.testableTarget(target: .target("TuistCacheEETests"))],
+                postActions: [
+                    inspectTestPostAction(target: "TuistCacheEETests"),
+                ],
                 options: .options(
                     language: "en"
                 )
@@ -225,7 +252,12 @@ func schemes() -> [Scheme] {
                     ],
                     runPostActionsOnFailure: true
                 ),
-                testAction: .targets([.testableTarget(target: .target($0))]),
+                testAction: .targets(
+                    [.testableTarget(target: .target($0))],
+                    postActions: [
+                        inspectTestPostAction(target: TargetReference(stringLiteral: $0)),
+                    ]
+                ),
                 runAction: .runAction(
                     arguments: .arguments(
                         environmentVariables: acceptanceTestsEnvironmentVariables()

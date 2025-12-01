@@ -35,6 +35,100 @@ defmodule Tuist.VCSTest do
     :ok
   end
 
+  describe "ci_run_url/1" do
+    test "returns GitHub Actions URL for github provider" do
+      ci_metadata = %{
+        ci_provider: :github,
+        ci_run_id: "19683527895",
+        ci_project_handle: "tuist/tuist"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://github.com/tuist/tuist/actions/runs/19683527895"
+    end
+
+    test "returns GitLab pipeline URL for gitlab provider with default host" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.com/group/project/-/pipelines/987654321"
+    end
+
+    test "returns GitLab pipeline URL for gitlab provider with custom host" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project",
+        ci_host: "gitlab.example.com"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.example.com/group/project/-/pipelines/987654321"
+    end
+
+    test "returns GitLab pipeline URL with default host when ci_host is empty string" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project",
+        ci_host: ""
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.com/group/project/-/pipelines/987654321"
+    end
+
+    test "returns Bitrise build URL for bitrise provider" do
+      ci_metadata = %{
+        ci_provider: :bitrise,
+        ci_run_id: "abc123def",
+        ci_project_handle: "ignored"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://app.bitrise.io/build/abc123def"
+    end
+
+    test "returns CircleCI pipeline URL for circleci provider" do
+      ci_metadata = %{
+        ci_provider: :circleci,
+        ci_run_id: "12345",
+        ci_project_handle: "tuist/tuist"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
+    end
+
+    test "returns Buildkite builds URL for buildkite provider" do
+      ci_metadata = %{
+        ci_provider: :buildkite,
+        ci_run_id: "67890",
+        ci_project_handle: "tuist/pipeline"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://buildkite.com/tuist/pipeline/builds/67890"
+    end
+
+    test "returns Codemagic build URL for codemagic provider" do
+      ci_metadata = %{
+        ci_provider: :codemagic,
+        ci_run_id: "build-abc123",
+        ci_project_handle: "app-id-123"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == "https://codemagic.io/app/app-id-123/build/build-abc123"
+    end
+
+    test "returns nil when ci_run_id is nil" do
+      ci_metadata = %{
+        ci_provider: :github,
+        ci_run_id: nil,
+        ci_project_handle: "tuist/tuist"
+      }
+
+      assert VCS.ci_run_url(ci_metadata) == nil
+    end
+  end
+
   describe "post_vcs_pull_request_comment/1" do
     @git_ref "refs/pull/1/merge"
     @git_remote_url_origin "https://github.com/tuist/tuist"

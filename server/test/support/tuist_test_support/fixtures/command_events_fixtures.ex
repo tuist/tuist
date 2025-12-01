@@ -6,8 +6,6 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
 
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
-  alias Tuist.CommandEvents.TargetTestSummary
   alias Tuist.Time
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -58,116 +56,6 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         preload: Keyword.get(attrs, :preload, [])
       )
     end)
-  end
-
-  def test_case_fixture(attrs \\ []) do
-    project_id =
-      Keyword.get_lazy(attrs, :project_id, fn ->
-        ProjectsFixtures.project_fixture().id
-      end)
-
-    CommandEvents.create_test_case(
-      %{
-        name: Keyword.get(attrs, :name, "test"),
-        module_name: Keyword.get(attrs, :module_name, "AppTests"),
-        identifier:
-          Keyword.get(
-            attrs,
-            :identifier,
-            "AppTests/testExample/#{TuistTestSupport.Utilities.unique_integer()}"
-          ),
-        project_identifier: Keyword.get(attrs, :project_identifier, "AppTests/AppTests.xcodeproj"),
-        project_id: project_id
-      },
-      flaky: Keyword.get(attrs, :flaky, false)
-    )
-  end
-
-  def test_case_run_fixture(attrs \\ []) do
-    command_event_id =
-      Keyword.get_lazy(attrs, :command_event_id, fn ->
-        command_event = command_event_fixture()
-        command_event.id
-      end)
-
-    test_case_id =
-      Keyword.get_lazy(attrs, :test_case_id, fn ->
-        test_case_fixture().id
-      end)
-
-    xcode_target_id = Keyword.get(attrs, :xcode_target_id, UUIDv7.generate())
-
-    CommandEvents.create_test_case_run(
-      %{
-        status: Keyword.get(attrs, :status, :success),
-        command_event_id: command_event_id,
-        test_case_id: test_case_id,
-        xcode_target_id: xcode_target_id
-      },
-      flaky: Keyword.get(attrs, :flaky, false),
-      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)),
-      duration: Keyword.get(attrs, :duration, 0)
-    )
-  end
-
-  def test_summary_fixture(attrs \\ []) do
-    project_tests =
-      Keyword.get(attrs, :project_tests, %{
-        "App/MainApp.xcodeproj" => %{
-          "AppTests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-              }
-            ],
-            status: :success
-          }
-        },
-        "Framework1/Framework1.xcodeproj" => %{
-          "Framework1Tests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
-              },
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHelloFromFramework2()",
-                identifier_url:
-                  "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2"
-              }
-            ],
-            status: :success
-          }
-        },
-        "Framework2/Framework2.xcodeproj" => %{
-          "Framework2Tests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :failure,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
-              },
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
-              }
-            ],
-            status: :failure
-          }
-        }
-      })
-
-    %Tuist.CommandEvents.TestSummary{
-      project_tests: project_tests,
-      failed_tests_count: 1,
-      successful_tests_count: 4,
-      total_tests_count: 5
-    }
   end
 
   def invocation_record_fixture do

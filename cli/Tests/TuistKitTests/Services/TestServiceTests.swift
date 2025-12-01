@@ -31,6 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
+    private var inspectResultBundleService: MockInspectResultBundleServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -45,6 +46,7 @@ final class TestServiceTests: TuistUnitTestCase {
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        inspectResultBundleService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -86,7 +88,8 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
-            xcResultService: xcResultService
+            xcResultService: xcResultService,
+            inspectResultBundleService: inspectResultBundleService
         )
 
         given(simulatorController)
@@ -147,6 +150,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = nil
         testedSchemes = []
         runMetadataStorage = nil
+        inspectResultBundleService = nil
         subject = nil
         super.tearDown()
     }
@@ -2403,6 +2407,54 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(existing, [testPlan])
         } catch {
             throw error
+        }
+    }
+
+    func test_run_logsWarningWhenInspectResultBundleFails() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn(
+                    [
+                        Scheme.test(name: "ProjectScheme"),
+                    ]
+                )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist"
+                    )
+                )
+
+            given(inspectResultBundleService)
+                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .willThrow(TestError("Inspect failed"))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            let warnings = AlertController.current.warnings()
+            XCTAssertEqual(warnings.count, 1)
+            XCTAssertTrue(warnings.first?.message.plain().contains("Failed to upload test results") == true)
         }
     }
 

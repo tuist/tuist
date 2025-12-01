@@ -13,7 +13,6 @@ struct DefaultSettingsProvider_iOSTests {
     private var subject: DefaultSettingsProvider!
 
     private let projectEssentialDebugSettings: [String: SettingValue] = [
-        "CLANG_CXX_LIBRARY": "libc++",
         "GCC_PREPROCESSOR_DEFINITIONS": ["DEBUG=1", "$(inherited)"],
         "CLANG_ENABLE_OBJC_ARC": "YES",
         "CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION": "YES_AGGRESSIVE",
@@ -46,7 +45,6 @@ struct DefaultSettingsProvider_iOSTests {
         "ALWAYS_SEARCH_USER_PATHS": "NO",
         "CLANG_ANALYZER_NONNULL": "YES",
         "CLANG_ENABLE_MODULES": "YES",
-        "CLANG_CXX_LIBRARY": "libc++",
         "CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION": "YES_AGGRESSIVE",
         "MTL_ENABLE_DEBUG_INFO": "NO",
         "GCC_NO_COMMON_BLOCKS": "YES",
@@ -145,32 +143,6 @@ struct DefaultSettingsProvider_iOSTests {
 
     init() {
         subject = DefaultSettingsProvider()
-    }
-
-    @Test(.withMockedXcodeController) func projectSettings_whenExcludingEssentialDebug() async throws {
-        // Given
-        let buildConfiguration: BuildConfiguration = .debug
-        let settings = Settings(
-            base: [:],
-            configurations: [buildConfiguration: nil],
-            defaultSettings: .essential(excluding: ["CLANG_CXX_LIBRARY"])
-        )
-        let project = Project.test(settings: settings)
-
-        let xcodeControllerMock = try #require(XcodeController.mocked)
-        given(xcodeControllerMock)
-            .selectedVersion()
-            .willReturn(Version(15, 0, 0))
-
-        // When
-        let got = try await subject.projectSettings(
-            project: project,
-            buildConfiguration: buildConfiguration
-        )
-
-        // Then
-        #expect(got != projectEssentialDebugSettings)
-        #expect(got["CLANG_CXX_LIBRARY"] == nil)
     }
 
     @Test(.withMockedXcodeController) func projectSettings_whenEssentialDebug() async throws {

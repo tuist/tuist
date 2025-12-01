@@ -132,7 +132,7 @@ Tuist MCP server to your client's configuration:
 In the following sections you'll learn about the capabilities of the Tuist MCP
 server.
 
-### Resources
+### 资源
 
 #### Recent projects and workspaces
 

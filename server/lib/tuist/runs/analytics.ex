@@ -718,6 +718,8 @@ defmodule Tuist.Runs.Analytics do
         is_ci: is_ci
       )
 
+    dates = Enum.map(selective_testing_hit_rates, & &1.date)
+
     %{
       trend:
         trend(
@@ -725,17 +727,116 @@ defmodule Tuist.Runs.Analytics do
           current_value: current_selective_testing_hit_rate
         ),
       hit_rate: current_selective_testing_hit_rate,
-      dates:
-        Enum.map(
-          selective_testing_hit_rates,
-          & &1.date
-        ),
+      dates: dates,
       values:
         Enum.map(
           selective_testing_hit_rates,
           & &1.hit_rate
         )
     }
+  end
+
+  def selective_testing_analytics_with_percentiles(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket_for_date_period(date_period))
+
+    base_analytics = selective_testing_analytics(opts)
+
+    [p50_period, p90_period, p99_period, p50_values, p90_values, p99_values] =
+      Task.await_many(
+        [
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_date,
+              end_date,
+              0.99,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_date,
+              end_date,
+              clickhouse_time_bucket,
+              0.99,
+              is_ci: is_ci
+            )
+          end)
+        ],
+        30_000
+      )
+
+    dates = base_analytics.dates
+
+    Map.merge(base_analytics, %{
+      p50: normalize_percentile_result(p50_period),
+      p90: normalize_percentile_result(p90_period),
+      p99: normalize_percentile_result(p99_period),
+      p50_values: process_percentile_hit_rates(p50_values, dates, date_period),
+      p90_values: process_percentile_hit_rates(p90_values, dates, date_period),
+      p99_values: process_percentile_hit_rates(p99_values, dates, date_period)
+    })
+  end
+
+  defp normalize_percentile_result(nil), do: 0.0
+  defp normalize_percentile_result(value) when is_float(value), do: value
+  defp normalize_percentile_result(%Decimal{} = value), do: Decimal.to_float(value)
+
+  defp process_percentile_hit_rates(percentile_data, dates, date_period) do
+    percentile_map =
+      Map.new(percentile_data, fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
+
+    Enum.map(dates, fn date ->
+      case Map.get(percentile_map, date) do
+        nil -> 0.0
+        value -> value / 100.0
+      end
+    end)
   end
 
   defp selective_testing_hit_rate(project_id, opts) do
@@ -1170,8 +1271,21 @@ defmodule Tuist.Runs.Analytics do
     current_period_total_average_duration =
       test_run_aggregated_duration(project_id, start_date, end_date, opts)
 
+    current_period_percentiles =
+      test_run_duration_percentiles(project_id, start_date, end_date, opts)
+
     average_durations_data =
       test_run_average_durations(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    percentile_durations_data =
+      test_run_percentile_durations(
         project_id,
         start_date,
         end_date,
@@ -1183,6 +1297,30 @@ defmodule Tuist.Runs.Analytics do
     average_durations =
       process_durations_data(average_durations_data, start_date, end_date, date_period)
 
+    p50_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p50} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p90_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p90} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p99_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p99} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
     %{
       trend:
         trend(
@@ -1190,9 +1328,15 @@ defmodule Tuist.Runs.Analytics do
           current_value: current_period_total_average_duration
         ),
       total_average_duration: current_period_total_average_duration,
+      p50: current_period_percentiles.p50,
+      p90: current_period_percentiles.p90,
+      p99: current_period_percentiles.p99,
       average_durations: average_durations,
       dates: Enum.map(average_durations, & &1.date),
-      values: Enum.map(average_durations, & &1.value)
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
     }
   end
 
@@ -1254,6 +1398,87 @@ defmodule Tuist.Runs.Analytics do
       end
 
     ClickHouseRepo.all(query)
+  end
+
+  defp test_run_duration_percentiles(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        select: %{
+          p50: fragment("quantile(0.50)(?)", t.duration),
+          p90: fragment("quantile(0.90)(?)", t.duration),
+          p99: fragment("quantile(0.99)(?)", t.duration)
+        }
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      %{p50: p50, p90: p90, p99: p99} ->
+        %{
+          p50: normalize_percentile(p50),
+          p90: normalize_percentile(p90),
+          p99: normalize_percentile(p99)
+        }
+
+      _ ->
+        %{p50: 0.0, p90: 0.0, p99: 0.0}
+    end
+  end
+
+  defp test_run_percentile_durations(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_dt,
+        where: t.ran_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          p50: fragment("quantile(0.5)(?)", t.duration),
+          p90: fragment("quantile(0.9)(?)", t.duration),
+          p99: fragment("quantile(0.99)(?)", t.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
+      end
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{
+        date: row.date,
+        p50: row.p50 || 0,
+        p90: row.p90 || 0,
+        p99: row.p99 || 0
+      }
+    end)
   end
 
   @doc """
@@ -2190,4 +2415,441 @@ defmodule Tuist.Runs.Analytics do
   defp date_to_string(date, :month) do
     Timex.format!(date, "%Y-%m", :strftime)
   end
+
+  @doc """
+  Gets test case run analytics for a project over a time period.
+  Returns count of test case runs with trend data for charts.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period (default: 30 days ago)
+    * `:end_date` - End date for the analytics period (default: today)
+    * `:is_ci` - Filter by CI runs (true/false/nil for all)
+    * `:status` - Filter by status ("success"/"failure"/"skipped"/nil for all)
+  """
+  def test_case_run_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    current_runs_data =
+      test_case_run_count(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    current_runs = process_runs_count_data(current_runs_data, start_date, end_date, date_period)
+
+    previous_runs_count =
+      test_case_run_total_count(project_id, Date.add(start_date, -days_delta), start_date, opts)
+
+    current_runs_count = test_case_run_total_count(project_id, start_date, end_date, opts)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_runs_count,
+          current_value: current_runs_count
+        ),
+      count: current_runs_count,
+      values: Enum.map(current_runs, & &1.count),
+      dates: Enum.map(current_runs, & &1.date)
+    }
+  end
+
+  defp test_case_run_count(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+    status = Keyword.get(opts, :status)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+          count: count(tcr.id)
+        },
+        order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [tcr], tcr.status == "failure")
+        "success" -> where(query, [tcr], tcr.status == "success")
+        "skipped" -> where(query, [tcr], tcr.status == "skipped")
+      end
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp test_case_run_total_count(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+    status = Keyword.get(opts, :status)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        select: count(tcr.id)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    query =
+      case status do
+        nil -> query
+        "failure" -> where(query, [tcr], tcr.status == "failure")
+        "success" -> where(query, [tcr], tcr.status == "success")
+        "skipped" -> where(query, [tcr], tcr.status == "skipped")
+      end
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  @doc """
+  Gets test case run duration analytics for a project over a time period.
+  Returns average duration with percentiles (p50, p90, p99) and trend data for charts.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period (default: 30 days ago)
+    * `:end_date` - End date for the analytics period (default: today)
+    * `:is_ci` - Filter by CI runs (true/false/nil for all)
+  """
+  def test_case_run_duration_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    previous_period_total_average_duration =
+      test_case_run_aggregated_duration(project_id, Date.add(start_date, -days_delta), start_date, opts)
+
+    current_period_total_average_duration =
+      test_case_run_aggregated_duration(project_id, start_date, end_date, opts)
+
+    current_period_percentiles =
+      test_case_run_duration_percentiles(project_id, start_date, end_date, opts)
+
+    average_durations_data =
+      test_case_run_average_durations(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    percentile_durations_data =
+      test_case_run_percentile_durations(
+        project_id,
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    average_durations =
+      process_durations_data(average_durations_data, start_date, end_date, date_period)
+
+    p50_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p50} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p90_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p90} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    p99_durations =
+      process_durations_data(
+        Enum.map(percentile_durations_data, fn row -> %{date: row.date, value: row.p99} end),
+        start_date,
+        end_date,
+        date_period
+      )
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_total_average_duration,
+          current_value: current_period_total_average_duration
+        ),
+      total_average_duration: current_period_total_average_duration,
+      p50: current_period_percentiles.p50,
+      p90: current_period_percentiles.p90,
+      p99: current_period_percentiles.p99,
+      average_durations: average_durations,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
+    }
+  end
+
+  defp test_case_run_aggregated_duration(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        select: avg(tcr.duration)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      nil -> 0.0
+      avg when is_float(avg) -> avg
+      avg -> avg * 1.0
+    end
+  end
+
+  defp test_case_run_duration_percentiles(project_id, start_date, end_date, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        select: %{
+          p50: fragment("quantile(0.50)(?)", tcr.duration),
+          p90: fragment("quantile(0.90)(?)", tcr.duration),
+          p99: fragment("quantile(0.99)(?)", tcr.duration)
+        }
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      %{p50: p50, p90: p90, p99: p99} ->
+        %{
+          p50: normalize_percentile(p50),
+          p90: normalize_percentile(p90),
+          p99: normalize_percentile(p99)
+        }
+
+      _ ->
+        %{p50: 0.0, p90: 0.0, p99: 0.0}
+    end
+  end
+
+  defp normalize_percentile(nil), do: 0.0
+  defp normalize_percentile(value) when is_float(value), do: value
+  defp normalize_percentile(value), do: value * 1.0
+
+  defp test_case_run_average_durations(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+          value: avg(tcr.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp test_case_run_percentile_durations(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^start_dt,
+        where: tcr.inserted_at <= ^end_dt,
+        group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
+          p50: fragment("quantile(0.5)(?)", tcr.duration),
+          p90: fragment("quantile(0.9)(?)", tcr.duration),
+          p99: fragment("quantile(0.99)(?)", tcr.duration)
+        },
+        order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
+      )
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [tcr], tcr.is_ci == true)
+        false -> where(query, [tcr], tcr.is_ci == false)
+      end
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{
+        date: row.date,
+        p50: row.p50 || 0,
+        p90: row.p90 || 0,
+        p99: row.p99 || 0
+      }
+    end)
+  end
+
+  @doc """
+  Calculates the test reliability (success rate) for a specific test case by its UUID.
+  First attempts to calculate based on the project's default branch. If no runs exist on the
+  default branch, falls back to calculating reliability across all branches.
+  Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
+  """
+  def test_case_reliability_by_id(test_case_id, default_branch) do
+    default_branch_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.git_branch == ^default_branch,
+        select: %{
+          success_count: fragment("countIf(? = 'success')", tcr.status),
+          total_count: count(tcr.id)
+        }
+      )
+
+    result = ClickHouseRepo.one(default_branch_query)
+
+    case result do
+      %{success_count: success_count, total_count: total_count} when total_count > 0 ->
+        Float.round(success_count / total_count * 100, 1)
+
+      _ ->
+        all_branches_query =
+          from(tcr in TestCaseRun,
+            where: tcr.test_case_id == ^test_case_id,
+            select: %{
+              success_count: fragment("countIf(? = 'success')", tcr.status),
+              total_count: count(tcr.id)
+            }
+          )
+
+        all_result = ClickHouseRepo.one(all_branches_query)
+
+        case all_result do
+          %{success_count: success_count, total_count: total_count} when total_count > 0 ->
+            Float.round(success_count / total_count * 100, 1)
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  @doc """
+  Gets analytics for a specific test case by its UUID including total runs, failed runs, and average duration.
+  """
+  def test_case_analytics_by_id(test_case_id, _opts \\ []) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        select: %{
+          total_count: count(tcr.id),
+          failed_count: fragment("countIf(? = 'failure')", tcr.status),
+          avg_duration: avg(tcr.duration)
+        }
+      )
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      nil ->
+        %{total_count: 0, failed_count: 0, avg_duration: 0}
+
+      %{total_count: total, failed_count: failed, avg_duration: avg} ->
+        %{
+          total_count: total,
+          failed_count: failed,
+          avg_duration: normalize_duration(avg)
+        }
+    end
+  end
+
+  defp normalize_duration(nil), do: 0
+  defp normalize_duration(value) when is_float(value), do: round(value)
+  defp normalize_duration(value) when is_integer(value), do: value
+  defp normalize_duration(value), do: round(value * 1.0)
 end

@@ -5,78 +5,59 @@
   "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# Telemetry {#telemetry}
+# 监控 {#telemetry}
 
-You can ingest metrics gathered by the Tuist server using
-[Prometheus](https://prometheus.io/) and a visualization tool such as
-[Grafana](https://grafana.com/) to create a custom dashboard tailored to your
-needs. The Prometheus metrics are served via the `/metrics` endpoint on port
-9091. The Prometheus'
+您可以使用 [Prometheus](https://prometheus.io/) 和可视化工具（如
+[Grafana](https://grafana.com/)）来收集 Tuist 服务器的指标数据，并创建满足您需求的定制化仪表板。Prometheus
+指标通过 9091 端口的`/metrics` 端点提供服务。Prometheus 的
 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-should be set as less than 10_000 seconds (we recommend keeping the default of
-15 seconds).
+应设置为小于 10_000 秒（我们建议保持默认的 15 秒）。
 
-## PostHog analytics {#posthog-analytics}
+## PostHog 分析 {#posthog-analytics}
 
-Tuist integrates with [PostHog](https://posthog.com/) for user behavior
-analytics and event tracking. This allows you to understand how users interact
-with your Tuist server, track feature usage, and gain insights into user
-behavior across the marketing site, dashboard, and API documentation.
+Tuist 与 [PostHog](https://posthog.com/) 集成，提供用户行为分析和事件跟踪功能。这使您能够了解用户如何与您的 Tuist
+服务器交互，跟踪功能使用情况，并深入了解用户在营销网站、仪表板和 API 文档中的行为模式。
 
-### Configuration {#posthog-configuration}
+### 配置 {#posthog-configuration}
 
-PostHog integration is optional and can be enabled by setting the appropriate
-environment variables. When configured, Tuist will automatically track user
-events, page views, and user journeys.
+PostHog 集成是可选的，可以通过设置相应的环境变量来启用。配置后，Tuist 将自动跟踪用户事件、页面浏览和用户行为路径。
 
-| Environment variable    | Description                  | Required | Default | Example                                           |
-| ----------------------- | ---------------------------- | -------- | ------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No       |         | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | The PostHog API endpoint URL | No       |         | `https://eu.i.posthog.com`                        |
+| 环境变量                    | Description          | 必需  | 默认值 | 示例                                                |
+| ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
+| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | No  |     | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
+::: info 分析功能启用
 <!-- -->
-Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and
-`TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics
-events will be sent.
+只有同时配置了 `TUIST_POSTHOG_API_KEY` 和 `TUIST_POSTHOG_URL`
+时，分析功能才会启用。如果缺少任一变量，将不会发送任何分析事件。
 <!-- -->
 :::
 
-### Features {#posthog-features}
+### 功能特性 {#posthog-features}
 
-When PostHog is enabled, Tuist automatically tracks:
+启用 PostHog 后，Tuist 会自动跟踪：
 
-- **User identification**: Users are identified by their unique ID and email
-  address
-- **User aliasing**: Users are aliased by their account name for easier
-  identification
-- **Group analytics**: Users are grouped by their selected project and
-  organization for segmented analytics
-- **Page sections**: Events include super properties indicating which section of
-  the application generated them:
-  - `marketing` - Events from marketing pages and public content
-  - `dashboard` - Events from the main application dashboard and authenticated
-    areas
-  - `api-docs` - Events from API documentation pages
-- **Page views**: Automatic tracking of page navigation using Phoenix LiveView
-- **Custom events**: Application-specific events for feature usage and user
-  interactions
+- **用户身份识别**：通过用户的唯一 ID 和邮箱地址来识别用户
+- **用户别名**：通过账户名称为用户设置别名，便于识别
+- **分组分析**：根据用户选择的项目和组织进行分组，实现细分分析
+- **页面区域**：事件包含超级属性，指示生成事件的应用程序区域：
+  - `marketing` - 来自营销页面和公共内容的事件
+  - `dashboard` - 来自主应用仪表板和认证区域的事件
+  - `api-docs` - 来自 API 文档页面的事件
+- **页面浏览**：使用 Phoenix LiveView 自动跟踪页面导航
+- **自定义事件**：用于功能使用和用户交互的应用程序特定事件
 
-### Privacy considerations {#posthog-privacy}
+### 隐私注意事项 {#posthog-privacy}
 
-- For authenticated users, PostHog uses the user's unique ID as the distinct
-  identifier and includes their email address
-- For anonymous users, PostHog uses memory-only persistence to avoid storing
-  data locally
-- All analytics respect user privacy and follow data protection best practices
-- PostHog data is processed according to PostHog's privacy policy and your
-  configuration
+- 对于已认证用户，PostHog 使用用户的唯一 ID 作为明确标识符，并包含其邮箱地址
+- 对于匿名用户，PostHog 使用仅内存持久化来避免在本地存储数据
+- 所有分析功能都尊重用户隐私，并遵循数据保护最佳实践
+- PostHog 数据根据 PostHog 的隐私政策和您的配置进行处理
 
-## Elixir metrics {#elixir-metrics}
+## Elixir 指标 {#elixir-metrics}
 
-By default we include metrics of the Elixir runtime, BEAM, Elixir, and some of
-the libraries we use. The following are some of the metrics you can expect to
-see:
+默认情况下，我们包含 Elixir 运行时、BEAM、Elixir 以及我们使用的一些库的指标。以下是您可以期望看到的一些指标：
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -86,30 +67,17 @@ see:
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-We recommend checking those pages to know which metrics are available and how to
-use them.
+我们建议查看这些页面，以了解有哪些可用的指标以及如何使用它们。
 
-## Runs metrics {#runs-metrics}
+## 运行指标 {#runs-metrics}
 
-A set of metrics related to Tuist Runs.
+与 Tuist 运行相关的一组指标。
 
-### `tuist_runs_total` (counter) {#tuist_runs_total-counter}
+### `tuist_runs_total` (计数器) {#tuist_runs_total-counter}
 
-The total number of Tuist Runs.
+Tuist 运行的总次数。
 
-#### Tags {#tuist-runs-total-tags}
-
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
-
-### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
-
-The total duration of each tuist run in milliseconds.
-
-#### Tags {#tuist-runs-duration-miliseconds-tags}
+#### 标签 {#tuist-runs-total-tags}
 
 | Tag      | Description                                                                 |
 | -------- | --------------------------------------------------------------------------- |
@@ -117,213 +85,216 @@ The total duration of each tuist run in milliseconds.
 | `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
 | `status` | `0` in case of `success`, `1` in case of `failure`.                         |
 
-## Cache metrics {#cache-metrics}
+### `tuist_runs_duration_milliseconds` (直方图) {#tuist_runs_duration_milliseconds-histogram}
 
-A set of metrics related to the Tuist Cache.
+每次 tuist 运行的总持续时间（以毫秒为单位）。
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+#### 标签 {#tuist-runs-duration-miliseconds-tags}
 
-The total number of binary cache events.
+| Tag      | Description                                                                 |
+| -------- | --------------------------------------------------------------------------- |
+| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
+| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
+| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
 
-#### Tags {#tuist-cache-events-total-tags}
+## 缓存指标 {#cache-metrics}
 
-| Tag          | Description                                            |
-| ------------ | ------------------------------------------------------ |
-| `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+与 Tuist 缓存相关的一组指标。
 
-### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+### `tuist_cache_events_total` (计数器) {#tuist_cache_events_total-counter}
 
-The number of uploads to the binary cache.
+二进制缓存事件的总数。
 
-### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+#### 标签 {#tuist-cache-events-total-tags}
 
-The number of bytes uploaded to the binary cache.
+| Tag          | Description                               |
+| ------------ | ----------------------------------------- |
+| `event_type` | 可以是 `local_hit`、`remote_hit` 或 `miss` 之一。 |
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_uploads_total` (计数器) {#tuist_cache_uploads_total-counter}
 
-The number of downloads to the binary cache.
+上传到二进制缓存的次数。
 
-### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_uploaded_bytes` (求和) {#tuist_cache_uploaded_bytes-sum}
 
-The number of bytes downloaded from the binary cache.
+上传到二进制缓存的总字节数。
 
----
+### `tuist_cache_downloads_total` (计数器) {#tuist_cache_downloads_total-counter}
 
-## Previews metrics {#previews-metrics}
+从二进制缓存下载的次数。
 
-A set of metrics related to the previews feature.
+### `tuist_cache_downloaded_bytes` (求和) {#tuist_cache_downloaded_bytes-sum}
 
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
-
-The total number of previews uploaded.
-
-### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
-
-The total number of previews downloaded.
+从二进制缓存下载的总字节数。
 
 ---
 
-## Storage metrics {#storage-metrics}
+## 预览指标 {#previews-metrics}
 
-A set of metrics related to the storage of artifacts in a remote storage (e.g.
-s3).
+与预览功能相关的一组指标。
+
+### `tuist_previews_uploads_total` (求和) {#tuist_previews_uploads_total-counter}
+
+上传的预览总数。
+
+### `tuist_previews_downloads_total` (求和) {#tuist_previews_downloads_total-counter}
+
+下载的预览总数。
+
+---
+
+## 存储指标 {#storage-metrics}
+
+与在远程存储（如 S3）中存储构建产物相关的一组指标。
 
 ::: tip
 <!-- -->
-These metrics are useful to understand the performance of the storage operations
-and to identify potential bottlenecks.
+这些指标有助于了解存储操作的性能并识别潜在的瓶颈。
 <!-- -->
 :::
 
-### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (直方图) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-The size (in bytes) of an object fetched from the remote storage.
+从远程存储获取的对象的大小（以字节为单位）。
 
-#### Tags {#tuist-storage-get-object-size-size-bytes-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
-
-The duration (in milliseconds) of fetching an object size from the remote
-storage.
-
-#### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
+#### 标签 {#tuist-storage-get-object-size-size-bytes-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
 
-### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_duration_miliseconds` (直方图) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-The number of times an object size was fetched from the remote storage.
+从远程存储获取对象大小的持续时间（以毫秒为单位）。
 
-#### Tags {#tuist-storage-get-object-size-count-tags}
+#### 标签 {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
-### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of deleting all objects from the remote storage.
+### `tuist_storage_get_object_size_count` (计数器) {#tuist_storage_get_object_size_count-counter}
 
-#### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
+从远程存储获取对象大小的次数。
+
+#### 标签 {#tuist-storage-get-object-size-count-tags}
+
+| Tag          | Description                                         |
+| ------------ | --------------------------------------------------- |
+| `object_key` | The lookup key of the object in the remote storage. |
+
+### `tuist_storage_delete_all_objects_duration_milliseconds` (直方图) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
+
+从远程存储删除所有对象的持续时间（以毫秒为单位）。
+
+#### 标签 {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
 | Tag            | Description                                                      |
 | -------------- | ---------------------------------------------------------------- |
 | `project_slug` | The project slug of the project whose objects are being deleted. |
 
 
-### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_delete_all_objects_count` (计数器) {#tuist_storage_delete_all_objects_count-counter}
 
-The number of times all project objects were deleted from the remote storage.
+从远程存储删除所有项目对象的次数。
 
-#### Tags {#tuist-storage-delete-all-objects-count-tags}
+#### 标签 {#tuist-storage-delete-all-objects-count-tags}
 
 | Tag            | Description                                                      |
 | -------------- | ---------------------------------------------------------------- |
 | `project_slug` | The project slug of the project whose objects are being deleted. |
 
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_start_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of starting an upload to the remote storage.
+开始向远程存储上传的持续时间（以毫秒为单位）。
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}
-
-The number of times an upload was started to the remote storage.
-
-#### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
+#### 标签 {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
+### `tuist_storage_multipart_start_upload_duration_count` (计数器) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+向远程存储开始上传的次数。
 
-The duration (in milliseconds) of fetching an object as a string from the remote
-storage.
-
-#### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
-
-The number of times an object was fetched as a string from the remote storage.
-
-#### Tags {#tuist-storage-get-object-as-string-count-tags}
+#### 标签 {#tuist-storage-multipart-start-upload-duration-count-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_milliseconds` (直方图) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of checking the existence of an object in the
-remote storage.
+从远程存储获取对象字符串的持续时间（以毫秒为单位）。
 
-#### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
-
-The number of times the existence of an object was checked in the remote
-storage.
-
-#### Tags {#tuist-storage-check-object-existence-count-tags}
+#### 标签 {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_count` (计数) {#tuist_storage_get_object_as_string_count-count}
 
-The duration (in milliseconds) of generating a download presigned URL for an
-object in the remote storage.
+从远程存储获取对象字符串的次数。
 
-#### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
+#### 标签 {#tuist-storage-get-object-as-string-count-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_check_object_existence_duration_milliseconds` (直方图) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-The number of times a download presigned URL was generated for an object in the
-remote storage.
+检查远程存储中对象存在的持续时间（以毫秒为单位）。
 
-#### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
+#### 标签 {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_check_object_existence_count` (计数) {#tuist_storage_check_object_existence_count-count}
 
-The duration (in milliseconds) of generating a part upload presigned URL for an
-object in the remote storage.
+检查远程存储中对象存在的次数。
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
+#### 标签 {#tuist-storage-check-object-existence-count-tags}
+
+| Tag          | Description                                         |
+| ------------ | --------------------------------------------------- |
+| `object_key` | The lookup key of the object in the remote storage. |
+
+### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (直方图) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+
+为远程存储中的对象生成下载预签名 URL 的持续时间（以毫秒为单位）。
+
+#### 标签 {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
+
+| Tag          | Description                                         |
+| ------------ | --------------------------------------------------- |
+| `object_key` | The lookup key of the object in the remote storage. |
+
+
+### `tuist_storage_generate_download_presigned_url_count` (计数) {#tuist_storage_generate_download_presigned_url_count-count}
+
+为远程存储中的对象生成下载预签名 URL 的次数。
+
+#### 标签 {#tuist-storage-generate-download-presigned-url-count-tags}
+
+| Tag          | Description                                         |
+| ------------ | --------------------------------------------------- |
+| `object_key` | The lookup key of the object in the remote storage. |
+
+### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (直方图) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+
+为远程存储中的对象生成部分上传预签名 URL 的持续时间（以毫秒为单位）。
+
+#### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
 | Tag           | Description                                         |
 | ------------- | --------------------------------------------------- |
@@ -331,12 +302,11 @@ object in the remote storage.
 | `part_number` | The part number of the object being uploaded.       |
 | `upload_id`   | The upload ID of the multipart upload.              |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (计数) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-The number of times a part upload presigned URL was generated for an object in
-the remote storage.
+为远程存储中的对象生成部分上传预签名 URL 的次数。
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
+#### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
 | Tag           | Description                                         |
 | ------------- | --------------------------------------------------- |
@@ -344,11 +314,11 @@ the remote storage.
 | `part_number` | The part number of the object being uploaded.       |
 | `upload_id`   | The upload ID of the multipart upload.              |
 
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_complete_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of completing an upload to the remote storage.
+完成向远程存储上传的持续时间（以毫秒为单位）。
 
-#### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
+#### 标签 {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
@@ -356,11 +326,11 @@ The duration (in milliseconds) of completing an upload to the remote storage.
 | `upload_id`  | The upload ID of the multipart upload.              |
 
 
-### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_multipart_complete_upload_count` (计数) {#tuist_storage_multipart_complete_upload_count-count}
 
-The total number of times an upload was completed to the remote storage.
+完成向远程存储上传的总次数。
 
-#### Tags {#tuist-storage-multipart-complete-upload-count-tags}
+#### 标签 {#tuist-storage-multipart-complete-upload-count-tags}
 
 | Tag          | Description                                         |
 | ------------ | --------------------------------------------------- |
@@ -369,149 +339,142 @@ The total number of times an upload was completed to the remote storage.
 
 ---
 
-## Authentication metrics {#authentication-metrics}
+## 身份验证指标 {#authentication-metrics}
 
-A set of metrics related to authentication.
+与身份验证相关的一组指标。
 
-### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_token_refresh_error_total` (计数器) {#tuist_authentication_token_refresh_error_total-counter}
 
-The total number of token refresh errors.
+令牌刷新错误的总数。
 
-#### Tags {#tuist-authentication-token-refresh-error-total-tags}
+#### 标签 {#tuist-authentication-token-refresh-error-total-tags}
 
-| Tag           | Description                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `cli_version` | The version of the Tuist CLI that encountered the error.                                 |
-| `reason`      | The reason for the token refresh error, such as `invalid_token_type` or `invalid_token`. |
-
----
-
-## Projects metrics {#projects-metrics}
-
-A set of metrics related to the projects.
-
-### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
-
-The total number of projects.
+| Tag           | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| `cli_version` | 遇到错误的 Tuist CLI 版本。                                  |
+| `reason`      | 令牌刷新错误的原因，例如 `invalid_token_type` 或 `invalid_token`。 |
 
 ---
 
-## Accounts metrics {#accounts-metrics}
+## 项目指标 {#projects-metrics}
 
-A set of metrics related to accounts (users and organizations).
+与项目相关的一组指标。
 
-### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
+### `tuist_projects_total` (最新值) {#tuist_projects_total-last_value}
 
-The total number of organizations.
+项目的总数。
 
-### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
+---
 
-The total number of users.
+## 账户指标 {#accounts-metrics}
 
+与账户（用户和组织）相关的一组指标。
 
-## Database metrics {#database-metrics}
+### `tuist_accounts_organizations_total` (最新值) {#tuist_accounts_organizations_total-last_value}
 
-A set of metrics related to the database connection.
+组织的总数。
 
-### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
+### `tuist_accounts_users_total` (最新值) {#tuist_accounts_users_total-last_value}
 
-The number of database queries that are sitting in a queue waiting to be
-assigned to a database connection.
-
-### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
-
-The number of database connections that are ready to be assigned to a database
-query.
+用户的总数。
 
 
-### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
+## 数据库指标 {#database-metrics}
 
-The number of connections that have been established to the database.
+与数据库连接相关的一组指标。
 
-### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
+### `tuist_repo_pool_checkout_queue_length` (最新值) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-The number of connections that have been disconnected from the database.
+在队列中等待分配数据库连接的数据库查询数量。
 
-## HTTP metrics {#http-metrics}
+### `tuist_repo_pool_ready_conn_count` (最新值) {#tuist_repo_pool_ready_conn_count-last_value}
 
-A set of metrics related to Tuist's interactions with other services via HTTP.
+准备好分配给数据库查询的数据库连接数量。
 
-### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
 
-The number of outgoing HTTP requests.
+### `tuist_repo_pool_db_connection_connected` (计数器) {#tuist_repo_pool_db_connection_connected-counter}
 
-### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+已建立到数据库的连接数量。
 
-The sum of the duration of the outgoing requests (including the time that they
-spent waiting to be assigned to a connection).
+### `tuist_repo_pool_db_connection_disconnected` (计数器) {#tuist_repo_pool_db_connection_disconnected-counter}
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-The distribution of the duration of outgoing requests (including the time that
-they spent waiting to be assigned to a connection).
+已从数据库断开的连接数量。
 
-### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
+## HTTP 指标 {#http-metrics}
 
-The number of requests that have been retrieved from the pool.
+与 Tuist 通过 HTTP 与其他服务交互相关的一组指标。
 
-### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
+### `tuist_http_request_count` (计数器) {#tuist_http_request_count-last_value}
 
-The time it takes to retrieve a connection from the pool.
+发出的 HTTP 请求的数量。
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+### `tuist_http_request_duration_nanosecond_sum` (求和) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-The time a connection has been idle waiting to be retrieved.
+发出请求的持续时间总和（包括等待分配到连接所花费的时间）。
 
-### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_request_duration_nanosecond_bucket` (分布) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+发出请求持续时间的分布（包括等待分配到连接所花费的时间）。
+
+### `tuist_http_queue_count` (计数器) {#tuist_http_queue_count-counter}
+
+从连接池中检索到的请求数量。
+
+### `tuist_http_queue_duration_nanoseconds_sum` (求和) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
 The time it takes to retrieve a connection from the pool.
 
-### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+### `tuist_http_queue_idle_time_nanoseconds_sum` (求和) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
 The time a connection has been idle waiting to be retrieved.
 
-### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
+### `tuist_http_queue_duration_nanoseconds_bucket` (分布) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-The number of connections that have been established.
+The time it takes to retrieve a connection from the pool.
 
-### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+### `tuist_http_queue_idle_time_nanoseconds_bucket` (分布) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-The time it takes to establish a connection against a host.
+The time a connection has been idle waiting to be retrieved.
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connection_count` (计数器) {#tuist_http_connection_count-counter}
 
-The distribution of the time it takes to establish a connection against a host.
+已建立的连接数量。
 
-### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+### `tuist_http_connection_duration_nanoseconds_sum` (求和) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-The number of requests that have been sent once assigned to a connection from
-the pool.
+与主机建立连接所需的时间。
 
-### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
+### `tuist_http_connection_duration_nanoseconds_bucket` (分布) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-The time that it takes for requests to complete once assigned to a connection
-from the pool.
+与主机建立连接所需时间的分布。
 
-### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
+### `tuist_http_send_count` (计数器) {#tuist_http_send_count-counter}
 
-The distribution of the time that it takes for requests to complete once
-assigned to a connection from the pool.
+一旦分配了来自连接池的连接后已发送的请求数量。
 
-### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
+### `tuist_http_send_duration_nanoseconds_sum` (求和) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-The number of responses that have been received from sent requests.
+一旦分配了来自连接池的连接后请求完成所需的时间。
 
-### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
+### `tuist_http_send_duration_nanoseconds_bucket` (分布) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-The time spent receiving responses.
+一旦分配了来自连接池的连接后请求完成所需时间的分布。
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+### `tuist_http_receive_count` (计数器) {#tuist_http_receive_count-counter}
 
-The distribution of the time spent receiving responses.
+从已发送请求收到的响应数量。
 
-### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
+### `tuist_http_receive_duration_nanoseconds_sum` (求和) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-The number of connections available in the queue.
+接收响应所花费的时间。
 
-### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
+### `tuist_http_receive_duration_nanoseconds_bucket` (分布) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-The number of queue connections that are in use.
+接收响应所花费时间的分布。
+
+### `tuist_http_queue_available_connections` (最新值) {#tuist_http_queue_available_connections-last_value}
+
+队列中可用的连接数量。
+
+### `tuist_http_queue_in_use_connections` (最新值) {#tuist_http_queue_in_use_connections-last_value}
+
+正在使用的队列连接数量。

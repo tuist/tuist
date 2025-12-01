@@ -38,4 +38,22 @@ struct XCResultServiceTests {
             ]
         )
     }
+
+    @Test
+    func parseTestWithCustomLabelXCResult() async throws {
+        // Given
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test-with-custom-label.xcresult"))
+        let cet = TimeZone(identifier: "Europe/Berlin")!
+
+        // When
+        let got = try #require(await TimeZone.$current.withValue({ cet }) {
+            try await subject.parse(path: xcresult, rootDirectory: nil)
+        })
+
+        // Then
+        #expect(got.status == .passed)
+        #expect(got.testCases.map(\.name) == ["Custom test label"])
+        #expect(got.testCases.compactMap(\.duration).sorted() == [103])
+    }
 }

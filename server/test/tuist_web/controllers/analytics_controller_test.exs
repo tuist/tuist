@@ -8,7 +8,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Buffer
-  alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage
@@ -914,19 +913,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
-
-      test_case_runs =
-        from(
-          t in TestCaseRun,
-          where: t.command_event_id == ^command_event.id
-        )
-        |> Repo.all()
-        |> Repo.preload(:test_case)
-        |> Enum.map(& &1.test_case.identifier)
-        |> Enum.sort()
-
-      # Postgres tests don't have XcodeGraphs, so no test case runs are created
-      assert Enum.empty?(test_case_runs) == true
     end
 
     test "runs with older CLI versions that send modules", %{conn: conn} do
@@ -1037,19 +1023,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
-
-      test_case_runs =
-        from(
-          t in TestCaseRun,
-          where: t.command_event_id == ^command_event.id
-        )
-        |> Repo.all()
-        |> Repo.preload(:test_case)
-        |> Enum.map(& &1.test_case.identifier)
-        |> Enum.sort()
-
-      # Postgres tests don't have XcodeGraphs, so no test case runs are created
-      assert Enum.empty?(test_case_runs) == true
     end
 
     test "noops when test_summary is missing - postgres", %{conn: conn} do
@@ -1073,11 +1046,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
-
-      test_case_runs =
-        Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id))
-
-      assert Enum.empty?(test_case_runs) == true
     end
   end
 

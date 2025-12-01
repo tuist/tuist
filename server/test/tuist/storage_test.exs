@@ -540,16 +540,16 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws.S3, :head_object, fn ^bucket_name, ^object_key -> operation end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        %{headers: %{"content-length" => ["#{size}"]}}
+        {:ok, %{headers: %{"content-length" => ["#{size}"]}}}
       end)
 
       # When
-      assert Storage.get_object_size(object_key, :test) == size
+      assert {:ok, ^size} = Storage.get_object_size(object_key, :test)
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size}, %{object_key: ^object_key}}

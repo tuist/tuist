@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAutomation
+import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -10,6 +11,7 @@ import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
 
 enum InspectResultBundleServiceError: Equatable, LocalizedError {
@@ -31,6 +33,7 @@ enum InspectResultBundleServiceError: Equatable, LocalizedError {
 protocol InspectResultBundleServicing {
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
+        projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest
 }
@@ -42,8 +45,10 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
+    private let ciController: CIControlling
     private let xcodeBuildController: XcodeBuildControlling
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let xcActivityLogController: XCActivityLogControlling
 
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -52,8 +57,10 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
+        ciController: CIControlling = CIController(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -61,12 +68,15 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
+        self.ciController = ciController
         self.xcodeBuildController = xcodeBuildController
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.xcActivityLogController = xcActivityLogController
     }
 
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
+        projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
@@ -83,11 +93,22 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             throw InspectResultBundleServiceError.missingFullHandle
         }
 
+        var buildRunId: String?
+        if let projectDerivedDataDirectory,
+           let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+               projectDerivedDataDirectory: projectDerivedDataDirectory
+           )
+        {
+            buildRunId = mostRecentActivityLogFile.path.basenameWithoutExt
+        }
+
         let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let ciInfo = ciController.ciInfo()
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
             testSummary: testSummary,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
@@ -95,7 +116,11 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
-            xcodeVersion: try await xcodeBuildController.version()?.description
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

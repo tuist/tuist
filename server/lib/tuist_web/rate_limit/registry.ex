@@ -33,12 +33,12 @@ defmodule TuistWeb.RateLimit.Registry do
       if authenticated? do
         {
           "registry:auth:#{get_subject_key(conn)}",
-          20_000
+          100_000
         }
       else
         {
           "registry:unauth:#{TuistWeb.RemoteIp.get(conn)}",
-          1_000
+          10_000
         }
       end
 

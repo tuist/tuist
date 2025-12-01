@@ -161,9 +161,9 @@ defmodule Tuist.Projects do
     end
   end
 
-  def get_all_project_accounts(resource, opts \\ [])
+  def list_accessible_projects(resource, opts \\ [])
 
-  def get_all_project_accounts(%User{} = user, opts) do
+  def list_accessible_projects(%User{} = user, opts) do
     user_account = Accounts.get_account_from_user(user)
 
     organization_account_ids =
@@ -172,67 +172,66 @@ defmodule Tuist.Projects do
       |> Enum.map(& &1.account.id)
 
     account_ids = [user_account.id | organization_account_ids]
+    preload = Keyword.get(opts, :preload, [:account])
 
-    query =
-      from p in Project,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where: p.account_id in ^account_ids,
-        select: %{project: p, account: a}
-
-    query
+    from(p in Project,
+      where: p.account_id in ^account_ids,
+      preload: ^preload
+    )
     |> Repo.all()
-    |> Enum.map(fn %{project: project, account: account} ->
-      %ProjectAccount{
-        handle: "#{account.name}/#{project.name}",
-        project: project,
-        account: account
-      }
-    end)
     |> maybe_filter_recent(opts)
   end
 
-  def get_all_project_accounts(%Account{id: account_id} = account, opts) do
-    query = from p in Project, where: p.account_id == ^account_id, select: p
+  def list_accessible_projects(%Account{id: account_id}, opts) do
+    preload = Keyword.get(opts, :preload, [:account])
 
-    query
+    from(p in Project,
+      where: p.account_id == ^account_id,
+      preload: ^preload
+    )
     |> Repo.all()
+    |> maybe_filter_recent(opts)
+  end
+
+  def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
+    list_accessible_projects(account, opts)
+  end
+
+  def list_accessible_projects(%Project{} = project, opts) do
+    project = Repo.preload(project, Keyword.get(opts, :preload, [:account]))
+    [project]
+  end
+
+  def list_accessible_projects(_, _opts), do: []
+
+  def get_all_project_accounts(resource, opts \\ []) do
+    opts = Keyword.put_new(opts, :preload, [:account])
+
+    resource
+    |> list_accessible_projects(opts)
     |> Enum.map(fn project ->
       %ProjectAccount{
-        handle: "#{account.name}/#{project.name}",
+        handle: "#{project.account.name}/#{project.name}",
         project: project,
-        account: account
+        account: project.account
       }
     end)
-    |> maybe_filter_recent(opts)
   end
 
-  def get_all_project_accounts(%AuthenticatedAccount{account: account}, opts) do
-    get_all_project_accounts(account, opts)
-  end
-
-  def get_all_project_accounts(%Project{} = project, _opts) do
-    project = Repo.preload(project, :account)
-
-    [%ProjectAccount{handle: "#{project.account.name}/#{project.name}", project: project, account: project.account}]
-  end
-
-  def get_all_project_accounts(_, _opts), do: []
-
-  defp maybe_filter_recent(project_accounts, opts) do
+  defp maybe_filter_recent(projects, opts) do
     if recent = Keyword.get(opts, :recent) do
-      project_ids = Enum.map(project_accounts, & &1.project.id)
+      project_ids = Enum.map(projects, & &1.id)
       interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
 
-      project_accounts
-      |> Enum.map(fn project_account ->
-        last_interacted_at = Map.get(interaction_data, project_account.project.id, project_account.project.updated_at)
-        %{project_account | project: %{project_account.project | last_interacted_at: last_interacted_at}}
+      projects
+      |> Enum.map(fn project ->
+        last_interacted_at = Map.get(interaction_data, project.id, project.updated_at)
+        %{project | last_interacted_at: last_interacted_at}
       end)
-      |> Enum.sort_by(& &1.project.last_interacted_at, {:desc, NaiveDateTime})
+      |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
       |> Enum.take(recent)
     else
-      project_accounts
+      projects
     end
   end
 
