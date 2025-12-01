@@ -12,7 +12,9 @@ Earlier this year, we announced [Build Insights](/blog/2025/06/05/build-insights
 
 As your test suite grows, you will inevitably face pains like slow test suites or flaky tests. Additionally, debugging issues on the CI has always been a challenge – can't I get a link that tells me exactly what went wrong, instead of trying to understand the logs, running the tests locally, or downloading the `.xcresult`?
 
-Test Insights brings gives you a comprehensive overview of your overall test suite _over time_ along with a detailed report of every test run to ensure your test suite is healthy and is not slowing down your development. No-one wants to be waiting an eternity for a CI pipeline to finish only for it to fail with a cryptic error message.
+Test Insights gives you a comprehensive overview of your overall test suite _over time_ along with a detailed report of every test run to ensure your test suite is healthy and is not slowing down your development. No one wants to be waiting an eternity for a CI pipeline to finish only for it to fail with a cryptic error message.
+
+👉 If you'd like to see it in action, check out the video below:
 
 <iframe title="Test Insights" width="560" height="315" src="https://videos.tuist.dev/videos/embed/29g22xYLk6Wjz1q5AHYKXC" style="border: 0px;" allow="fullscreen" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
 
@@ -58,9 +60,13 @@ Is your test suite getting faster or slower? Has there been a recent regression 
 
 And it bears repeating – the test insights are environment-agnostic, so you can get a holistic view of your test suite's performance across different environments, not just your CI. Additionally, the test insights are CI-agnostic, it doesn't matter which CI provider you're using, you will get the same insights wherever you run your tests.
 
+> Do you want to explore the feature on your own? Our Tuist [dashboard is open for anyone](https://tuist.dev/tuist/tuist/tests), including the new test insights.
+
 ## What's next
 
-The test insights will provide us with a great foundation to provide more capable features in the future. We want to be more proactive and leverage the data we track to either optimize your projects or tell you what's wrong – without you having to do the digging. Here are some of the things we will be working on:
+Test Insights takes Xcode's test data, makes it readily available in your browser, and analyzes it over time – whether you need to debug a failing test on CI or understand how your test suite's performance is trending.
+
+But this is just the beginning. The test insights will provide us with a great foundation to provide more capable features in the future. We want to be more proactive and leverage the data we track to either optimize your projects or tell you what's wrong – without you having to do the digging. Here are some of the things we will be working on:
 - Test flakiness: which of my tests are flaky? Can you skip running them until the flakiness is resolved?
 - Sharding: For optimal sharding, it's important for each shard to run for a similar amount of time. We already know how long your tests take on average, so we can use that information to optimize your sharding strategy.
 - Slow test alerts: have you added a test that is abnormally slow? Let us tell you!
