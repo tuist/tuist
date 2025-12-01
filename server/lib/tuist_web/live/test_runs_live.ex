@@ -32,14 +32,6 @@ defmodule TuistWeb.TestRunsLive do
   defp define_filters(project) do
     base = [
       %Filter.Filter{
-        id: "scheme",
-        field: :scheme,
-        display_name: gettext("Scheme"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
         id: "status",
         field: :status,
         display_name: gettext("Status"),
@@ -152,6 +144,27 @@ defmodule TuistWeb.TestRunsLive do
       uri.query
       |> Query.put("duration_type", type)
       |> Query.put("analytics_selected_widget", "test_run_duration")
+
+    socket =
+      push_patch(
+        socket,
+        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{query}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "search-test-runs",
+        %{"search" => search},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    query =
+      uri.query
+      |> Query.put("search", search)
+      |> Query.drop("before")
+      |> Query.drop("after")
 
     socket =
       push_patch(
@@ -320,9 +333,11 @@ defmodule TuistWeb.TestRunsLive do
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
+    search = params["search"] || ""
+
     flop_filters = [
       %{field: :project_id, op: :==, value: project.id}
-      | build_flop_filters(filters)
+      | build_flop_filters(filters, search)
     ]
 
     options = %{
@@ -353,9 +368,10 @@ defmodule TuistWeb.TestRunsLive do
     |> assign(:active_filters, filters)
     |> assign(:test_runs, test_runs)
     |> assign(:test_runs_meta, test_runs_meta)
+    |> assign(:test_runs_filter, search)
   end
 
-  defp build_flop_filters(filters) do
+  defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
@@ -371,6 +387,13 @@ defmodule TuistWeb.TestRunsLive do
           []
       end)
 
-    flop_filters ++ ran_by_flop_filters
+    search_filters =
+      if search == "" do
+        []
+      else
+        [%{field: :scheme, op: :ilike_and, value: search}]
+      end
+
+    flop_filters ++ ran_by_flop_filters ++ search_filters
   end
 end

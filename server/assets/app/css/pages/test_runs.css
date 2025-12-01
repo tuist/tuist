@@ -21,8 +21,6 @@
 
   & [data-part="filters"] {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
     gap: var(--noora-spacing-6);
   }
 
@@ -31,21 +29,17 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="search-input"] {
-    width: 330px;
-  }
-
   & [data-part="test-runs-section"] {
     display: flex;
     flex-direction: column;
-  }
+    gap: var(--noora-spacing-8);
 
-  & [data-part="test-runs-table"] {
-    margin-top: var(--noora-spacing-6);
-  }
-
-  & [data-part="empty-test-runs"] {
-    margin-top: var(--noora-spacing-6);
+    & [data-part="active-filters"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--noora-spacing-3);
+    }
   }
 
   & .noora-card {
