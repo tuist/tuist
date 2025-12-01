@@ -491,7 +491,8 @@ defmodule Tuist.Accounts do
       :okta ->
         auth.extra.raw_info.token.other_params["id_token"]
         |> JOSE.JWT.peek_payload()
-        |> get_in([:fields, "iss"])
+        |> Map.get(:fields)
+        |> Map.get("iss")
         |> URI.parse()
         |> Map.get(:host)
     end
