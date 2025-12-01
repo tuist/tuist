@@ -320,7 +320,7 @@ defmodule TuistWeb.API.AnalyticsController do
     cli_version = Headers.get_cli_version(conn)
 
     should_create_test_run =
-      is_nil(cli_version) or cli_version |> Version.compare(Version.parse!("4.110.0")) |> dbg() == :lt
+      is_nil(cli_version) or Version.compare(cli_version, Version.parse!("4.110.0")) == :lt
 
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
