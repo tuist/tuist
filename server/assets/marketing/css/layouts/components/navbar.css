@@ -174,7 +174,7 @@
             0 0 0 1px rgba(46, 51, 56, 0.08),
             0 1px 1px 0 rgba(46, 51, 56, 0.1);
           border-radius: var(--noora-radius-xlarge);
-          background: #fff;
+          background: var(--noora-surface-background-primary);
 
           /* Add max-width on medium screens to prevent overflow */
           @media (min-width: 768px) and (max-width: 1024px) {
@@ -291,7 +291,7 @@
         & > [data-dropdown="developers"] {
           display: flex;
           flex-direction: row;
-          background: #fff;
+          background: var(--noora-surface-background-primary);
           width: max-content;
           overflow: hidden;
 
@@ -334,7 +334,7 @@
             padding: var(--noora-spacing-5);
 
             @media (min-width: 768px) and (max-width: 1024px) {
-              padding: var(--noora-spacing-5) var(--noora-spacing-8);
+              padding: var(--noora-spacing-5) var(--noora-spacing-6);
             }
 
             & > [data-part="link"] {
@@ -435,6 +435,8 @@
 
             @media (min-width: 768px) and (max-width: 1024px) {
               gap: var(--noora-spacing-4);
+              width: auto;
+              min-width: 272px;
             }
 
             & > [data-part="header"] {
@@ -708,7 +710,7 @@
             0 0 0 1px rgba(46, 51, 56, 0.08),
             0 1px 1px 0 rgba(46, 51, 56, 0.1);
           border-radius: var(--noora-radius-xlarge);
-          background: #fff;
+          background: var(--noora-surface-background-primary);
 
           &.show,
           &[data-open="true"] {
