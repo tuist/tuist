@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.110.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duration for test cases with custom label by [@fortmarek](https://github.com/fortmarek) in [#8800](https://github.com/tuist/tuist/pull/8800)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.0...4.110.1
+
 ## What's Changed in 4.110.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
