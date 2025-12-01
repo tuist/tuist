@@ -72,7 +72,6 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,
-            macroPath: metadata.macroPath,
             swiftModules: metadata.swiftModules,
             moduleMaps: metadata.moduleMaps,
             expectedSignature: metadata.expectedSignature?.signatureString()

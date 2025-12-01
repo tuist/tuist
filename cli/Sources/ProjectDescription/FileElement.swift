@@ -34,15 +34,15 @@ extension FileElement: ExpressibleByStringInterpolation {
     }
 }
 
-extension [FileElement]: ExpressibleByUnicodeScalarLiteral {
+extension [FileElement]: @retroactive ExpressibleByUnicodeScalarLiteral {
     public typealias UnicodeScalarLiteralType = String
 }
 
-extension [FileElement]: ExpressibleByExtendedGraphemeClusterLiteral {
+extension [FileElement]: @retroactive ExpressibleByExtendedGraphemeClusterLiteral {
     public typealias ExtendedGraphemeClusterLiteralType = String
 }
 
-extension [FileElement]: ExpressibleByStringLiteral {
+extension [FileElement]: @retroactive ExpressibleByStringLiteral {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {

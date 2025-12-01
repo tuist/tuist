@@ -4,9 +4,11 @@ defmodule TuistWeb.API.RunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Runs
+  alias Tuist.Runs.CASOutput
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Runs.Build
+  alias TuistWeb.API.Schemas.Runs.Test
   alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -165,7 +167,7 @@ defmodule TuistWeb.API.RunsController do
   end
 
   operation(:create,
-    summary: "Create a new build.",
+    summary: "Create a new run.",
     parameters: [
       account_handle: [
         in: :path,
@@ -434,6 +436,87 @@ defmodule TuistWeb.API.RunsController do
                      :status
                    ]
                  }
+               },
+               cacheable_tasks: %Schema{
+                 type: :array,
+                 description: "Cacheable tasks associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of cacheable task.",
+                       enum: [:clang, :swift]
+                     },
+                     status: %Schema{
+                       type: :string,
+                       description: "The cache status of the task.",
+                       enum: [:hit_local, :hit_remote, :miss]
+                     },
+                     key: %Schema{
+                       type: :string,
+                       description: "The cache key of the task."
+                     },
+                     read_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for reading from cache."
+                     },
+                     write_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for writing to cache."
+                     },
+                     description: %Schema{
+                       type: :string,
+                       description: "Optional description of the cacheable task."
+                     },
+                     cas_output_node_ids: %Schema{
+                       type: :array,
+                       description: "Array of CAS output node IDs associated with this cacheable task.",
+                       items: %Schema{type: :string}
+                     }
+                   },
+                   required: [:type, :status, :key]
+                 }
+               },
+               cas_outputs: %Schema{
+                 type: :array,
+                 description: "CAS output operations associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     node_id: %Schema{
+                       type: :string,
+                       description: "The CAS node identifier."
+                     },
+                     checksum: %Schema{
+                       type: :string,
+                       description: "The checksum of the CAS object."
+                     },
+                     size: %Schema{
+                       type: :integer,
+                       description: "The size of the CAS object in bytes."
+                     },
+                     duration: %Schema{
+                       type: :number,
+                       description: "The duration of the CAS operation in milliseconds."
+                     },
+                     compressed_size: %Schema{
+                       type: :integer,
+                       description: "The compressed size of the CAS object in bytes."
+                     },
+                     operation: %Schema{
+                       type: :string,
+                       description: "The type of CAS operation.",
+                       enum: [:download, :upload]
+                     },
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of the CAS output file.",
+                       enum: Enum.map(CASOutput.valid_types(), &String.to_atom/1)
+                     }
+                   },
+                   required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
+                 }
                }
              },
              required: [
@@ -441,15 +524,199 @@ defmodule TuistWeb.API.RunsController do
                :duration,
                :is_ci
              ]
+           },
+           %Schema{
+             title: "TestRun",
+             type: :object,
+             properties: %{
+               type: %Schema{
+                 type: :string,
+                 enum: ["test"],
+                 description: "The type of the run, which is 'test' in this case."
+               },
+               duration: %Schema{
+                 description: "Duration of the run in milliseconds.",
+                 type: :integer
+               },
+               macos_version: %Schema{
+                 type: :string,
+                 description: "The version of macOS used during the run."
+               },
+               xcode_version: %Schema{
+                 type: :string,
+                 description: "The version of Xcode used during the run."
+               },
+               is_ci: %Schema{
+                 type: :boolean,
+                 description: "Indicates if the run was executed on a Continuous Integration (CI) system."
+               },
+               model_identifier: %Schema{
+                 type: :string,
+                 description: "Identifier for the model where the run was executed, such as MacBookAir10,1."
+               },
+               scheme: %Schema{
+                 type: :string,
+                 description: "The scheme used for the test run."
+               },
+               status: %Schema{
+                 type: :string,
+                 description: "The status of the test run.",
+                 enum: ["success", "failure"]
+               },
+               git_commit_sha: %Schema{
+                 type: :string,
+                 description: "The commit SHA."
+               },
+               git_branch: %Schema{
+                 type: :string,
+                 description: "The git branch."
+               },
+               git_ref: %Schema{
+                 type: :string,
+                 description: "The git reference."
+               },
+               git_remote_url_origin: %Schema{
+                 type: :string,
+                 description: "The git remote URL origin."
+               },
+               build_run_id: %Schema{
+                 type: :string,
+                 description: "The UUID of an associated build run."
+               },
+               ci_run_id: %Schema{
+                 type: :string,
+                 description: "The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID)."
+               },
+               ci_project_handle: %Schema{
+                 type: :string,
+                 description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+               },
+               ci_host: %Schema{
+                 type: :string,
+                 description: "The CI host URL (optional, for self-hosted instances)."
+               },
+               ci_provider: %Schema{
+                 type: :string,
+                 description: "The CI provider.",
+                 enum: Runs.valid_ci_providers()
+               },
+               test_modules: %Schema{
+                 type: :array,
+                 description: "The test modules associated with the test run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     name: %Schema{
+                       type: :string,
+                       description: "The name of the test module/target."
+                     },
+                     status: %Schema{
+                       type: :string,
+                       description: "The status of the test module.",
+                       enum: ["success", "failure"]
+                     },
+                     duration: %Schema{
+                       type: :integer,
+                       description: "The duration of the test module in milliseconds."
+                     },
+                     test_suites: %Schema{
+                       type: :array,
+                       description: "The test suites within this module.",
+                       items: %Schema{
+                         type: :object,
+                         properties: %{
+                           name: %Schema{
+                             type: :string,
+                             description: "The name of the test suite."
+                           },
+                           status: %Schema{
+                             type: :string,
+                             description: "The status of the test suite.",
+                             enum: ["success", "failure", "skipped"]
+                           },
+                           duration: %Schema{
+                             type: :integer,
+                             description: "The duration of the test suite in milliseconds."
+                           }
+                         },
+                         required: [:name, :status, :duration]
+                       }
+                     },
+                     test_cases: %Schema{
+                       type: :array,
+                       description: "The test cases within this module.",
+                       items: %Schema{
+                         type: :object,
+                         properties: %{
+                           name: %Schema{
+                             type: :string,
+                             description: "The name of the test case."
+                           },
+                           test_suite_name: %Schema{
+                             type: :string,
+                             description: "The name of the test suite this test case belongs to (optional)."
+                           },
+                           status: %Schema{
+                             type: :string,
+                             description: "The status of the test case.",
+                             enum: ["success", "failure", "skipped"]
+                           },
+                           duration: %Schema{
+                             type: :integer,
+                             description: "The duration of the test case in milliseconds."
+                           },
+                           failures: %Schema{
+                             type: :array,
+                             description: "The failures that occurred in this test case.",
+                             items: %Schema{
+                               type: :object,
+                               properties: %{
+                                 message: %Schema{
+                                   type: :string,
+                                   description: "The failure message."
+                                 },
+                                 path: %Schema{
+                                   type: :string,
+                                   description: "The file path where the failure occurred, relative to the project root."
+                                 },
+                                 line_number: %Schema{
+                                   type: :integer,
+                                   description: "The line number where the failure occurred."
+                                 },
+                                 issue_type: %Schema{
+                                   type: :string,
+                                   description: "The type of issue that occurred.",
+                                   enum: ["error_thrown", "assertion_failure", "issue_recorded"]
+                                 }
+                               },
+                               required: [:line_number]
+                             }
+                           }
+                         },
+                         required: [:name, :status, :duration]
+                       }
+                     }
+                   },
+                   required: [:name, :status, :duration]
+                 }
+               }
+             },
+             required: [
+               :type,
+               :duration,
+               :test_modules,
+               :macos_version,
+               :is_ci
+             ]
            }
          ]
        }},
     responses: %{
       ok: {
-        "The created build",
+        "The created run",
         "application/json",
         %Schema{
-          oneOf: [Build]
+          oneOf: [Build, Test]
         }
       },
       unauthorized: {"You need to be authenticated to create a run", "application/json", Error},
@@ -460,37 +727,62 @@ defmodule TuistWeb.API.RunsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    build_params =
+    run_params =
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
-    case get_or_create_build(build_params) do
-      {:ok, build} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          build_id: build.id,
-          git_commit_sha: build.git_commit_sha,
-          git_ref: build.git_ref,
-          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+    case Map.get(body_params, :type, "build") do
+      "build" ->
+        case get_or_create_build(run_params) do
+          {:ok, build} ->
+            Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+              build_id: build.id,
+              git_commit_sha: build.git_commit_sha,
+              git_ref: build.git_ref,
+              git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+              project_id: selected_project.id,
+              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+              preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+              test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+              build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+            })
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          id: build.id,
-          duration: build.duration,
-          project_id: build.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
-        })
+            conn
+            |> put_status(:ok)
+            |> json(%{
+              type: "build",
+              id: build.id,
+              duration: build.duration,
+              project_id: build.project_id,
+              url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
+            })
 
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+          {:error, _changeset} ->
+            conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+        end
+
+      "test" ->
+        case get_or_create_test(run_params) do
+          {:ok, test_run} ->
+            conn
+            |> put_status(:ok)
+            |> json(%{
+              type: "test",
+              id: test_run.id,
+              duration: test_run.duration,
+              project_id: test_run.project_id,
+              url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")
+            })
+
+          {:error, _changeset} ->
+            conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+        end
+
+      _ ->
+        conn |> put_status(:bad_request) |> json(%{message: "Invalid run type"})
     end
   end
 
@@ -522,7 +814,43 @@ defmodule TuistWeb.API.RunsController do
           ci_provider: Map.get(params, :ci_provider),
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
-          targets: Map.get(params, :targets, [])
+          targets: Map.get(params, :targets, []),
+          cacheable_tasks: Map.get(params, :cacheable_tasks, []),
+          cas_outputs: Map.get(params, :cas_outputs, [])
+        })
+    end
+  end
+
+  defp get_or_create_test(params) do
+    test_id = Map.get(params, :id, Ecto.UUID.generate())
+
+    case Runs.get_test(test_id) do
+      {:ok, test_run} ->
+        {:ok, test_run}
+
+      {:error, :not_found} ->
+        Runs.create_test(%{
+          id: test_id,
+          duration: params.duration,
+          macos_version: Map.get(params, :macos_version),
+          xcode_version: Map.get(params, :xcode_version),
+          is_ci: Map.get(params, :is_ci),
+          model_identifier: Map.get(params, :model_identifier),
+          scheme: Map.get(params, :scheme),
+          project_id: params.project.id,
+          account_id: params.account.id,
+          status: Map.get(params, :status),
+          git_branch: Map.get(params, :git_branch),
+          git_commit_sha: Map.get(params, :git_commit_sha),
+          git_ref: Map.get(params, :git_ref),
+          ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
+          ci_run_id: Map.get(params, :ci_run_id),
+          ci_project_handle: Map.get(params, :ci_project_handle),
+          ci_host: Map.get(params, :ci_host),
+          ci_provider: Map.get(params, :ci_provider),
+          test_modules: Map.get(params, :test_modules, []),
+          test_cases: Map.get(params, :test_cases, []),
+          build_run_id: Map.get(params, :build_run_id)
         })
     end
   end

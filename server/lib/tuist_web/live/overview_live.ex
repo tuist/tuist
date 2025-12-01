@@ -7,7 +7,7 @@ defmodule TuistWeb.OverviewLive do
   import TuistWeb.Previews.AppPreview
 
   alias Tuist.Bundles
-  alias Tuist.CommandEvents
+  alias Tuist.Cache
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
@@ -54,12 +54,12 @@ defmodule TuistWeb.OverviewLive do
 
   defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
-      CommandEvents.list_test_runs(%{
+      Runs.list_test_runs(%{
         last: 40,
         filters: [
           %{field: :project_id, op: :==, value: project.id}
         ],
-        order_by: [:created_at],
+        order_by: [:ran_at],
         order_directions: [:asc]
       })
 
@@ -67,19 +67,19 @@ defmodule TuistWeb.OverviewLive do
       Enum.map(recent_test_runs, fn run ->
         color =
           case run.status do
-            :success -> "var:noora-chart-primary"
-            :failure -> "var:noora-chart-destructive"
+            "success" -> "var:noora-chart-primary"
+            "failure" -> "var:noora-chart-destructive"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-        %{value: value, itemStyle: %{color: color}, date: run.created_at}
+        %{value: value, itemStyle: %{color: color}, date: run.ran_at}
       end)
 
-    failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == :failure end)
+    failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
 
     passed_test_runs_count =
-      Enum.count(recent_test_runs, fn run -> run.status == :success end)
+      Enum.count(recent_test_runs, fn run -> run.status == "success" end)
 
     socket
     |> assign(
@@ -161,7 +161,7 @@ defmodule TuistWeb.OverviewLive do
     recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
 
     %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
-      Runs.recent_build_status_counts(project.id, limit: 30, order: :asc)
+      Runs.recent_build_status_counts(project.id, limit: 30)
 
     socket
     |> assign(
@@ -255,7 +255,7 @@ defmodule TuistWeb.OverviewLive do
         selective_testing_analytics,
         build_analytics,
         test_analytics
-      ] = Analytics.combined_overview_analytics(project.id, opts)
+      ] = combined_overview_analytics(project.id, opts)
 
       socket
       |> assign(
@@ -313,4 +313,15 @@ defmodule TuistWeb.OverviewLive do
   defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
   defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
+
+  defp combined_overview_analytics(project_id, opts) do
+    queries = [
+      fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
+      fn -> Analytics.selective_testing_analytics(opts) end,
+      fn -> Analytics.build_duration_analytics(project_id, opts) end,
+      fn -> Analytics.runs_duration_analytics("test", opts) end
+    ]
+
+    Tuist.Tasks.parallel_tasks(queries)
+  end
 end

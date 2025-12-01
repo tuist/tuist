@@ -7,20 +7,16 @@ import TuistServer
 import TuistSupport
 
 enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
-    case missingFullHandle
     case noProjectFound(AbsolutePath)
 
     var type: TuistSupport.ErrorType {
         switch self {
-        case .missingFullHandle, .noProjectFound: .abort
+        case .noProjectFound: .abort
         }
     }
 
     var errorDescription: String? {
         switch self {
-        case .missingFullHandle:
-            return
-                "We couldn't set up the registry because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
         case let .noProjectFound(path):
             return
                 "We couldn't find an Xcode, SwiftPM, or Tuist project at \(path.pathString). Make sure you're in the right directory."
@@ -32,7 +28,6 @@ struct RegistrySetupCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
-    private let fullHandleService: FullHandleServicing
     private let manifestFilesLocator: ManifestFilesLocating
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let createAccountTokenService: CreateAccountTokenServicing
@@ -42,7 +37,6 @@ struct RegistrySetupCommandService {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
-        fullHandleService: FullHandleServicing = FullHandleService(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         swiftPackageManagerController: SwiftPackageManagerControlling =
             SwiftPackageManagerController(),
@@ -52,7 +46,6 @@ struct RegistrySetupCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
-        self.fullHandleService = fullHandleService
         self.manifestFilesLocator = manifestFilesLocator
         self.swiftPackageManagerController = swiftPackageManagerController
         self.createAccountTokenService = createAccountTokenService
@@ -64,35 +57,7 @@ struct RegistrySetupCommandService {
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
-
-        guard let fullHandle = config.fullHandle else {
-            throw RegistryCommandSetupServiceError.missingFullHandle
-        }
-        let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
-
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-
-        try await Noora.current.progressStep(
-            message: "Logging into the registry...",
-            successMessage: "Logged in to the \(accountHandle) registry",
-            errorMessage: nil,
-            showSpinner: true
-        ) { _ in
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let registryURL = serverURL.appending(
-                path: "api/accounts/\(accountHandle)/registry/swift"
-            )
-
-            let token = try await createAccountTokenService.createAccountToken(
-                accountHandle: accountHandle,
-                scopes: [.accountRegistryRead],
-                serverURL: serverURL
-            )
-            try await swiftPackageManagerController.packageRegistryLogin(
-                token: token,
-                registryURL: registryURL
-            )
-        }
 
         let swiftPackageManagerPath: AbsolutePath
 
@@ -131,27 +96,24 @@ struct RegistrySetupCommandService {
         }
         try await fileSystem.writeText(
             registryConfigurationJSON(
-                serverURL: serverURL,
-                accountHandle: accountHandle
+                serverURL: serverURL
             ),
             at: configurationJSONPath
         )
 
         AlertController.current.success(
             .alert(
-                "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
+                "Generated the registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
                 takeaways: [
                     "Commit the generated configuration file to share the configuration with the rest of your team",
-                    "Ensure that your team members run \(.command("tuist registry login")) to log in to the registry",
-                    "For more information about the registry, such as how to set up the registry in your CI, head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
+                    "For more information about the registry head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
                 ]
             )
         )
     }
 
     private func registryConfigurationJSON(
-        serverURL: URL,
-        accountHandle: String
+        serverURL: URL
     ) -> String {
         """
         {
@@ -164,14 +126,14 @@ struct RegistrySetupCommandService {
           },
           "authentication": {
             "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/accounts/\(accountHandle)/registry/swift/login",
+              "loginAPIPath": "/api/registry/swift/login",
               "type": "token"
             }
           },
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/accounts/\(accountHandle)/registry/swift"
+              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
             }
           },
           "version": 1

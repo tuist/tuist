@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -45,6 +46,43 @@ struct InspectAcceptanceTests {
 
         // Then
         #expect(ui().contains("View the analyzed build at"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func test() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: I build the app
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "test",
+                "-scheme", "App",
+                "-destination", "platform=iOS Simulator,name=iPhone 17",
+                "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-derivedDataPath", temporaryDirectory.pathString,
+            ]
+        ).pipedStream().awaitCompletion()
+
+        // When: I inspect the test
+        try await TuistTest.run(
+            InspectTestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("View the analyzed test at"))
     }
 
     @Test(
@@ -102,10 +140,30 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies() async throws {
         try await withMockedDependencies {
             try await setUpFixture(.iosAppWithImplicitDependencies)
-            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
-            XCTAssertStandardOutput(pattern: """
-             - FrameworkA implicitly depends on: FrameworkB
-            """)
+            let appDependencies: Set<String> = [
+                "ClassModule",
+                "EnumModule",
+                "FuncModule",
+                "LetModule",
+                "ProtocolModule",
+                "StructModule",
+                "TypeAliasModule",
+                "VarModule",
+            ]
+            let expectedAppIssue = InspectImportsIssue(target: "App", dependencies: appDependencies)
+            let expectedFrameworkIssue = InspectImportsIssue(target: "FrameworkA", dependencies: ["FrameworkB"])
+            let expectedError = InspectImportsServiceError.implicitImportsFound([expectedAppIssue, expectedFrameworkIssue])
+
+            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), expectedError)
+        }
+    }
+
+    func test_framework_with_macros_redundant_imports() async throws {
+        try await withMockedDependencies {
+            try await setUpFixture(.custom("framework_with_macros_and_tests"))
+            try await run(InstallCommand.self)
+            try await run(InspectRedundantImportsCommand.self)
+            XCTAssertStandardOutput(pattern: "We did not find any redundant dependencies in your project.")
         }
     }
 }

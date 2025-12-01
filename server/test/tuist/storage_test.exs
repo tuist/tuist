@@ -3,6 +3,7 @@ defmodule Tuist.StorageTest do
   use Mimic
 
   alias ExAws.Operation.S3
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
 
@@ -539,22 +540,472 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws.S3, :head_object, fn ^bucket_name, ^object_key -> operation end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        %{headers: %{"content-length" => ["#{size}"]}}
+        {:ok, %{headers: %{"content-length" => ["#{size}"]}}}
       end)
 
       # When
-      assert Storage.get_object_size(object_key, :test) == size
+      assert {:ok, ^size} = Storage.get_object_size(object_key, :test)
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size}, %{object_key: ^object_key}}
 
       assert is_number(size)
       assert is_number(duration)
+    end
+  end
+
+  describe "put_object/3" do
+    test "puts object without region headers for non-account actors" do
+      # Given
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, :test)
+    end
+
+    test "puts object with X-Tigris-Regions header for account with usa region" do
+      # Given
+      account = %Account{region: :usa}
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, account)
+    end
+
+    test "puts object without region headers for account with all region" do
+      # Given
+      account = %Account{region: :all}
+      object_key = UUIDv7.generate()
+      content = "test content"
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, account)
+    end
+  end
+
+  describe "multipart_start/2 with region support" do
+    test "starts multipart upload with X-Tigris-Regions header for account with europe region" do
+      # Given
+      account = %Account{region: :europe}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+
+    test "starts multipart upload with X-Tigris-Regions header for account with usa region" do
+      # Given
+      account = %Account{region: :usa}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        # Verify region header is added
+        assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+
+    test "starts multipart upload without region headers for account with all region" do
+      # Given
+      account = %Account{region: :all}
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn ^operation, _opts ->
+        # Verify no region headers are added
+        assert operation.headers == %{}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      assert Storage.multipart_start(object_key, account) == upload_id
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+  end
+
+  describe "custom S3 storage" do
+    test "uses custom S3 config when account has custom storage configured" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        s3_region: "eu-west-1"
+      }
+
+      url = "https://custom-bucket.s3.eu-west-1.amazonaws.com/test-key"
+      object_key = UUIDv7.generate()
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        assert config.secret_access_key == "CUSTOM_SECRET_KEY"
+        assert config.region == "eu-west-1"
+        {:ok, url}
+      end)
+
+      # When
+      result = Storage.generate_download_url(object_key, account)
+
+      # Then
+      assert result == url
+    end
+
+    test "uses custom S3 config with custom endpoint" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        s3_endpoint: "https://minio.example.com:9000"
+      }
+
+      url = "https://minio.example.com:9000/custom-bucket/test-key"
+      object_key = UUIDv7.generate()
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        assert config.secret_access_key == "CUSTOM_SECRET_KEY"
+        assert config.region == "us-east-1"
+        assert config.scheme == "https://"
+        assert config.host == "minio.example.com"
+        assert config.port == 9000
+        {:ok, url}
+      end)
+
+      # When
+      result = Storage.generate_download_url(object_key, account)
+
+      # Then
+      assert result == url
+    end
+
+    test "uses default region when custom storage has no region configured" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        s3_region: nil
+      }
+
+      url = "https://custom-bucket.s3.amazonaws.com/test-key"
+      object_key = UUIDv7.generate()
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.region == "us-east-1"
+        {:ok, url}
+      end)
+
+      # When
+      result = Storage.generate_download_url(object_key, account)
+
+      # Then
+      assert result == url
+    end
+
+    test "does not use custom storage when only bucket_name is set" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: nil,
+        s3_secret_access_key: nil
+      }
+
+      url = "https://default-bucket.s3.amazonaws.com/test-key"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config, :get, ^bucket_name, ^object_key, _opts ->
+        {:ok, url}
+      end)
+
+      # When
+      result = Storage.generate_download_url(object_key, account)
+
+      # Then
+      assert result == url
+    end
+
+    test "does not add Tigris region headers for custom S3 storage" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        region: :europe
+      }
+
+      object_key = UUIDv7.generate()
+      content = "test content"
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :put_object, fn "custom-bucket", ^object_key, ^content ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        assert updated_operation.headers == %{}
+        :ok
+      end)
+
+      # When
+      Storage.put_object(object_key, content, account)
+    end
+
+    test "multipart_start does not add Tigris headers for custom S3 storage" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        region: :usa
+      }
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn "custom-bucket", ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request!, fn updated_operation, _opts ->
+        assert updated_operation.headers == %{}
+        %{body: %{upload_id: upload_id}}
+      end)
+
+      # When
+      result = Storage.multipart_start(object_key, account)
+
+      # Then
+      assert result == upload_id
+    end
+
+    test "object_exists? uses custom S3 config" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY",
+        s3_region: "ap-southeast-1"
+      }
+
+      object_key = UUIDv7.generate()
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :head_object, fn "custom-bucket", ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, config ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        assert config.secret_access_key == "CUSTOM_SECRET_KEY"
+        assert config.region == "ap-southeast-1"
+        {:ok, %{}}
+      end)
+
+      # When
+      result = Storage.object_exists?(object_key, account)
+
+      # Then
+      assert result == true
+    end
+
+    test "delete_all_objects uses custom S3 config" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY"
+      }
+
+      prefix = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      list_operation = %S3{body: UUIDv7.generate()}
+
+      stub(ExAws.S3, :list_objects_v2, fn "custom-bucket", [prefix: ^prefix, max_keys: _] ->
+        list_operation
+      end)
+
+      stub(ExAws, :request!, fn ^list_operation, config ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        %S3{body: %{contents: [%{}]}}
+      end)
+
+      stub(ExAws, :stream!, fn ^list_operation, config ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        [%{key: object_key}] |> Stream.cycle() |> Stream.take(1)
+      end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_all_objects, fn "custom-bucket", _ ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, config ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        {:ok, %{}}
+      end)
+
+      # When
+      result = Storage.delete_all_objects(prefix, account)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "custom S3 storage takes precedence over Tigris feature flag" do
+      # Given
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY"
+      }
+
+      stub(FunWithFlags, :enabled?, fn :tigris, [for: ^account] -> true end)
+
+      url = "https://custom-bucket.s3.amazonaws.com/test-key"
+      object_key = UUIDv7.generate()
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        {:ok, url}
+      end)
+
+      # When
+      result = Storage.generate_download_url(object_key, account)
+
+      # Then
+      assert result == url
     end
   end
 end

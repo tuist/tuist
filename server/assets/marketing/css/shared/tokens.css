@@ -1,0 +1,22 @@
+/*This file contains tokens that are specific to the marketing site*/
+
+:root {
+  /*
+   * Breakpoints for responsive design
+   *
+   * These breakpoint values define the viewport widths where layout changes occur:
+   * - sm: 370px (small mobile devices)
+   * - md: 1024px (tablets and small desktops)
+   * - lg: 1440px (large desktops)
+   */
+  --marketing-breakpoint-lg: 1440px;
+  --marketing-breakpoint-md: 1024px;
+  --marketing-breakpoint-sm: 370px;
+
+  /* The navigation bar is sticky and absolutely positioned. If there are other sticky elements, they should be sticky with this top offset */
+  --sticky-top: 72px;
+
+  @media (max-width: 480px) {
+    --sticky-top: 48px;
+  }
+}

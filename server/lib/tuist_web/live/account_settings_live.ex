@@ -3,6 +3,9 @@ defmodule TuistWeb.AccountSettingsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Phoenix.Component
+
+  alias Phoenix.HTML.Form
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
@@ -17,6 +20,7 @@ defmodule TuistWeb.AccountSettingsLive do
     rename_account_form = to_form(Account.update_changeset(selected_account, %{}))
     delete_organization_form = to_form(%{"name" => ""})
     delete_user_form = to_form(%{"name" => ""})
+    region_form = to_form(Account.update_changeset(selected_account, %{region: Atom.to_string(selected_account.region)}))
 
     socket =
       socket
@@ -24,6 +28,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(rename_account_form: rename_account_form)
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
+      |> assign(region_form: region_form)
       |> assign(:head_title, "#{gettext("Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -105,5 +110,54 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(delete_user_form: to_form(%{"name" => ""}))
 
     {:noreply, socket}
+  end
+
+  def handle_event("select_region", %{"value" => [value]}, %{assigns: %{selected_account: selected_account}} = socket) do
+    region = if is_atom(value), do: value, else: String.to_existing_atom(value)
+
+    {:ok, account} = Accounts.update_account(selected_account, %{region: region})
+    region_form = to_form(Account.update_changeset(account, %{region: Atom.to_string(account.region)}))
+
+    socket =
+      socket
+      |> assign(selected_account: account)
+      |> assign(region_form: region_form)
+
+    {:noreply, socket}
+  end
+
+  attr(:region_form, Form, required: true)
+  attr(:selected_account, Account, required: true)
+
+  def region_selection_section(assigns) do
+    ~H"""
+    <.card_section data-part="region-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {gettext("Storage region")}
+        </span>
+        <span data-part="subtitle">
+          {gettext(
+            "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <label data-part="select-label">
+          {gettext("Select region")}
+        </label>
+        <.select
+          id="region-selection"
+          field={@region_form[:region]}
+          label={gettext("Region")}
+          on_value_change="select_region"
+        >
+          <:item value="all" label={gettext("All regions")} icon="world" />
+          <:item value="europe" label={gettext("Europe")} icon="world" />
+          <:item value="usa" label={gettext("United States")} icon="world" />
+        </.select>
+      </div>
+    </.card_section>
+    """
   end
 end

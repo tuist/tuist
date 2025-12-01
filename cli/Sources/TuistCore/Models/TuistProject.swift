@@ -1,6 +1,6 @@
 import XcodeGraph
 
-public enum TuistProject: Equatable, Hashable {
+public enum TuistProject: Equatable, Hashable, Sendable {
     case generated(TuistGeneratedProjectOptions)
     case xcode(TuistXcodeProjectOptions)
     case swiftPackage(TuistSwiftPackageOptions)
@@ -10,6 +10,14 @@ public enum TuistProject: Equatable, Hashable {
         case let .generated(options): return options
         case .xcode: return nil
         case .swiftPackage: return nil
+        }
+    }
+
+    public var disableSandbox: Bool {
+        switch self {
+        case let .generated(options): return options.generationOptions.disableSandbox
+        case .xcode: return true
+        case .swiftPackage: return true
         }
     }
 

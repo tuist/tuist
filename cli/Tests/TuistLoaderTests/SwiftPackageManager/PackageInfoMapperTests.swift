@@ -1094,6 +1094,95 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenHasOpaqueAndTraversableResources_mapsCorrectly() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let resourcesPath = basePath.appending(
+            try RelativePath(validating: "Package/Sources/Target1/Resource")
+        )
+        try await fileSystem.makeDirectory(at: resourcesPath)
+
+        // Setup a normal directory that should be traversed (Base.lproj).
+        try await fileSystem.makeDirectory(at: resourcesPath.appending(component: "Base.lproj"))
+        try await fileSystem.touch(resourcesPath.appending(components: "Base.lproj", "Localizable.strings"))
+
+        // Setup an opaque directory that should NOT be traversed (.xcdatamodel).
+        try await fileSystem.makeDirectory(at: resourcesPath.appending(component: "Model.xcdatamodel"))
+        try await fileSystem.touch(resourcesPath.appending(components: "Model.xcdatamodel", "elements"))
+        try await fileSystem.touch(resourcesPath.appending(components: "Model.xcdatamodel", "layout"))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            resources: [
+                                .init(rule: .process, path: "Resource/Base.lproj"),
+                                .init(rule: .process, path: "Resource/Model.xcdatamodel"),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        // Then
+        let expectedResources: [ProjectDescription.ResourceFileElement] = [
+            .glob(
+                pattern: .path(
+                    basePath
+                        .appending(
+                            try RelativePath(
+                                validating: "Package/Sources/Target1/Resource/Base.lproj/**"
+                            )
+                        )
+                        .pathString
+                ),
+                excluding: [],
+                tags: []
+            ),
+            .glob(
+                pattern: .path(
+                    basePath
+                        .appending(
+                            try RelativePath(
+                                validating: "Package/Sources/Target1/Resource/Model.xcdatamodel"
+                            )
+                        )
+                        .pathString
+                ),
+                excluding: [],
+                tags: []
+            ),
+        ]
+
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            resources: expectedResources
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenProductIsNotLibrary_ignoresProduct() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 

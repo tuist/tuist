@@ -4,13 +4,16 @@ import Path
 public struct XCActivityLogFile: Equatable {
     public let path: AbsolutePath
     public let timeStoppedRecording: Date
+    public let signature: String
 
     public init(
         path: AbsolutePath,
-        timeStoppedRecording: Date
+        timeStoppedRecording: Date,
+        signature: String
     ) {
         self.path = path
         self.timeStoppedRecording = timeStoppedRecording
+        self.signature = signature
     }
 }
 
@@ -19,11 +22,13 @@ public struct XCActivityLogFile: Equatable {
         public static func test(
             // swiftlint:disable:next force_try
             path: AbsolutePath = try! AbsolutePath(validating: "/udid.xcactivitylog"),
-            timeStoppedRecording: Date = Date()
+            timeStoppedRecording: Date = Date(),
+            signature: String = "Build Tuist"
         ) -> XCActivityLogFile {
             XCActivityLogFile(
                 path: path,
-                timeStoppedRecording: timeStoppedRecording
+                timeStoppedRecording: timeStoppedRecording,
+                signature: signature
             )
         }
     }

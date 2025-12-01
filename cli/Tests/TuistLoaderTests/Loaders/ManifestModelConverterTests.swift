@@ -26,11 +26,13 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
 
     private var manifestLinter: MockManifestLinter!
     private var rootDirectoryLocator: MockRootDirectoryLocating!
+    private var contentHasher: MockContentHashing!
 
     override func setUpWithError() throws {
         super.setUp()
         manifestLinter = MockManifestLinter()
         rootDirectoryLocator = MockRootDirectoryLocating()
+        contentHasher = MockContentHashing()
 
         given(rootDirectoryLocator)
             .locate(from: .any)
@@ -370,7 +372,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
             manifestLoader: manifestLoader,
-            rootDirectoryLocator: rootDirectoryLocator
+            rootDirectoryLocator: rootDirectoryLocator,
+            contentHasher: contentHasher
         )
     }
 

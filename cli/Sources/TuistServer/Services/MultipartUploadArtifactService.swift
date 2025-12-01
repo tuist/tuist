@@ -60,13 +60,16 @@
     public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
         private let urlSession: URLSession
         private let fileSystem: FileSysteming
+        private let retryProvider: RetryProviding
 
         public init(
             urlSession: URLSession = .tuistShared,
-            fileSystem: FileSysteming = FileSystem()
+            fileSystem: FileSysteming = FileSystem(),
+            retryProvider: RetryProviding = RetryProvider()
         ) {
             self.urlSession = urlSession
             self.fileSystem = fileSystem
+            self.retryProvider = retryProvider
         }
 
         public func multipartUploadArtifact(
@@ -100,18 +103,20 @@
                         let currentPartNumber = partNumber.value
                         partNumber.mutate { $0 += 1 }
                         group.addTask {
-                            let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
-                                number: currentPartNumber,
-                                contentLength: bytesRead
-                            ))
-                            guard let url = URL(string: uploadURLString) else {
-                                throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
-                            }
+                            try await retryProvider.runWithRetries {
+                                let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
+                                    number: currentPartNumber,
+                                    contentLength: bytesRead
+                                ))
+                                guard let url = URL(string: uploadURLString) else {
+                                    throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
+                                }
 
-                            let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                            let etag = try await upload(for: request)
-                            uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
-                            updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
+                                let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
+                                let etag = try await upload(for: request)
+                                uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
+                                updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
+                            }
                         }
                     }
                 }

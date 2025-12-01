@@ -28,6 +28,8 @@ struct XcodeBuildTestCommandServiceTests {
     private let selectiveTestingService = MockSelectiveTestingServicing()
     private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     private let uniqueIDGenerator = MockUniqueIDGenerating()
+    private let derivedDataLocator = MockDerivedDataLocating()
+    private let inspectResultBundleService = MockInspectResultBundleServicing()
     private let subject: XcodeBuildTestCommandService
     init() {
         let cacheStorageFactory = MockCacheStorageFactorying()
@@ -42,23 +44,29 @@ struct XcodeBuildTestCommandServiceTests {
             .willReturn()
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)
             .willReturn(try! AbsolutePath(validating: "/tmp/runs"))
         given(uniqueIDGenerator)
             .uniqueID()
             .willReturn("unique-id")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(try! AbsolutePath(validating: "/tmp/DerivedData"))
 
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
             xcodeGraphMapper: xcodeGraphMapper,
             xcodeBuildController: xcodeBuildController,
+            configLoader: configLoader,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             uniqueIDGenerator: uniqueIDGenerator,
             cacheStorageFactory: cacheStorageFactory,
             selectiveTestingGraphHasher: selectiveTestingGraphHasher,
-            selectiveTestingService: selectiveTestingService
+            selectiveTestingService: selectiveTestingService,
+            inspectResultBundleService: inspectResultBundleService,
+            derivedDataLocator: derivedDataLocator
         )
     }
 
@@ -822,6 +830,98 @@ struct XcodeBuildTestCommandServiceTests {
                     .called(1)
                 let resultBundlePath = try AbsolutePath(validating: "/custom-path")
                 await #expect(runMetadataStorage.resultBundlePath == resultBundlePath)
+            }
+        }
+    }
+
+    @Test func logsWarningWhenInspectResultBundleFails() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
+            temporaryPath in
+            let runMetadataStorage = RunMetadataStorage()
+            let alertController = AlertController()
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+                try await AlertController.$current.withValue(alertController) {
+                    // Given
+                    let aUnitTestsTarget: Target = .test(name: "AUnitTests")
+                    let project: Project = .test(
+                        path: temporaryPath,
+                        targets: [
+                            aUnitTestsTarget,
+                        ],
+                        schemes: [
+                            .test(
+                                name: "App",
+                                testAction: .test(
+                                    targets: [
+                                        .test(
+                                            target: TargetReference(
+                                                projectPath: temporaryPath,
+                                                name: "AUnitTests"
+                                            )
+                                        ),
+                                    ]
+                                )
+                            ),
+                        ]
+                    )
+
+                    given(xcodeGraphMapper)
+                        .map(at: .any)
+                        .willReturn(
+                            .test(
+                                projects: [
+                                    temporaryPath: project,
+                                ]
+                            )
+                        )
+
+                    given(selectiveTestingGraphHasher)
+                        .hash(
+                            graph: .any,
+                            additionalStrings: .any
+                        )
+                        .willReturn([:])
+                    given(selectiveTestingService)
+                        .cachedTests(
+                            testableGraphTargets: .any,
+                            selectiveTestingHashes: .any,
+                            selectiveTestingCacheItems: .any
+                        )
+                        .willReturn([])
+
+                    given(cacheStorage)
+                        .fetch(.any, cacheCategory: .any)
+                        .willReturn([:])
+
+                    configLoader.reset()
+                    given(configLoader)
+                        .loadConfig(path: .any)
+                        .willReturn(.test(fullHandle: "tuist/tuist"))
+
+                    let resultBundlePath = temporaryPath.appending(component: "test.xcresult")
+                    try await fileSystem.makeDirectory(at: resultBundlePath)
+
+                    given(inspectResultBundleService)
+                        .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                        .willThrow(TestError("Inspect failed"))
+
+                    // When
+                    try await subject.run(
+                        passthroughXcodebuildArguments: [
+                            "test",
+                            "-scheme", "App",
+                            "-resultBundlePath", resultBundlePath.pathString,
+                        ]
+                    )
+
+                    // Then
+                    verify(inspectResultBundleService)
+                        .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                        .called(1)
+                    let warnings = alertController.warnings()
+                    #expect(warnings.count == 1)
+                    #expect(warnings.first?.message.plain().contains("Failed to upload test results") == true)
+                }
             }
         }
     }

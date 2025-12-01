@@ -1,10 +1,17 @@
 import ProjectDescription
 
-let config = Config(
+let tuist = Tuist(
     fullHandle: "tuist/tuist",
-    swiftVersion: .init("5.10"),
-    generationOptions: .options(
-        optionalAuthentication: true,
-        disableSandbox: true,
+    project: .tuist(
+        generationOptions: .options(
+            optionalAuthentication: true,
+            disableSandbox: true,
+            enableCaching: true
+        ),
+        installOptions: .options(
+            passthroughSwiftPackageManagerArguments: [
+                "--replace-scm-with-registry"
+            ]
+        )
     )
 )

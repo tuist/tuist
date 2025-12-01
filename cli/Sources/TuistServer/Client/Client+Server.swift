@@ -6,14 +6,14 @@ extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
     /// Tuist client for authenticated sessions
-    public static func authenticated(serverURL: URL) -> Client {
+    public static func authenticated(serverURL: URL, authenticationURL: URL? = nil) -> Client {
         .init(
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
                 ServerClientRequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
-                ServerClientAuthenticationMiddleware(),
+                ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
                 ServerClientVerboseLoggingMiddleware(),
                 ServerClientOutputWarningsMiddleware(),
             ] + additionalMiddlewares

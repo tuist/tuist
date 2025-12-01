@@ -1,0 +1,181 @@
+.tuist-widget-link {
+  cursor: pointer;
+  text-decoration: unset;
+
+  &:not(:has(.noora-dropdown-content:hover)) .tuist-widget:hover {
+    background-color: var(--noora-surface-background-secondary);
+  }
+
+  &[data-selected] .tuist-widget {
+    box-shadow: var(--noora-border-light-focus);
+  }
+}
+
+.tuist-widget {
+  position: relative;
+  gap: var(--noora-spacing-5);
+
+  & [data-part="background"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--noora-z-index-1);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  & [data-part="empty-label"] {
+    align-self: center;
+    padding-top: var(--noora-spacing-5);
+    padding-bottom: 30px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+  }
+
+  &[data-empty="true"] {
+    align-items: unset;
+    padding-top: unset;
+    padding: var(--noora-spacing-7);
+  }
+
+  &[data-empty="true"] > [data-part="header"] > [data-part="title"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    & > [data-part="title"] button {
+      box-shadow: unset;
+      background: unset;
+      padding: unset;
+      width: 16px;
+      height: 16px;
+      &:hover > [data-part="icon"] {
+        color: var(--noora-surface-label-secondary);
+      }
+      & > [data-part="icon"] {
+        color: var(--noora-surface-label-primary);
+      }
+    }
+
+    & > [data-part="legend"] {
+      margin-right: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-xsmall);
+      width: 6px;
+      height: 16px;
+
+      &[data-color="primary"] {
+        background-color: var(--noora-chart-primary);
+      }
+
+      &[data-color="secondary"] {
+        background-color: var(--noora-chart-secondary);
+      }
+
+      &[data-color="destructive"] {
+        background-color: var(--noora-chart-destructive);
+      }
+
+      &[data-color="p99"] {
+        background-color: var(--noora-chart-p99);
+      }
+
+      &[data-color="p90"] {
+        background-color: var(--noora-chart-p90);
+      }
+
+      &[data-color="p50"] {
+        background-color: var(--noora-chart-p50);
+      }
+    }
+
+    & > [data-part="title"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: row;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & .noora-dropdown {
+      flex-grow: 1;
+      & [data-part="trigger"]:hover {
+        & [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+        }
+        & [data-part="indicator"] > div {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+
+      & > [data-state="open"] + [data-part="positioner"] {
+        width: unset;
+      }
+
+      & [data-part="trigger"] {
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        box-shadow: unset;
+        background: unset;
+        padding: unset;
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+        & [data-part="label-wrapper"] {
+          flex-grow: 0;
+        }
+
+        & [data-part="indicator"] {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & [data-part="indicator-up"] {
+          display: none;
+        }
+
+        & [data-part="indicator-down"] {
+          display: block;
+        }
+
+        & [data-part="indicator"] > div {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+  }
+
+  & .noora-tooltip {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    color: var(--noora-surface-label-secondary);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  & [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+  }
+
+  & [data-part="trend"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & [data-part="label"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+}

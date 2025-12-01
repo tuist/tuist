@@ -187,7 +187,17 @@ final class DumpServiceTests: TuistTestCase {
               "project": {
                 "tuist": {
                   "cacheOptions": {
-                    "keepSourceTargets": false
+                    "keepSourceTargets": false,
+                    "profiles": {
+                      "defaultProfile": {
+                        "onlyExternal": {
+
+                        }
+                      },
+                      "profileByName": {
+
+                      }
+                    }
                   },
                   "compatibleXcodeVersions": {
                     "all": {
@@ -201,6 +211,7 @@ final class DumpServiceTests: TuistTestCase {
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
                     "disableSandbox": true,
+                    "enableCaching": false,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
                     "optionalAuthentication": false,
@@ -209,7 +220,8 @@ final class DumpServiceTests: TuistTestCase {
                       "all": {
 
                       }
-                    }
+                    },
+                    "testInsightsDisabled": false
                   },
                   "installOptions": {
                     "passthroughSwiftPackageManagerArguments": [

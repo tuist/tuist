@@ -85,7 +85,7 @@ public protocol ManifestLoading {
 
     /// Loads `Package.swift`
     /// - Parameter path: Path to the directory that contains Package.swift
-    func loadPackage(at path: AbsolutePath) async throws -> PackageInfo
+    func loadPackage(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -193,8 +193,8 @@ public class ManifestLoader: ManifestLoading {
         try await loadManifest(.template, at: path, disableSandbox: true)
     }
 
-    public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await packageInfoLoader.loadPackageInfo(at: path)
+    public func loadPackage(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo {
+        try await packageInfoLoader.loadPackageInfo(at: path, disableSandbox: disableSandbox)
     }
 
     public func loadPackageSettings(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription

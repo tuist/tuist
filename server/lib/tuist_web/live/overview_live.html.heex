@@ -59,10 +59,10 @@
     </:actions>
     <div data-part="widgets">
       <.widget
-        title={gettext("Binary cache effectiveness")}
+        title={gettext("Cache effectiveness")}
         description={
           gettext(
-            "Binary cache effectiveness represents the ratio of binary cache hits compared to binary cache misses."
+            "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
           )
         }
         value={
@@ -133,7 +133,7 @@
         <div data-part="effectiveness-chart">
           <div data-part="legends">
             <.legend
-              title={gettext("Binary cache effectiveness")}
+              title={gettext("Cache effectiveness")}
               value={
                 gettext("%{binary_cache_effectiveness}%",
                   binary_cache_effectiveness: binary_cache_hit_rate
@@ -203,7 +203,7 @@
                     |> Enum.map(&Decimal.round(&1, 1))
                   )
                   |> Enum.map(&Tuple.to_list/1),
-                name: gettext("Binary cache effectiveness"),
+                name: gettext("Cache effectiveness"),
                 type: "line",
                 smooth: 0.1,
                 symbol: "none"

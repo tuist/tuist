@@ -68,10 +68,6 @@ public struct GraphContentHasher: GraphContentHashing {
 
         var additionalStrings = additionalStrings
 
-        if let lockFileHash = try await lockFileHash(for: graph) {
-            additionalStrings.append(lockFileHash)
-        }
-
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
@@ -135,37 +131,5 @@ public struct GraphContentHasher: GraphContentHashing {
         }
         visited[target] = allTargetDependenciesAreHashable
         return allTargetDependenciesAreHashable
-    }
-
-    private func lockFileHash(
-        for graph: Graph
-    ) async throws -> String? {
-        if let lockFilePath = try await rootDirectoryLocator.locate(from: graph.path)
-            .map({ $0.appending(component: ".package.resolved") }),
-            try await fileSystem.exists(lockFilePath)
-        {
-            return try await contentHasher.hash(
-                path: lockFilePath
-            )
-        }
-        if let workspacePath = try await fileSystem.glob(directory: graph.path, include: ["*.xcworkspace"]).collect().first {
-            let lockFilePath = workspacePath.appending(components: "xcshareddata", "swiftpm", "Package.resolved")
-            if try await fileSystem.exists(lockFilePath) {
-                return try await contentHasher.hash(path: lockFilePath)
-            }
-        } else if let projectPath = try await fileSystem.glob(directory: graph.path, include: ["*.xcodeproj"]).collect().first {
-            let lockFilePath = projectPath.appending(
-                components: [
-                    "project.xcworkspace",
-                    "xcshareddata",
-                    "swiftpm",
-                    "Package.resolved",
-                ]
-            )
-            if try await fileSystem.exists(lockFilePath) {
-                return try await contentHasher.hash(path: lockFilePath)
-            }
-        }
-        return nil
     }
 }

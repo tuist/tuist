@@ -87,6 +87,9 @@
             "logging": {
               "text": "Logging"
             },
+            "directories": {
+              "text": "Directories"
+            },
             "shell-completions": {
               "text": "Shell completions"
             }
@@ -296,13 +299,24 @@
                 "tma-architecture": {
                   "text": "Modular architecture"
                 },
+                "metadata-tags": {
+                  "text": "Metadata tags"
+                },
                 "best-practices": {
                   "text": "Best practices"
                 }
               }
             },
             "cache": {
-              "text": "Cache"
+              "text": "Cache",
+              "items": {
+                "xcode-cache": {
+                  "text": "Xcode cache"
+                },
+                "module-cache": {
+                  "text": "Module cache"
+                }
+              }
             },
             "registry": {
               "text": "Registry",
@@ -342,10 +356,10 @@
               }
             },
             "insights": {
-              "text": "Insights"
+              "text": "Build insights"
             },
             "bundle-size": {
-              "text": "Bundle size"
+              "text": "Bundle insights"
             },
             "qa": {
               "text": "QA"

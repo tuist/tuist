@@ -58,7 +58,6 @@ struct ServerAuthenticationControllerTests {
     ) func when_config_token_is_present_and_is_not_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        let serverURL: URL = .test()
         mockEnvironment.variables = [
             Constants.EnvironmentVariables.token: "project-token",
         ]
@@ -66,18 +65,52 @@ struct ServerAuthenticationControllerTests {
         given(serverCredentialsStore)
             .read(serverURL: .any)
             .willReturn(nil)
-        let authenticationToken: AuthenticationToken? = nil
-        let cachedValueStore = try #require(CachedValueStore.mocked)
-        given(cachedValueStore).getValue(key: .value("token_\(serverURL.absoluteString)"), computeIfNeeded: .matching { closure in
-            Task { try await closure() }
-            return true
-        }).willReturn(authenticationToken)
 
         // When
         let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
-        #expect(got == nil)
+        #expect(got == .project("project-token"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies()) func non_expired_access_token_and_is_ci() async throws {
+        let date = Date()
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "CI": "1",
+        ]
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "access")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
+
+            let authenticationToken: AuthenticationToken? = .user(
+                accessToken: try JWT.parse(accessToken.token),
+                refreshToken: try JWT.parse(refreshToken.token)
+            )
+
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: refreshToken.token
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(cachedValueStore).getValue(
+                key: .value("token_\(serverURL.absoluteString)"),
+                computeIfNeeded: .matching { closure in
+                    Task { try await closure() }
+                    return true
+                }
+            ).willReturn(authenticationToken)
+
+            // When
+            let got = try await subject.authenticationToken(serverURL: .test())
+
+            // Then
+            #expect(got == authenticationToken)
+        }
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies()) func non_expired_access_token_and_not_ci() async throws {
@@ -100,6 +133,13 @@ struct ServerAuthenticationControllerTests {
             )
 
             given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(cachedValueStore).getValue(
+                key: .value("token_\(serverURL.absoluteString)"),
+                computeIfNeeded: .matching { closure in
+                    Task { try await closure() }
+                    return true
+                }
+            ).willReturn(authenticationToken)
 
             // When
             let got = try await subject.authenticationToken(serverURL: .test())
@@ -163,11 +203,6 @@ struct ServerAuthenticationControllerTests {
                 let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
                 let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
                 let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
-
-                let authenticationToken: AuthenticationToken? = .user(
-                    accessToken: try JWT.parse(accessToken.token),
-                    refreshToken: try JWT.parse(refreshToken.token)
-                )
 
                 let storeCredentials: ServerCredentials = .test(
                     accessToken: accessToken.token,

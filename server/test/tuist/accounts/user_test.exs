@@ -49,10 +49,10 @@ defmodule Tuist.Accounts.UserTest do
   describe "gravatar_url/1" do
     test "generates the right avatar" do
       # When
-      got = [email: "tuist@tuist.io"] |> AccountsFixtures.user_fixture() |> User.gravatar_url()
+      got = [email: "tuist@tuist.dev"] |> AccountsFixtures.user_fixture() |> User.gravatar_url()
 
       # Then
-      assert got == "https://www.gravatar.com/avatar/0f3e9af754a1574f7b5fb3ab36e9b0b8?d=404"
+      assert got == "https://www.gravatar.com/avatar/20781daad983fcf18cbd592ae46aa57e?d=404"
     end
   end
 end

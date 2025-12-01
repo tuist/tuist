@@ -23,33 +23,134 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
-      <.sidebar_item
-        label={gettext("Test Runs")}
-        icon="dashboard"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
-        selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs" == @current_path or
-            (not is_nil(@selected_run) and not Enum.empty?(@selected_run.test_targets))
+      <.sidebar_group
+        id="sidebar-builds"
+        label={gettext("Builds")}
+        icon="versions"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
         }
-      />
-      <.sidebar_item
-        label={gettext("Cache Runs")}
-        icon="schema"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs"}
-        selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs" ==
-            @current_path or
-            (not is_nil(@selected_run) and @selected_run.name == "cache")
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+          )
         }
-      />
-      <.sidebar_item
-        label={gettext("Generate Runs")}
-        icon="filters"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs"}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={gettext("Build Runs")}
+          icon="chart_column"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        id="sidebar-tests"
+        label={gettext("Tests")}
+        icon="subtask"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={gettext("Test Runs")}
+          icon="dashboard"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
+            )
+          }
+        />
+        <.sidebar_item
+          label={gettext("Test Cases")}
+          icon="exchange"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
+            )
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        id="sidebar-module-cache"
+        label={gettext("Module Cache")}
+        icon="database"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs" ==
-            @current_path or
-            (not is_nil(@selected_run) and @selected_run.name == "generate")
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
+        disabled={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+        }
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
+          ) or
+            (not is_nil(@selected_run) and
+               (@selected_run.name == "generate" or @selected_run.name == "cache"))
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={gettext("Cache Runs")}
+          icon="schema"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"
+            ) or
+              (not is_nil(@selected_run) and @selected_run.name == "cache")
+          }
+        />
+        <.sidebar_item
+          label={gettext("Generate Runs")}
+          icon="filters"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+          }
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
+            ) or
+              (not is_nil(@selected_run) and @selected_run.name == "generate")
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_item
+        label={gettext("Xcode Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
         }
       />
       <.sidebar_item
@@ -86,36 +187,6 @@ defmodule TuistWeb.AppLayoutComponents do
           )
         }
       />
-      <.sidebar_group
-        id="sidebar-builds"
-        label={gettext("Builds")}
-        icon="versions"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-        }
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-          )
-        }
-        phx-update="ignore"
-      >
-        <.sidebar_item
-          label={gettext("Build Runs")}
-          icon="chart_column"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
-          selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            )
-          }
-        />
-      </.sidebar_group>
       <.sidebar_item
         :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
         label={gettext("Settings")}

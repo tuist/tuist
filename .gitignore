@@ -67,7 +67,7 @@ playground.xcworkspace
 # Packages/
 # Package.pins
 .build/
-.swiftpm
+.swiftpm/xcode
 
 # CocoaPods - Refactored to standalone file
 
@@ -115,3 +115,5 @@ Tuist/Dependencies/graph.json
 .claude/
 *.p12
 ./minio
+!.github
+cli/Tests/Fixtures/test.xcresult/database.sqlite3

@@ -7,6 +7,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCResultService
 import XcodeGraph
 import XCTest
 
@@ -30,6 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
+    private var inspectResultBundleService: MockInspectResultBundleServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -44,6 +46,7 @@ final class TestServiceTests: TuistUnitTestCase {
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        inspectResultBundleService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -52,7 +55,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
 
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
@@ -85,7 +88,8 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
-            xcResultService: xcResultService
+            xcResultService: xcResultService,
+            inspectResultBundleService: inspectResultBundleService
         )
 
         given(simulatorController)
@@ -146,6 +150,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = nil
         testedSchemes = []
         runMetadataStorage = nil
+        inspectResultBundleService = nil
         subject = nil
         super.tearDown()
     }
@@ -399,6 +404,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .any,
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -593,7 +599,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(localCacheStorage)
         given(localCacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1153,12 +1159,48 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         given(xcResultService)
-            .parse(path: .value(xcresultPath))
-            .willReturn(InvocationRecord(actions: [], testSummaries: []))
-
-        given(xcResultService)
-            .successfulTestTargets(invocationRecord: .any)
-            .willReturn(["FrameworkBTests"])
+            .parse(path: .value(xcresultPath), rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .failed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "FrameworkATests",
+                            status: .failed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testA",
+                                    testSuite: nil,
+                                    module: "FrameworkATests",
+                                    duration: nil,
+                                    status: .failed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                        TestModule(
+                            name: "FrameworkBTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testB",
+                                    testSuite: nil,
+                                    module: "FrameworkBTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1358,6 +1400,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .value([]),
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -2367,6 +2410,54 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_logsWarningWhenInspectResultBundleFails() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn(
+                    [
+                        Scheme.test(name: "ProjectScheme"),
+                    ]
+                )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist"
+                    )
+                )
+
+            given(inspectResultBundleService)
+                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .willThrow(TestError("Inspect failed"))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            let warnings = AlertController.current.warnings()
+            XCTAssertEqual(warnings.count, 1)
+            XCTAssertTrue(warnings.first?.message.plain().contains("Failed to upload test results") == true)
+        }
+    }
+
     private func givenGenerator() {
         given(generatorFactory)
             .testing(
@@ -2375,6 +2466,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 includedTargets: .any,
                 excludedTargets: .any,
                 skipUITests: .any,
+                skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
@@ -2397,6 +2489,7 @@ final class TestServiceTests: TuistUnitTestCase {
         action: XcodeBuildTestAction = .test,
         rosetta: Bool = false,
         skipUiTests: Bool = false,
+        skipUnitTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         retryCount: Int = 0,
@@ -2420,6 +2513,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 action: action,
                 rosetta: rosetta,
                 skipUITests: skipUiTests,
+                skipUnitTests: skipUnitTests,
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,

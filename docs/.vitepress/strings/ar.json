@@ -197,18 +197,18 @@
                             "text": "الحسابات والمشاريع"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "المصادقة"
                         },
                         "integrations": {
-                            "text": "Integrations"
+                            "text": "الدمج والربط"
                         }
                     }
                 },
                 "on-premise": {
-                    "text": "",
+                    "text": "On-premise",
                     "items": {
                         "install": {
-                            "text": ""
+                            "text": "التثبيت"
                         },
                         "metrics": {
                             "text": ""
@@ -219,7 +219,7 @@
                     "text": ""
                 },
                 "status": {
-                    "text": ""
+                    "text": "الحالة"
                 },
                 "metrics-dashboard": {
                     "text": ""
@@ -227,13 +227,13 @@
             }
         },
         "guides": {
-            "text": "",
+            "text": "الإرشادات",
             "items": {
                 "tuist": {
-                    "text": "",
+                    "text": "Tuist",
                     "items": {
                         "about": {
-                            "text": ""
+                            "text": "نبذة عن Tuist"
                         }
                     }
                 },
@@ -241,18 +241,18 @@
                     "text": "",
                     "items": {
                         "install-tuist": {
-                            "text": ""
+                            "text": "تثبيت Tuist"
                         },
                         "get-started": {
-                            "text": ""
+                            "text": "ابدأ"
                         }
                     }
                 },
                 "features": {
-                    "text": ""
+                    "text": "الميزات"
                 },
                 "examples": {
-                    "text": "",
+                    "text": "الأمثلة",
                     "items": {
                         "generated-projects": {
                             "text": ""
@@ -260,7 +260,7 @@
                     }
                 },
                 "develop": {
-                    "text": "",
+                    "text": "التطوير",
                     "items": {
                         "generated-projects": {
                             "text": "",
@@ -269,13 +269,13 @@
                                     "text": "",
                                     "items": {
                                         "new-project": {
-                                            "text": ""
+                                            "text": "إنشاء مشروع جديد"
                                         },
                                         "swift-package": {
-                                            "text": ""
+                                            "text": "جرب باستخدام Swift Package"
                                         },
                                         "migrate": {
-                                            "text": "",
+                                            "text": "الانتقال",
                                             "items": {
                                                 "xcode-project": {
                                                     "text": ""
@@ -343,7 +343,15 @@
                             }
                         },
                         "cache": {
-                            "text": ""
+                            "text": "",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
                             "text": "",

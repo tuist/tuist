@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Bundle Size",
+  "title": "Bundle insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Tamaño del bundle {#bundle-size}
+# Bundle insights {#bundle-size}
 
 ::: warning REQUIREMENTS
 <!-- -->

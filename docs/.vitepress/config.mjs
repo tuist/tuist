@@ -143,8 +143,9 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  pt: getSearchOptionsForLocale("pt"),
   ar: getSearchOptionsForLocale("ar"),
-  zh: getSearchOptionsForLocale("zh"),
+  zh_Hans: getSearchOptionsForLocale("zh_Hans"),
   pl: getSearchOptionsForLocale("pl"),
 };
 
@@ -154,6 +155,12 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
+  ignoreDeadLinks: [
+    // Ignore localhost URLs in self-hosting documentation
+    /^http:\/\/localhost/,
+    // Ignore .env.example download link (static file served from public/)
+    /\/server\/self-host\/\.env\.example$/,
+  ],
   experimental: {
     metaChunk: true,
   },
@@ -208,10 +215,10 @@ export default defineConfig({
       dir: "rtl",
       themeConfig: await themeConfig("ar"),
     },
-    zh: {
+    zh_Hans: {
       label: "中文 (Chinese)",
-      lang: "zh",
-      themeConfig: await themeConfig("zh"),
+      lang: "zh_Hans",
+      themeConfig: await themeConfig("zh_Hans"),
     },
     pl: {
       label: "Polski (Polish)",

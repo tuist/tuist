@@ -38,7 +38,7 @@ registry login` is run.
 
 Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable
 is set. You can create one by following the documentation
-<LocalizedLink href="/guides/features/automate/continuous-integration#authentication">here</LocalizedLink>.
+<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
 
 An example workflow for GitHub Actions could then look like this:
 ```yaml

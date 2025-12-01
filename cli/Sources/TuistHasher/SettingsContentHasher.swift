@@ -45,10 +45,55 @@ public final class SettingsContentHasher: SettingsContentHashing {
     }
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
-        let sortedAndNormalizedSettings = settingsDictionary
+        let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
+            let filteredValue = filterWarningFlags(from: value)
+            return filteredValue.map { (key, $0) }
+        }
+        let sortedAndNormalizedSettings = filteredSettings
             .sorted(by: { $0.0 < $1.0 })
             .map { "\($0):\($1.normalize())" }.joined(separator: "-")
         return try contentHasher.hash(sortedAndNormalizedSettings)
+    }
+
+    private func filterWarningFlags(from value: SettingValue) -> SettingValue? {
+        guard case let .array(elements) = value else {
+            return value
+        }
+
+        let filteredElements = filterWarningFlags(from: elements)
+        return filteredElements.isEmpty ? nil : .array(filteredElements)
+    }
+
+    private func filterWarningFlags(from elements: [String]) -> [String] {
+        var result: [String] = []
+        var index = 0
+
+        while index < elements.count {
+            let element = elements[index]
+
+            if element == "-Xfrontend", index + 1 < elements.count {
+                let nextElement = elements[index + 1]
+                if nextElement.hasPrefix("-warn-") {
+                    index += 2
+                    continue
+                }
+            }
+
+            if element.hasPrefix("-Wno-") ||
+                element.hasPrefix("-Wunused") ||
+                element.hasPrefix("-Wdocumentation") ||
+                element.hasPrefix("-Wdeprecated") ||
+                element.hasPrefix("-Wimplicit")
+            {
+                index += 1
+                continue
+            }
+
+            result.append(element)
+            index += 1
+        }
+
+        return result
     }
 
     private func hash(_ configuration: Configuration) async throws -> String {

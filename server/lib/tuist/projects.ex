@@ -6,6 +6,7 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -95,6 +96,47 @@ defmodule Tuist.Projects do
     end
   end
 
+  @doc """
+  Gets projects by their full handles (account_handle/project_handle) in a single query.
+  Returns a map of full_handle => project.
+  """
+  def projects_by_full_handles(full_handles) when is_list(full_handles) do
+    handle_pairs =
+      full_handles
+      |> Enum.map(fn full_handle ->
+        case String.split(full_handle, "/") do
+          [account_handle, project_handle] -> {account_handle, project_handle}
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    account_handles = handle_pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    project_handles = handle_pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    projects =
+      from(p in Project,
+        join: a in Account,
+        on: p.account_id == a.id,
+        where: a.name in ^account_handles,
+        where: p.name in ^project_handles,
+        select: %{project: p, account_name: a.name}
+      )
+      |> Repo.all()
+      |> Map.new(fn %{project: project, account_name: account_name} ->
+        full_handle = "#{account_name}/#{project.name}"
+        {full_handle, project}
+      end)
+
+    handle_pairs
+    |> Enum.map(fn {account_handle, project_handle} ->
+      full_handle = "#{account_handle}/#{project_handle}"
+      {full_handle, Map.get(projects, full_handle)}
+    end)
+    |> Enum.reject(fn {_full_handle, project} -> is_nil(project) end)
+    |> Map.new()
+  end
+
   def get_project_by_slug(slug, opts \\ []) do
     components = String.split(slug, "/")
 
@@ -119,7 +161,9 @@ defmodule Tuist.Projects do
     end
   end
 
-  def get_all_project_accounts(%User{} = user) do
+  def list_accessible_projects(resource, opts \\ [])
+
+  def list_accessible_projects(%User{} = user, opts) do
     user_account = Accounts.get_account_from_user(user)
 
     organization_account_ids =
@@ -128,37 +172,67 @@ defmodule Tuist.Projects do
       |> Enum.map(& &1.account.id)
 
     account_ids = [user_account.id | organization_account_ids]
+    preload = Keyword.get(opts, :preload, [:account])
 
-    query =
-      from p in Project,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where: p.account_id in ^account_ids,
-        select: %{project: p, account: a}
-
-    query
+    from(p in Project,
+      where: p.account_id in ^account_ids,
+      preload: ^preload
+    )
     |> Repo.all()
-    |> Enum.map(fn %{project: project, account: account} ->
+    |> maybe_filter_recent(opts)
+  end
+
+  def list_accessible_projects(%Account{id: account_id}, opts) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    from(p in Project,
+      where: p.account_id == ^account_id,
+      preload: ^preload
+    )
+    |> Repo.all()
+    |> maybe_filter_recent(opts)
+  end
+
+  def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
+    list_accessible_projects(account, opts)
+  end
+
+  def list_accessible_projects(%Project{} = project, opts) do
+    project = Repo.preload(project, Keyword.get(opts, :preload, [:account]))
+    [project]
+  end
+
+  def list_accessible_projects(_, _opts), do: []
+
+  def get_all_project_accounts(resource, opts \\ []) do
+    opts = Keyword.put_new(opts, :preload, [:account])
+
+    resource
+    |> list_accessible_projects(opts)
+    |> Enum.map(fn project ->
       %ProjectAccount{
-        handle: "#{account.name}/#{project.name}",
+        handle: "#{project.account.name}/#{project.name}",
         project: project,
-        account: account
+        account: project.account
       }
     end)
   end
 
-  def get_all_project_accounts(%Account{id: account_id} = account) do
-    query = from p in Project, where: p.account_id == ^account_id, select: p
+  defp maybe_filter_recent(projects, opts) do
+    if recent = Keyword.get(opts, :recent) do
+      project_ids = Enum.map(projects, & &1.id)
+      interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
 
-    query
-    |> Repo.all()
-    |> Enum.map(fn project ->
-      %ProjectAccount{
-        handle: "#{account.name}/#{project.name}",
-        project: project,
-        account: account
-      }
-    end)
+      projects
+      |> Enum.map(fn project ->
+        last_interacted_at = Map.get(interaction_data, project.id, project.updated_at)
+        %{project | last_interacted_at: last_interacted_at}
+      end)
+      |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
+      |> Enum.take(recent)
+    else
+      projects
+    end
   end
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
@@ -394,7 +468,25 @@ defmodule Tuist.Projects do
     |> Enum.take(limit)
   end
 
-  def project_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+  @doc """
+  Get all projects connected to a VCS repository.
+  """
+  def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    Repo.all(
+      from p in Project,
+        join: pc in VCSConnection,
+        on: pc.project_id == p.id,
+        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        preload: ^preload
+    )
+  end
+
+  @doc """
+  Get a specific project by name and VCS repository handle.
+  """
+  def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
 
     project =
@@ -402,7 +494,7 @@ defmodule Tuist.Projects do
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
-          where: pc.repository_full_handle == ^vcs_repository_full_handle,
+          where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )
 

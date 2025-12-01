@@ -9,6 +9,12 @@ defmodule TuistWeb.API.ProjectTokensController do
   alias TuistWeb.API.Schemas.ProjectToken
   alias TuistWeb.Authentication
 
+  plug(
+    OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
+
   tags ["Project tokens"]
 
   operation(:create,
@@ -52,7 +58,7 @@ defmodule TuistWeb.API.ProjectTokensController do
     }
   )
 
-  def create(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
+  def create(%{params: %{account_handle: account_handle, project_handle: project_handle}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
     project =
@@ -124,7 +130,7 @@ defmodule TuistWeb.API.ProjectTokensController do
     }
   )
 
-  def index(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
+  def index(%{params: %{account_handle: account_handle, project_handle: project_handle}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
     project =
@@ -196,8 +202,7 @@ defmodule TuistWeb.API.ProjectTokensController do
   )
 
   def delete(
-        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => token_id}} =
-          conn,
+        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => token_id}} = conn,
         _params
       ) do
     current_user = Authentication.current_user(conn)

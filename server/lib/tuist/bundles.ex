@@ -421,15 +421,6 @@ defmodule Tuist.Bundles do
     end)
   end
 
-  def format_bytes(bytes) when is_integer(bytes) do
-    cond do
-      bytes >= 1_000_000_000 -> "#{Float.round(bytes / 1_000_000_000, 1)} GB"
-      bytes >= 1_000_000 -> "#{Float.round(bytes / 1_000_000, 1)} MB"
-      bytes >= 1_000 -> "#{Float.round(bytes / 1_000, 1)} KB"
-      true -> "#{bytes} B"
-    end
-  end
-
   def default_app(%Project{} = project) do
     apps = distinct_project_app_bundles(project)
 
@@ -449,6 +440,13 @@ defmodule Tuist.Bundles do
     |> Repo.exists?()
   end
 
+  def has_bundles_in_project?(%Project{} = project) do
+    from(b in Bundle)
+    |> where([b], b.project_id == ^project.id)
+    |> limit(1)
+    |> Repo.exists?()
+  end
+
   def delete_bundle!(%Bundle{} = bundle) do
     Repo.delete!(bundle)
   end
@@ -464,25 +462,25 @@ defmodule Tuist.Bundles do
 
     Enum.flat_map(artifacts, fn artifact ->
       artifact_id = UUIDv7.generate()
-      artifact_type = artifact["artifact_type"]
+      artifact_type = Map.get(artifact, :artifact_type)
 
-      if !Enum.member?(valid_artifact_types, artifact_type) do
+      if !Enum.member?(valid_artifact_types, Atom.to_string(artifact_type)) do
         raise "Invalid artifact type: #{artifact_type}. Must be one of #{inspect(valid_artifact_types)}."
       end
 
       current_artifact = %{
         id: artifact_id,
-        artifact_type: String.to_atom(artifact["artifact_type"]),
-        path: artifact["path"],
-        size: artifact["size"],
-        shasum: artifact["shasum"],
+        artifact_type: Map.get(artifact, :artifact_type),
+        path: Map.get(artifact, :path),
+        size: Map.get(artifact, :size),
+        shasum: Map.get(artifact, :shasum),
         bundle_id: bundle_id,
         artifact_id: parent_id,
         inserted_at: current_timestamp,
         updated_at: current_timestamp
       }
 
-      children = artifact["children"] || []
+      children = Map.get(artifact, :children) || []
       child_artifacts = flatten_artifacts(children, bundle_id, artifact_id, current_timestamp)
 
       [current_artifact | child_artifacts]

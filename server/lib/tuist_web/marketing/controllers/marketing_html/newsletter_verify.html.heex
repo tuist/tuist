@@ -1,31 +1,28 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main class="marketing__newsletter" aria-label={gettext("Newsletter verification result")}>
-    <%= if @email do %>
-      <h1 class="marketing__newsletter__title">{gettext("Successfully Subscribed!")}</h1>
+  <main id="marketing-newsletter-verify">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
-      <p class="marketing__newsletter__description">
-        {gettext("Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <img src={~p"/marketing/images/newsletter/envelope.webp"} data-part="image" />
+      <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
           email: @email
         )}
       </p>
+    </header>
 
-      <p class="marketing__newsletter__description">
-        {gettext(
+    <section data-part="content">
+      <p>
+        {dgettext(
+          "marketing",
           "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
         )}
       </p>
-    <% else %>
-      <h1 class="marketing__newsletter__title">{gettext("Verification Failed")}</h1>
-
-      <p class="marketing__newsletter__description">
-        {@error_message}
-      </p>
-
-      <p class="marketing__newsletter__description">
-        <a href={~p"/newsletter"} class="btn btn-ghost">
-          {gettext("Try Again")}
-        </a>
-      </p>
-    <% end %>
+    </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

@@ -3,6 +3,7 @@ import Logging
 import Mockable
 import Path
 import TuistCore
+import TuistSupport
 import XcodeGraph
 
 @Mockable
@@ -32,8 +33,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
 
-            var dynamicPaths = (script.inputPaths + script.inputFileListPaths)
-                .compactMap { try? AbsolutePath(validating: $0) }
+            var dynamicPaths = resolvePathStrings(script.inputPaths + script.inputFileListPaths, sourceRootPath: sourceRootPath)
                 .sorted()
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
@@ -49,10 +49,15 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                     pathsToHash.append(path)
                 }
             }
-            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
+            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap {
+                do {
+                    return try await contentHasher.hash(path: $0)
+                } catch FileHandlerError.fileNotFound {
+                    return $0.relative(to: sourceRootPath).pathString
+                }
+            })
             stringsToHash.append(
-                contentsOf: (script.outputPaths + script.outputFileListPaths)
-                    .compactMap { try? AbsolutePath(validating: $0) }
+                contentsOf: resolvePathStrings(script.outputPaths + script.outputFileListPaths, sourceRootPath: sourceRootPath)
                     .map { $0.relative(to: sourceRootPath).pathString }
             )
 
@@ -63,5 +68,26 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             ] + script.arguments)
         }
         return try contentHasher.hash(stringsToHash)
+    }
+
+    // MARK: - Private
+
+    private func resolvePathStrings(_ pathStrings: [String], sourceRootPath: AbsolutePath) -> [AbsolutePath] {
+        pathStrings.compactMap { pathString -> AbsolutePath? in
+            // Replace $(SRCROOT) with sourceRootPath
+            let resolvedPathString = pathString.replacingOccurrences(of: "$(SRCROOT)", with: sourceRootPath.pathString)
+
+            // Try to create AbsolutePath directly first
+            if let absolutePath = try? AbsolutePath(validating: resolvedPathString) {
+                return absolutePath
+            }
+
+            // If that fails, treat as relative to sourceRootPath
+            if let relativePath = try? RelativePath(validating: resolvedPathString) {
+                return sourceRootPath.appending(relativePath)
+            }
+
+            return nil
+        }
     }
 }

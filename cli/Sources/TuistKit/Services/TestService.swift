@@ -3,9 +3,12 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCore
+import TuistGit
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
+import TuistXCResultService
 import XcodeGraph
 
 import struct TSCUtility.Version
@@ -82,6 +85,9 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let fileSystem: FileSysteming
     private let xcResultService: XCResultServicing
     private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
+    private let gitController: GitControlling
+    private let rootDirectoryLocator: RootDirectoryLocating
+    private let inspectResultBundleService: InspectResultBundleServicing
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -107,7 +113,10 @@ final class TestService { // swiftlint:disable:this type_body_length
         configLoader: ConfigLoading,
         fileSystem: FileSysteming = FileSystem(),
         xcResultService: XCResultServicing = XCResultService(),
-        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser()
+        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
+        gitController: GitControlling = GitController(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -119,6 +128,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.fileSystem = fileSystem
         self.xcResultService = xcResultService
         xcodeBuildAgumentParser = xcodeBuildArgumentParser
+        self.gitController = gitController
+        self.rootDirectoryLocator = rootDirectoryLocator
+        self.inspectResultBundleService = inspectResultBundleService
     }
 
     static func validateParameters(
@@ -207,6 +219,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         action: XcodeBuildTestAction,
         rosetta: Bool,
         skipUITests: Bool,
+        skipUnitTests: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: String?,
         retryCount: Int,
@@ -245,6 +258,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             includedTargets: Set(testTargets.map(\.target)),
             excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
             skipUITests: skipUITests,
+            skipUnitTests: skipUnitTests,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
@@ -380,7 +394,8 @@ final class TestService { // swiftlint:disable:this type_body_length
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                config: config
             )
         } catch {
             try await copyResultBundlePathIfNeeded(
@@ -417,7 +432,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
-        passthroughXcodeBuildArguments: [String]
+        passthroughXcodeBuildArguments: [String],
+        config: Tuist
     ) async throws {
         let graphTraverser = GraphTraverser(graph: graph)
         let testSchemes =
@@ -463,21 +479,29 @@ final class TestService { // swiftlint:disable:this type_body_length
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                    config: config
                 )
             }
         } catch {
             // Check the test results and store successful test hashes for any targets that passed
+            let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
-                  let invocationRecord = xcResultService.parse(path: resultBundlePath)
+                  let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             else { throw error }
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
             )
 
-            let passingTestTargetNames = xcResultService.successfulTestTargets(
-                invocationRecord: invocationRecord
+            // Compute passing test target names from the test summary
+            // A target is passing if none of its tests failed
+            let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
+            let passingTestTargetNames = Set(
+                testCasesByModule.compactMap { module, testCases -> String? in
+                    guard let module else { return nil }
+                    return testCases.allSatisfy { $0.status != .failed } ? module : nil
+                }
             )
             let passingTestTargets = testTargets.filter {
                 passingTestTargetNames.contains($0.target.name)
@@ -761,7 +785,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
-        passthroughXcodeBuildArguments: [String]
+        passthroughXcodeBuildArguments: [String],
+        config: Tuist
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -814,27 +839,65 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        try await xcodebuildController.test(
-            .workspace(graphTraverser.workspace.xcWorkspacePath),
-            scheme: scheme.name,
-            clean: clean,
-            destination: destination,
-            action: action,
-            rosetta: rosetta,
-            derivedDataPath: derivedDataPath,
+        do {
+            try await xcodebuildController.test(
+                .workspace(graphTraverser.workspace.xcWorkspacePath),
+                scheme: scheme.name,
+                clean: clean,
+                destination: destination,
+                action: action,
+                rosetta: rosetta,
+                derivedDataPath: derivedDataPath,
+                resultBundlePath: resultBundlePath,
+                arguments: buildGraphInspector.buildArguments(
+                    project: buildableTarget.project,
+                    target: buildableTarget.target,
+                    configuration: configuration,
+                    skipSigning: false
+                ),
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        } catch {
+            await inspectResultBundleIfNeeded(
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                config: config,
+                action: action
+            )
+            throw error
+        }
+
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
-            arguments: buildGraphInspector.buildArguments(
-                project: buildableTarget.project,
-                target: buildableTarget.target,
-                configuration: configuration,
-                skipSigning: false
-            ),
-            retryCount: retryCount,
-            testTargets: testTargets,
-            skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            derivedDataPath: derivedDataPath,
+            config: config,
+            action: action
         )
+    }
+
+    private func inspectResultBundleIfNeeded(
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
+        config: Tuist,
+        action: XcodeBuildTestAction
+    ) async {
+        guard let resultBundlePath, config.fullHandle != nil, action != .build,
+              (try? await fileSystem.exists(resultBundlePath)) == true
+        else { return }
+
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: derivedDataPath,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 
     private func destination(
@@ -869,5 +932,15 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         return nil
+    }
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
     }
 }

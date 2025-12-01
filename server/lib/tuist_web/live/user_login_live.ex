@@ -14,11 +14,11 @@ defmodule TuistWeb.UserLoginLive do
       socket
       |> assign(:head_title, "#{gettext("Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:mail_configured?, Environment.mail_configured?())
       |> assign(:github_configured?, Environment.github_oauth_configured?())
       |> assign(:google_configured?, Environment.google_oauth_configured?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:tuist_hosted?, Environment.tuist_hosted?())
 
     {
       :ok,
@@ -44,10 +44,7 @@ defmodule TuistWeb.UserLoginLive do
           <div
             :if={oauth_configured?()}
             data-part="oauth"
-            data-compact={
-              @github_configured? and @apple_configured? and @google_configured? and
-                @okta_configured?
-            }
+            data-compact={all_oauth_providers_configured?(assigns)}
           >
             <.button
               :if={@github_configured?}
@@ -55,7 +52,9 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="GitHub"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_github />
               <:icon_left>
                 <.brand_github />
               </:icon_left>
@@ -66,20 +65,11 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Google"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_google />
               <:icon_left>
                 <.brand_google />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@okta_configured?}
-              href={~p"/users/log_in/okta"}
-              variant="secondary"
-              size="medium"
-              label="Okta"
-            >
-              <:icon_left>
-                <.brand_okta />
               </:icon_left>
             </.button>
             <.button
@@ -88,13 +78,28 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Apple"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_apple />
               <:icon_left>
                 <.brand_apple />
               </:icon_left>
             </.button>
+            <.button
+              :if={@okta_configured? or @tuist_hosted?}
+              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
+              variant="secondary"
+              size="medium"
+              label="Okta"
+              icon_only={all_oauth_providers_configured?(assigns)}
+            >
+              <.brand_okta />
+              <:icon_left>
+                <.brand_okta />
+              </:icon_left>
+            </.button>
           </div>
-          <.line_divider :if={oauth_configured?() and @mail_configured?} text="OR" />
+          <.line_divider :if={oauth_configured?()} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -104,7 +109,6 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
-            :if={@mail_configured?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -159,8 +163,8 @@ defmodule TuistWeb.UserLoginLive do
             <.button variant="primary" size="large" label={gettext("Log in")} tabindex={4} />
           </.form>
         </div>
-        <div :if={@mail_configured?} data-part="bottom-link">
-          <span>{gettext("Don’t have an account?")}</span>
+        <div data-part="bottom-link">
+          <span>{gettext("Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
             variant="primary"
@@ -181,5 +185,10 @@ defmodule TuistWeb.UserLoginLive do
   defp oauth_configured? do
     Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
       Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
+  end
+
+  defp all_oauth_providers_configured?(assigns) do
+    assigns.github_configured? and assigns.google_configured? and
+      (assigns.okta_configured? or assigns.tuist_hosted?) and assigns.apple_configured?
   end
 end

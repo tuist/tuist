@@ -21,6 +21,31 @@ defmodule Tuist.Marketing.Blog do
   def get_categories, do: @categories
   def get_post_author(post), do: get_authors()[post.author]
 
+  @doc """
+  Returns the image URL for a blog post, using the og_image_path if available,
+  otherwise falling back to the generated OG image.
+  """
+  def get_post_image_url(post) do
+    if post.og_image_path do
+      Tuist.Environment.app_url(
+        path: post.og_image_path,
+        marketing: true
+      )
+    else
+      Tuist.Environment.app_url(
+        path: "/marketing/images/og/generated#{post.slug}.jpg",
+        marketing: true
+      )
+    end
+  end
+
+  @doc """
+  Processes blog post content to extract components and HTML chunks.
+  """
+  def process_content(content) do
+    Tuist.Marketing.BlogContentProcessor.process_content(content)
+  end
+
   def get_authors do
     %{
       "silvia" => %{

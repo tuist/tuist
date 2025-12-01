@@ -54,6 +54,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     authorize_project(conn, :cache, opts)
   end
 
+  defp authorize_account(%{assigns: assigns} = conn, :registry) when not is_map_key(assigns, :selected_account) do
+    conn
+  end
+
   defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
     action = get_action(conn)
 
@@ -70,6 +74,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         end
 
       conn
+      |> put_resp_header("connection", "close")
       |> put_status(status)
       |> json(%{
         message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
@@ -119,6 +124,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       conn
     else
       conn
+      |> put_resp_header("connection", "close")
       |> put_status(:forbidden)
       |> json(%{
         message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"

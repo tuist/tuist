@@ -249,6 +249,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         import struct ModuleA.SomeStruct
         import enum ModuleB.SomeEnum
         import class ModuleC.SomeClass
+        import protocol ModuleD.SomeProtocol
+        import func ModuleE.someFunction
+        import var ModuleF.someVariable
+        import let ModuleG.someConstant
+        import typealias ModuleH.SomeTypeAlias
 
         func a() { }
         """
@@ -260,7 +265,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB", "ModuleC"])
+        XCTAssertEqual(imports, ["ModuleA", "ModuleB", "ModuleC", "ModuleD", "ModuleE", "ModuleF", "ModuleG", "ModuleH"])
     }
 
     func test_whenSwiftWithIfImport() throws {

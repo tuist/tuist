@@ -249,6 +249,30 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       # Then
       assert Enum.map(got, & &1.version) == ["5.10.2"]
     end
+
+    test "returns empty list when repository returns 404" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "Alamofire",
+          name: "Alamofire",
+          repository_full_handle: "metatronsw/BinaryCodableNil"
+        )
+
+      stub(VCS, :get_tags, fn _ ->
+        {:error, {:http_error, 404}}
+      end)
+
+      # When
+      got =
+        Packages.get_missing_package_versions(%{
+          package: Repo.preload(package, :package_releases),
+          token: "github_token"
+        })
+
+      # Then
+      assert got == []
+    end
   end
 
   describe "paginated_packages/1" do
@@ -418,14 +442,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                             name: "xcbeautify",
                             dependencies: [
                                 "XcbeautifyLib",
-                                .product(name: "SwiftGen", package: "SwiftGen"),
+                                "SwiftGen",
                                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                             ]
                         ),
                         .target(
                             name: "XcbeautifyLib",
                             dependencies: [
-                                .product(name: "Colorizer", package: "Colorizer"),
+                                "Colorizer",
                                 .product(name: "XMLCoder", package: "XMLCoder"),
                             ]
                         ),

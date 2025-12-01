@@ -1,6 +1,7 @@
 #accept-invitation,
 #login,
 #okta-login,
+#sso-login,
 #signup,
 #signup-success,
 #confirmation,
@@ -204,7 +205,8 @@
 #login,
 #signup,
 #forgot-password,
-#okta-login {
+#okta-login,
+#sso-login {
   & .noora-alert {
     width: 100%;
   }

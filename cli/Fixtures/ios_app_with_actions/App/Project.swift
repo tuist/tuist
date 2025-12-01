@@ -24,11 +24,6 @@ let project = Project(
                     name: "Tuist",
                     inputPaths: ["Sources/**/*.swift"]
                 ),
-                .pre(
-                    path: "script-with-dependency.sh",
-                    name: "PhaseWithDependency",
-                    dependencyFile: "$TEMP_DIR/dependencies.d"
-                ),
                 .post(
                     script: "echo 'Hello World from install build'",
                     name: "Embedded script install build",
@@ -42,6 +37,22 @@ let project = Project(
             ],
             dependencies: [
                 .package(product: "SwiftLintPlugin", type: .plugin),
+                .target(name: "Framework"),
+            ]
+        ),
+        .target(
+            name: "Framework",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.Framework",
+            sources: "Framework/**",
+            scripts: [
+                .pre(
+                    path: "script-with-dependency.sh",
+                    name: "PhaseWithDependency",
+                    inputFileListPaths: ["inputs.xcfilelist"],
+                    dependencyFile: "$TEMP_DIR/dependencies.d"
+                ),
             ]
         ),
     ]

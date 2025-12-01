@@ -12,12 +12,13 @@ defmodule Tuist.Incidents do
       [ttl: Keyword.get(opts, :ttl, to_timeout(minute: 1))],
       fn ->
         retry with: exponential_backoff() |> randomize() |> cap(1_000) |> expiry(10_000) do
-          {:ok, %{body: body}} =
-            Req.get("https://status.tuist.dev/proxy/status.tuist.dev", finch: Tuist.Finch)
+          case Req.get("https://status.tuist.dev/proxy/status.tuist.dev", finch: Tuist.Finch) do
+            {:ok, %{body: %{"summary" => %{"ongoing_incidents" => ongoing_incidents}}}} ->
+              length(ongoing_incidents) > 0
 
-          %{"summary" => %{"ongoing_incidents" => ongoing_incidents}} = body
-
-          length(ongoing_incidents) > 0
+            _ ->
+              false
+          end
         end
       end
     )

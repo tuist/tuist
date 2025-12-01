@@ -125,6 +125,10 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
 /// Mock implementation of `FileSysteming` designated specifically to test providing signature of self signed frameworks.
 /// The methods that are involved in returning the codesign output are mocked, the rest throw an error.
 private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
+    func contentsOfDirectory(_: Path.AbsolutePath) async throws -> [Path.AbsolutePath] {
+        return []
+    }
+
     /// Temporary path to be returned by the mock when running on temporary files.
     private let tempFilePathString: String
 
@@ -241,5 +245,4 @@ private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
     }
 
     func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { throw unexpectedCallError() }
-    func contentsOfDirectory(_: Path.AbsolutePath) async throws -> [Path.AbsolutePath] { throw unexpectedCallError() }
 }

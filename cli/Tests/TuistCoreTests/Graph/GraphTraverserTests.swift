@@ -1282,8 +1282,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 architectures: [.arm64]
             )]),
             linking: .dynamic,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let dDependency: GraphDependency = .testXCFramework(
             path: "/xcframeworks/d.xcframework",
@@ -1294,8 +1293,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .dynamic,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let eDependency: GraphDependency = .testXCFramework(
             path: "/xcframeworks/e.xcframework",
@@ -1307,8 +1305,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .dynamic,
             mergeable: true,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1353,8 +1350,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .dynamic,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let dDependency: GraphDependency = .testXCFramework(
             path: "/xcframeworks/d.xcframework",
@@ -1365,8 +1361,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .dynamic,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let eDependency: GraphDependency = .testXCFramework(
             path: "/xcframeworks/e.xcframework",
@@ -1378,8 +1373,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .dynamic,
             mergeable: true,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -3189,6 +3183,72 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_when_transitiveXCFrameworkWithDifferentStatuses() throws {
+        // Given
+        // App depends on FrameworkA and FrameworkB
+        // FrameworkA depends on XCFramework with .optional status
+        // FrameworkB depends on the same XCFramework with .required status
+        // The embeddableFrameworks should include the XCFramework with .required status
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let frameworkA = Target.test(name: "FrameworkA", platform: .iOS, product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", platform: .iOS, product: .framework)
+        let project = Project.test(targets: [app, frameworkA, frameworkB])
+
+        let xcframeworkOptional: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/shared.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            status: .optional
+        )
+        let xcframeworkRequired: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/shared.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [
+                .target(name: frameworkA.name, path: project.path),
+                .target(name: frameworkB.name, path: project.path),
+            ],
+            .target(name: frameworkA.name, path: project.path): [xcframeworkOptional],
+            .target(name: frameworkB.name, path: project.path): [xcframeworkRequired],
+            xcframeworkOptional: [],
+            xcframeworkRequired: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got.count, 3)
+        let xcframeworks = got.filter {
+            if case .xcframework = $0 { return true }
+            return false
+        }
+        XCTAssertEqual(xcframeworks.count, 1)
+        switch xcframeworks[0] {
+        case let .xcframework(_, _, _, status, _):
+            XCTAssertEqual(status, .required)
+        default:
+            XCTFail("Expected xcframework")
+        }
+    }
+
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
@@ -3974,8 +4034,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .static,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let directFramework = GraphDependency.framework(
             path: "/frameworks/direct.framework",
@@ -3996,8 +4055,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .static,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let transitiveXCFramework: GraphDependency = .testXCFramework(
             path: "/xcframeworks/transitive.xcframework",
@@ -4008,8 +4066,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .static,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
         let frameworkTransitiveXCFramework: GraphDependency = .testXCFramework(
             path: "/xcframeworks/framework-transitive.xcframework",
@@ -4020,8 +4077,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             linking: .static,
             mergeable: false,
-            status: .required,
-            macroPath: nil
+            status: .required
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [

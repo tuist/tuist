@@ -420,6 +420,13 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
+                "sidebars.guides.items.develop.items.generated-projects.items.metadata-tags.text",
+              ),
+              link: `/${locale}/guides/features/projects/metadata-tags`,
+            },
+            {
+              text: localizedString(
+                locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.best-practices.text",
               ),
               link: `/${locale}/guides/features/projects/best-practices`,
@@ -432,6 +439,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.cache.text",
           )}</span>`,
           link: `/${locale}/guides/features/cache`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.xcode-cache.text",
+              ),
+              link: `/${locale}/guides/features/cache/xcode-cache`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.module-cache.text",
+              ),
+              link: `/${locale}/guides/features/cache/module-cache`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testIcon()} ${localizedString(

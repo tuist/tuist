@@ -93,6 +93,30 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "https://dev-123456/oauth2/v1/authorize"
     end
 
+    test "includes login_hint in Okta OAuth redirect when provided", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "dev-123456",
+          okta_client_id: UUIDv7.generate(),
+          okta_client_secret: UUIDv7.generate()
+        )
+
+      login_hint = "user@example.com"
+
+      # When
+      conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{login_hint}")
+
+      # Then
+      redirect_url = redirected_to(conn)
+      assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
+      assert redirect_url =~ "login_hint=user%40example.com"
+    end
+
     test "redirects to home with error when organization not found", %{conn: conn} do
       # When
       conn = get(conn, "/users/auth/okta?organization_id=999")

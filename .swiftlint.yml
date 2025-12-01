@@ -24,3 +24,4 @@ type_name:
     warning: 1
 excluded:
   - cli/Sources/TuistServer/OpenAPI
+  - cli/Sources/TuistCAS/Generated

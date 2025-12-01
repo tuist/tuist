@@ -100,7 +100,8 @@ struct TuistAnalyticsDispatcherTests {
             previewId: nil,
             resultBundlePath: nil,
             ranAt: Date(),
-            buildRunId: nil
+            buildRunId: nil,
+            testRunId: nil
         )
     }
 

@@ -5,10 +5,10 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# Начало работы {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+Самый простой способ начать работу с Tuist – в любой директории или в директории
+вашего проекта или рабочей области Xcode:
 
 ::: code-group
 
@@ -22,22 +22,24 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+Команда пошагово проведёт вас по шагам для
+<LocalizedLink href="/guides/features/projects">создания сгенерированного
+проекта</LocalizedLink> или интеграции существующего проекта или рабочей области
+Xcode. Это поможет вам подключить вашу среду к удаленному серверу, предоставляя
+доступ к таким функциям, как
+<LocalizedLink href="/guides/features/selective-testing">выборочное
+тестирование</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">предварительные
+просмотры</LocalizedLink>, и
+<LocalizedLink href="/guides/features/registry">реестр</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
+::: info МИГРАЦИЯ СУЩЕСТВУЮЩЕГО ПРОЕКТА
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+Если вы хотите перенести существующий проект в сгенерированные проекты, чтобы
+улучшить процесс разработки и воспользоваться преимуществами нашего
+<LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>, ознакомьтесь
+с
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством
+по миграции</LocalizedLink>.
 <!-- -->
 :::

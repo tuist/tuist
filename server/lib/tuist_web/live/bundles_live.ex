@@ -3,43 +3,30 @@ defmodule TuistWeb.BundlesLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
   import TuistWeb.Previews.PlatformTag
 
+  alias Noora.Filter
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
-    {:ok,
-     assign(
-       socket,
-       :head_title,
-       "#{gettext("Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
-     )}
+    socket =
+      socket
+      |> assign(:head_title, "#{gettext("Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist")
+      |> assign(:available_filters, define_filters(project))
+
+    {:ok, socket}
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
-    uri =
-      URI.new!(
-        "?" <>
-          URI.encode_query(
-            Map.take(params, [
-              "after",
-              "before",
-              "bundles-sort-by",
-              "bundles-sort-order",
-              "bundles-type",
-              "bundle-size-app",
-              "bundle-size-date-range",
-              "bundle-size-selected-widget",
-              "bundle-size-branch"
-            ])
-          )
-      )
+    uri = URI.new!("?" <> URI.encode_query(params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
@@ -93,6 +80,7 @@ defmodule TuistWeb.BundlesLive do
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
       |> assign(:show_branch_dropdown, Bundles.has_bundles_in_project_default_branch?(project))
+      |> assign(:has_any_bundles, Bundles.has_bundles_in_project?(project))
       |> assign_bundle_size_analytics()
       |> assign_bundles(params)
     }
@@ -108,45 +96,90 @@ defmodule TuistWeb.BundlesLive do
 
   defp assign_bundles(
          %{
-           assigns: %{selected_project: project, bundles_sort_by: bundles_sort_by, bundles_sort_order: bundles_sort_order}
+           assigns: %{
+             selected_project: project,
+             bundles_sort_by: bundles_sort_by,
+             bundles_sort_order: bundles_sort_order,
+             available_filters: available_filters
+           }
          } = socket,
          params
        ) do
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    base_flop_filters = [
+      %{field: :project_id, op: :==, value: project.id}
+    ]
+
+    filter_flop_filters = build_flop_filters(filters)
+    flop_filters = base_flop_filters ++ filter_flop_filters
+
     order_by =
       case bundles_sort_by do
         "created-at" -> :inserted_at
         "install-size" -> :install_size
+        "download-size" -> :download_size
       end
 
     order_direction = String.to_atom(bundles_sort_order)
 
-    {next_bundles, next_bundles_meta} =
+    options = %{
+      filters: flop_filters,
+      order_by: [order_by],
+      order_directions: [order_direction]
+    }
+
+    options =
       cond do
         !is_nil(params["after"]) ->
-          list_bundles(project.id,
-            first: 20,
-            after: params["after"],
-            order_by: order_by,
-            order_direction: order_direction
-          )
+          options
+          |> Map.put(:first, 20)
+          |> Map.put(:after, params["after"])
 
         !is_nil(params["before"]) ->
-          list_bundles(project.id,
-            last: 20,
-            before: params["before"],
-            order_by: order_by,
-            order_direction: order_direction
-          )
+          options
+          |> Map.put(:last, 20)
+          |> Map.put(:before, params["before"])
 
         true ->
-          list_bundles(project.id,
-            first: 20,
-            order_by: order_by,
-            order_direction: order_direction
-          )
+          Map.put(options, :first, 20)
       end
 
-    socket |> assign(:bundles, next_bundles) |> assign(:bundles_meta, next_bundles_meta)
+    {next_bundles, next_bundles_meta} = Bundles.list_bundles(options)
+
+    socket
+    |> assign(:active_filters, filters)
+    |> assign(:bundles, next_bundles)
+    |> assign(:bundles_meta, next_bundles_meta)
+  end
+
+  defp build_flop_filters(filters) do
+    size_filters =
+      filters
+      |> Enum.filter(fn filter -> filter.field in [:install_size, :download_size] end)
+      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.map(fn filter ->
+        # Convert MB to bytes (multiply by 1,048,576)
+        mb_value = String.to_integer(filter.value)
+
+        value_in_bytes = mb_value * 1_048_576
+        %{field: filter.field, op: filter.operator, value: value_in_bytes}
+      end)
+
+    platform_filters =
+      filters
+      |> Enum.filter(fn filter -> filter.field == :supported_platforms end)
+      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.map(fn filter ->
+        %{field: filter.field, op: :contains, value: filter.value}
+      end)
+
+    other_filters =
+      filters
+      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size, :supported_platforms] end)
+      |> Filter.Operations.convert_filters_to_flop()
+
+    size_filters ++ platform_filters ++ other_filters
   end
 
   defp assign_bundle_size_analytics(
@@ -264,36 +297,51 @@ defmodule TuistWeb.BundlesLive do
     "square_rounded_arrow_up"
   end
 
-  defp list_bundles(project_id, attrs) do
-    options = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project_id}
-      ],
-      order_by: [Keyword.get(attrs, :order_by, :inserted_at)],
-      order_directions: [Keyword.get(attrs, :order_direction, :desc)]
-    }
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
 
-    options =
-      cond do
-        not is_nil(Keyword.get(attrs, :before)) ->
-          options
-          |> Map.put(:last, 20)
-          |> Map.put(:before, Keyword.get(attrs, :before))
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/bundles?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
 
-        not is_nil(Keyword.get(attrs, :after)) ->
-          options
-          |> Map.put(:first, 20)
-          |> Map.put(:after, Keyword.get(attrs, :after))
+  def handle_event("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
 
-        true ->
-          Map.put(options, :first, 20)
-      end
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/bundles?#{updated_query_params}"
+     )
+     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
 
-    Bundles.list_bundles(options)
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/bundles?#{Query.put(uri.query, "bundle-size-selected-widget", widget)}",
+        replace: true
+      )
+
+    {:noreply, socket}
   end
 
   defp format_bytes(bytes) when is_integer(bytes) do
-    Bundles.format_bytes(bytes)
+    ByteFormatter.format_bytes(bytes)
   end
 
   def format_bundle_type(:ipa), do: gettext("IPA")
@@ -799,5 +847,88 @@ defmodule TuistWeb.BundlesLive do
       </defs>
     </svg>
     """
+  end
+
+  defp define_filters(_project) do
+    platform_options = [
+      :ios,
+      :ios_simulator,
+      :macos,
+      :watchos,
+      :watchos_simulator,
+      :tvos,
+      :tvos_simulator,
+      :visionos,
+      :visionos_simulator
+    ]
+
+    [
+      %Filter.Filter{
+        id: "name",
+        field: :name,
+        display_name: gettext("Name"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "git_branch",
+        field: :git_branch,
+        display_name: gettext("Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "type",
+        field: :type,
+        display_name: gettext("Type"),
+        type: :option,
+        options: [:app, :ipa, :xcarchive],
+        options_display_names: %{
+          app: gettext("App bundle"),
+          ipa: gettext("IPA"),
+          xcarchive: gettext("XCArchive")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "install_size",
+        field: :install_size,
+        display_name: gettext("Install size (MB)"),
+        type: :number,
+        operator: :>=,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "download_size",
+        field: :download_size,
+        display_name: gettext("Download size (MB)"),
+        type: :number,
+        operator: :>=,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "supported_platforms",
+        field: :supported_platforms,
+        display_name: gettext("Platform"),
+        type: :option,
+        options: platform_options,
+        options_display_names: %{
+          ios: "iOS",
+          ios_simulator: "iOS Simulator",
+          macos: "macOS",
+          watchos: "watchOS",
+          watchos_simulator: "watchOS Simulator",
+          tvos: "tvOS",
+          tvos_simulator: "tvOS Simulator",
+          visionos: "visionOS",
+          visionos_simulator: "visionOS Simulator"
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
   end
 end

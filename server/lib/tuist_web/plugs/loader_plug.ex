@@ -15,8 +15,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   def init(opts), do: opts
 
   def call(
-        %{path_params: %{"run_id" => run_id, "account_handle" => account_handle, "project_handle" => project_name}} =
-          conn,
+        %{path_params: %{"run_id" => run_id, "account_handle" => account_handle, "project_handle" => project_name}} = conn,
         opts
       ) do
     conn

@@ -65,7 +65,7 @@
         func store(
             _ items: [CacheStorableItem: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
-        ) async throws
+        ) async throws -> [CacheStorableItem]
     }
 
     extension CacheStoring {
@@ -90,7 +90,7 @@
         public func store(
             _ targets: [CacheStorableTarget: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
-        ) async throws {
+        ) async throws -> [CacheStorableTarget] {
             let items = Dictionary(
                 uniqueKeysWithValues: targets.map {
                     target, paths -> (CacheStorableItem, [AbsolutePath]) in
@@ -104,7 +104,10 @@
                     )
                 }
             )
-            try await store(items, cacheCategory: cacheCategory)
+            let successfulItems = try await store(items, cacheCategory: cacheCategory)
+            return successfulItems.compactMap { item in
+                targets.first { $0.key.hash == item.hash && $0.key.name == item.name }?.key
+            }
         }
     }
 #endif

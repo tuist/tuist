@@ -101,7 +101,7 @@ struct TargetContentHasherTests {
         )
 
         // Then
-        #expect(got.hash == "hash-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone")
+        #expect(got.hash == "hash-Target-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone")
     }
 
     @Test func hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
@@ -120,7 +120,7 @@ struct TargetContentHasherTests {
         // Then
         #expect(
             got.hash ==
-                "hash-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two"
+                "hash-Target-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two"
         )
     }
 

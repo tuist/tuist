@@ -16,12 +16,13 @@ enum GetBundleServiceError: LocalizedError {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case unprocessable(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not get the bundle due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .unprocessable(message):
             return message
         }
     }
@@ -80,6 +81,11 @@ public final class GetBundleService: GetBundleServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw GetBundleServiceError.unauthorized(error.message)
+            }
+        case let .unprocessableContent(unprocessable):
+            switch unprocessable.body {
+            case let .json(error):
+                throw GetBundleServiceError.unprocessable(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetBundleServiceError.unknownError(statusCode)

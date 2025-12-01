@@ -89,9 +89,7 @@ workflows:
 ### GitHub Actions {#github-actions}
 
 On [GitHub Actions](https://docs.github.com/en/actions) you can add an
-additional step to install Tuist, and in the case of managing the installation
-of Mise, you can use the [mise-action](https://github.com/jdx/mise-action),
-which abstracts the installation of Mise and Tuist:
+additional step to install Tuist. You have several options:
 
 ::: code-group
 ```yaml [Mise]
@@ -109,6 +107,25 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/mise-action@v2
+      - run: tuist build
+```
+```yaml [Official Action]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: tuist/action@v1
+        with:
+          version: 4.63.0
       - run: tuist build
 ```
 ```yaml [Homebrew]
@@ -130,6 +147,12 @@ jobs:
 ```
 <!-- -->
 :::
+
+If you are already using Homebrew or Mise to install tools from your CI
+pipelines, we recommend staying consistent with your existing approach.
+Otherwise, you can use the [official Tuist GitHub
+Action](https://github.com/tuist/action), which provides a simple way to install
+a specific version of Tuist.
 
 ::: tip
 <!-- -->

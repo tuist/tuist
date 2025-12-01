@@ -3,6 +3,10 @@
     {gettext("Settings")}
   </h1>
   <%= if is_nil(@selected_account.user_id) do %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -34,17 +38,19 @@
               />
             </:trigger>
             <.line_divider />
-            <.alert
-              status="error"
-              type="secondary"
-              size="small"
-              title={gettext("Renaming can have unexpected consequences")}
-            />
-            <.text_input
-              field={@rename_account_form[:name]}
-              type="basic"
-              placeholder={gettext("Organization name")}
-            />
+            <div data-part="content">
+              <.alert
+                status="error"
+                type="secondary"
+                size="small"
+                title={gettext("Renaming can have unexpected consequences")}
+              />
+              <.text_input
+                field={@rename_account_form[:name]}
+                type="basic"
+                placeholder={gettext("Organization name")}
+              />
+            </div>
             <.line_divider />
             <:footer>
               <.modal_footer>
@@ -96,18 +102,20 @@
               />
             </:trigger>
             <.line_divider />
-            <.alert
-              status="warning"
-              type="secondary"
-              size="small"
-              title={gettext("Deleting the organization will delete all of its projects")}
-            />
-            <.text_input
-              label={gettext("Enter this organization's name to confirm")}
-              field={@delete_organization_form[:name]}
-              type="basic"
-              placeholder={gettext("Organization name")}
-            />
+            <div data-part="content">
+              <.alert
+                status="warning"
+                type="secondary"
+                size="small"
+                title={gettext("Deleting the organization will delete all of its projects")}
+              />
+              <.text_input
+                label={gettext("Enter this organization's name to confirm")}
+                field={@delete_organization_form[:name]}
+                type="basic"
+                placeholder={gettext("Organization name")}
+              />
+            </div>
             <.line_divider />
             <:footer>
               <.modal_footer>
@@ -129,6 +137,10 @@
       </div>
     </.card_section>
   <% else %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">

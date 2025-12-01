@@ -152,6 +152,28 @@ shouldn't need it.
 <!-- -->
 :::
 
+> [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS If your project uses custom build
+> configurations (configurations other than the standard `Debug` and `Release`),
+> you must specify them in the `PackageSettings` using `baseSettings`. External
+> dependencies need to know about your project's configurations to build
+> correctly. For example:
+> 
+> ```swift
+> #if TUIST
+>     import ProjectDescription
+> 
+>     let packageSettings = PackageSettings(
+>         productTypes: [:],
+>         baseSettings: .settings(configurations: [
+>             .debug(name: "Base"),
+>             .release(name: "Production")
+>         ])
+>     )
+> #endif
+> ```
+> 
+> See [#8345](https://github.com/tuist/tuist/issues/8345) for more details.
+
 The `Package.swift` file is just an interface to declare external dependencies,
 nothing else. That's why you don't define any targets or products in the
 package. Once you have the dependencies defined, you can run the following
@@ -392,16 +414,11 @@ to ensure the resulting binaries are correct. Therefore, the stance that we take
 is providing you with the resources, usually in the shape of documentation, to
 make the right decisions.
 
-::: tip EXAMPLE: COMPOSABLE ARCHITECTURE
+::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
-A Swift Package that many projects integrate is [Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture). As
-described
-[here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
-and the [troubleshooting section](#troubleshooting), you'll need to set the
-`OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages
-statically, which is Tuist's default linking type. Alternatively, you can
-override the product type for the package to be dynamic.
+A Swift Package that many projects integrate is [The Composable
+Architecture](https://github.com/pointfreeco/swift-composable-architecture). See
+more details in [this section](#the-composable-architecture).
 <!-- -->
 :::
 
@@ -425,7 +442,7 @@ issues that might arise from linking a target statically that depends
 transitively on a static target through dynamic targets. These side effects
 often manifest as increased binary size or, in the worst cases, runtime crashes.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
 ### Objective-C Dependencies {#objectivec-dependencies}
 
@@ -506,6 +523,85 @@ let packageSettings = PackageSettings(
 let package = Package(
 ...
 ```
+
+### The Composable Architecture {#the-composable-architecture}
+
+As described
+[here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
+and the [troubleshooting section](#troubleshooting), you'll need to set the
+`OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages
+statically, which is Tuist's default linking type. Alternatively, you can
+override the product type for the package to be dynamic. When linking
+statically, test and app targets typically work without any issues, but SwiftUI
+previews are broken. This can be resolved by linking everything dynamically. In
+the example below [Sharing](https://github.com/pointfreeco/swift-sharing) is
+also added as a dependency, as it's often used together with The Composable
+Architecture and has its own [configuration
+pitfalls](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
+
+Following configuration will link everything dynamically - so app + test targets
+and SwiftUI previews are working.
+
+::: tip STATIC OR DYNAMIC
+<!-- -->
+Dynamic linking is not always recommended. See the section [Static or
+dynamic](#static-or-dynamic) for more details. In this example, all dependencies
+are linked dynamically without conditions for simplicity.
+<!-- -->
+:::
+
+```swift [Tuist/Package.swift]
+// swift-tools-version: 6.0
+import PackageDescription
+
+#if TUIST
+import enum ProjectDescription.Environment
+import struct ProjectDescription.PackageSettings
+
+let packageSettings = PackageSettings(
+    productTypes: [
+        "CasePaths": .framework,
+        "CasePathsCore": .framework,
+        "Clocks": .framework,
+        "CombineSchedulers": .framework,
+        "ComposableArchitecture": .framework,
+        "ConcurrencyExtras": .framework,
+        "CustomDump": .framework,
+        "Dependencies": .framework,
+        "DependenciesTestSupport": .framework,
+        "IdentifiedCollections": .framework,
+        "InternalCollectionsUtilities": .framework,
+        "IssueReporting": .framework,
+        "IssueReportingPackageSupport": .framework,
+        "IssueReportingTestSupport": .framework,
+        "OrderedCollections": .framework,
+        "Perception": .framework,
+        "PerceptionCore": .framework,
+        "Sharing": .framework,
+        "SnapshotTesting": .framework,
+        "SwiftNavigation": .framework,
+        "SwiftUINavigation": .framework,
+        "UIKitNavigation": .framework,
+        "XCTestDynamicOverlay": .framework
+    ],
+    targetSettings: [
+        "ComposableArchitecture": .settings(base: [
+            "OTHER_SWIFT_FLAGS": ["-module-alias", "Sharing=SwiftSharing"]
+        ]),
+        "Sharing": .settings(base: [
+            "PRODUCT_NAME": "SwiftSharing",
+            "OTHER_SWIFT_FLAGS": ["-module-alias", "Sharing=SwiftSharing"]
+        ])
+    ]
+)
+#endif
+```
+
+::: warning
+<!-- -->
+Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
+<!-- -->
+:::
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 

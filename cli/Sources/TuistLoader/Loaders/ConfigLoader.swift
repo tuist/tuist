@@ -27,7 +27,7 @@ public final class ConfigLoader: ConfigLoading {
     private let fileSystem: FileSysteming
     private var cachedConfigs: [AbsolutePath: TuistCore.Tuist] = [:]
     public init(
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = CachedManifestLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem()
     ) {

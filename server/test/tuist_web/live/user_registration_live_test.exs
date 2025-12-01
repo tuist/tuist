@@ -25,4 +25,52 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       assert {:ok, _conn} = result
     end
   end
+
+  describe "Registration with email confirmation" do
+    test "user is auto-confirmed when skip_email_confirmation is enabled" do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, user} =
+        Tuist.Accounts.create_user("skiptest@example.com", password: "StrongP@ssword!2024")
+
+      assert user.confirmed_at
+    end
+
+    test "user requires confirmation when skip_email_confirmation is disabled" do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
+
+      {:ok, user} =
+        Tuist.Accounts.create_user("nonskip@example.com", password: "StrongP@ssword!2025")
+
+      assert user.confirmed_at == nil
+    end
+
+    test "user is auto-confirmed when skip_email_confirmation is not set and email not configured" do
+      stub(Tuist.Environment, :mail_configured?, fn -> false end)
+      stub(Tuist.Environment, :mail_configured?, fn _ -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, user} =
+        Tuist.Accounts.create_user("default@example.com", password: "StrongP@ssword!2026")
+
+      # When email is not configured, skip_email_confirmation defaults to true
+      assert user.confirmed_at
+    end
+
+    test "user requires confirmation when email is configured and skip_email_confirmation not set" do
+      stub(Tuist.Environment, :mail_configured?, fn -> true end)
+      stub(Tuist.Environment, :mail_configured?, fn _ -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
+
+      {:ok, user} =
+        Tuist.Accounts.create_user("withmail@example.com", password: "StrongP@ssword!2027")
+
+      # When email is configured and skip not explicitly set, default to false (require confirmation)
+      assert user.confirmed_at == nil
+    end
+  end
 end

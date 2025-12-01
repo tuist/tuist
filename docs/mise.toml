@@ -5,3 +5,6 @@
 
 [hooks]
     postinstall = "mise run install"
+
+[settings]
+    experimental = true

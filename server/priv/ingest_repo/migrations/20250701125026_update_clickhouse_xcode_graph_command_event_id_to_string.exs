@@ -24,14 +24,17 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
 
   def up do
     secrets = Tuist.Environment.decrypt_secrets()
+    skip_data_migration? = System.get_env("TUIST_SKIP_DATA_MIGRATION") in ["true", "1"]
 
     # PRE-MIGRATION VALIDATION: Ensure data integrity before proceeding
-    validate_clickhouse_migration_prerequisites!(secrets)
+    unless skip_data_migration? do
+      validate_clickhouse_migration_prerequisites!(secrets)
+    end
 
     # Create the new table structure with command_event_id as UUID type
     # All other columns remain the same
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
+    execute("""
     CREATE TABLE xcode_graphs_new (
       id String,
       name String,
@@ -40,83 +43,86 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
       inserted_at DateTime
     ) ENGINE = MergeTree()
     ORDER BY (id, inserted_at)
-    """
+    """)
 
     # STEP 2: Extract PostgreSQL connection details from Mix config
     # This ensures we use the correct database in all environments (dev, test, prod)
     # In production, DATABASE_URL overrides the config values
-    repo_config = Application.get_env(:tuist, Tuist.Repo, [])
+    unless skip_data_migration? do
+      repo_config = Application.get_env(:tuist, Tuist.Repo, [])
 
-    # Try DATABASE_URL first (for production), then fall back to Mix config
-    {username, password, host, port, database} =
-      if database_url = Tuist.Environment.ipv4_database_url(secrets) do
-        uri = URI.parse(database_url)
-        [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
-        db_host = uri.host || "localhost"
-        db_port = uri.port || 5432
-        db_name = String.trim_leading(uri.path || "/tuist", "/")
-        {user, pass, db_host, db_port, db_name}
-      else
-        # Use Mix config values (for dev/test environments)
-        # Handle test partition suffix for parallel test execution
-        db_name =
-          case Keyword.get(repo_config, :database) do
-            "tuist_test" <> _ = test_db -> test_db <> System.get_env("MIX_TEST_PARTITION", "")
-            other -> other || "tuist_development"
-          end
+      # Try DATABASE_URL first (for production), then fall back to Mix config
+      {username, password, host, port, database} =
+        if database_url = Tuist.Environment.ipv4_database_url(secrets) do
+          uri = URI.parse(database_url)
+          [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
+          db_host = uri.host || "localhost"
+          db_port = uri.port || 5432
+          db_name = String.trim_leading(uri.path || "/tuist", "/")
+          {user, pass, db_host, db_port, db_name}
+        else
+          # Use Mix config values (for dev/test environments)
+          # Handle test partition suffix for parallel test execution
+          db_name =
+            case Keyword.get(repo_config, :database) do
+              "tuist_test" <> _ = test_db -> test_db <> System.get_env("MIX_TEST_PARTITION", "")
+              other -> other || "tuist_development"
+            end
 
-        {
-          Keyword.get(repo_config, :username),
-          Keyword.get(repo_config, :password),
-          Keyword.get(repo_config, :hostname, "localhost"),
-          Keyword.get(repo_config, :port, 5432),
-          db_name
-        }
-      end
+          {
+            Keyword.get(repo_config, :username),
+            Keyword.get(repo_config, :password),
+            Keyword.get(repo_config, :hostname, "localhost"),
+            Keyword.get(repo_config, :port, 5432),
+            db_name
+          }
+        end
 
-    # STEP 3: Migrate data with cross-database join
-    # This query:
-    # 1. Reads all rows from the existing xcode_graphs table in ClickHouse
-    # 2. Joins with command_events table in PostgreSQL to get the UUID for each integer ID
-    # 3. Inserts the data into the new table with UUIDs instead of integer IDs
-    #
-    # Note: After the PostgreSQL migration, 'id' is now the UUID and 'legacy_id' is the old integer
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    INSERT INTO xcode_graphs_new
-    SELECT
-      xg.id,
-      xg.name,
-      ce.id as command_event_id,
-      xg.binary_build_duration,
-      xg.inserted_at
-    FROM xcode_graphs xg
-    JOIN postgresql('#{host}:#{port}', '#{database}', 'command_events', '#{username}', '#{password}', 'public') ce
-    ON toInt64(xg.command_event_id) = ce.legacy_id
-    """
+      # STEP 3: Migrate data with cross-database join
+      # This query:
+      # 1. Reads all rows from the existing xcode_graphs table in ClickHouse
+      # 2. Joins with command_events table in PostgreSQL to get the UUID for each integer ID
+      # 3. Inserts the data into the new table with UUIDs instead of integer IDs
+      #
+      # Note: After the PostgreSQL migration, 'id' is now the UUID and 'legacy_id' is the old integer
+      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+      execute("""
+      INSERT INTO xcode_graphs_new
+      SELECT
+        xg.id,
+        xg.name,
+        ce.id as command_event_id,
+        xg.binary_build_duration,
+        xg.inserted_at
+      FROM xcode_graphs xg
+      JOIN postgresql('#{host}:#{port}', '#{database}', 'command_events', '#{username}', '#{password}', 'public') ce
+      ON toInt64(xg.command_event_id) = ce.legacy_id
+      """)
+    end
 
     # STEP 4: Atomic table swap
     # Drop the old table and rename the new one to take its place
     # This is atomic within ClickHouse, minimizing downtime
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_graphs"
+    execute("DROP TABLE xcode_graphs")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "RENAME TABLE xcode_graphs_new TO xcode_graphs"
+    execute("RENAME TABLE xcode_graphs_new TO xcode_graphs")
   end
 
   def down do
     secrets = Tuist.Environment.decrypt_secrets()
+    skip_data_migration? = System.get_env("TUIST_SKIP_DATA_MIGRATION") in ["true", "1"]
 
     # REVERSAL: Restore the original table structure with integer foreign keys
     # This follows the same pattern as the up migration but in reverse
 
     # STEP 1: Create a table with the original integer column type
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE IF EXISTS xcode_graphs_old"
+    execute("DROP TABLE IF EXISTS xcode_graphs_old")
 
     # Create table with command_event_id as UInt64 (original type)
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
+    execute("""
     CREATE TABLE xcode_graphs_old (
       id String,
       name String,
@@ -125,64 +131,66 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
       inserted_at DateTime
     ) ENGINE = MergeTree()
     ORDER BY (id, inserted_at)
-    """
+    """)
 
     # STEP 2: Extract PostgreSQL connection details (same as up migration)
-    repo_config = Application.get_env(:tuist, Tuist.Repo, [])
+    unless skip_data_migration? do
+      repo_config = Application.get_env(:tuist, Tuist.Repo, [])
 
-    # Try DATABASE_URL first (for production), then fall back to Mix config
-    {username, password, host, port, database} =
-      if database_url = Tuist.Environment.ipv4_database_url(secrets) do
-        uri = URI.parse(database_url)
-        [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
-        db_host = uri.host || "localhost"
-        db_port = uri.port || 5432
-        db_name = String.trim_leading(uri.path || "/tuist", "/")
-        {user, pass, db_host, db_port, db_name}
-      else
-        # Use Mix config values (for dev/test environments)
-        # Handle test partition suffix for parallel test execution
-        db_name =
-          case Keyword.get(repo_config, :database) do
-            "tuist_test" <> _ = test_db -> test_db <> System.get_env("MIX_TEST_PARTITION", "")
-            other -> other || "tuist_development"
-          end
+      # Try DATABASE_URL first (for production), then fall back to Mix config
+      {username, password, host, port, database} =
+        if database_url = Tuist.Environment.ipv4_database_url(secrets) do
+          uri = URI.parse(database_url)
+          [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
+          db_host = uri.host || "localhost"
+          db_port = uri.port || 5432
+          db_name = String.trim_leading(uri.path || "/tuist", "/")
+          {user, pass, db_host, db_port, db_name}
+        else
+          # Use Mix config values (for dev/test environments)
+          # Handle test partition suffix for parallel test execution
+          db_name =
+            case Keyword.get(repo_config, :database) do
+              "tuist_test" <> _ = test_db -> test_db <> System.get_env("MIX_TEST_PARTITION", "")
+              other -> other || "tuist_development"
+            end
 
-        {
-          Keyword.get(repo_config, :username, "postgres"),
-          Keyword.get(repo_config, :password, "postgres"),
-          Keyword.get(repo_config, :hostname, "localhost"),
-          Keyword.get(repo_config, :port, 5432),
-          db_name
-        }
-      end
+          {
+            Keyword.get(repo_config, :username, "postgres"),
+            Keyword.get(repo_config, :password, "postgres"),
+            Keyword.get(repo_config, :hostname, "localhost"),
+            Keyword.get(repo_config, :port, 5432),
+            db_name
+          }
+        end
 
-    # STEP 3: Migrate data back with reverse mapping (UUID -> integer)
-    # This query:
-    # 1. Reads all rows from the current xcode_graphs table with UUID foreign keys
-    # 2. Joins with command_events in PostgreSQL to get the integer ID for each UUID
-    # 3. Inserts the data with integer IDs restored
-    #
-    # Note: After the PostgreSQL migration, 'id' is now the UUID and 'legacy_id' is the old integer
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    INSERT INTO xcode_graphs_old
-    SELECT
-      xg.id,
-      xg.name,
-      ce.legacy_id as command_event_id,
-      xg.binary_build_duration,
-      xg.inserted_at
-    FROM xcode_graphs xg
-    JOIN postgresql('#{host}:#{port}', '#{database}', 'command_events', '#{username}', '#{password}', 'public') ce
-    ON xg.command_event_id = ce.id
-    """
+      # STEP 3: Migrate data back with reverse mapping (UUID -> integer)
+      # This query:
+      # 1. Reads all rows from the current xcode_graphs table with UUID foreign keys
+      # 2. Joins with command_events in PostgreSQL to get the integer ID for each UUID
+      # 3. Inserts the data with integer IDs restored
+      #
+      # Note: After the PostgreSQL migration, 'id' is now the UUID and 'legacy_id' is the old integer
+      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+      execute("""
+      INSERT INTO xcode_graphs_old
+      SELECT
+        xg.id,
+        xg.name,
+        ce.legacy_id as command_event_id,
+        xg.binary_build_duration,
+        xg.inserted_at
+      FROM xcode_graphs xg
+      JOIN postgresql('#{host}:#{port}', '#{database}', 'command_events', '#{username}', '#{password}', 'public') ce
+      ON xg.command_event_id = ce.id
+      """)
+    end
 
     # STEP 4: Atomic table swap to complete the rollback
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_graphs"
+    execute("DROP TABLE xcode_graphs")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "RENAME TABLE xcode_graphs_old TO xcode_graphs"
+    execute("RENAME TABLE xcode_graphs_old TO xcode_graphs")
   end
 
   # Validates that all prerequisites for the ClickHouse migration are met.

@@ -1,4 +1,4 @@
-<%= if @bundles |> Enum.empty? do %>
+<%= if not @has_any_bundles do %>
   <.empty_state
     command="tuist inspect bundle"
     id="bundles-empty-state"
@@ -122,7 +122,7 @@
       </:actions>
       <div data-part="widgets">
         <.widget
-          title={gettext("Install Size")}
+          title={gettext("Install size (MB)")}
           description={
             gettext(
               "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
@@ -130,7 +130,8 @@
           }
           value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)}
           id="widget-install-size"
-          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "install-size")}"}
+          phx_click="select_widget"
+          phx_value_widget="install-size"
           selected={@bundle_size_selected_widget == "install-size"}
           trend_value={
             (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
@@ -145,7 +146,7 @@
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
-          title={gettext("Download Size")}
+          title={gettext("Download size (MB)")}
           description={
             gettext(
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
@@ -156,7 +157,8 @@
                format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
           }
           id="widget-download-size"
-          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "download-size")}"}
+          phx_click="select_widget"
+          phx_value_widget="download-size"
           selected={@bundle_size_selected_widget == "download-size"}
           trend_value={
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
@@ -172,8 +174,8 @@
       >
         <span data-part="legend">
           {case @bundle_size_selected_widget do
-            "download-size" -> gettext("Download size")
-            _ -> gettext("Install Size")
+            "download-size" -> gettext("Download size (MB)")
+            _ -> gettext("Install size (MB)")
           end}
         </span>
         <.chart
@@ -254,7 +256,8 @@
             id="bundles-sort-by"
             label={
               case @bundles_sort_by do
-                "install-size" -> gettext("Install Size")
+                "install-size" -> gettext("Install size (MB)")
+                "download-size" -> gettext("Download size (MB)")
                 _ -> gettext("Created at")
               end
             }
@@ -270,75 +273,121 @@
             </.dropdown_item>
             <.dropdown_item
               value="install-size"
-              label={gettext("Install Size")}
+              label={gettext("Install size (MB)")}
               patch={bundles_dropdown_item_patch_sort("install-size", @uri)}
               data-selected={@bundles_sort_by == "install-size"}
             >
               <:right_icon><.check /></:right_icon>
             </.dropdown_item>
+            <.dropdown_item
+              value="download-size"
+              label={gettext("Download size (MB)")}
+              patch={bundles_dropdown_item_patch_sort("download-size", @uri)}
+              data-selected={@bundles_sort_by == "download-size"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
           </.dropdown>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={gettext("Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
         </div>
-        <.table
-          id="bundles-table"
-          rows={@bundles}
-          row_navigate={
-            fn bundle ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/bundles/#{bundle.id}"
-              )
-            end
-          }
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <div :if={not Enum.empty?(@bundles)}>
+          <.table
+            id="bundles-table"
+            rows={@bundles}
+            row_navigate={
+              fn bundle ->
+                url(
+                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/bundles/#{bundle.id}"
+                )
+              end
+            }
+          >
+            <:col :let={bundle} label={gettext("Name")}>
+              <.text_and_description_cell label={bundle.name} />
+            </:col>
+            <:col :let={bundle} label={gettext("Branch")}>
+              <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
+            </:col>
+            <:col :let={bundle} label={gettext("Type")}>
+              <.text_cell label={format_bundle_type(bundle.type)} />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Install size")}
+              patch={
+                @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
+              }
+              icon={
+                @bundles_sort_by == "install-size" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell label={format_bytes(bundle.install_size)} />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Download size")}
+              patch={
+                @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
+              }
+              icon={
+                @bundles_sort_by == "download-size" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell label={
+                if bundle.download_size,
+                  do: format_bytes(bundle.download_size),
+                  else: gettext("Not available")
+              } />
+            </:col>
+            <:col :let={bundle} label={gettext("Commit SHA")}>
+              <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
+            </:col>
+            <:col :let={bundle} label={gettext("Platform")}>
+              <.platform_cell
+                :if={not Enum.empty?(bundle.supported_platforms)}
+                platform={bundle.supported_platforms |> hd}
+              />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Created at")}
+              patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
+              icon={
+                @bundles_sort_by == "created-at" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
+            </:col>
+          </.table>
+          <.pagination
+            uri={@uri}
+            has_previous_page={@bundles_meta.has_previous_page?}
+            has_next_page={@bundles_meta.has_next_page?}
+            start_cursor={@bundles_meta.start_cursor}
+            end_cursor={@bundles_meta.end_cursor}
+          />
+        </div>
+        <.empty_card_section
+          :if={Enum.empty?(@bundles)}
+          title={gettext("No data yet")}
+          data-part="empty-bundles-table-card-section"
         >
-          <:col :let={bundle} label={gettext("Name")}>
-            <.text_and_description_cell label={bundle.name} />
-          </:col>
-          <:col :let={bundle} label={gettext("Branch")}>
-            <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
-          </:col>
-          <:col :let={bundle} label={gettext("Type")}>
-            <.text_cell label={format_bundle_type(bundle.type)} />
-          </:col>
-          <:col
-            :let={bundle}
-            label={gettext("Install Size")}
-            patch={
-              @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
-            }
-            icon={
-              @bundles_sort_by == "install-size" &&
-                sort_icon(@bundles_sort_order)
-            }
-          >
-            <.text_cell label={format_bytes(bundle.install_size)} />
-          </:col>
-          <:col :let={bundle} label={gettext("Commit SHA")}>
-            <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
-          </:col>
-          <:col :let={bundle} label={gettext("Platform")}>
-            <.platform_cell
-              :if={not Enum.empty?(bundle.supported_platforms)}
-              platform={bundle.supported_platforms |> hd}
-            />
-          </:col>
-          <:col
-            :let={bundle}
-            label={gettext("Created at")}
-            patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
-            icon={
-              @bundles_sort_by == "created-at" &&
-                sort_icon(@bundles_sort_order)
-            }
-          >
-            <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
-          </:col>
-        </.table>
-        <.pagination
-          uri={@uri}
-          has_previous_page={@bundles_meta.has_previous_page?}
-          has_next_page={@bundles_meta.has_next_page?}
-          start_cursor={@bundles_meta.start_cursor}
-          end_cursor={@bundles_meta.end_cursor}
-        />
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
       </.card_section>
     </.card>
   </div>

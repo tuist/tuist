@@ -2,6 +2,7 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
 
@@ -32,11 +33,13 @@ defmodule Tuist.Storage do
 
     {config, bucket_name} = s3_config_and_bucket(actor)
 
+    presigned_url_opts = [
+      query_params: query_params,
+      expires_in: Keyword.get(opts, :expires_in, 3600)
+    ]
+
     {:ok, url} =
-      ExAws.S3.presigned_url(config, method, bucket_name, object_key,
-        query_params: query_params,
-        expires_in: Keyword.get(opts, :expires_in, 3600)
-      )
+      ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
 
     url
   end
@@ -115,10 +118,14 @@ defmodule Tuist.Storage do
 
   def put_object(object_key, content, actor) do
     {config, bucket_name} = s3_config_and_bucket(actor)
+    headers = region_headers(actor)
 
-    bucket_name
-    |> ExAws.S3.put_object(object_key, content)
-    |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+    operation =
+      bucket_name
+      |> ExAws.S3.put_object(object_key, content)
+      |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
+
+    ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
   end
 
   def object_exists?(object_key, actor) do
@@ -169,11 +176,14 @@ defmodule Tuist.Storage do
     {time, upload_id} =
       Performance.measure_time_in_milliseconds(fn ->
         {config, bucket_name} = s3_config_and_bucket(actor)
+        headers = region_headers(actor)
 
-        %{body: %{upload_id: upload_id}} =
+        operation =
           bucket_name
           |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+          |> Map.put(:headers, Map.new(headers))
+
+        %{body: %{upload_id: upload_id}} = ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
 
         upload_id
       end)
@@ -225,41 +235,84 @@ defmodule Tuist.Storage do
   end
 
   def get_object_size(object_key, actor) do
-    {time, size} =
-      Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+    {config, bucket_name} = s3_config_and_bucket(actor)
 
-        bucket_name
-        |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
-        |> Map.get(:headers)
-        |> Enum.find(fn {key, _value} -> key == "content-length" end)
-        |> elem(1)
-        |> List.first()
-        |> String.to_integer()
-      end)
+    case bucket_name
+         |> ExAws.S3.head_object(object_key)
+         |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
+      {:ok, response} ->
+        {time, size} =
+          Performance.measure_time_in_milliseconds(fn ->
+            response
+            |> Map.get(:headers)
+            |> Enum.find(fn {key, _value} -> key == "content-length" end)
+            |> elem(1)
+            |> List.first()
+            |> String.to_integer()
+          end)
 
-    :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
-      %{duration: time, size: size},
-      %{object_key: object_key}
-    )
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
+          %{duration: time, size: size},
+          %{object_key: object_key}
+        )
 
-    size
+        {:ok, size}
+
+      {:error, {:http_error, 404, _}} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp s3_config_and_bucket(actor) do
-    if use_tigris?(actor) do
-      {ExAws.Config.new(:s3_tigris), Environment.s3_bucket_name(:tigris, Environment.decrypt_secrets())}
+    cond do
+      has_custom_storage?(actor) ->
+        {custom_s3_config(actor), actor.s3_bucket_name}
+
+      use_tigris?(actor) ->
+        {ExAws.Config.new(:s3_tigris), Environment.s3_bucket_name(:tigris, Environment.decrypt_secrets())}
+
+      true ->
+        {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
+    end
+  end
+
+  defp has_custom_storage?(%Account{
+         s3_bucket_name: bucket,
+         s3_access_key_id: access_key,
+         s3_secret_access_key: secret_key
+       })
+       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+
+  defp has_custom_storage?(_), do: false
+
+  defp custom_s3_config(%Account{} = account) do
+    base_config = %{
+      access_key_id: account.s3_access_key_id,
+      secret_access_key: account.s3_secret_access_key,
+      region: account.s3_region || "us-east-1"
+    }
+
+    if account.s3_endpoint do
+      uri = URI.parse(account.s3_endpoint)
+
+      base_config
+      |> Map.put(:scheme, "#{uri.scheme}://")
+      |> Map.put(:host, uri.host)
+      |> Map.put(:port, uri.port)
     else
-      {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
+      base_config
     end
   end
 
   defp use_tigris?(actor) do
     case actor do
       :registry -> FunWithFlags.enabled?(:tigris)
-      _ -> FunWithFlags.enabled?(:tigris, for: actor)
+      %Account{} = account -> FunWithFlags.enabled?(:tigris, for: account)
+      _ -> false
     end
   end
 
@@ -268,5 +321,22 @@ defmodule Tuist.Storage do
       receive_timeout: 5_000,
       pool_timeout: 1_000
     }
+  end
+
+  defp region_headers(actor) do
+    if has_custom_storage?(actor) do
+      []
+    else
+      case actor do
+        %Account{region: :europe} ->
+          [{"X-Tigris-Regions", "eur"}]
+
+        %Account{region: :usa} ->
+          [{"X-Tigris-Regions", "usa"}]
+
+        _ ->
+          []
+      end
+    end
   end
 end

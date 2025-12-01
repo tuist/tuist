@@ -10,6 +10,7 @@ struct InspectCommand: AsyncParsableCommand {
                 InspectRedundantImportsCommand.self,
                 InspectBuildCommand.self,
                 InspectBundleCommand.self,
+                InspectTestCommand.self,
             ]
         )
     }

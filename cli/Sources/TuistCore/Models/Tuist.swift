@@ -15,7 +15,7 @@ public enum TuistConfigError: LocalizedError, Equatable {
 }
 
 /// This model allows to configure Tuist.
-public struct Tuist: Equatable, Hashable {
+public struct Tuist: Equatable, Hashable, Sendable {
     /// Configures the project Tuist will interact with.
     /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
     public let project: TuistProject

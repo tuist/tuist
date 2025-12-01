@@ -12,7 +12,7 @@ protocol GraphImportsLinting {
         graphTraverser: GraphTraverser,
         inspectType: InspectType,
         ignoreTagsMatching: Set<String>
-    ) async throws -> [LintingIssue]
+    ) async throws -> [InspectImportsIssue]
 }
 
 final class GraphImportsLinter: GraphImportsLinting {
@@ -26,16 +26,14 @@ final class GraphImportsLinter: GraphImportsLinting {
         graphTraverser: GraphTraverser,
         inspectType: InspectType,
         ignoreTagsMatching: Set<String>
-    ) async throws -> [LintingIssue] {
+    ) async throws -> [InspectImportsIssue] {
         return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType)
-            .compactMap { target, implicitDependencies in
+            .sorted { $0.key.productName < $1.key.productName }
+            .compactMap { target, dependencies in
                 guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
                     return nil
                 }
-                return LintingIssue(
-                    reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
-                    severity: .error
-                )
+                return InspectImportsIssue(target: target.productName, dependencies: dependencies)
             }
     }
 
@@ -68,7 +66,8 @@ final class GraphImportsLinter: GraphImportsLinting {
             let explicitTargetDependencies = explicitTargetDependencies(
                 graphTraverser: graphTraverser,
                 target: target,
-                includeExternalDependencies: inspectType == .implicit
+                includeExternalDependencies: inspectType == .implicit,
+                excludeAppDependenciesForUnitTests: inspectType == .redundant
             )
 
             let observedImports = switch inspectType {
@@ -88,7 +87,8 @@ final class GraphImportsLinter: GraphImportsLinting {
     private func explicitTargetDependencies(
         graphTraverser: GraphTraverser,
         target: GraphTarget,
-        includeExternalDependencies: Bool
+        includeExternalDependencies: Bool,
+        excludeAppDependenciesForUnitTests: Bool
     ) -> Set<String> {
         let targetDependencies = if includeExternalDependencies {
             graphTraverser
@@ -101,6 +101,10 @@ final class GraphImportsLinter: GraphImportsLinting {
         let explicitTargetDependencies = targetDependencies
             .filter { dependency in
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
+            }
+            .filter { dependency in
+                // Macros are referenced by string name in #externalMacro, never via import statements.
+                dependency.target.product != .macro
             }
             .filter { dependency in
                 switch target.target.product {
@@ -121,6 +125,15 @@ final class GraphImportsLinter: GraphImportsLinting {
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                         return true
                     }
+                case .unitTests:
+                    switch dependency.target.product {
+                    case .app:
+                        return !excludeAppDependenciesForUnitTests
+                    case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                         .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                         .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
+                        return true
+                    }
                 case .uiTests:
                     switch dependency.target.product {
                     case .app:
@@ -130,15 +143,19 @@ final class GraphImportsLinter: GraphImportsLinting {
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
                         return true
                     }
-                case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .bundle,
+                case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .bundle,
                      .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
                      .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2Extension:
                     return true
                 }
             }
             .map { dependency in
-                if case .external = dependency.graphTarget.project.type { return graphTraverser
-                    .allTargetDependencies(path: target.project.path, name: target.target.name)
+                if case .external = dependency.graphTarget.project.type {
+                    let targets = [dependency.graphTarget] + graphTraverser.allTargetDependencies(
+                        path: dependency.graphTarget.project.path,
+                        name: dependency.graphTarget.target.name
+                    )
+                    return Set(targets)
                 } else {
                     return Set(arrayLiteral: dependency.graphTarget)
                 }

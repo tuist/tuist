@@ -13,7 +13,6 @@ struct RegistrySetupCommandServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
-    private let fullHandleService = MockFullHandleServicing()
     private let manifestFilesLocator = MockManifestFilesLocating()
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
     private let createAccountTokenService = MockCreateAccountTokenServicing()
@@ -25,16 +24,12 @@ struct RegistrySetupCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             fileSystem: fileSystem,
-            fullHandleService: fullHandleService,
             manifestFilesLocator: manifestFilesLocator,
             swiftPackageManagerController: swiftPackageManagerController,
             createAccountTokenService: createAccountTokenService,
             defaultsController: defaultsController
         )
 
-        given(swiftPackageManagerController)
-            .packageRegistryLogin(token: .any, registryURL: .any)
-            .willReturn()
         given(createAccountTokenService)
             .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
             .willReturn("token")
@@ -49,10 +44,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
@@ -82,14 +74,14 @@ struct RegistrySetupCommandServiceTests {
                       },
                       "authentication": {
                         "test.tuist.io": {
-                          "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
+                          "loginAPIPath": "/api/registry/swift/login",
                           "type": "token"
                         }
                       },
                       "registries": {
                         "[default]": {
                           "supportsAvailability": false,
-                          "url": "\(URL.test())/api/accounts/tuist/registry/swift"
+                          "url": "\(URL.test())/api/registry/swift"
                         }
                       },
                       "version": 1
@@ -97,12 +89,6 @@ struct RegistrySetupCommandServiceTests {
 
                     """
                 )
-                verify(createAccountTokenService)
-                    .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
-                    .called(1)
-                verify(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .any, registryURL: .any)
-                    .called(1)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(0)
@@ -116,10 +102,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
@@ -148,11 +131,10 @@ struct RegistrySetupCommandServiceTests {
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(1)
-                #expect(ui().contains("Logged in to the tuist registry") == true)
                 #expect(
                     ui()
                         .contains(
-                            "Generated the tuist registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
+                            "Generated the registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
                         ) == true
                 )
             }
@@ -165,10 +147,7 @@ struct RegistrySetupCommandServiceTests {
                 // Given
                 given(configLoader)
                     .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
-                given(fullHandleService)
-                    .parse(.any)
-                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    .willReturn(.test())
                 given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())

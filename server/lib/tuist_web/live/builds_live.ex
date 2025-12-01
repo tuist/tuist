@@ -4,6 +4,7 @@ defmodule TuistWeb.BuildsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Runs
@@ -39,7 +40,8 @@ defmodule TuistWeb.BuildsLive do
               "analytics-date-range",
               "analytics-build-scheme",
               "analytics-build-configuration",
-              "analytics-build-category"
+              "analytics-build-category",
+              "build-duration-type"
             ])
           )
       )
@@ -118,6 +120,7 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:build_schemes, Runs.project_build_schemes(project))
     |> assign(:build_configurations, Runs.project_build_configurations(project))
+    |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do
@@ -211,6 +214,38 @@ defmodule TuistWeb.BuildsLive do
   end
 
   def handle_info(_event, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_build_duration_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
+        replace: true
+      )
+
     {:noreply, socket}
   end
 

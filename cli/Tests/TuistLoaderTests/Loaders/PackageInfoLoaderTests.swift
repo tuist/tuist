@@ -33,13 +33,14 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
                 "package",
                 "--package-path",
                 path.pathString,
+                "--disable-sandbox",
                 "dump-package",
             ],
             output: PackageInfo.testJSON
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
+        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertBetterEqual(packageInfo, PackageInfo.test)
@@ -54,13 +55,14 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
                 "package",
                 "--package-path",
                 path.pathString,
+                "--disable-sandbox",
                 "dump-package",
             ],
             output: PackageInfo.testJSONXcode14
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
+        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.test)
@@ -75,13 +77,14 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
                 "package",
                 "--package-path",
                 path.pathString,
+                "--disable-sandbox",
                 "dump-package",
             ],
             output: PackageInfo.alamofireJSON
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
+        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.alamofire)
@@ -96,13 +99,14 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
                 "package",
                 "--package-path",
                 path.pathString,
+                "--disable-sandbox",
                 "dump-package",
             ],
             output: PackageInfo.googleAppMeasurementJSON
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
+        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)

@@ -84,8 +84,17 @@ public actor CachedValueStore: CachedValueStoring {
         }
 
         // If there's no valid cache entry, create or reuse a task
-        if tasks[key] == nil {
-            tasks[key] = Task {
+        // Capture task reference locally to avoid race condition where task completes
+        // and clears tasks[key] before we can await it
+        let task: Task<Any?, any Error>
+        if let existingTask = tasks[key] {
+            #if canImport(TuistSupport)
+                Logger.current
+                    .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
+            #endif
+            task = existingTask
+        } else {
+            let newTask = Task<Any?, any Error> {
                 #if canImport(TuistSupport)
                     Logger.current.debug("Triggered a new task to compute value for \(key)")
                 #endif
@@ -156,16 +165,12 @@ public actor CachedValueStore: CachedValueStoring {
                     }
                 }
             }
-        } else {
-            #if canImport(TuistSupport)
-                Logger.current
-                    .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
-            #endif
+            tasks[key] = newTask
+            task = newTask
         }
 
         // Wait for the task to complete and return its value
-        // swiftlint:disable:next force_unwrapping, force_cast
-        let value = try await tasks[key]!.value as? Value
+        let value = try await task.value as? Value
         #if canImport(TuistSupport)
             Logger.current.debug("Returning value for \(key)")
         #endif

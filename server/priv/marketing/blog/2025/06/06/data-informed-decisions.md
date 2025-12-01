@@ -4,6 +4,7 @@ category: "product"
 tags: ["product"]
 excerpt: "Explore how Apple's proprietary Xcode formats prevent data-driven development decisions and how Tuist is building the missing infrastructure to unlock productivity insights."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/06/06/data-informed-decisions/og.jpg
 ---
 
 **This blog post will be valuable for people interested in understanding how they can use data to improve their development environments, and learn how Tuist is building the infrastructure to enable data-driven decisions.**

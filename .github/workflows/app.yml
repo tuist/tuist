@@ -10,6 +10,7 @@ on:
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "app/**"
       - ".github/workflows/app.yml"
@@ -32,6 +33,7 @@ jobs:
   check-team-membership:
     name: Check Team Membership
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.event_name == 'pull_request'
     outputs:
       is-team-member: ${{ steps.check.outputs.is-member }}
@@ -69,11 +71,13 @@ jobs:
   app-build:
     name: Build
     runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -90,6 +94,9 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
@@ -110,11 +117,13 @@ jobs:
   app-test:
     name: Test
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -131,6 +140,9 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Test TuistApp
         run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -143,11 +155,13 @@ jobs:
   app-device-build:
     name: Device Build
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -164,6 +178,9 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

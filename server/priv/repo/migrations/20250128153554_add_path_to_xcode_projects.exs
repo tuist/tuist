@@ -8,15 +8,7 @@ defmodule Tuist.Repo.Migrations.AddPathToXcodeProjects do
   end
 
   def down do
-    secrets = Tuist.Environment.decrypt_secrets()
-
-    if !Tuist.Environment.clickhouse_configured?(secrets) || Tuist.Environment.test?() do
-      alter table(:xcode_projects) do
-        remove :path, :string
-      end
-    else
-      # Table was dropped by later migration, nothing to rollback
-      :ok
-    end
+    # Table was dropped by later migration, nothing to rollback
+    :ok
   end
 end

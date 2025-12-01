@@ -9,6 +9,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistCore", path: "../"),
         .project(target: "TuistServer", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
+        .project(target: "TuistSimulator", path: "../"),
         .external(name: "XcodeGraph"),
         .external(name: "Command"),
         .external(name: "Sparkle"),
@@ -64,7 +65,7 @@ let project = Project(
             product: .app,
             productName: "Tuist",
             bundleId: bundleId,
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             infoPlist: .extendingDefault(
                 with: [
                     "CFBundleDisplayName": "Tuist",
@@ -82,8 +83,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.22.7",
-                    "CFBundleVersion": "8759",
+                    "CFBundleShortVersionString": "0.23.0",
+                    "CFBundleVersion": "9127",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -134,10 +135,12 @@ let project = Project(
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
                 .target(name: "TuistAuthentication"),
+                .external(name: "XcodeGraph"),
                 .external(name: "NukeUI"),
             ]
         ),
@@ -198,7 +201,7 @@ let project = Project(
             destinations: [.mac, .iPhone],
             product: .staticFramework,
             bundleId: "io.tuist.app-storage",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAppStorage/**"],
             dependencies: [
                 .external(name: "Mockable"),
@@ -209,7 +212,7 @@ let project = Project(
             destinations: [.mac, .iPhone],
             product: .staticFramework,
             bundleId: "io.tuist.authentication",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
@@ -221,7 +224,7 @@ let project = Project(
             destinations: .macOS,
             product: .staticFramework,
             bundleId: "dev.tuist.menu-bar",
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             sources: ["Sources/TuistMenuBar/**"],
             resources: ["Resources/TuistMenuBar/**"],
             dependencies: tuistMenuBarDependencies()
@@ -231,11 +234,12 @@ let project = Project(
             destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.TuistAppTests",
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             infoPlist: .default,
             sources: ["Tests/TuistMenuBarTests/**"],
             resources: [],
             dependencies: tuistMenuBarDependencies() + [
+                .target(name: "TuistMenuBar"),
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
             ]

@@ -69,7 +69,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
 
         // Then: I expect one framework to be stored
-        TuistTest.expectLogs("1 target(s) stored: Framework1")
+        TuistTest.expectLogs("1 target stored: Framework1")
 
         // When: I generate and build the project for App
         try await TuistTest.run(

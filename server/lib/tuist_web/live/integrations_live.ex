@@ -117,7 +117,7 @@ defmodule TuistWeb.IntegrationsLive do
     |> Enum.sort_by(& &1.name, :asc)
   end
 
-  defp get_available_repositories(%{github_repositories: github_repositories_async, vcs_connections: vcs_connections}) do
+  defp get_available_repositories(%{github_repositories: github_repositories_async}) do
     repositories =
       if github_repositories_async.ok? do
         github_repositories_async.result
@@ -125,14 +125,7 @@ defmodule TuistWeb.IntegrationsLive do
         []
       end
 
-    connected_repo_handles =
-      vcs_connections
-      |> Enum.filter(&(&1.provider == :github))
-      |> MapSet.new(& &1.repository_full_handle)
-
-    repositories
-    |> Enum.reject(fn repo -> MapSet.member?(connected_repo_handles, repo.full_name) end)
-    |> Enum.sort_by(& &1.full_name, :asc)
+    Enum.sort_by(repositories, & &1.full_name, :asc)
   end
 
   defp get_selected_project(assigns) do

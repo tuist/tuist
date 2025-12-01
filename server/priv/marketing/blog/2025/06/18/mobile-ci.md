@@ -4,6 +4,7 @@ category: "community"
 tags: ["ci-cd", "mobile-development", "infrastructure", "github-actions", "market-trends"]
 excerpt: "The mobile CI landscape is undergoing a fundamental transformation. As GitHub Actions and infrastructure providers reshape the market, we explore what this means for developers, CI providers, and the future of mobile development workflows."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/06/18/mobile-ci.jpg
 ---
 
 At Tuist, we have the privilege of engaging with numerous organizations, understanding their challenges, and identifying their needs. One recurring theme that emerges from these conversations is continuous integration—a critical component that companies rely on not only to validate changes before merging to `main`, but also to automate release builds and App Store deployments.

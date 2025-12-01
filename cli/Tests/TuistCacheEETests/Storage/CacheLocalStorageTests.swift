@@ -229,7 +229,7 @@ final class CacheLocalStorageTests: TuistTestCase {
         given(artifactSigner).sign(.value(artifactPath)).willReturn()
 
         // When
-        try await subject.store(
+        let result = try await subject.store(
             [.init(name: "Test", hash: hash): [macroInTemporaryDirectoryPath]],
             cacheCategory: .binaries
         )
@@ -238,5 +238,10 @@ final class CacheLocalStorageTests: TuistTestCase {
         let exists = try await fileSystem.exists(artifactPath)
         XCTAssertTrue(exists)
         verify(artifactSigner).sign(.value(artifactPath)).called(1)
+
+        // Verify return value contains the stored item
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.name, "Test")
+        XCTAssertEqual(result.first?.hash, hash)
     }
 }

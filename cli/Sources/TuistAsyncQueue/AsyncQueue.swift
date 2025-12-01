@@ -18,7 +18,7 @@ public protocol AsyncQueuing {
     func wait()
 }
 
-private final class AsyncConcurrentOperation: ConcurrentOperation {
+private final class AsyncConcurrentOperation: ConcurrentOperation, @unchecked Sendable {
     /// We want to have control over when `finish` is called
     /// Otherwise, `finish` is called immediately and it doesn't wait for the full completion of an async operation
     override func execute() {

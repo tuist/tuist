@@ -5,7 +5,7 @@ tags: ["design", "dashboard"]
 excerpt: "After months of work, we're excited to release a redesign of the Tuist dashboard, our new foundation to deliver the best developer experience possible."
 author: asmitbm
 highlighted: true
-og_image_path: /marketing/images/blog/2025/05/17/meet-new-tuist/og.png
+og_image_path: /marketing/images/blog/2025/04/17/meet-new-tuist/og.png
 ---
 ![Meet the new Tuist illustration](/marketing/images/blog/2025/04/17/meet-new-tuist/og.png)
 

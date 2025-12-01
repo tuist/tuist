@@ -4,16 +4,14 @@ defmodule Tuist.VCSTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.GitHub
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
+  alias Tuist.Runs
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
-  alias Tuist.VCS.Repositories.Permission
-  alias Tuist.VCS.Repositories.Repository
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -28,7 +26,7 @@ defmodule Tuist.VCSTest do
   ]
 
   setup do
-    stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
+    stub(GitHub.App, :get_installation_token, fn _installation_id ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -37,247 +35,97 @@ defmodule Tuist.VCSTest do
     :ok
   end
 
-  describe "get_user_permission/1" do
-    test "returns user permission when admin" do
-      # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :github,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          }
-        })
+  describe "ci_run_url/1" do
+    test "returns GitHub Actions URL for github provider" do
+      ci_metadata = %{
+        ci_provider: :github,
+        ci_run_id: "19683527895",
+        ci_project_handle: "tuist/tuist"
+      }
 
-      expect(Client, :get_user_by_id, fn %{
-                                           id: "123",
-                                           repository_full_handle: "tuist/tuist"
-                                         } ->
-        {:ok, %VCS.User{username: "tuist"}}
-      end)
-
-      expect(Client, :get_user_permission, fn %{
-                                                repository_full_handle: "tuist/tuist",
-                                                username: "tuist"
-                                              } ->
-        {:ok, %Permission{permission: "admin"}}
-      end)
-
-      # When
-      got =
-        VCS.get_user_permission(%{
-          user: user,
-          repository: %Repository{
-            provider: :github,
-            full_handle: "tuist/tuist",
-            default_branch: "main"
-          }
-        })
-
-      # Then
-      assert got == {:ok, %Permission{permission: "admin"}}
-    end
-  end
-
-  describe "connected/1" do
-    test "returns true when connected" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == true
+      assert VCS.ci_run_url(ci_metadata) == "https://github.com/tuist/tuist/actions/runs/19683527895"
     end
 
-    test "returns true when connected but casing differs" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
+    test "returns GitLab pipeline URL for gitlab provider with default host" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project"
+      }
 
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/Tuist"})
-
-      # Then
-      assert got == true
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.com/group/project/-/pipelines/987654321"
     end
 
-    test "returns false when the GitHub app is not configured" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
+    test "returns GitLab pipeline URL for gitlab provider with custom host" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project",
+        ci_host: "gitlab.example.com"
+      }
 
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.example.com/group/project/-/pipelines/987654321"
     end
 
-    test "returns false when the vcs_repository_full_handle is nil" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
+    test "returns GitLab pipeline URL with default host when ci_host is empty string" do
+      ci_metadata = %{
+        ci_provider: :gitlab,
+        ci_run_id: "987654321",
+        ci_project_handle: "group/project",
+        ci_host: ""
+      }
 
-      project =
-        ProjectsFixtures.project_fixture()
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
+      assert VCS.ci_run_url(ci_metadata) == "https://gitlab.com/group/project/-/pipelines/987654321"
     end
 
-    test "returns false when the connected repositor full handles' do not match" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
+    test "returns Bitrise build URL for bitrise provider" do
+      ci_metadata = %{
+        ci_provider: :bitrise,
+        ci_run_id: "abc123def",
+        ci_project_handle: "ignored"
+      }
 
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "tuist/tuist",
-            provider: :github
-          ]
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist-different"})
-
-      # Then
-      assert got == false
-    end
-  end
-
-  describe "get_repository_from_repository_url/1" do
-    test "returns repository when it exists" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
+      assert VCS.ci_run_url(ci_metadata) == "https://app.bitrise.io/build/abc123def"
     end
 
-    test "returns repository with username" do
-      # Given
-      repository_url = "https://tuist@github.com/tuist/tuist.git"
+    test "returns CircleCI pipeline URL for circleci provider" do
+      ci_metadata = %{
+        ci_provider: :circleci,
+        ci_run_id: "12345",
+        ci_project_handle: "tuist/tuist"
+      }
 
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
     end
 
-    test "returns repository with .git suffix" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist.git"
+    test "returns Buildkite builds URL for buildkite provider" do
+      ci_metadata = %{
+        ci_provider: :buildkite,
+        ci_run_id: "67890",
+        ci_project_handle: "tuist/pipeline"
+      }
 
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
+      assert VCS.ci_run_url(ci_metadata) == "https://buildkite.com/tuist/pipeline/builds/67890"
     end
 
-    test "returns repository with trailing slash" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist/"
+    test "returns Codemagic build URL for codemagic provider" do
+      ci_metadata = %{
+        ci_provider: :codemagic,
+        ci_run_id: "build-abc123",
+        ci_project_handle: "app-id-123"
+      }
 
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
+      assert VCS.ci_run_url(ci_metadata) == "https://codemagic.io/app/app-id-123/build/build-abc123"
+    end
 
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
+    test "returns nil when ci_run_id is nil" do
+      ci_metadata = %{
+        ci_provider: :github,
+        ci_run_id: nil,
+        ci_project_handle: "tuist/tuist"
+      }
 
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
+      assert VCS.ci_run_url(ci_metadata) == nil
     end
   end
 
@@ -350,17 +198,64 @@ defmodule Tuist.VCSTest do
           display_name: "WatchApp"
         )
 
-      test_command_event_one =
+      {:ok, test_run_one} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          status: "success",
+          scheme: "test",
+          duration: 0,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: []
+        })
+
+      _test_command_event_one =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
           project_id: project.id,
           command_arguments: ["test"],
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          created_at: ~N[2024-04-30 03:00:00],
+          test_run_id: test_run_one.id
         )
 
-      test_command_event_two =
+      {:ok, test_run_two} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          status: "failure",
+          scheme: "test App",
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "test1", status: "success", duration: 250},
+                %{name: "test2", status: "success", duration: 250},
+                %{name: "test3", status: "success", duration: 250},
+                %{name: "test4", status: "failure", duration: 250}
+              ]
+            }
+          ]
+        })
+
+      _test_command_event_two =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
@@ -374,7 +269,8 @@ defmodule Tuist.VCSTest do
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
-          status: :failure
+          status: :failure,
+          test_run_id: test_run_two.id
         )
 
       stub(Req, :get, fn _opts ->
@@ -397,10 +293,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/runs/#{test_command_event_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/runs/#{test_command_event_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
 
         """
 
@@ -426,6 +322,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -516,6 +413,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -570,6 +468,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -624,6 +523,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -665,10 +565,6 @@ defmodule Tuist.VCSTest do
          ]}
       end)
 
-      stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
-        {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
-      end)
-
       stub(Req, :patch, fn opts ->
         assert opts[:finch] == Tuist.Finch
 
@@ -698,6 +594,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -729,6 +626,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -795,6 +693,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -827,6 +726,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -852,6 +752,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -883,6 +784,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -914,6 +816,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -945,6 +848,7 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
@@ -1023,6 +927,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
@@ -1086,7 +991,146 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
+    test "handles different git_ref suffixes (head/merge) connected with the same PR correctly" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/pull/1/merge",
+          git_commit_sha: @git_commit_sha,
+          status: "success",
+          scheme: "test",
+          duration: 0,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: []
+        })
+
+      _test_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: "refs/pull/1/merge",
+          project_id: project.id,
+          command_arguments: ["test"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 04:00:00],
+          test_run_id: test_run.id
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: :success,
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: "refs/pull/1/merge"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) | #{commit_link} |
+
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
+
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) | #{commit_link} | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: "refs/pull/1/merge",
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
       })
     end
@@ -1147,6 +1191,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
@@ -1208,6 +1253,7 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })

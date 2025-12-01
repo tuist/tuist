@@ -105,7 +105,6 @@ components:
             - supported_platforms
             - version
             - install_size
-            - type
             - artifacts
           type: object
           x-struct:
@@ -249,6 +248,7 @@ components:
         id: 123e4567-e89b-12d3-a456-426614174000
         name: build
         project_id: 123
+        test_run_url: https://tuist.dev/my-account/my-project/tests/test-runs/123e4567-e89b-12d3-a456-426614174000
         url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
         id:
@@ -265,6 +265,12 @@ components:
         project_id:
           description: The project identifier
           type: integer
+          x-struct:
+          x-validate:
+        test_run_url:
+          description: The URL to the test run, if available
+          nullable: true
+          type: string
           x-struct:
           x-validate:
         url:
@@ -740,6 +746,176 @@ components:
       description: Parameters to create a single run.
       oneOf:
         - properties:
+            cacheable_tasks:
+              description: Cacheable tasks associated with the build run.
+              items:
+                properties:
+                  cas_output_node_ids:
+                    description: Array of CAS output node IDs associated with this cacheable task.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  description:
+                    description: Optional description of the cacheable task.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  key:
+                    description: The cache key of the task.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  read_duration:
+                    description: The duration in milliseconds for reading from cache.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: The cache status of the task.
+                    enum:
+                      - hit_local
+                      - hit_remote
+                      - miss
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type:
+                    description: The type of cacheable task.
+                    enum:
+                      - clang
+                      - swift
+                    type: string
+                    x-struct:
+                    x-validate:
+                  write_duration:
+                    description: The duration in milliseconds for writing to cache.
+                    type: number
+                    x-struct:
+                    x-validate:
+                required:
+                  - type
+                  - status
+                  - key
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cas_outputs:
+              description: CAS output operations associated with the build run.
+              items:
+                properties:
+                  checksum:
+                    description: The checksum of the CAS object.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  compressed_size:
+                    description: The compressed size of the CAS object in bytes.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: The duration of the CAS operation in milliseconds.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  node_id:
+                    description: The CAS node identifier.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  operation:
+                    description: The type of CAS operation.
+                    enum:
+                      - download
+                      - upload
+                    type: string
+                    x-struct:
+                    x-validate:
+                  size:
+                    description: The size of the CAS object in bytes.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  type:
+                    description: The type of the CAS output file.
+                    enum:
+                      - swift
+                      - sil
+                      - sib
+                      - image
+                      - dSYM
+                      - dependencies
+                      - emit-module-dependencies
+                      - autolink
+                      - swiftmodule
+                      - swiftdoc
+                      - swiftinterface
+                      - object
+                      - ast-dump
+                      - raw-sil
+                      - raw-sib
+                      - raw-llvm-ir
+                      - llvm-ir
+                      - llvm-bc
+                      - private-swiftinterface
+                      - package-swiftinterface
+                      - objc-header
+                      - swift-dependencies
+                      - dependency-scanner-cache
+                      - json-dependencies
+                      - json-target-info
+                      - json-supported-features
+                      - json-module-artifacts
+                      - imported-modules
+                      - module-trace
+                      - index-data
+                      - index-unit-output-path
+                      - yaml-opt-record
+                      - bitstream-opt-record
+                      - diagnostics
+                      - emit-module-diagnostics
+                      - dependency-scan-diagnostics
+                      - api-baseline-json
+                      - abi-baseline-json
+                      - const-values
+                      - api-descriptor-json
+                      - swift-module-summary
+                      - module-semantic-info
+                      - cached-diagnostics
+                      - json-supported-swift-features
+                      - modulemap
+                      - pch
+                      - pcm
+                      - tbd
+                      - remap
+                      - localization-strings
+                      - clang-header
+                      - swiftsourceinfo
+                      - assembly
+                      - unknown
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - node_id
+                  - checksum
+                  - size
+                  - duration
+                  - compressed_size
+                  - operation
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
             category:
               description: The category of the build run, can be clean or incremental.
               enum:
@@ -1049,6 +1225,253 @@ components:
           type: object
           x-struct:
           x-validate:
+        - properties:
+            build_run_id:
+              description: The UUID of an associated build run.
+              type: string
+              x-struct:
+              x-validate:
+            ci_host:
+              description: The CI host URL (optional, for self-hosted instances).
+              type: string
+              x-struct:
+              x-validate:
+            ci_project_handle:
+              description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+              type: string
+              x-struct:
+              x-validate:
+            ci_provider:
+              description: The CI provider.
+              enum:
+                - github
+                - gitlab
+                - bitrise
+                - circleci
+                - buildkite
+                - codemagic
+              type: string
+              x-struct:
+              x-validate:
+            ci_run_id:
+              description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+              type: string
+              x-struct:
+              x-validate:
+            duration:
+              description: Duration of the run in milliseconds.
+              type: integer
+              x-struct:
+              x-validate:
+            git_branch:
+              description: The git branch.
+              type: string
+              x-struct:
+              x-validate:
+            git_commit_sha:
+              description: The commit SHA.
+              type: string
+              x-struct:
+              x-validate:
+            git_ref:
+              description: The git reference.
+              type: string
+              x-struct:
+              x-validate:
+            git_remote_url_origin:
+              description: The git remote URL origin.
+              type: string
+              x-struct:
+              x-validate:
+            is_ci:
+              description: Indicates if the run was executed on a Continuous Integration (CI) system.
+              type: boolean
+              x-struct:
+              x-validate:
+            macos_version:
+              description: The version of macOS used during the run.
+              type: string
+              x-struct:
+              x-validate:
+            model_identifier:
+              description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme used for the test run.
+              type: string
+              x-struct:
+              x-validate:
+            status:
+              description: The status of the test run.
+              enum:
+                - success
+                - failure
+              type: string
+              x-struct:
+              x-validate:
+            test_modules:
+              description: The test modules associated with the test run.
+              items:
+                properties:
+                  duration:
+                    description: The duration of the test module in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The name of the test module/target.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: The status of the test module.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  test_cases:
+                    description: The test cases within this module.
+                    items:
+                      properties:
+                        duration:
+                          description: The duration of the test case in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        failures:
+                          description: The failures that occurred in this test case.
+                          items:
+                            properties:
+                              issue_type:
+                                description: The type of issue that occurred.
+                                enum:
+                                  - error_thrown
+                                  - assertion_failure
+                                  - issue_recorded
+                                type: string
+                                x-struct:
+                                x-validate:
+                              line_number:
+                                description: The line number where the failure occurred.
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              message:
+                                description: The failure message.
+                                type: string
+                                x-struct:
+                                x-validate:
+                              path:
+                                description: The file path where the failure occurred, relative to the project root.
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - line_number
+                            type: object
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The name of the test case.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The status of the test case.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_suite_name:
+                          description: The name of the test suite this test case belongs to (optional).
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_suites:
+                    description: The test suites within this module.
+                    items:
+                      properties:
+                        duration:
+                          description: The duration of the test suite in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The name of the test suite.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The status of the test suite.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - name
+                  - status
+                  - duration
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            type:
+              description: "The type of the run, which is 'test' in this case."
+              enum:
+                - test
+              type: string
+              x-struct:
+              x-validate:
+            xcode_version:
+              description: The version of Xcode used during the run.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - type
+            - duration
+            - test_modules
+            - macos_version
+            - is_ci
+          title: TestRun
+          type: object
+          x-struct:
+          x-validate:
       title: RunParams
       x-struct:
       x-validate:
@@ -1218,12 +1641,20 @@ components:
           type: integer
           x-struct:
           x-validate:
+        type:
+          description: "The type of the run, which is 'build' in this case"
+          enum:
+            - build
+          type: string
+          x-struct:
+          x-validate:
         url:
           description: The URL to access the build run
           type: string
           x-struct:
           x-validate:
       required:
+        - type
         - id
         - duration
         - project_id
@@ -1252,6 +1683,254 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    TestRun:
+      properties:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
+        ci_host:
+          description: The CI host URL (optional, for self-hosted instances).
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          description: The CI provider.
+          enum:
+            - github
+            - gitlab
+            - bitrise
+            - circleci
+            - buildkite
+            - codemagic
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+          type: string
+          x-struct:
+          x-validate:
+        duration:
+          description: Duration of the run in milliseconds.
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit SHA.
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          description: The git reference.
+          type: string
+          x-struct:
+          x-validate:
+        git_remote_url_origin:
+          description: The git remote URL origin.
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          description: Indicates if the run was executed on a Continuous Integration (CI) system.
+          type: boolean
+          x-struct:
+          x-validate:
+        macos_version:
+          description: The version of macOS used during the run.
+          type: string
+          x-struct:
+          x-validate:
+        model_identifier:
+          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme used for the test run.
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the test run.
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+        test_modules:
+          description: The test modules associated with the test run.
+          items:
+            properties:
+              duration:
+                description: The duration of the test module in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test module/target.
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: The status of the test module.
+                enum:
+                  - success
+                  - failure
+                type: string
+                x-struct:
+                x-validate:
+              test_cases:
+                description: The test cases within this module.
+                items:
+                  properties:
+                    duration:
+                      description: The duration of the test case in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    failures:
+                      description: The failures that occurred in this test case.
+                      items:
+                        properties:
+                          issue_type:
+                            description: The type of issue that occurred.
+                            enum:
+                              - error_thrown
+                              - assertion_failure
+                              - issue_recorded
+                            type: string
+                            x-struct:
+                            x-validate:
+                          line_number:
+                            description: The line number where the failure occurred.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          message:
+                            description: The failure message.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          path:
+                            description: The file path where the failure occurred, relative to the project root.
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - line_number
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the test case.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test case.
+                      enum:
+                        - success
+                        - failure
+                        - skipped
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_suite_name:
+                      description: The name of the test suite this test case belongs to (optional).
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - status
+                    - duration
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              test_suites:
+                description: The test suites within this module.
+                items:
+                  properties:
+                    duration:
+                      description: The duration of the test suite in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the test suite.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test suite.
+                      enum:
+                        - success
+                        - failure
+                        - skipped
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - status
+                    - duration
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - status
+              - duration
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        type:
+          description: "The type of the run, which is 'test' in this case."
+          enum:
+            - test
+          type: string
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: The version of Xcode used during the run.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+        - duration
+        - test_modules
+        - macos_version
+        - is_ci
+      title: TestRun
+      type: object
+      x-struct:
       x-validate:
     AccountTokenScope:
       description: The scope of the token.
@@ -1393,6 +2072,23 @@ components:
       minimum: 1
       title: RunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    CacheEndpoints:
+      description: List of available cache endpoints
+      properties:
+        endpoints:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - endpoints
+      title: CacheEndpoints
+      type: object
       x-struct:
       x-validate:
     Run:
@@ -1685,6 +2381,176 @@ components:
       x-validate:
     BuildRun:
       properties:
+        cacheable_tasks:
+          description: Cacheable tasks associated with the build run.
+          items:
+            properties:
+              cas_output_node_ids:
+                description: Array of CAS output node IDs associated with this cacheable task.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              description:
+                description: Optional description of the cacheable task.
+                type: string
+                x-struct:
+                x-validate:
+              key:
+                description: The cache key of the task.
+                type: string
+                x-struct:
+                x-validate:
+              read_duration:
+                description: The duration in milliseconds for reading from cache.
+                type: number
+                x-struct:
+                x-validate:
+              status:
+                description: The cache status of the task.
+                enum:
+                  - hit_local
+                  - hit_remote
+                  - miss
+                type: string
+                x-struct:
+                x-validate:
+              type:
+                description: The type of cacheable task.
+                enum:
+                  - clang
+                  - swift
+                type: string
+                x-struct:
+                x-validate:
+              write_duration:
+                description: The duration in milliseconds for writing to cache.
+                type: number
+                x-struct:
+                x-validate:
+            required:
+              - type
+              - status
+              - key
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        cas_outputs:
+          description: CAS output operations associated with the build run.
+          items:
+            properties:
+              checksum:
+                description: The checksum of the CAS object.
+                type: string
+                x-struct:
+                x-validate:
+              compressed_size:
+                description: The compressed size of the CAS object in bytes.
+                type: integer
+                x-struct:
+                x-validate:
+              duration:
+                description: The duration of the CAS operation in milliseconds.
+                type: number
+                x-struct:
+                x-validate:
+              node_id:
+                description: The CAS node identifier.
+                type: string
+                x-struct:
+                x-validate:
+              operation:
+                description: The type of CAS operation.
+                enum:
+                  - download
+                  - upload
+                type: string
+                x-struct:
+                x-validate:
+              size:
+                description: The size of the CAS object in bytes.
+                type: integer
+                x-struct:
+                x-validate:
+              type:
+                description: The type of the CAS output file.
+                enum:
+                  - swift
+                  - sil
+                  - sib
+                  - image
+                  - dSYM
+                  - dependencies
+                  - emit-module-dependencies
+                  - autolink
+                  - swiftmodule
+                  - swiftdoc
+                  - swiftinterface
+                  - object
+                  - ast-dump
+                  - raw-sil
+                  - raw-sib
+                  - raw-llvm-ir
+                  - llvm-ir
+                  - llvm-bc
+                  - private-swiftinterface
+                  - package-swiftinterface
+                  - objc-header
+                  - swift-dependencies
+                  - dependency-scanner-cache
+                  - json-dependencies
+                  - json-target-info
+                  - json-supported-features
+                  - json-module-artifacts
+                  - imported-modules
+                  - module-trace
+                  - index-data
+                  - index-unit-output-path
+                  - yaml-opt-record
+                  - bitstream-opt-record
+                  - diagnostics
+                  - emit-module-diagnostics
+                  - dependency-scan-diagnostics
+                  - api-baseline-json
+                  - abi-baseline-json
+                  - const-values
+                  - api-descriptor-json
+                  - swift-module-summary
+                  - module-semantic-info
+                  - cached-diagnostics
+                  - json-supported-swift-features
+                  - modulemap
+                  - pch
+                  - pcm
+                  - tbd
+                  - remap
+                  - localization-strings
+                  - clang-header
+                  - swiftsourceinfo
+                  - assembly
+                  - unknown
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - node_id
+              - checksum
+              - size
+              - duration
+              - compressed_size
+              - operation
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         category:
           description: The category of the build run, can be clean or incremental.
           enum:
@@ -1993,6 +2859,46 @@ components:
       title: BuildRun
       type: object
       x-struct:
+      x-validate:
+    RunsTest:
+      description: Represents a single test run.
+      properties:
+        duration:
+          description: The duration of the test run in milliseconds
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: The unique identifier of the test run
+          type: string
+          x-struct:
+          x-validate:
+        project_id:
+          description: The ID of the Tuist project associated with this test run
+          type: integer
+          x-struct:
+          x-validate:
+        type:
+          description: "The type of the run, which is 'test' in this case"
+          enum:
+            - test
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL to access the test run
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+        - id
+        - duration
+        - project_id
+        - url
+      title: RunsTest
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Runs.Test
       x-validate:
     PaginationMetadata:
       description: Pagination metadata.
@@ -2431,6 +3337,11 @@ paths:
                   x-validate:
                 swift_version:
                   description: The version of Swift that ran the command.
+                  type: string
+                  x-struct:
+                  x-validate:
+                test_run_id:
+                  description: The test run identifier.
                   type: string
                   x-struct:
                   x-validate:
@@ -2916,22 +3827,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -2944,6 +3839,22 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -3081,7 +3992,6 @@ paths:
                     - supported_platforms
                     - version
                     - install_size
-                    - type
                     - artifacts
                   type: object
                   x-struct:
@@ -3122,6 +4032,92 @@ paths:
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
+  /api/cache/keyvalue:
+    put:
+      callbacks: {}
+      operationId: putCacheValue
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cas_id:
+                  description: The CAS identifier
+                  type: string
+                  x-struct:
+                  x-validate:
+                entries:
+                  description: Map of entry keys to encoded values
+                  items:
+                    properties:
+                      value:
+                        description: The value of the entry
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - value
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cas_id
+                - entries
+              type: object
+              x-struct:
+              x-validate:
+        description: CAS entries with CAS ID
+        required: true
+      responses:
+        '204':
+          description: Value stored successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Store cache key value entries.
+      tags:
+        - KeyValue
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -4382,6 +5378,7 @@ paths:
           name: bundle_id
           required: true
           schema:
+            format: uuid
             type: string
             x-struct:
             x-validate:
@@ -4410,6 +5407,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Bundle not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters
       summary: Get a single bundle by ID
       tags:
         - Bundles
@@ -4724,6 +5727,124 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
+  /api/cache/cas/{id}:
+    get:
+      callbacks: {}
+      operationId: loadCacheCAS
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content stream
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact does not exist
+      summary: Download a CAS artifact.
+      tags:
+        - CAS
+    post:
+      callbacks: {}
+      operationId: saveCacheCAS
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The CAS artifact data
+        required: true
+      responses:
+        '204':
+          description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Save a CAS artifact
+      tags:
+        - CAS
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -4914,6 +6035,121 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project or the cache artifact doesn't exist
       summary: Downloads an artifact from the cache.
+      tags:
+        - Cache
+  /api/cache/keyvalue/{cas_id}:
+    get:
+      callbacks: {}
+      operationId: getCacheValue
+      parameters:
+        - description: The CAS identifier.
+          in: path
+          name: cas_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  entries:
+                    items:
+                      properties:
+                        value:
+                          description: The value of the entry
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - value
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - entries
+                type: object
+                x-struct:
+                x-validate:
+          description: Cache value retrieved successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No entries found for the given CAS ID
+      summary: Get cache value.
+      tags:
+        - KeyValue
+  /api/cache/endpoints:
+    get:
+      callbacks: {}
+      description: This endpoint returns a list of available cache endpoints.
+      operationId: getCacheEndpoints
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: List of available cache endpoints
+                properties:
+                  endpoints:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoints
+                title: CacheEndpoints
+                type: object
+                x-struct:
+                x-validate:
+          description: List of cache endpoints
+      summary: Get cache endpoints.
       tags:
         - Cache
   /api/runs/{run_id}/complete:
@@ -5608,6 +6844,176 @@ paths:
               description: Parameters to create a single run.
               oneOf:
                 - properties:
+                    cacheable_tasks:
+                      description: Cacheable tasks associated with the build run.
+                      items:
+                        properties:
+                          cas_output_node_ids:
+                            description: Array of CAS output node IDs associated with this cacheable task.
+                            items:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          description:
+                            description: Optional description of the cacheable task.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          key:
+                            description: The cache key of the task.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          read_duration:
+                            description: The duration in milliseconds for reading from cache.
+                            type: number
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The cache status of the task.
+                            enum:
+                              - hit_local
+                              - hit_remote
+                              - miss
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of cacheable task.
+                            enum:
+                              - clang
+                              - swift
+                            type: string
+                            x-struct:
+                            x-validate:
+                          write_duration:
+                            description: The duration in milliseconds for writing to cache.
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - type
+                          - status
+                          - key
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    cas_outputs:
+                      description: CAS output operations associated with the build run.
+                      items:
+                        properties:
+                          checksum:
+                            description: The checksum of the CAS object.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          compressed_size:
+                            description: The compressed size of the CAS object in bytes.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          duration:
+                            description: The duration of the CAS operation in milliseconds.
+                            type: number
+                            x-struct:
+                            x-validate:
+                          node_id:
+                            description: The CAS node identifier.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          operation:
+                            description: The type of CAS operation.
+                            enum:
+                              - download
+                              - upload
+                            type: string
+                            x-struct:
+                            x-validate:
+                          size:
+                            description: The size of the CAS object in bytes.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of the CAS output file.
+                            enum:
+                              - swift
+                              - sil
+                              - sib
+                              - image
+                              - dSYM
+                              - dependencies
+                              - emit-module-dependencies
+                              - autolink
+                              - swiftmodule
+                              - swiftdoc
+                              - swiftinterface
+                              - object
+                              - ast-dump
+                              - raw-sil
+                              - raw-sib
+                              - raw-llvm-ir
+                              - llvm-ir
+                              - llvm-bc
+                              - private-swiftinterface
+                              - package-swiftinterface
+                              - objc-header
+                              - swift-dependencies
+                              - dependency-scanner-cache
+                              - json-dependencies
+                              - json-target-info
+                              - json-supported-features
+                              - json-module-artifacts
+                              - imported-modules
+                              - module-trace
+                              - index-data
+                              - index-unit-output-path
+                              - yaml-opt-record
+                              - bitstream-opt-record
+                              - diagnostics
+                              - emit-module-diagnostics
+                              - dependency-scan-diagnostics
+                              - api-baseline-json
+                              - abi-baseline-json
+                              - const-values
+                              - api-descriptor-json
+                              - swift-module-summary
+                              - module-semantic-info
+                              - cached-diagnostics
+                              - json-supported-swift-features
+                              - modulemap
+                              - pch
+                              - pcm
+                              - tbd
+                              - remap
+                              - localization-strings
+                              - clang-header
+                              - swiftsourceinfo
+                              - assembly
+                              - unknown
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - node_id
+                          - checksum
+                          - size
+                          - duration
+                          - compressed_size
+                          - operation
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
                     category:
                       description: The category of the build run, can be clean or incremental.
                       enum:
@@ -5917,6 +7323,253 @@ paths:
                   type: object
                   x-struct:
                   x-validate:
+                - properties:
+                    build_run_id:
+                      description: The UUID of an associated build run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_host:
+                      description: The CI host URL (optional, for self-hosted instances).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_project_handle:
+                      description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_provider:
+                      description: The CI provider.
+                      enum:
+                        - github
+                        - gitlab
+                        - bitrise
+                        - circleci
+                        - buildkite
+                        - codemagic
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_run_id:
+                      description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    duration:
+                      description: Duration of the run in milliseconds.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    git_branch:
+                      description: The git branch.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_commit_sha:
+                      description: The commit SHA.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_ref:
+                      description: The git reference.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_remote_url_origin:
+                      description: The git remote URL origin.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    is_ci:
+                      description: Indicates if the run was executed on a Continuous Integration (CI) system.
+                      type: boolean
+                      x-struct:
+                      x-validate:
+                    macos_version:
+                      description: The version of macOS used during the run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    model_identifier:
+                      description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme used for the test run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: The status of the test run.
+                      enum:
+                        - success
+                        - failure
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_modules:
+                      description: The test modules associated with the test run.
+                      items:
+                        properties:
+                          duration:
+                            description: The duration of the test module in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: The name of the test module/target.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status of the test module.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                          test_cases:
+                            description: The test cases within this module.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration of the test case in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                failures:
+                                  description: The failures that occurred in this test case.
+                                  items:
+                                    properties:
+                                      issue_type:
+                                        description: The type of issue that occurred.
+                                        enum:
+                                          - error_thrown
+                                          - assertion_failure
+                                          - issue_recorded
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                      line_number:
+                                        description: The line number where the failure occurred.
+                                        type: integer
+                                        x-struct:
+                                        x-validate:
+                                      message:
+                                        description: The failure message.
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                      path:
+                                        description: The file path where the failure occurred, relative to the project root.
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                    required:
+                                      - line_number
+                                    type: object
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the test case.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status of the test case.
+                                  enum:
+                                    - success
+                                    - failure
+                                    - skipped
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                test_suite_name:
+                                  description: The name of the test suite this test case belongs to (optional).
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - name
+                                - status
+                                - duration
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          test_suites:
+                            description: The test suites within this module.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration of the test suite in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the test suite.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status of the test suite.
+                                  enum:
+                                    - success
+                                    - failure
+                                    - skipped
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - name
+                                - status
+                                - duration
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                        required:
+                          - name
+                          - status
+                          - duration
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type:
+                      description: "The type of the run, which is 'test' in this case."
+                      enum:
+                        - test
+                      type: string
+                      x-struct:
+                      x-validate:
+                    xcode_version:
+                      description: The version of Xcode used during the run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - type
+                    - duration
+                    - test_modules
+                    - macos_version
+                    - is_ci
+                  title: TestRun
+                  type: object
+                  x-struct:
+                  x-validate:
               title: RunParams
               x-struct:
               x-validate:
@@ -5929,9 +7582,10 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/RunsBuild'
+                  - $ref: '#/components/schemas/RunsTest'
                 x-struct:
                 x-validate:
-          description: The created build
+          description: The created run
         '400':
           content:
             application/json:
@@ -5956,7 +7610,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-      summary: Create a new build.
+      summary: Create a new run.
       tags:
         - Runs
   /api/organizations/{organization_name}/members/{user_name}:

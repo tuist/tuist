@@ -8,6 +8,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Repo
   alias Tuist.VCS
 
+  require Logger
+
   def handle(conn, params) do
     event_type = conn |> get_req_header("x-github-event") |> List.first()
 
@@ -34,10 +36,42 @@ defmodule TuistWeb.Webhooks.GitHubController do
            "issue" => %{"number" => issue_number, "pull_request" => _pull_request}
          } = _params
        ) do
-    qa_prompt = tuist_qa_prompt(comment_body)
+    qa_result = tuist_qa_prompt(comment_body)
 
-    if qa_prompt do
-      test_qa_prompt(repository["full_name"], issue_number, qa_prompt)
+    if qa_result do
+      repository_full_name = repository["full_name"]
+      git_ref = "refs/pull/#{issue_number}/merge"
+
+      case get_project_for_qa(qa_result, repository_full_name) do
+        {:ok, project} ->
+          {_, prompt} = qa_result
+          test_qa_prompt(project, prompt, git_ref, repository_full_name)
+
+        {:error, :not_found} ->
+          case qa_result do
+            {project_name, _} when not is_nil(project_name) ->
+              VCS.create_comment(%{
+                repository_full_handle: repository_full_name,
+                git_ref: git_ref,
+                body: "Project '#{project_name}' is not connected to this repository.",
+                project: nil
+              })
+
+            _ ->
+              :ok
+          end
+
+        {:error, {:multiple_projects, projects}} ->
+          project_handles = Enum.map_join(projects, ", ", & &1.name)
+
+          VCS.create_comment(%{
+            repository_full_handle: repository_full_name,
+            git_ref: git_ref,
+            body:
+              "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: #{project_handles}",
+            project: List.first(projects)
+          })
+      end
     end
 
     conn
@@ -63,11 +97,27 @@ defmodule TuistWeb.Webhooks.GitHubController do
          "action" => "created",
          "installation" => %{"id" => installation_id, "html_url" => html_url}
        }) do
-    {:ok, _} = update_github_app_installation_html_url(installation_id, html_url)
+    case update_github_app_installation_html_url_with_retry(installation_id, html_url) do
+      {:ok, _} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
 
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
+      {:error, :not_found_after_retries} ->
+        # After retries, the installation still doesn't exist. This indicates a broken user flow:
+        # 1. The setup callback failed or was never called
+        # 2. The user closed the browser before completing setup
+        # 3. Network issues prevented the redirect
+        # This means the installation exists in GitHub but not in our database,
+        # creating an orphaned installation that requires manual reconciliation.
+        Logger.error(
+          "GitHub installation.created webhook for installation_id=#{installation_id} but installation not found after retries. Setup callback may have failed. Manual intervention may be required."
+        )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
+    end
   end
 
   defp handle_installation(conn, _params) do
@@ -76,25 +126,38 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp test_qa_prompt(repository_full_handle, issue_number, prompt) do
-    case Projects.project_by_vcs_repository_full_handle(repository_full_handle, preload: :account) do
-      {:error, :not_found} ->
-        :ok
+  defp get_project_for_qa(qa_result, repository_full_name) do
+    case qa_result do
+      {project_name, _prompt} when not is_nil(project_name) ->
+        Projects.project_by_name_and_vcs_repository_full_handle(
+          project_name,
+          repository_full_name,
+          preload: :account
+        )
 
-      {:ok, project} ->
-        git_ref = "refs/pull/#{issue_number}/merge"
+      {nil, _prompt} ->
+        projects =
+          Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
 
-        if FunWithFlags.enabled?(:qa, for: project.account) do
-          start_or_enqueue_qa_run(project, prompt, git_ref)
-        else
-          VCS.create_comment(%{
-            repository_full_handle: repository_full_handle,
-            git_ref: git_ref,
-            body:
-              "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
-            project: project
-          })
+        case projects do
+          [] -> {:error, :not_found}
+          [project] -> {:ok, project}
+          multiple -> {:error, {:multiple_projects, multiple}}
         end
+    end
+  end
+
+  defp test_qa_prompt(project, prompt, git_ref, repository_full_handle) do
+    if FunWithFlags.enabled?(:qa, for: project.account) do
+      start_or_enqueue_qa_run(project, prompt, git_ref)
+    else
+      VCS.create_comment(%{
+        repository_full_handle: repository_full_handle,
+        git_ref: git_ref,
+        body:
+          "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
+        project: project
+      })
     end
   end
 
@@ -155,32 +218,73 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp tuist_qa_prompt(body) do
-    base_prompt =
+    base_command =
       cond do
-        Environment.stag?() -> "/tuist-staging qa"
-        Environment.dev?() -> "/tuist-development qa"
-        Environment.can?() -> "/tuist-canary qa"
-        true -> "/tuist qa"
+        Environment.stag?() -> "/tuist-staging"
+        Environment.dev?() -> "/tuist-development"
+        Environment.can?() -> "/tuist-canary"
+        true -> "/tuist"
       end
 
-    pattern = ~r/^\s*#{Regex.escape(base_prompt)}\s*(.*)$/im
+    # Pattern 1: /tuist <project-name> qa <prompt> (with project name)
+    pattern_with_project = ~r/^\s*#{Regex.escape(base_command)}\s+(\S+)\s+qa\s+(.*)$/im
 
-    case Regex.run(pattern, body) do
-      [_, prompt] ->
-        String.trim(prompt)
+    # Pattern 2: /tuist qa <prompt> (no project name, valid in case only a single Tuist project is connected to the GitHub repository)
+    pattern_without_project = ~r/^\s*#{Regex.escape(base_command)}\s+qa\s+(.*)$/im
+
+    case Regex.run(pattern_with_project, body) do
+      [_, project_name, prompt] ->
+        {String.trim(project_name), String.trim(prompt)}
 
       _ ->
-        nil
+        case Regex.run(pattern_without_project, body) do
+          [_, prompt] ->
+            {nil, String.trim(prompt)}
+
+          _ ->
+            nil
+        end
     end
   end
 
   defp delete_github_app_installation(installation_id) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.delete_github_app_installation(github_app_installation)
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.delete_github_app_installation(github_app_installation)
+
+      {:error, :not_found} ->
+        {:ok, :already_deleted}
+    end
   end
 
   defp update_github_app_installation_html_url(installation_id, html_url) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+    end
+  end
+
+  defp update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt \\ 1) do
+    max_attempts = 3
+    retry_delay_ms = 1000
+
+    case update_github_app_installation_html_url(installation_id, html_url) do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, :not_found} when attempt < max_attempts ->
+        Logger.info(
+          "GitHub installation not found for installation_id=#{installation_id}, attempt #{attempt}/#{max_attempts}. Retrying in #{retry_delay_ms}ms..."
+        )
+
+        Process.sleep(retry_delay_ms)
+        update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt + 1)
+
+      {:error, :not_found} ->
+        {:error, :not_found_after_retries}
+    end
   end
 end

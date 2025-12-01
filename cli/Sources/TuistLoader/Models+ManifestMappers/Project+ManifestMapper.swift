@@ -21,7 +21,8 @@ extension XcodeGraph.Project {
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         type: XcodeGraph.ProjectType,
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        contentHasher: ContentHashing
     ) async throws -> XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
@@ -42,6 +43,7 @@ extension XcodeGraph.Project {
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies,
                 fileSystem: fileSystem,
+                contentHasher: contentHasher,
                 type: targetType
             )
         }

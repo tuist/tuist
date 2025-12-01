@@ -10,6 +10,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "authenticated_subject returns nil if the token associated subject doesn't exist" do
@@ -126,5 +127,88 @@ defmodule Tuist.AuthenticationTest do
       Authentication.refresh(refresh_token, ttl: {60, :minute})
 
     assert new_claims["preferred_username"] == new_handle
+  end
+
+  describe "encode_and_sign/3 with projects claim" do
+    test "adds projects claim with user's accessible project handles" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      project1 = ProjectsFixtures.project_fixture(account: user.account)
+      project2 = ProjectsFixtures.project_fixture(account: user.account)
+      CommandEventsFixtures.command_event_fixture(project_id: project1.id)
+      CommandEventsFixtures.command_event_fixture(project_id: project2.id)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      assert is_list(claims["projects"])
+      assert "#{user.account.name}/#{project1.name}" in claims["projects"]
+      assert "#{user.account.name}/#{project2.name}" in claims["projects"]
+    end
+
+    test "adds empty projects claim when user has no projects" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      assert claims["projects"] == []
+    end
+
+    test "includes projects from organization memberships" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      assert "#{organization.account.name}/#{project.name}" in claims["projects"]
+    end
+
+    test "preserves existing claims while adding projects" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      ProjectsFixtures.project_fixture(account: user.account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email, custom_claim: "custom_value"},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      assert claims["email"] == user.email
+      assert claims["custom_claim"] == "custom_value"
+      assert is_list(claims["projects"])
+    end
   end
 end

@@ -13,7 +13,7 @@ defmodule TuistWeb.BillingControllerTest do
       %{account: account} =
         user =
         AccountsFixtures.user_fixture(
-          email: "tuist@tuist.io",
+          email: "tuist@tuist.dev",
           customer_id: nil,
           preload: [:account]
         )
@@ -44,7 +44,7 @@ defmodule TuistWeb.BillingControllerTest do
     test "redirects to Stripe when user has permission and billing returns an external redirect request",
          %{conn: conn} do
       %{account: account} =
-        user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+        user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
 
       success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
@@ -68,7 +68,7 @@ defmodule TuistWeb.BillingControllerTest do
       conn: conn
     } do
       %{account: account} =
-        user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+        user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
 
       success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
@@ -91,7 +91,7 @@ defmodule TuistWeb.BillingControllerTest do
     test "raises UnauthorizedError when user does not have permission", %{conn: conn} do
       organization = AccountsFixtures.organization_fixture()
       organization_account = Accounts.get_account_from_organization(organization)
-      user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
 
       assert_raise UnauthorizedError, fn ->
         conn
@@ -106,7 +106,7 @@ defmodule TuistWeb.BillingControllerTest do
       %{account: account} =
         user =
         AccountsFixtures.user_fixture(
-          email: "tuist@tuist.io",
+          email: "tuist@tuist.dev",
           customer_id: nil,
           preload: [:account]
         )
@@ -133,7 +133,7 @@ defmodule TuistWeb.BillingControllerTest do
 
     test "redirects to Stripe when user has permission", %{conn: conn} do
       %{account: account} =
-        user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+        user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
 
       expect(Billing, :create_session, fn _ -> %{url: "https://stripe.com"} end)
 
@@ -152,7 +152,7 @@ defmodule TuistWeb.BillingControllerTest do
     test "raises UnauthorizedError when user does not have permission", %{conn: conn} do
       organization = AccountsFixtures.organization_fixture()
       organization_account = Accounts.get_account_from_organization(organization)
-      user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+      user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
 
       assert_raise UnauthorizedError, fn ->
         conn

@@ -1,5 +1,6 @@
 import Foundation
 
+// swiftlint:disable:next type_body_length
 public enum TuistAcceptanceFixtures {
     case appWithAirshipSDK
     case appWithAlamofire
@@ -56,6 +57,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithExtensions
     case iosAppWithDynamicFrameworksLinkingStaticFrameworks
     case iosAppWithFrameworkAndResources
+    case iosAppWithFrameworkXcassetsAndDefaultInternalImports
     case iosAppWithFrameworkAndDisabledResources
     case iosAppWithFrameworkLinkingStaticFramework
     case iosAppWithFrameworks
@@ -84,6 +86,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithWatchapp2
     case iosAppWithWeaklyLinkedFramework
     case iosAppWithXcframeworks
+    case iosAppWithCacheProfilesInvalidDefault
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
     case iosAppWithCatalyst
@@ -231,6 +234,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_framework_and_resources"
         case .iosAppWithFrameworkAndDisabledResources:
             return "ios_app_with_framework_and_disabled_resources"
+        case .iosAppWithFrameworkXcassetsAndDefaultInternalImports:
+            return "ios_app_with_framework_xcassets_and_default_internal_imports"
         case .iosAppWithFrameworkLinkingStaticFramework:
             return "ios_app_with_framework_linking_static_framework"
         case .iosAppWithFrameworks:
@@ -285,6 +290,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_weakly_linked_framework"
         case .iosAppWithXcframeworks:
             return "ios_app_with_xcframeworks"
+        case .iosAppWithCacheProfilesInvalidDefault:
+            return "ios_app_with_cache_profiles_invalid_default"
         case .iosWorkspaceWithDependencyCycle:
             return "ios_workspace_with_dependency_cycle"
         case .iosWorkspaceWithMicrofeatureArchitecture:

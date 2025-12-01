@@ -4,6 +4,7 @@ category: "learn"
 tags: ["elixir", "swift", "server", "developer-experience"] 
 excerpt: "Exploring the patterns and developer experiences in Elixir that captured our hearts while building Tuist's server. From hot-reloading to server-driven UI, discover the features we'd love to see inspire Swift's evolution as it grows beyond Apple platforms."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/07/15/elixir.jpg
 ---
 
 **This blog post is written for developers who want to understand why we chose Elixir for our server, how Swift and Elixir compare, and which Elixir patterns we'd love to see adopted in Swift.**

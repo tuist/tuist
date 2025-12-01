@@ -4,8 +4,8 @@ defmodule Tuist.GitHub.App do
   """
 
   alias Tuist.Environment
+  alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
@@ -25,28 +25,6 @@ defmodule Tuist.GitHub.App do
 
       {:error, error} ->
         {:error, error}
-    end
-  end
-
-  def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
-    case get_installation_id_for_repository(repository_full_handle) do
-      {:ok, installation_id} ->
-        get_installation_token(installation_id, opts)
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp get_installation_id_for_repository(repository_full_handle) do
-    case Projects.project_by_vcs_repository_full_handle(repository_full_handle,
-           preload: [vcs_connection: :github_app_installation]
-         ) do
-      {:ok, %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}}} ->
-        {:ok, installation_id}
-
-      {:error, :not_found} ->
-        {:error, "The Tuist GitHub app is not installed in the repository #{repository_full_handle}."}
     end
   end
 
@@ -90,17 +68,26 @@ defmodule Tuist.GitHub.App do
       {"X-GitHub-Api-Version", "2022-11-28"}
     ]
 
-    case Req.post(
-           url: "https://api.github.com/app/installations/#{installation_id}/access_tokens",
-           headers: headers,
-           finch: Tuist.Finch
-         ) do
+    req_opts =
+      [
+        url: "https://api.github.com/app/installations/#{installation_id}/access_tokens",
+        headers: headers,
+        finch: Tuist.Finch
+      ] ++ Retry.retry_options()
+
+    case Req.post(req_opts) do
       {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
         {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
         {:ok, %{token: token, expires_at: expires_at}}
 
       {:ok, %Req.Response{status: _status, body: _body}} ->
         {:error, "Failed to get installation token"}
+
+      {:error, %Req.HTTPError{} = error} ->
+        {:error, "GitHub API connection error: #{inspect(error.reason)}"}
+
+      {:error, error} ->
+        {:error, "Unexpected error getting installation token: #{inspect(error)}"}
     end
   end
 end

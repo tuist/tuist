@@ -126,6 +126,16 @@
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
 
+    & [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+    }
+
+    & [data-part="active-filters"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+    }
+
     & .noora-text-input {
       width: 330px;
     }

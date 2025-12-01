@@ -16,103 +16,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     %{conn: conn, user: user}
   end
 
-  describe "run detail - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "shows details of a test run", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      # Given
-      test_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "cache",
-            command_arguments: ["test", "App"],
-            test_targets: ["AppTests"],
-            is_ci: true
-          )
-        end)
-
-      # When
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
-
-      # Then
-      assert has_element?(lv, "h1", "tuist cache")
-      assert has_element?(lv, "[data-part=\"metadata\"]", "Ran by")
-      # Should show CI badge for runs without a user
-      assert has_element?(lv, ".noora-badge", "CI")
-    end
-
-    test "shows download result button when available", %{
-      conn: conn,
-      organization: organization,
-      project: project,
-      user: user
-    } do
-      # Given
-      stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
-
-      test_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "test",
-            cacheable_targets: ["Framework"],
-            user_id: user.id
-          )
-        end)
-
-      # When
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
-
-      # Then
-      assert has_element?(lv, ".noora-button", "Download result")
-    end
-
-    test "does not show download result button when not available", %{
-      conn: conn,
-      organization: organization,
-      project: project,
-      user: user
-    } do
-      # Given
-      stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
-
-      test_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "test",
-            cacheable_targets: ["Framework"],
-            user_id: user.id
-          )
-        end)
-
-      # When
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
-
-      # Then
-      refute has_element?(lv, ".noora-button", "Download result")
-    end
-  end
-
-  describe "run detail - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "run detail" do
     test "shows details of a test run", %{
       conn: conn,
       organization: organization,
@@ -121,15 +25,13 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       test_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "test",
-            command_arguments: ["test", "App"],
-            test_targets: ["AppTests"],
-            user_id: user.id
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          command_arguments: ["test", "App"],
+          test_targets: ["AppTests"],
+          user_id: user.id
+        )
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
 
@@ -160,15 +62,13 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       cache_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "cache",
-            command_arguments: ["cache"],
-            cacheable_targets: ["Framework"],
-            user_id: user.id
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "cache",
+          command_arguments: ["cache"],
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: cache_run.id)
 
@@ -202,15 +102,13 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       ci_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "cache",
-            is_ci: true,
-            user_id: nil,
-            cacheable_targets: ["Framework"]
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "cache",
+          is_ci: true,
+          user_id: nil,
+          cacheable_targets: ["Framework"]
+        )
 
       # When
       {:ok, lv, _html} =
@@ -260,14 +158,12 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
       test_run =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project: project,
-            name: "test",
-            cacheable_targets: ["Framework"],
-            user_id: user.id
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
 
       # When
       {:ok, lv, _html} =
