@@ -54,13 +54,13 @@
     }
 
     /* Adjust spacing for medium screens */
-    @media (min-width: 768px) and (max-width: 1024px) {
+    @media (min-width: 768px) and (max-width: 1320px) {
       margin-right: var(--noora-spacing-4);
       margin-left: var(--noora-spacing-4);
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
     }
 
-    @media (min-width: 1024px) {
+    @media (min-width: 1320px) {
       margin-right: 0;
       margin-left: 0;
       padding: var(--noora-spacing-3) var(--noora-spacing-6);
