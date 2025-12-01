@@ -373,6 +373,11 @@
               label={gettext("Failed")}
               status="error"
             />
+            <.status_badge_cell
+              :if={test_run.status == "skipped"}
+              label={gettext("Skipped")}
+              status="warning"
+            />
           </:col>
           <:col :let={test_run} label={gettext("Branch")}>
             <.text_cell

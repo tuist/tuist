@@ -32,6 +32,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
     private var inspectResultBundleService: MockInspectResultBundleServicing!
+    private var derivedDataLocator: MockDerivedDataLocating!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -47,6 +48,7 @@ final class TestServiceTests: TuistUnitTestCase {
         xcResultService = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
         inspectResultBundleService = .init()
+        derivedDataLocator = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -80,6 +82,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(destination: nil)
             )
 
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(try temporaryPath().appending(component: "DerivedData"))
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
@@ -89,7 +95,8 @@ final class TestServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService,
-            inspectResultBundleService: inspectResultBundleService
+            inspectResultBundleService: inspectResultBundleService,
+            derivedDataLocator: derivedDataLocator
         )
 
         given(simulatorController)
@@ -151,6 +158,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testedSchemes = []
         runMetadataStorage = nil
         inspectResultBundleService = nil
+        derivedDataLocator = nil
         subject = nil
         super.tearDown()
     }

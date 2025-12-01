@@ -88,6 +88,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let inspectResultBundleService: InspectResultBundleServicing
+    private let derivedDataLocator: DerivedDataLocating
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -116,7 +117,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -131,6 +133,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.inspectResultBundleService = inspectResultBundleService
+        self.derivedDataLocator = derivedDataLocator
     }
 
     static func validateParameters(
@@ -839,6 +842,15 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let projectDerivedDataDirectory: AbsolutePath?
+        if let derivedDataPath {
+            projectDerivedDataDirectory = derivedDataPath
+        } else {
+            projectDerivedDataDirectory = try? await derivedDataLocator.locate(
+                for: graphTraverser.workspace.xcWorkspacePath
+            )
+        }
+
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -864,7 +876,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         } catch {
             await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
             )
@@ -873,7 +885,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
-            derivedDataPath: derivedDataPath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action
         )
@@ -881,7 +893,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
-        derivedDataPath: AbsolutePath?,
+        projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction
     ) async {
@@ -892,7 +904,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         do {
             _ = try await inspectResultBundleService.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
-                projectDerivedDataDirectory: derivedDataPath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
             )
         } catch {

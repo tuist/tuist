@@ -561,7 +561,7 @@ defmodule TuistWeb.API.RunsController do
                status: %Schema{
                  type: :string,
                  description: "The status of the test run.",
-                 enum: ["success", "failure"]
+                 enum: ["success", "failure", "skipped"]
                },
                git_commit_sha: %Schema{
                  type: :string,
