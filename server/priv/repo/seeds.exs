@@ -467,7 +467,7 @@ branches = [
 
 tests =
   Enum.map(1..1500, fn _ ->
-    status = Enum.random([0, 1])
+    status = Enum.random(["success", "failure"])
     is_ci = Enum.random([true, false])
     scheme = Enum.random(["AppTests", "FrameworkTests", "UITests"])
     xcode_version = Enum.random(["12.4", "13.0", "13.2"])
@@ -606,7 +606,7 @@ test_module_runs =
     Enum.map(1..module_count, fn _ ->
       module_name = Enum.random(module_names)
       # Inherit status from test run, but sometimes modules can succeed even if test failed
-      module_status = if test.status == 0, do: 0, else: Enum.random([0, 0, 1])
+      module_status = if test.status == "success", do: 0, else: Enum.random([0, 0, 1])
       suite_count = Enum.random(2..5)
       case_count = Enum.random(10..50)
       module_duration = Enum.random(1_000..10_000)
