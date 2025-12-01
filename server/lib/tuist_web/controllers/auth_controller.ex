@@ -122,8 +122,7 @@ defmodule TuistWeb.AuthController do
           |> delete_session(:oauth_return_to)
           |> Authentication.log_in_user(user)
         else
-          conn
-          |> Authentication.log_in_user(user)
+          Authentication.log_in_user(conn, user)
         end
 
       {:error, :not_found} ->
@@ -245,35 +244,22 @@ defmodule TuistWeb.AuthController do
       {:ok, %{user_id: user_id, oauth_return_url: oauth_return_url}} ->
         case Accounts.get_user_by_id(user_id) do
           nil ->
-            conn
-            |> put_flash(:error, gettext("Something went wrong. Please try again."))
-            |> redirect(to: ~p"/users/log_in")
+            redirect(conn, to: ~p"/users/log_in")
 
           user ->
-            conn =
-              conn
-              |> delete_session(:pending_oauth_signup)
-              |> put_flash(:info, gettext("Successfully authenticated."))
-
-            if oauth_return_url do
-              conn
-              |> put_session(:user_return_to, oauth_return_url)
-              |> Authentication.log_in_user(user)
-            else
-              Authentication.log_in_user(conn, user)
-            end
+            conn
+            |> delete_session(:pending_oauth_signup)
+            |> put_session(:user_return_to, oauth_return_url)
+            |> Authentication.log_in_user(user)
         end
 
       {:error, _reason} ->
-        conn
-        |> put_flash(:error, gettext("Something went wrong. Please try again."))
-        |> redirect(to: ~p"/users/log_in")
+        redirect(conn, to: ~p"/users/log_in")
     end
   end
 
   def complete_signup(conn, _params) do
     conn
-    |> put_flash(:error, gettext("Something went wrong. Please try again."))
     |> redirect(to: ~p"/users/log_in")
   end
 

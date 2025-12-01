@@ -10,9 +10,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
   describe "Choose username page" do
     test "redirects to login when session has no pending_oauth_signup", %{conn: conn} do
-      result =
-        conn
-        |> live(~p"/users/choose-username")
+      result = live(conn, ~p"/users/choose-username")
 
       assert {:error, {:live_redirect, %{to: "/users/log_in"}}} = result
     end
@@ -102,7 +100,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
 
       # Verify user was created
       user = Accounts.get_user_by_email(oauth_data["email"])
-      assert user != nil
+      assert user
       assert user.account.name == username
     end
 

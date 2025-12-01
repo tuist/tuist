@@ -9,9 +9,7 @@ defmodule TuistWeb.ChooseUsernameLive do
   def mount(_params, session, socket) do
     case session["pending_oauth_signup"] do
       nil ->
-        socket =
-          socket
-          |> push_navigate(to: ~p"/users/log_in")
+        socket = push_navigate(socket, to: ~p"/users/log_in")
 
         {:ok, socket}
 

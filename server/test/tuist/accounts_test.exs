@@ -3235,8 +3235,7 @@ defmodule Tuist.AccountsTest do
           raw_info: %{
             token: %{
               other_params: %{
-                "id_token" =>
-                  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
+                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
               }
             }
           }
