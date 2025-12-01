@@ -87,7 +87,7 @@ defmodule TuistWeb.TestCasesLive do
      socket
      |> push_patch(
        to:
-         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-cases?#{updated_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-cases?#{updated_params}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -100,7 +100,7 @@ defmodule TuistWeb.TestCasesLive do
      socket
      |> push_patch(
        to:
-         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-cases?#{updated_query_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-cases?#{updated_query_params}"
      )
      |> push_event("close-dropdown", %{all: true})
      |> push_event("close-popover", %{all: true})}
