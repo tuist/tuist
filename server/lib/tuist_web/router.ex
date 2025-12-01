@@ -540,6 +540,7 @@ defmodule TuistWeb.Router do
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/choose-username", ChooseUsernameLive, :new
     end
 
     post "/users/log_in", UserSessionController, :create
@@ -565,6 +566,11 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
     end
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app]
+    get "/complete-signup", AuthController, :complete_signup
   end
 
   scope "/users/auth", TuistWeb do

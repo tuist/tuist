@@ -3111,4 +3111,245 @@ defmodule Tuist.AccountsTest do
       assert is_nil(Accounts.get_account_by_id(account.id).namespace_tenant_id)
     end
   end
+
+  describe "get_oauth2_identity/2" do
+    test "returns {:ok, identity} when OAuth2 identity exists" do
+      # Given
+      provider = :github
+      uid = System.unique_integer([:positive])
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: provider,
+          uid: uid,
+          info: %{email: "oauth-exists-test-#{uid}@example.com"}
+        })
+
+      # When
+      {:ok, identity} = Accounts.get_oauth2_identity(provider, uid)
+
+      # Then
+      assert identity.provider == provider
+      assert identity.id_in_provider == to_string(uid)
+      assert identity.user.id == user.id
+    end
+
+    test "returns {:error, :not_found} when OAuth2 identity does not exist" do
+      # When/Then
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:github, "nonexistent-uid")
+    end
+
+    test "returns {:error, :not_found} for different provider with same uid" do
+      # Given
+      uid = System.unique_integer([:positive])
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :github,
+        uid: uid,
+        info: %{email: "oauth-provider-test-#{uid}@example.com"}
+      })
+
+      # When/Then
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, uid)
+    end
+  end
+
+  describe "extract_provider_organization_id/1" do
+    test "extracts hosted domain for Google provider" do
+      # Given
+      auth = %{
+        provider: :google,
+        extra: %{
+          raw_info: %{
+            user: %{"hd" => "tuist.io"}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert result == "tuist.io"
+    end
+
+    test "returns nil for Google provider without hosted domain" do
+      # Given
+      auth = %{
+        provider: :google,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "returns nil for GitHub provider" do
+      # Given
+      auth = %{
+        provider: :github,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "returns nil for Apple provider" do
+      # Given
+      auth = %{
+        provider: :apple,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "extracts issuer domain for Okta provider" do
+      # Given
+      auth = %{
+        provider: :okta,
+        extra: %{
+          raw_info: %{
+            token: %{
+              other_params: %{
+                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
+              }
+            }
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert result == "tuist.okta.com"
+    end
+  end
+
+  describe "create_user_from_pending_oauth/2" do
+    test "creates user with specified username" do
+      # Given
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      username = "chosen-username-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert user.account.name == username
+      assert user.email == oauth_data["email"]
+    end
+
+    test "creates OAuth2 identity for the user" do
+      # Given
+      uid = "oauth-uid-#{System.unique_integer([:positive])}"
+
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => uid,
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      username = "chosen-username-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, _user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert {:ok, _identity} = Accounts.get_oauth2_identity(:github, uid)
+    end
+
+    test "assigns user to SSO organization when provider_organization_id matches" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "sso-test.io"
+        )
+
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "ssouser-#{System.unique_integer([:positive])}@sso-test.io",
+        "provider_organization_id" => "sso-test.io"
+      }
+
+      username = "sso-user-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "returns error when username is already taken" do
+      # Given
+      existing_user = AccountsFixtures.user_fixture()
+      existing_username = existing_user.account.name
+
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      # When
+      result = Accounts.create_user_from_pending_oauth(oauth_data, existing_username)
+
+      # Then
+      assert {:error, :account_handle_taken} = result
+    end
+
+    test "returns error for invalid username format" do
+      # Given
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      invalid_username = "invalid username with spaces"
+
+      # When
+      result = Accounts.create_user_from_pending_oauth(oauth_data, invalid_username)
+
+      # Then
+      assert {:error, errors} = result
+      assert Map.has_key?(errors, :name)
+    end
+  end
 end
