@@ -62,6 +62,18 @@ And it bears repeating – the test insights are environment-agnostic, so you ca
 
 > Do you want to explore the feature on your own? Our Tuist [dashboard is open for anyone](https://tuist.dev/tuist/tuist/tests), including the new test insights.
 
+## How test insights work
+
+You might be wondering what happens under the hood when you run `tuist inspect test`. Here's a quick overview:
+
+1. The post-action finds the latest `.xcresult` from your derived data. The derived data location is determined based on the `$SRCROOT` environment variable that Xcode provides.
+2. We use Apple's `xcresulttool` to get the JSON representation of the `.xcresult`. This gives us access to the structured test data that Xcode collects.
+3. We extract the most important pieces – duration, test status, failure messages, and more – and send the data to the Tuist server.
+4. All of this happens in the background, so Xcode can finish the test action without waiting for the upload to complete.
+5. The server stores the data in [ClickHouse](https://clickhouse.com/), an analytics database optimized for fast queries over large datasets. This allows us to efficiently analyze your test history and surface insights in the dashboard.
+
+Since the full implementation is open-source, you can check it out [here](https://github.com/tuist/tuist/blob/22b22cadd2631efcc73dde6d0881032a86947493/cli/Sources/TuistXCResultService/XCResultService.swift).
+
 ## What's next
 
 Test Insights takes Xcode's test data, makes it readily available in your browser, and analyzes it over time – whether you need to debug a failing test on CI or understand how your test suite's performance is trending.
