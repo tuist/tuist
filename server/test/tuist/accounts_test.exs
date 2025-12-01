@@ -3112,28 +3112,34 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "oauth2_identity_exists?/2" do
-    test "returns true when OAuth2 identity exists" do
+  describe "get_oauth2_identity/2" do
+    test "returns {:ok, identity} when OAuth2 identity exists" do
       # Given
       provider = :github
       uid = System.unique_integer([:positive])
 
-      Accounts.find_or_create_user_from_oauth2(%{
-        provider: provider,
-        uid: uid,
-        info: %{email: "oauth-exists-test-#{uid}@example.com"}
-      })
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: provider,
+          uid: uid,
+          info: %{email: "oauth-exists-test-#{uid}@example.com"}
+        })
 
-      # When/Then
-      assert Accounts.oauth2_identity_exists?(provider, uid)
+      # When
+      {:ok, identity} = Accounts.get_oauth2_identity(provider, uid)
+
+      # Then
+      assert identity.provider == provider
+      assert identity.id_in_provider == to_string(uid)
+      assert identity.user.id == user.id
     end
 
-    test "returns false when OAuth2 identity does not exist" do
+    test "returns {:error, :not_found} when OAuth2 identity does not exist" do
       # When/Then
-      refute Accounts.oauth2_identity_exists?(:github, "nonexistent-uid")
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:github, "nonexistent-uid")
     end
 
-    test "returns false for different provider with same uid" do
+    test "returns {:error, :not_found} for different provider with same uid" do
       # Given
       uid = System.unique_integer([:positive])
 
@@ -3144,7 +3150,7 @@ defmodule Tuist.AccountsTest do
       })
 
       # When/Then
-      refute Accounts.oauth2_identity_exists?(:google, uid)
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, uid)
     end
   end
 
@@ -3282,7 +3288,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
 
       # Then
-      assert Accounts.oauth2_identity_exists?(:github, uid)
+      assert {:ok, _identity} = Accounts.get_oauth2_identity(:github, uid)
     end
 
     test "assigns user to SSO organization when provider_organization_id matches" do

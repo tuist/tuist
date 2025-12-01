@@ -111,37 +111,38 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    if Accounts.oauth2_identity_exists?(auth.provider, auth.uid) do
-      # Existing user - proceed with login
-      user = Accounts.find_or_create_user_from_oauth2(auth)
-      oauth_return_url = get_session(conn, :oauth_return_to)
+    case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
+      {:ok, oauth2_identity} ->
+        user = oauth2_identity.user
+        oauth_return_url = get_session(conn, :oauth_return_to)
 
-      if oauth_return_url do
+        if oauth_return_url do
+          conn
+          |> put_session(:user_return_to, oauth_return_url)
+          |> delete_session(:oauth_return_to)
+          |> Authentication.log_in_user(user)
+        else
+          conn
+          |> Authentication.log_in_user(user)
+        end
+
+      {:error, :not_found} ->
+        provider_organization_id = Accounts.extract_provider_organization_id(auth)
+        oauth_return_url = get_session(conn, :oauth_return_to)
+
+        oauth_data = %{
+          "provider" => to_string(auth.provider),
+          "uid" => to_string(auth.uid),
+          "email" => auth.info.email,
+          "provider_organization_id" => provider_organization_id,
+          "oauth_return_url" => oauth_return_url
+        }
+
         conn
-        |> put_session(:user_return_to, oauth_return_url)
         |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(user)
-      else
-        conn
-        |> Authentication.log_in_user(user)
-      end
-    else
-      provider_organization_id = Accounts.extract_provider_organization_id(auth)
-      oauth_return_url = get_session(conn, :oauth_return_to)
-
-      oauth_data = %{
-        "provider" => to_string(auth.provider),
-        "uid" => to_string(auth.uid),
-        "email" => auth.info.email,
-        "provider_organization_id" => provider_organization_id,
-        "oauth_return_url" => oauth_return_url
-      }
-
-      conn
-      |> delete_session(:oauth_return_to)
-      |> put_session(:pending_oauth_signup, oauth_data)
-      |> redirect(to: ~p"/users/choose-username")
-      |> halt()
+        |> put_session(:pending_oauth_signup, oauth_data)
+        |> redirect(to: ~p"/users/choose-username")
+        |> halt()
     end
   end
 

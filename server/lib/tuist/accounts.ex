@@ -455,11 +455,22 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Checks if an OAuth2 identity already exists for the given provider and id.
+  Gets an OAuth2 identity by provider and id, preloading the user and account.
   Used to determine if a user signing in via OAuth is new or existing.
+
+  Returns `{:ok, identity}` if found, `{:error, :not_found}` otherwise.
   """
-  def oauth2_identity_exists?(provider, id_in_provider) do
-    not is_nil(get_oauth2_identity_by_provider_and_id(provider, id_in_provider))
+  def get_oauth2_identity(provider, id_in_provider) do
+    query =
+      from(o in Oauth2Identity,
+        where: o.provider == ^provider and o.id_in_provider == ^to_string(id_in_provider),
+        preload: [user: [:account]]
+      )
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      identity -> {:ok, identity}
+    end
   end
 
   @doc """
