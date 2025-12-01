@@ -116,4 +116,4 @@ Tuist/Dependencies/graph.json
 *.p12
 ./minio
 !.github
-cli/Tests/Fixtures/test.xcresult/database.sqlite3
+cli/Tests/Fixtures/*.xcresult/database.sqlite3
