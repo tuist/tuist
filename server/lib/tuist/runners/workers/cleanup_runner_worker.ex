@@ -2,11 +2,11 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
   @moduledoc """
   Background job for cleaning up runners after job completion.
 
-  This worker handles VM cleanup when a runner job finishes.
+  This worker handles cleanup when a bare metal runner job finishes.
 
   ## Responsibilities
 
-  1. Execute cleanup script on host via SSH to destroy the VM
+  1. Execute cleanup script on host via SSH (remove runner, clean workspace)
   2. Transition job status through cleanup → completed/failed
   3. Log cleanup metrics for monitoring
 
@@ -80,9 +80,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
         {:ok, updated_job}
 
       {:error, changeset} ->
-        Logger.error(
-          "CleanupRunnerWorker: Failed to transition job #{job.id} to cleanup: #{inspect(changeset.errors)}"
-        )
+        Logger.error("CleanupRunnerWorker: Failed to transition job #{job.id} to cleanup: #{inspect(changeset.errors)}")
 
         {:error, :invalid_transition}
     end
@@ -90,15 +88,15 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
 
   defp execute_cleanup_script(job) do
     host = job.host
-    vm_name = job.vm_name
+    runner_name = job.github_runner_name
 
-    Logger.info("CleanupRunnerWorker: Executing cleanup for VM #{vm_name} on host #{host.name} (#{host.ip})")
+    Logger.info("CleanupRunnerWorker: Executing cleanup for runner #{runner_name} on host #{host.name} (#{host.ip})")
 
     ssh_opts = build_ssh_opts()
 
     case SSHClient.connect(String.to_charlist(host.ip), host.ssh_port, ssh_opts) do
       {:ok, connection} ->
-        result = run_cleanup_command(connection, vm_name, job.id)
+        result = run_cleanup_command(connection, runner_name, job.id)
         SSHClient.close(connection)
         result
 
@@ -108,8 +106,8 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
     end
   end
 
-  defp run_cleanup_command(connection, vm_name, job_id) do
-    cleanup_command = build_cleanup_command(vm_name)
+  defp run_cleanup_command(connection, runner_name, job_id) do
+    cleanup_command = build_cleanup_command(runner_name)
 
     case SSHClient.run_command(connection, cleanup_command, @cleanup_timeout) do
       {:ok, output} ->
@@ -122,13 +120,19 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
     end
   end
 
-  defp build_cleanup_command(vm_name) do
-    "tart delete #{vm_name} --force 2>/dev/null || true"
+  defp build_cleanup_command(runner_name) do
+    # Remove the runner directory and clean up any leftover processes.
+    # The runner is installed in ~/actions-runner-{runner_name}
+    """
+    pkill -f 'Runner.Listener.*#{runner_name}' 2>/dev/null || true; \
+    rm -rf ~/actions-runner-#{runner_name} 2>/dev/null || true
+    """
   end
 
   defp build_ssh_opts do
     user_dir =
-      Application.get_env(:tuist, :runners_ssh_user_dir, "/app/.ssh")
+      :tuist
+      |> Application.get_env(:runners_ssh_user_dir, "/app/.ssh")
       |> String.to_charlist()
 
     [
@@ -151,9 +155,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
         :ok
 
       {:error, changeset} ->
-        Logger.error(
-          "CleanupRunnerWorker: Failed to mark job #{job.id} as completed: #{inspect(changeset.errors)}"
-        )
+        Logger.error("CleanupRunnerWorker: Failed to mark job #{job.id} as completed: #{inspect(changeset.errors)}")
 
         {:error, :status_update_failed}
     end
@@ -164,9 +166,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
     error_message = format_error_message(reason)
 
     if attempt >= max_attempts do
-      Logger.error(
-        "CleanupRunnerWorker: Max retries reached for job #{job.id}, marking as failed: #{error_message}"
-      )
+      Logger.error("CleanupRunnerWorker: Max retries reached for job #{job.id}, marking as failed: #{error_message}")
 
       case Runners.update_runner_job(job, %{
              status: :failed,
@@ -178,9 +178,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
           :ok
 
         {:error, changeset} ->
-          Logger.error(
-            "CleanupRunnerWorker: Failed to mark job #{job.id} as failed: #{inspect(changeset.errors)}"
-          )
+          Logger.error("CleanupRunnerWorker: Failed to mark job #{job.id} as failed: #{inspect(changeset.errors)}")
 
           :ok
       end
@@ -213,9 +211,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
       :ok
     else
       {:error, changeset} ->
-        Logger.error(
-          "CleanupRunnerWorker: Failed to mark job #{job.id} as completed: #{inspect(changeset.errors)}"
-        )
+        Logger.error("CleanupRunnerWorker: Failed to mark job #{job.id} as completed: #{inspect(changeset.errors)}")
 
         {:error, :status_update_failed}
     end
