@@ -2,7 +2,7 @@ defmodule Tuist.IngestRepo.Migrations.ChangeTestRunsStatusToLowCardinalityString
   use Ecto.Migration
 
   def up do
-    execute("ALTER TABLE test_runs DROP INDEX idx_status")
+    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status")
 
     alter table(:test_runs) do
       modify :status, :"LowCardinality(String)"
@@ -12,7 +12,7 @@ defmodule Tuist.IngestRepo.Migrations.ChangeTestRunsStatusToLowCardinalityString
   end
 
   def down do
-    execute("ALTER TABLE test_runs DROP INDEX idx_status")
+    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status")
 
     alter table(:test_runs) do
       modify :status, :"Enum8('success' = 0, 'failure' = 1)"
