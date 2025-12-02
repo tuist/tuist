@@ -777,6 +777,30 @@ defmodule Tuist.Environment do
     namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
+  @doc """
+  Returns the SSH private key used by the Tuist Runners orchestrator to connect to Mac hosts.
+  The key should be stored in PEM format.
+  """
+  def runners_ssh_private_key(secrets \\ secrets()) do
+    get([:runners, :ssh_private_key], secrets)
+  end
+
+  @doc """
+  Returns the SSH public key used by the Tuist Runners orchestrator to connect to Mac hosts.
+  This should match the private key and be installed on runner hosts.
+  """
+  def runners_ssh_public_key(secrets \\ secrets()) do
+    get([:runners, :ssh_public_key], secrets)
+  end
+
+  @doc """
+  Returns the SSH user for connecting to runner hosts.
+  Defaults to "admin" if not specified.
+  """
+  def runners_ssh_user(secrets \\ secrets()) do
+    get([:runners, :ssh_user], secrets) || "admin"
+  end
+
   def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&to_string/1) |> Enum.map_join("_", &String.upcase/1)}"

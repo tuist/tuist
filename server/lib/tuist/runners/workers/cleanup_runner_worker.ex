@@ -130,19 +130,41 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
   end
 
   defp build_ssh_opts do
-    user_dir =
-      :tuist
-      |> Application.get_env(:runners_ssh_user_dir, "/app/.ssh")
+    ssh_user =
+      Tuist.Environment.runners_ssh_user()
       |> String.to_charlist()
 
+    # Get SSH private key from secrets
+    private_key = Tuist.Environment.runners_ssh_private_key()
+
+    if is_nil(private_key) do
+      raise "SSH private key not configured. Please set TUIST_RUNNERS_SSH_PRIVATE_KEY or runners.ssh_private_key in secrets."
+    end
+
+    # Write private key to a temporary file for this SSH session
+    key_path = write_temp_ssh_key(private_key)
+
     [
-      user: ~c"admin",
-      user_dir: user_dir,
+      user: ssh_user,
+      user_dir: Path.dirname(key_path) |> String.to_charlist(),
       silently_accept_hosts: true,
       auth_methods: ~c"publickey",
       user_interaction: false,
       connect_timeout: @ssh_connection_timeout
     ]
+  end
+
+  defp write_temp_ssh_key(private_key) do
+    # Create a temporary directory for SSH keys if it doesn't exist
+    temp_dir = System.tmp_dir!() |> Path.join("tuist_runners_ssh")
+    File.mkdir_p!(temp_dir)
+
+    # Write the private key to a temporary file
+    key_path = Path.join(temp_dir, "id_rsa")
+    File.write!(key_path, private_key)
+    File.chmod!(key_path, 0o600)
+
+    key_path
   end
 
   defp mark_job_completed(job, start_time) do
