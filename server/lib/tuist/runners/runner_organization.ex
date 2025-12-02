@@ -8,7 +8,6 @@ defmodule Tuist.Runners.RunnerOrganization do
   import Ecto.Query
 
   @primary_key {:id, UUIDv7, autogenerate: false}
-  @foreign_key_type UUIDv7
   schema "runner_organizations" do
     field :enabled, :boolean, default: false
     field :label_prefix, :string

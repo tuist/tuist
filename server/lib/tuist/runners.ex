@@ -95,6 +95,15 @@ defmodule Tuist.Runners do
   def get_runner_job(id), do: Tuist.Repo.get(RunnerJob, id)
 
   @doc """
+  Gets a single runner job with its associated host preloaded.
+  """
+  def get_runner_job_with_host(id) do
+    RunnerJob
+    |> Tuist.Repo.get(id)
+    |> Tuist.Repo.preload(:host)
+  end
+
+  @doc """
   Gets a runner job by GitHub job ID.
   """
   def get_runner_job_by_github_job_id(github_job_id) do
