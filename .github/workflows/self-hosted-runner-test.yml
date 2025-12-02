@@ -1,6 +1,14 @@
 name: Self-Hosted Runner Test
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/self-hosted-runner-test.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/self-hosted-runner-test.yml"
   workflow_dispatch:
     inputs:
       test_message:
