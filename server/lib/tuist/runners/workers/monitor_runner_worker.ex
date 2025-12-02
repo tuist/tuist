@@ -175,10 +175,11 @@ defmodule Tuist.Runners.Workers.MonitorRunnerWorker do
 
     [
       user: ssh_user,
-      user_dir: Path.dirname(key_path) |> String.to_charlist(),
       silently_accept_hosts: true,
       auth_methods: ~c"publickey",
       user_interaction: false,
+      user_dir: String.to_charlist(Path.dirname(key_path)),
+      key_cb: {Tuist.Runners.SSHKeyCallback, key_file: String.to_charlist(key_path)},
       connect_timeout: @ssh_connection_timeout
     ]
   end
@@ -189,7 +190,8 @@ defmodule Tuist.Runners.Workers.MonitorRunnerWorker do
     File.mkdir_p!(temp_dir)
 
     # Write the private key to a temporary file
-    key_path = Path.join(temp_dir, "id_rsa")
+    # Use id_ed25519 since the key is an Ed25519 key in OpenSSH format
+    key_path = Path.join(temp_dir, "id_ed25519")
     File.write!(key_path, private_key)
     File.chmod!(key_path, 0o600)
 
