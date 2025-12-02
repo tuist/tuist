@@ -38,6 +38,10 @@ defmodule Tuist do
       Runs.Build,
       Runs.CASOutput,
       Runs.Analytics,
+      Runners,
+      Runners.RunnerJob,
+      Runners.Workers.SpawnRunnerWorker,
+      Runners.Workers.CleanupRunnerWorker,
       # App
       # -----
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other

@@ -6,6 +6,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Projects
   alias Tuist.QA
   alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.VCS
 
   require Logger
@@ -19,6 +20,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
       "installation" ->
         handle_installation(conn, params)
+
+      "workflow_job" ->
+        handle_workflow_job(conn, params)
 
       _ ->
         conn
@@ -121,6 +125,115 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp handle_installation(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(
+         conn,
+         %{
+           "action" => "queued",
+           "workflow_job" => workflow_job,
+           "organization" => organization,
+           "installation" => %{"id" => installation_id}
+         } = _params
+       ) do
+    labels = workflow_job["labels"] || []
+
+    case Runners.should_handle_job?(labels, installation_id) do
+      {:ok, runner_org} ->
+        case Runners.create_job_from_webhook(workflow_job, organization, runner_org) do
+          {:ok, job} ->
+            Logger.info(
+              "Created runner job #{job.id} for GitHub job #{workflow_job["id"]} (org: #{organization["login"]})"
+            )
+
+            %{job_id: job.id}
+            |> Runners.Workers.SpawnRunnerWorker.new()
+            |> Oban.insert()
+
+          {:error, changeset} ->
+            Logger.error("Failed to create runner job: #{inspect(changeset.errors)}")
+        end
+
+      {:ignore, reason} ->
+        Logger.debug("Ignoring workflow_job event for installation #{installation_id}: #{reason}")
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(
+         conn,
+         %{"action" => "in_progress", "workflow_job" => %{"id" => github_job_id, "runner_name" => runner_name}} = _params
+       ) do
+    case Runners.get_runner_job_by_github_job_id(github_job_id) do
+      nil ->
+        Logger.debug("Received in_progress for unknown job #{github_job_id}, ignoring")
+
+      job ->
+        case Runners.update_runner_job(job, %{
+               status: :running,
+               started_at: DateTime.utc_now(),
+               github_runner_name: runner_name
+             }) do
+          {:ok, _updated_job} ->
+            Logger.info("Runner job #{job.id} is now running on #{runner_name}")
+
+          {:error, changeset} ->
+            Logger.error("Failed to update runner job #{job.id} to running: #{inspect(changeset.errors)}")
+        end
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(
+         conn,
+         %{"action" => "completed", "workflow_job" => %{"id" => github_job_id, "conclusion" => conclusion}} = _params
+       ) do
+    case Runners.get_runner_job_by_github_job_id(github_job_id) do
+      nil ->
+        Logger.debug("Received completed for unknown job #{github_job_id}, ignoring")
+
+      job ->
+        status =
+          case conclusion do
+            "success" -> :cleanup
+            "failure" -> :failed
+            "cancelled" -> :cancelled
+            _ -> :cleanup
+          end
+
+        case Runners.update_runner_job(job, %{
+               status: status,
+               completed_at: DateTime.utc_now()
+             }) do
+          {:ok, updated_job} ->
+            Logger.info("Runner job #{job.id} completed with status #{status}")
+
+            if status == :cleanup do
+              %{job_id: updated_job.id}
+              |> Runners.Workers.CleanupRunnerWorker.new()
+              |> Oban.insert()
+            end
+
+          {:error, changeset} ->
+            Logger.error("Failed to update runner job #{job.id} to #{status}: #{inspect(changeset.errors)}")
+        end
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(conn, _params) do
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})
