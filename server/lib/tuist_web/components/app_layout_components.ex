@@ -177,6 +177,17 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        label={gettext("CI")}
+        icon="git_merge"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"
+          )
+        }
+      />
+      <.sidebar_item
         label={gettext("Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}

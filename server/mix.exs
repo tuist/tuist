@@ -47,7 +47,12 @@ defmodule Tuist.MixProject do
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
-       github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
+       github: "tailwindlabs/heroicons",
+       tag: "v2.1.1",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1},
       {:bamboo, "~> 2.4"},
       {:finch, "~> 0.20.0"},
       {:telemetry_metrics, "~> 1.0"},
@@ -65,9 +70,14 @@ defmodule Tuist.MixProject do
       # The trunk version of ex_aws has a bug that causes pre-fixing the bucket name to the object key
       # when using custom domains:
       # Fix: https://github.com/ex-aws/ex_aws/pull/1162/
-      {:ex_aws, git: "https://github.com/tuist/ex_aws/", ref: "76b39d8651408a40e6ca40eec63bb49d1dde5713", override: true},
+      {:ex_aws,
+       git: "https://github.com/tuist/ex_aws/",
+       ref: "76b39d8651408a40e6ca40eec63bb49d1dde5713",
+       override: true},
       {:ex_aws_s3,
-       git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
+       git: "https://github.com/tuist/ex_aws_s3/",
+       ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c",
+       override: true},
       {:number, "~> 1.0"},
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
@@ -97,7 +107,10 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       # Temporarily using PR #180 branch for OTP 28 compatibility fix
       # TODO: Switch back to hex version once jose 1.12.0 is released
-      {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
+      {:jose,
+       git: "https://github.com/jtdowney/erlang-jose.git",
+       branch: "fix-otp28-compatibility",
+       override: true},
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 4.0.4"},
       {:excellent_migrations, "~> 0.1.8"},
@@ -133,7 +146,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.45.0"},
+        {:noora, "== 0.46.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -145,7 +158,10 @@ defmodule Tuist.MixProject do
       # causing runime errors when processing the telemetry events. We opened
       # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
       # be merged.
-      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
+      {:peep,
+       git: "https://github.com/pepicrft/peep",
+       ref: "cae2ddd2349ae0766352d106c4ebebc29949f110",
+       override: true},
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},
