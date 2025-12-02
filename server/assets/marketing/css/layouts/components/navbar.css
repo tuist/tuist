@@ -651,11 +651,6 @@
       align-items: center;
       gap: var(--noora-spacing-5);
 
-      /* Reduce gap on medium screens */
-      @media (min-width: 768px) and (max-width: 1024px) {
-        gap: var(--noora-spacing-3);
-      }
-
       & > [data-part="menu"] {
         position: relative;
 
