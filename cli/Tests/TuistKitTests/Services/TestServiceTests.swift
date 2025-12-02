@@ -3,7 +3,9 @@ import Mockable
 import Path
 import TuistAutomation
 import TuistCache
+import TuistCI
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -33,6 +35,9 @@ final class TestServiceTests: TuistUnitTestCase {
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
     private var inspectResultBundleService: MockInspectResultBundleServicing!
     private var derivedDataLocator: MockDerivedDataLocating!
+    private var createTestService: MockCreateTestServicing!
+    private var gitController: MockGitControlling!
+    private var ciController: MockCIControlling!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -49,6 +54,9 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
         inspectResultBundleService = .init()
         derivedDataLocator = .init()
+        createTestService = .init()
+        gitController = .init()
+        ciController = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -86,6 +94,22 @@ final class TestServiceTests: TuistUnitTestCase {
             .locate(for: .any)
             .willReturn(try temporaryPath().appending(component: "DerivedData"))
 
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(try temporaryPath())
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        given(ciController)
+            .ciInfo()
+            .willReturn(nil)
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
@@ -95,8 +119,11 @@ final class TestServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService,
+            gitController: gitController,
             inspectResultBundleService: inspectResultBundleService,
-            derivedDataLocator: derivedDataLocator
+            derivedDataLocator: derivedDataLocator,
+            createTestService: createTestService,
+            ciController: ciController
         )
 
         given(simulatorController)
@@ -159,6 +186,9 @@ final class TestServiceTests: TuistUnitTestCase {
         runMetadataStorage = nil
         inspectResultBundleService = nil
         derivedDataLocator = nil
+        createTestService = nil
+        gitController = nil
+        ciController = nil
         subject = nil
         super.tearDown()
     }
