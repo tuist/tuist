@@ -106,20 +106,15 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   end
 
   defp find_available_host do
-    case Runners.get_available_hosts() do
-      [] ->
+    case Runners.get_best_available_host() do
+      nil ->
         Logger.warning("SpawnRunnerWorker: No available hosts found")
         {:error, :no_hosts_available}
 
-      hosts ->
-        host = select_best_host(hosts)
+      host ->
         Logger.info("SpawnRunnerWorker: Selected host #{host.name} (#{host.ip})")
         {:ok, host}
     end
-  end
-
-  defp select_best_host(hosts) do
-    Enum.random(hosts)
   end
 
   defp assign_host_to_job(job, host) do

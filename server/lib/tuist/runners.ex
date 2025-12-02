@@ -3,9 +3,14 @@ defmodule Tuist.Runners do
   The Runners context for managing Tuist Runners functionality.
   """
 
+  import Ecto.Query
+
+  alias Tuist.Repo
   alias Tuist.Runners.RunnerHost
   alias Tuist.Runners.RunnerJob
   alias Tuist.Runners.RunnerOrganization
+
+  require Logger
 
   @doc """
   Returns the list of runner hosts.
@@ -150,9 +155,58 @@ defmodule Tuist.Runners do
 
   @doc """
   Gets available runner hosts for job assignment.
+  Returns hosts that are online and have capacity for more jobs.
   """
   def get_available_hosts do
-    Tuist.Repo.all(RunnerHost.available_query())
+    Repo.all(RunnerHost.available_query())
+  end
+
+  @doc """
+  Gets the best available host for a new job.
+  Returns the host with the most available capacity (least loaded).
+  """
+  def get_best_available_host do
+    RunnerHost.by_available_capacity_query()
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets the count of active jobs for a host.
+  Active jobs are those in pending, spawning, running, or cleanup states.
+  """
+  def get_active_job_count(host_id) do
+    RunnerJob.by_host_query(host_id)
+    |> where([j], j.status in [:pending, :spawning, :running, :cleanup])
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  Checks if a host has capacity for another job.
+  """
+  def host_has_capacity?(%RunnerHost{} = host) do
+    get_active_job_count(host.id) < host.capacity
+  end
+
+  @doc """
+  Gets the count of active jobs for an organization.
+  """
+  def get_organization_active_job_count(organization_id) do
+    from(j in RunnerJob,
+      where: j.organization_id == ^organization_id,
+      where: j.status in [:pending, :spawning, :running, :cleanup]
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  Checks if an organization has capacity for another job.
+  Returns true if max_concurrent_jobs is nil (unlimited) or if under the limit.
+  """
+  def organization_has_capacity?(%RunnerOrganization{max_concurrent_jobs: nil}), do: true
+
+  def organization_has_capacity?(%RunnerOrganization{} = org) do
+    get_organization_active_job_count(org.id) < org.max_concurrent_jobs
   end
 
   @doc """

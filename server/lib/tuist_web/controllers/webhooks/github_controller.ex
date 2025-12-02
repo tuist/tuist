@@ -143,18 +143,24 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
     case Runners.should_handle_job?(labels, installation_id) do
       {:ok, runner_org} ->
-        case Runners.create_job_from_webhook(workflow_job, organization, runner_org) do
-          {:ok, job} ->
-            Logger.info(
-              "Created runner job #{job.id} for GitHub job #{workflow_job["id"]} (org: #{organization["login"]})"
-            )
+        if Runners.organization_has_capacity?(runner_org) do
+          case Runners.create_job_from_webhook(workflow_job, organization, runner_org) do
+            {:ok, job} ->
+              Logger.info(
+                "Created runner job #{job.id} for GitHub job #{workflow_job["id"]} (org: #{organization["login"]})"
+              )
 
-            %{job_id: job.id}
-            |> Runners.Workers.SpawnRunnerWorker.new()
-            |> Oban.insert()
+              %{job_id: job.id}
+              |> Runners.Workers.SpawnRunnerWorker.new()
+              |> Oban.insert()
 
-          {:error, changeset} ->
-            Logger.error("Failed to create runner job: #{inspect(changeset.errors)}")
+            {:error, changeset} ->
+              Logger.error("Failed to create runner job: #{inspect(changeset.errors)}")
+          end
+        else
+          Logger.warning(
+            "Organization #{runner_org.id} has reached max concurrent jobs limit (#{runner_org.max_concurrent_jobs}), ignoring job #{workflow_job["id"]}"
+          )
         end
 
       {:ignore, reason} ->

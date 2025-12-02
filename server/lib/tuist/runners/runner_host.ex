@@ -61,12 +61,54 @@ defmodule Tuist.Runners.RunnerHost do
     |> unique_constraint(:ip)
   end
 
+  @active_job_statuses [:pending, :spawning, :running, :cleanup]
+
   def online_query do
     from host in __MODULE__, where: host.status == :online
   end
 
   def available_query do
+    active_jobs_subquery =
+      from(job in Tuist.Runners.RunnerJob,
+        where: job.status in @active_job_statuses,
+        group_by: job.host_id,
+        select: %{host_id: job.host_id, count: count(job.id)}
+      )
+
     from host in online_query(),
-      where: host.last_heartbeat_at > ago(5, "minute")
+      left_join: jobs in subquery(active_jobs_subquery),
+      on: jobs.host_id == host.id,
+      where: coalesce(jobs.count, 0) < host.capacity,
+      select: host
+  end
+
+  def with_active_job_count_query do
+    active_jobs_subquery =
+      from(job in Tuist.Runners.RunnerJob,
+        where: job.status in @active_job_statuses,
+        group_by: job.host_id,
+        select: %{host_id: job.host_id, count: count(job.id)}
+      )
+
+    from host in online_query(),
+      left_join: jobs in subquery(active_jobs_subquery),
+      on: jobs.host_id == host.id,
+      select: %{host: host, active_jobs: coalesce(jobs.count, 0)}
+  end
+
+  def by_available_capacity_query do
+    active_jobs_subquery =
+      from(job in Tuist.Runners.RunnerJob,
+        where: job.status in @active_job_statuses,
+        group_by: job.host_id,
+        select: %{host_id: job.host_id, count: count(job.id)}
+      )
+
+    from host in online_query(),
+      left_join: jobs in subquery(active_jobs_subquery),
+      on: jobs.host_id == host.id,
+      where: coalesce(jobs.count, 0) < host.capacity,
+      order_by: [asc: coalesce(jobs.count, 0)],
+      select: host
   end
 end
