@@ -219,23 +219,24 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
       raise "SSH private key not configured. Please set TUIST_RUNNERS_SSH_PRIVATE_KEY or runners.ssh_private_key in secrets."
     end
 
-    # Write private key to a temporary file for this SSH session
-    key_path = write_temp_ssh_key(private_key)
+    # Write private key to a temporary directory for this SSH session
+    {user_dir, _key_path} = write_temp_ssh_key(private_key)
 
     [
       user: ssh_user,
       silently_accept_hosts: true,
       auth_methods: ~c"publickey",
       user_interaction: false,
-      user_dir: String.to_charlist(Path.dirname(key_path)),
-      key_cb: {Tuist.Runners.SSHKeyCallback, key_file: String.to_charlist(key_path)},
+      user_dir: String.to_charlist(user_dir),
       connect_timeout: @ssh_connection_timeout
     ]
   end
 
   defp write_temp_ssh_key(private_key) do
-    # Create a temporary directory for SSH keys if it doesn't exist
-    temp_dir = System.tmp_dir!() |> Path.join("tuist_runners_ssh")
+    # Create a unique temporary directory for this SSH session
+    # This ensures each connection has its own isolated key
+    session_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    temp_dir = Path.join([System.tmp_dir!(), "tuist_runners_ssh", session_id])
     File.mkdir_p!(temp_dir)
 
     # Write the private key to a temporary file
@@ -244,7 +245,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     File.write!(key_path, private_key)
     File.chmod!(key_path, 0o600)
 
-    key_path
+    {temp_dir, key_path}
   end
 
   defp complete_spawn(job) do
