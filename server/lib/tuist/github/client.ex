@@ -148,6 +148,61 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Gets a registration token for configuring a self-hosted runner at the organization level.
+
+  The token expires after one hour and is single-use.
+
+  ## Parameters
+    - `org` - The organization name
+    - `installation_id` - The GitHub App installation ID
+
+  ## Returns
+    - `{:ok, %{token: String.t(), expires_at: DateTime.t()}}` on success
+    - `{:error, reason}` on failure
+  """
+  def get_org_runner_registration_token(%{org: org, installation_id: installation_id}) do
+    url = "https://api.github.com/orgs/#{org}/actions/runners/registration-token"
+
+    case github_request(&Req.post/1, url: url, installation_id: installation_id) do
+      {:ok, %{"token" => token, "expires_at" => expires_at}} ->
+        {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
+        {:ok, %{token: token, expires_at: expires_at}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Gets a registration token for configuring a self-hosted runner at the repository level.
+
+  The token expires after one hour and is single-use.
+
+  ## Parameters
+    - `repository_full_handle` - The full repository name (owner/repo)
+    - `installation_id` - The GitHub App installation ID
+
+  ## Returns
+    - `{:ok, %{token: String.t(), expires_at: DateTime.t()}}` on success
+    - `{:error, reason}` on failure
+  """
+  def get_repo_runner_registration_token(%{
+        repository_full_handle: repository_full_handle,
+        installation_id: installation_id
+      }) do
+    url = "https://api.github.com/repos/#{repository_full_handle}/actions/runners/registration-token"
+
+    case github_request(&Req.post/1, url: url, installation_id: installation_id) do
+      {:ok, %{"token" => token, "expires_at" => expires_at}} ->
+        {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
+        {:ok, %{token: token, expires_at: expires_at}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
   def get_source_archive_by_tag_and_repository_full_handle(%{
         repository_full_handle: repository_full_handle,
         tag: tag,
