@@ -259,8 +259,7 @@ defmodule TuistWeb.AuthController do
   end
 
   def complete_signup(conn, _params) do
-    conn
-    |> redirect(to: ~p"/users/log_in")
+    redirect(conn, to: ~p"/users/log_in")
   end
 
   defp okta_strategy_options(config, params) do
