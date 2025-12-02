@@ -272,6 +272,6 @@ defmodule Tuist.Runners do
     create_runner_job(attrs)
   end
 
-  defp extract_repo_name(%{"head_repository" => %{"full_name" => name}}), do: name
-  defp extract_repo_name(_), do: nil
+  # defp extract_repo_name(%{"head_repository" => %{"full_name" => name}}), do: name
+  # defp extract_repo_name(_), do: nil
 end
