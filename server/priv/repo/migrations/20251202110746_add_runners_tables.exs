@@ -23,26 +23,6 @@ defmodule Tuist.Repo.Migrations.AddRunnersTables do
     create index(:runner_hosts, [:status])
     create index(:runner_hosts, [:last_heartbeat_at])
 
-    create table(:runner_images, primary_key: false) do
-      add :id, :uuid, primary_key: true, null: false
-      add :name, :string, null: false
-      add :os_version, :string, null: false
-      add :xcode_version, :string, null: false
-      add :base_image_name, :string
-      add :labels, {:array, :string}, default: []
-      add :status, :integer, null: false, default: 0
-      add :size_gb, :integer
-      add :checksum, :string
-
-      timestamps(type: :timestamptz)
-    end
-
-    create unique_index(:runner_images, [:name])
-    create index(:runner_images, [:status])
-    create index(:runner_images, [:os_version])
-    create index(:runner_images, [:xcode_version])
-    create index(:runner_images, [:labels], using: :gin)
-
     create table(:runner_organizations, primary_key: false) do
       add :id, :uuid, primary_key: true, null: false
       add :account_id, references(:accounts, on_delete: :delete_all), null: false

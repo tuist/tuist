@@ -4,7 +4,6 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Runners.RunnerHost
-  alias Tuist.Runners.RunnerImage
   alias Tuist.Runners.RunnerJob
   alias Tuist.Runners.RunnerOrganization
 
@@ -43,43 +42,6 @@ defmodule Tuist.Runners do
   """
   def delete_runner_host(%RunnerHost{} = runner_host) do
     Tuist.Repo.delete(runner_host)
-  end
-
-  @doc """
-  Returns the list of runner images.
-  """
-  def list_runner_images do
-    Tuist.Repo.all(RunnerImage)
-  end
-
-  @doc """
-  Gets a single runner image.
-  """
-  def get_runner_image(id), do: Tuist.Repo.get(RunnerImage, id)
-
-  @doc """
-  Creates a runner image.
-  """
-  def create_runner_image(attrs \\ %{}) do
-    %RunnerImage{id: UUIDv7.generate()}
-    |> RunnerImage.changeset(attrs)
-    |> Tuist.Repo.insert()
-  end
-
-  @doc """
-  Updates a runner image.
-  """
-  def update_runner_image(%RunnerImage{} = runner_image, attrs) do
-    runner_image
-    |> RunnerImage.changeset(attrs)
-    |> Tuist.Repo.update()
-  end
-
-  @doc """
-  Deletes a runner image.
-  """
-  def delete_runner_image(%RunnerImage{} = runner_image) do
-    Tuist.Repo.delete(runner_image)
   end
 
   @doc """
@@ -198,15 +160,6 @@ defmodule Tuist.Runners do
   """
   def get_pending_jobs do
     Tuist.Repo.all(RunnerJob.pending_query())
-  end
-
-  @doc """
-  Gets active runner images by labels.
-  """
-  def get_active_images_by_labels(labels) do
-    labels
-    |> RunnerImage.by_labels_query()
-    |> Tuist.Repo.all()
   end
 
   @doc """
