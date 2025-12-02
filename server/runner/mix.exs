@@ -29,7 +29,9 @@ defmodule Runner.MixProject do
       {:briefly, "~> 0.5.0"},
       {:slipstream, "~> 1.2.0"},
       {:web_driver_client, "~> 0.2.0"},
-      {:sax_map, "~> 1.2"}
+      {:sax_map, "~> 1.2"},
+      {:elixir_uuid, "~> 1.2"},
+      {:jose, "~> 1.11"}
     ]
   end
 

@@ -1,0 +1,53 @@
+name: Self-Hosted Runner Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_message:
+        description: 'Optional message to display during the test'
+        required: false
+        default: 'Hello from self-hosted runner!'
+
+permissions:
+  contents: read
+
+jobs:
+  self-hosted-test:
+    name: Self-Hosted Runner Test
+    runs-on: [self-hosted, macos, arm64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print runner info
+        run: |
+          echo "Running on self-hosted runner!"
+          echo "Test message: ${{ github.event.inputs.test_message }}"
+          echo ""
+          echo "=== System Information ==="
+          echo "Hostname: $(hostname)"
+          echo "OS: $(uname -a)"
+          echo "User: $(whoami)"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "=== Hardware ==="
+          echo "CPU: $(sysctl -n machdep.cpu.brand_string)"
+          echo "Cores: $(sysctl -n hw.ncpu)"
+          echo "Memory: $(( $(sysctl -n hw.memsize) / 1024 / 1024 / 1024 )) GB"
+          echo ""
+          echo "=== Environment ==="
+          echo "PATH: $PATH"
+
+      - name: List repository files
+        run: |
+          echo "=== Repository root ==="
+          ls -la
+          echo ""
+          echo "=== Git status ==="
+          git status
+
+      - name: Run a simple test
+        run: |
+          echo "Running a simple computation..."
+          echo "2 + 2 = $((2 + 2))"
+          echo "Test completed successfully!"

@@ -42,6 +42,7 @@ defmodule Runner do
       [command | rest] ->
         case command do
           "qa" -> {:ok, :qa, rest}
+          "start" -> {:ok, :start, rest}
           "--help" -> {:error, :help}
           "-h" -> {:error, :help}
           _ -> {:error, "Unknown command: #{command}"}
@@ -53,6 +54,10 @@ defmodule Runner do
     Runner.Commands.QA.run(args)
   end
 
+  defp execute_command(:start, args) do
+    Runner.Commands.Start.run(args)
+  end
+
   defp print_help do
     IO.puts("""
     Tuist Runner CLI
@@ -61,19 +66,23 @@ defmodule Runner do
       runner <command> [options]
 
     Commands:
-      qa    Run AI-powered QA tests on iOS app previews
+      qa      Run AI-powered QA tests on iOS app previews
+      start   Start the GitHub Actions runner service
 
     Options:
       --help, -h    Show this help message
 
     For command-specific help:
       runner qa --help
+      runner start --help
 
     Examples:
       runner qa --preview-url <url> --bundle-identifier <id> --server-url <url> \\
                 --run-id <id> --auth-token <token> --account-handle <handle> \\
                 --launch-arguments <arguments> --app-description <description> \\
                 --project-handle <handle> --prompt "<prompt>" --anthropic-api-key <key>
+
+      runner start --server-url https://cloud.tuist.io --token <runner-token>
     """)
   end
 end
