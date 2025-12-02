@@ -93,7 +93,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
         RunnersFixtures.runner_job_fixture(
           host: host,
           status: :running,
-          vm_name: "test-vm-123"
+          github_runner_name: "tuist-runner-abc123"
         )
 
       connection_ref = make_ref()
@@ -103,8 +103,9 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
       end)
 
       expect(SSHClient, :run_command, fn ^connection_ref, command, _timeout ->
-        assert command =~ "tart delete test-vm-123"
-        {:ok, "VM deleted successfully"}
+        assert command =~ "pkill -f 'Runner.Listener.*tuist-runner-abc123'"
+        assert command =~ "rm -rf ~/actions-runner-tuist-runner-abc123"
+        {:ok, "Cleanup completed"}
       end)
 
       expect(SSHClient, :close, fn ^connection_ref -> :ok end)
