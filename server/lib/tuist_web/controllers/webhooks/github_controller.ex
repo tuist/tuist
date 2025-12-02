@@ -184,8 +184,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
               worker = Runners.Workers.SpawnRunnerWorker.new(%{job_id: job.id})
 
-              Logger.info("Enqueueing SpawnRunnerWorker: runner_job_id=#{job.id} worker_args=#{inspect(worker.args)}")
-
               case Oban.insert(worker) do
                 {:ok, oban_job} ->
                   Logger.info(
@@ -303,10 +301,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
             if status == :cleanup do
               worker = Runners.Workers.CleanupRunnerWorker.new(%{job_id: updated_job.id})
-
-              Logger.info(
-                "Enqueueing CleanupRunnerWorker: runner_job_id=#{updated_job.id} worker_args=#{inspect(worker.args)}"
-              )
 
               case Oban.insert(worker) do
                 {:ok, oban_job} ->
