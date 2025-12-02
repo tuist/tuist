@@ -177,7 +177,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
           case Runners.create_job_from_webhook(workflow_job, organization, runner_org) do
             {:ok, job} ->
               Logger.info(
-                "Successfully created runner job: runner_job_id=#{job.id} github_job_id=#{github_job_id} org_login=#{org_login} status=#{job.status} github_repository=#{job.github_repository} github_run_id=#{job.github_run_id}"
+                "Successfully created runner job: runner_job_id=#{job.id} github_job_id=#{github_job_id} org_login=#{org_login} status=#{job.status} github_repository=#{job.org}/#{job.repo} github_run_id=#{job.run_id}"
               )
 
               Logger.info("Full created job: #{inspect(job, pretty: true)}")
