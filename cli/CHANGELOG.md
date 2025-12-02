@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.110.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* false positive for a .uiTests implicit import of .app by [@fortmarek](https://github.com/fortmarek) in [#8811](https://github.com/tuist/tuist/pull/8811)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.1...4.110.2
+
 ## What's Changed in 4.110.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
