@@ -107,10 +107,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp handle_installation(conn, %{
-         "action" => "deleted",
-         "installation" => %{"id" => installation_id}
-       }) do
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
     {:ok, _} = delete_github_app_installation(installation_id)
 
     conn
@@ -175,13 +172,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       run_attempt: workflow_job["run_attempt"]
     )
 
-    Logger.debug(
-      "Full workflow_job details: #{inspect(workflow_job, pretty: true, limit: :infinity)}"
-    )
+    Logger.debug("Full workflow_job details: #{inspect(workflow_job, pretty: true, limit: :infinity)}")
 
-    Logger.debug(
-      "Full organization details: #{inspect(organization, pretty: true, limit: :infinity)}"
-    )
+    Logger.debug("Full organization details: #{inspect(organization, pretty: true, limit: :infinity)}")
 
     case Runners.should_handle_job?(labels, installation_id) do
       {:ok, runner_org} ->
@@ -214,7 +207,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
               Logger.debug("Full created job: #{inspect(job, pretty: true)}")
 
-              worker = %{job_id: job.id} |> Runners.Workers.SpawnRunnerWorker.new()
+              worker = Runners.Workers.SpawnRunnerWorker.new(%{job_id: job.id})
 
               Logger.info(
                 "Enqueueing SpawnRunnerWorker",
@@ -250,7 +243,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
               )
           end
         else
-          current_jobs = Runners.count_running_jobs(runner_org)
+          current_jobs = Runners.get_organization_active_job_count(runner_org.id)
 
           Logger.warning(
             "Runner organization at capacity, ignoring job",
@@ -278,10 +271,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   defp handle_workflow_job(
          conn,
-         %{
-           "action" => "in_progress",
-           "workflow_job" => %{"id" => github_job_id, "runner_name" => runner_name}
-         } = params
+         %{"action" => "in_progress", "workflow_job" => %{"id" => github_job_id, "runner_name" => runner_name}} = params
        ) do
     Logger.info(
       "Processing in_progress workflow_job",
@@ -340,10 +330,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   defp handle_workflow_job(
          conn,
-         %{
-           "action" => "completed",
-           "workflow_job" => %{"id" => github_job_id, "conclusion" => conclusion}
-         } = params
+         %{"action" => "completed", "workflow_job" => %{"id" => github_job_id, "conclusion" => conclusion}} = params
        ) do
     Logger.info(
       "Processing completed workflow_job",
@@ -398,7 +385,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
             )
 
             if status == :cleanup do
-              worker = %{job_id: updated_job.id} |> Runners.Workers.CleanupRunnerWorker.new()
+              worker = Runners.Workers.CleanupRunnerWorker.new(%{job_id: updated_job.id})
 
               Logger.info(
                 "Enqueueing CleanupRunnerWorker",
