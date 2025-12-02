@@ -25,7 +25,8 @@ defmodule Tuist.Runners.RunnerJob do
         completed: 4,
         failed: 5,
         cancelled: 6
-      ]
+      ],
+      default: :pending
 
     field :vm_name, :string
     field :started_at, :utc_datetime
@@ -65,6 +66,7 @@ defmodule Tuist.Runners.RunnerJob do
       :run_id,
       :org,
       :repo,
+      :labels,
       :status
     ])
     |> validate_number(:github_job_id, greater_than: 0)
@@ -76,15 +78,12 @@ defmodule Tuist.Runners.RunnerJob do
   end
 
   defp validate_transition(changeset) do
-    case get_field(changeset, :status) do
-      nil ->
-        changeset
+    old_status = changeset.data.status
 
-      old_status ->
-        case get_change(changeset, :status) do
-          nil -> changeset
-          new_status -> validate_status_transition(changeset, old_status, new_status)
-        end
+    case {old_status, get_change(changeset, :status)} do
+      {_, nil} -> changeset
+      {nil, _} -> changeset
+      {old, new} -> validate_status_transition(changeset, old, new)
     end
   end
 

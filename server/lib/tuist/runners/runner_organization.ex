@@ -10,13 +10,13 @@ defmodule Tuist.Runners.RunnerOrganization do
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
   schema "runner_organizations" do
-    field :account_id, :integer
     field :enabled, :boolean, default: false
     field :label_prefix, :string
     field :allowed_labels, {:array, :string}
     field :max_concurrent_jobs, :integer
     field :github_app_installation_id, :integer
 
+    belongs_to :account, Tuist.Accounts.Account
     has_many :jobs, Tuist.Runners.RunnerJob, foreign_key: :organization_id
 
     timestamps(type: :utc_datetime)
@@ -37,12 +37,12 @@ defmodule Tuist.Runners.RunnerOrganization do
       :id,
       :account_id
     ])
-    |> validate_number(:account_id, greater_than: 0)
     |> validate_number(:max_concurrent_jobs, greater_than: 0)
     |> validate_number(:github_app_installation_id, greater_than: 0)
     |> validate_format(:label_prefix, ~r/^[a-z0-9-]+$/)
     |> unique_constraint(:account_id)
     |> unique_constraint(:github_app_installation_id)
+    |> foreign_key_constraint(:account_id)
   end
 
   def enabled_query do

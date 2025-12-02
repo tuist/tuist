@@ -206,4 +206,52 @@ defmodule Tuist.Runners do
   def get_enabled_organizations do
     Tuist.Repo.all(RunnerOrganization.enabled_query())
   end
+
+  @default_label_prefix "tuist-runners"
+
+  @doc """
+  Checks if a job with the given labels should be handled by Tuist Runners.
+
+  Returns `{:ok, runner_organization}` if the job should be handled,
+  or `{:ignore, reason}` if it should be ignored.
+  """
+  def should_handle_job?(labels, installation_id) when is_list(labels) do
+    case get_runner_organization_by_github_installation_id(installation_id) do
+      nil ->
+        {:ignore, :organization_not_found}
+
+      %RunnerOrganization{enabled: false} ->
+        {:ignore, :organization_disabled}
+
+      %RunnerOrganization{} = org ->
+        label_prefix = org.label_prefix || @default_label_prefix
+
+        if Enum.any?(labels, &(&1 == label_prefix)) do
+          {:ok, org}
+        else
+          {:ignore, :label_prefix_not_matched}
+        end
+    end
+  end
+
+  @doc """
+  Creates a runner job from a GitHub workflow_job webhook payload.
+  """
+  def create_job_from_webhook(workflow_job, organization, runner_org) do
+    attrs = %{
+      github_job_id: workflow_job["id"],
+      run_id: workflow_job["run_id"],
+      org: organization["login"],
+      repo: workflow_job["repository_full_name"] || extract_repo_name(workflow_job),
+      labels: workflow_job["labels"] || [],
+      status: :pending,
+      organization_id: runner_org.id,
+      github_workflow_url: workflow_job["html_url"]
+    }
+
+    create_runner_job(attrs)
+  end
+
+  defp extract_repo_name(%{"head_repository" => %{"full_name" => name}}), do: name
+  defp extract_repo_name(_), do: nil
 end

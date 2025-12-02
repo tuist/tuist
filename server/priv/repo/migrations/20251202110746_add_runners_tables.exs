@@ -43,10 +43,27 @@ defmodule Tuist.Repo.Migrations.AddRunnersTables do
     create index(:runner_images, [:xcode_version])
     create index(:runner_images, [:labels], using: :gin)
 
+    create table(:runner_organizations, primary_key: false) do
+      add :id, :uuid, primary_key: true, null: false
+      add :account_id, references(:accounts, on_delete: :delete_all), null: false
+      add :enabled, :boolean, default: false, null: false
+      add :label_prefix, :string
+      add :allowed_labels, {:array, :string}, default: []
+      add :max_concurrent_jobs, :integer
+      add :github_app_installation_id, :bigint
+
+      timestamps(type: :timestamptz)
+    end
+
+    create unique_index(:runner_organizations, [:account_id])
+    create unique_index(:runner_organizations, [:github_app_installation_id])
+    create index(:runner_organizations, [:enabled])
+    create index(:runner_organizations, [:allowed_labels], using: :gin)
+
     create table(:runner_jobs, primary_key: false) do
       add :id, :uuid, primary_key: true, null: false
-      add :github_job_id, :integer, null: false
-      add :run_id, :integer, null: false
+      add :github_job_id, :bigint, null: false
+      add :run_id, :bigint, null: false
       add :org, :string, null: false
       add :repo, :string, null: false
       add :labels, {:array, :string}, default: []
@@ -70,22 +87,5 @@ defmodule Tuist.Repo.Migrations.AddRunnersTables do
     create index(:runner_jobs, [:organization_id])
     create index(:runner_jobs, [:run_id])
     create index(:runner_jobs, [:labels], using: :gin)
-
-    create table(:runner_organizations, primary_key: false) do
-      add :id, :uuid, primary_key: true, null: false
-      add :account_id, :integer, null: false
-      add :enabled, :boolean, default: false, null: false
-      add :label_prefix, :string
-      add :allowed_labels, {:array, :string}, default: []
-      add :max_concurrent_jobs, :integer
-      add :github_app_installation_id, :integer
-
-      timestamps(type: :timestamptz)
-    end
-
-    create unique_index(:runner_organizations, [:account_id])
-    create unique_index(:runner_organizations, [:github_app_installation_id])
-    create index(:runner_organizations, [:enabled])
-    create index(:runner_organizations, [:allowed_labels], using: :gin)
   end
 end
