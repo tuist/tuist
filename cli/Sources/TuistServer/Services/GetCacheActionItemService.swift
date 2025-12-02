@@ -6,7 +6,8 @@ public protocol GetCacheActionItemServicing {
     func getCacheActionItem(
         serverURL: URL,
         fullHandle: String,
-        hash: String
+        hash: String,
+        authenticationURL: URL?
     ) async throws -> ServerCacheActionItem
 }
 
@@ -43,9 +44,10 @@ public final class GetCacheActionItemService: GetCacheActionItemServicing {
     public func getCacheActionItem(
         serverURL: URL,
         fullHandle: String,
-        hash: String
+        hash: String,
+        authenticationURL: URL? = nil
     ) async throws -> ServerCacheActionItem {
-        let client = Client.authenticated(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
 
         let handles = try fullHandleService.parse(fullHandle)
 

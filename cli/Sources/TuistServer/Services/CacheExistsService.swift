@@ -10,7 +10,8 @@
             projectId: String,
             hash: String,
             name: String,
-            cacheCategory: RemoteCacheCategory
+            cacheCategory: RemoteCacheCategory,
+            authenticationURL: URL?
         ) async throws -> Bool
     }
 
@@ -39,9 +40,10 @@
             projectId: String,
             hash: String,
             name: String,
-            cacheCategory: RemoteCacheCategory
+            cacheCategory: RemoteCacheCategory,
+            authenticationURL: URL? = nil
         ) async throws -> Bool {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
 
             let response = try await client.cacheArtifactExists(
                 .init(

@@ -13,7 +13,8 @@
             name: String,
             cacheCategory: RemoteCacheCategory,
             uploadId: String,
-            parts: [(etag: String, partNumber: Int)]
+            parts: [(etag: String, partNumber: Int)],
+            authenticationURL: URL?
         ) async throws
     }
 
@@ -44,9 +45,10 @@
             name: String,
             cacheCategory: RemoteCacheCategory,
             uploadId: String,
-            parts: [(etag: String, partNumber: Int)]
+            parts: [(etag: String, partNumber: Int)],
+            authenticationURL: URL? = nil
         ) async throws {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
             let response = try await client.completeCacheArtifactMultipartUpload(.init(query: .init(
                 cache_category: .init(cacheCategory),
                 project_id: projectId,
