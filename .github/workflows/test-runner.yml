@@ -15,24 +15,24 @@ permissions:
 jobs:
   test-runner:
     name: Test Custom Runner
-    runs-on: [tuist-runner]
+    runs-on: [tuist-runners]
     timeout-minutes: 10
     steps:
       - name: Echo test message
         run: echo "Hello from Tuist custom runner!"
-      
+
       - name: Print runner info
         run: |
           echo "Runner name: $RUNNER_NAME"
           echo "Runner OS: $RUNNER_OS"
           echo "Runner arch: $RUNNER_ARCH"
           echo "GitHub workspace: $GITHUB_WORKSPACE"
-      
+
       - name: Check out code
         uses: actions/checkout@v4
-      
+
       - name: List workspace contents
         run: ls -la
-      
+
       - name: Success message
         run: echo "Test runner workflow completed successfully!"
