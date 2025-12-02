@@ -40,9 +40,16 @@
             color: var(--noora-icon-destructive-label);
           }
         }
+        & > [data-part="badge-warning"] {
+          background: var(--noora-icon-warning-background);
+          & > [data-part="icon"] {
+            color: var(--noora-icon-warning-label);
+          }
+        }
 
         & > [data-part="badge-success"],
-        & > [data-part="badge-failure"] {
+        & > [data-part="badge-failure"],
+        & > [data-part="badge-warning"] {
           border-radius: var(--noora-radius-large);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);

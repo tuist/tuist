@@ -30,7 +30,7 @@ defmodule Tuist.Runs.Test do
     field :is_ci, :boolean
     field :model_identifier, :string
     field :scheme, :string
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
+    field :status, Ch, type: "LowCardinality(String)"
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
@@ -84,7 +84,7 @@ defmodule Tuist.Runs.Test do
       :status,
       :ran_at
     ])
-    |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
     |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
   end
 end

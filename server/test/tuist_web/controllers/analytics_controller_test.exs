@@ -625,6 +625,49 @@ defmodule TuistWeb.AnalyticsControllerTest do
                url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
     end
 
+    test "does not create test run when CLI version is 4.110.0 or higher", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When - send test command with CLI version >= 4.110.0
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-tuist-cli-version", "4.110.0")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "MyScheme"],
+            duration: 5000,
+            tuist_version: "4.110.0",
+            swift_version: "5.9",
+            macos_version: "14.0",
+            is_ci: true,
+            client_id: "client-id",
+            status: "success"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      # Test run should NOT be created for CLI version >= 4.110.0
+      assert command_event.test_run_id == nil
+      assert response["test_run_url"] == nil
+    end
+
     test "does not create test run for non-test commands when test_run_id not provided", %{
       conn: conn,
       user: user

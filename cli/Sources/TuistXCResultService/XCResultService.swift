@@ -161,7 +161,7 @@ public struct XCResultService: XCResultServicing {
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
 
         return TestSummary(
-            testPlanName: output.testNodes.first?.name,
+            testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
             testModules: testModules

@@ -36,10 +36,11 @@ defmodule TuistWeb.TestRunsLive do
         field: :status,
         display_name: gettext("Status"),
         type: :option,
-        options: [0, 1],
+        options: ["success", "failure", "skipped"],
         options_display_names: %{
-          0 => gettext("Passed"),
-          1 => gettext("Failed")
+          "success" => gettext("Passed"),
+          "failure" => gettext("Failed"),
+          "skipped" => gettext("Skipped")
         },
         operator: :==,
         value: nil

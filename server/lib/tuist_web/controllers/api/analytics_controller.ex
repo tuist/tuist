@@ -16,6 +16,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -316,8 +317,13 @@ defmodule TuistWeb.API.AnalyticsController do
     test_run_id = Map.get(body_params, :test_run_id)
 
     # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
+    cli_version = Headers.get_cli_version(conn)
+
+    should_create_test_run =
+      is_nil(cli_version) or Version.compare(cli_version, Version.parse!("4.110.0")) == :lt
+
     test_run_id =
-      if body_params.name == "test" and is_nil(test_run_id) do
+      if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
         case create_test_run_from_command_event(body_params, selected_project) do
           {:ok, test_run} -> test_run.id
           {:error, _} -> nil

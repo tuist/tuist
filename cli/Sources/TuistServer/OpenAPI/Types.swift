@@ -3211,6 +3211,7 @@ public enum Components {
                 @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case success = "success"
                     case failure = "failure"
+                    case skipped = "skipped"
                 }
                 /// The status of the test run.
                 ///
@@ -4023,6 +4024,7 @@ public enum Components {
             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case success = "success"
                 case failure = "failure"
+                case skipped = "skipped"
             }
             /// The status of the test run.
             ///
@@ -23686,6 +23688,7 @@ public enum Operations {
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case skipped = "skipped"
                         }
                         /// The status of the test run.
                         ///
