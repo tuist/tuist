@@ -121,7 +121,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
         updated_job = Runners.get_runner_job(job.id)
         assert updated_job.status == :running
         assert updated_job.host_id == host.id
-        assert updated_job.started_at != nil
+        assert updated_job.started_at
         assert updated_job.github_runner_name =~ "tuist-runner-"
 
         assert_enqueued(worker: MonitorRunnerWorker, args: %{job_id: job.id})
@@ -180,7 +180,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
 
       updated_job = Runners.get_runner_job(job.id)
       assert updated_job.status == :failed
-      assert updated_job.completed_at != nil
+      assert updated_job.completed_at
       assert updated_job.error_message =~ "Spawn failed after 3 attempts"
       assert updated_job.error_message =~ "SSH connection failed"
     end

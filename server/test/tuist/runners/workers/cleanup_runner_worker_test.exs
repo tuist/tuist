@@ -83,7 +83,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
 
       updated_job = Runners.get_runner_job(job.id)
       assert updated_job.status == :completed
-      assert updated_job.completed_at != nil
+      assert updated_job.completed_at
     end
 
     test "executes SSH cleanup and marks job as completed on success" do
@@ -121,7 +121,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
 
       updated_job = Runners.get_runner_job(job.id)
       assert updated_job.status == :completed
-      assert updated_job.completed_at != nil
+      assert updated_job.completed_at
     end
 
     test "retries on SSH connection failure" do
@@ -176,7 +176,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
 
       updated_job = Runners.get_runner_job(job.id)
       assert updated_job.status == :failed
-      assert updated_job.completed_at != nil
+      assert updated_job.completed_at
       assert updated_job.error_message =~ "Cleanup failed after 5 attempts"
       assert updated_job.error_message =~ "SSH connection failed"
     end

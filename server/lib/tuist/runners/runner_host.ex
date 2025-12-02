@@ -7,6 +7,8 @@ defmodule Tuist.Runners.RunnerHost do
   import Ecto.Changeset
   import Ecto.Query
 
+  alias Tuist.Runners.RunnerJob
+
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
   schema "runner_hosts" do
@@ -21,7 +23,7 @@ defmodule Tuist.Runners.RunnerHost do
     field :last_heartbeat_at, :utc_datetime
     field :github_runner_token, :binary
 
-    has_many :jobs, Tuist.Runners.RunnerJob, foreign_key: :host_id
+    has_many :jobs, RunnerJob, foreign_key: :host_id
 
     timestamps(type: :utc_datetime)
   end
@@ -69,7 +71,7 @@ defmodule Tuist.Runners.RunnerHost do
 
   def available_query do
     active_jobs_subquery =
-      from(job in Tuist.Runners.RunnerJob,
+      from(job in RunnerJob,
         where: job.status in @active_job_statuses,
         group_by: job.host_id,
         select: %{host_id: job.host_id, count: count(job.id)}
@@ -84,7 +86,7 @@ defmodule Tuist.Runners.RunnerHost do
 
   def with_active_job_count_query do
     active_jobs_subquery =
-      from(job in Tuist.Runners.RunnerJob,
+      from(job in RunnerJob,
         where: job.status in @active_job_statuses,
         group_by: job.host_id,
         select: %{host_id: job.host_id, count: count(job.id)}
@@ -98,7 +100,7 @@ defmodule Tuist.Runners.RunnerHost do
 
   def by_available_capacity_query do
     active_jobs_subquery =
-      from(job in Tuist.Runners.RunnerJob,
+      from(job in RunnerJob,
         where: job.status in @active_job_statuses,
         group_by: job.host_id,
         select: %{host_id: job.host_id, count: count(job.id)}

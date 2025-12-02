@@ -16,13 +16,13 @@ defmodule Tuist.Runners do
   Returns the list of runner hosts.
   """
   def list_runner_hosts do
-    Tuist.Repo.all(RunnerHost)
+    Repo.all(RunnerHost)
   end
 
   @doc """
   Gets a single runner host.
   """
-  def get_runner_host(id), do: Tuist.Repo.get(RunnerHost, id)
+  def get_runner_host(id), do: Repo.get(RunnerHost, id)
 
   @doc """
   Creates a runner host.
@@ -30,7 +30,7 @@ defmodule Tuist.Runners do
   def create_runner_host(attrs \\ %{}) do
     %RunnerHost{id: UUIDv7.generate()}
     |> RunnerHost.changeset(attrs)
-    |> Tuist.Repo.insert()
+    |> Repo.insert()
   end
 
   @doc """
@@ -39,42 +39,42 @@ defmodule Tuist.Runners do
   def update_runner_host(%RunnerHost{} = runner_host, attrs) do
     runner_host
     |> RunnerHost.changeset(attrs)
-    |> Tuist.Repo.update()
+    |> Repo.update()
   end
 
   @doc """
   Deletes a runner host.
   """
   def delete_runner_host(%RunnerHost{} = runner_host) do
-    Tuist.Repo.delete(runner_host)
+    Repo.delete(runner_host)
   end
 
   @doc """
   Returns the list of runner jobs.
   """
   def list_runner_jobs do
-    Tuist.Repo.all(RunnerJob)
+    Repo.all(RunnerJob)
   end
 
   @doc """
   Gets a single runner job.
   """
-  def get_runner_job(id), do: Tuist.Repo.get(RunnerJob, id)
+  def get_runner_job(id), do: Repo.get(RunnerJob, id)
 
   @doc """
   Gets a single runner job with its associated host preloaded.
   """
   def get_runner_job_with_host(id) do
     RunnerJob
-    |> Tuist.Repo.get(id)
-    |> Tuist.Repo.preload(:host)
+    |> Repo.get(id)
+    |> Repo.preload(:host)
   end
 
   @doc """
   Gets a runner job by GitHub job ID.
   """
   def get_runner_job_by_github_job_id(github_job_id) do
-    Tuist.Repo.one(RunnerJob.by_github_job_id_query(github_job_id))
+    Repo.one(RunnerJob.by_github_job_id_query(github_job_id))
   end
 
   @doc """
@@ -83,7 +83,7 @@ defmodule Tuist.Runners do
   def create_runner_job(attrs \\ %{}) do
     %RunnerJob{id: UUIDv7.generate()}
     |> RunnerJob.changeset(attrs)
-    |> Tuist.Repo.insert()
+    |> Repo.insert()
   end
 
   @doc """
@@ -92,40 +92,40 @@ defmodule Tuist.Runners do
   def update_runner_job(%RunnerJob{} = runner_job, attrs) do
     runner_job
     |> RunnerJob.changeset(attrs)
-    |> Tuist.Repo.update()
+    |> Repo.update()
   end
 
   @doc """
   Deletes a runner job.
   """
   def delete_runner_job(%RunnerJob{} = runner_job) do
-    Tuist.Repo.delete(runner_job)
+    Repo.delete(runner_job)
   end
 
   @doc """
   Returns the list of runner organizations.
   """
   def list_runner_organizations do
-    Tuist.Repo.all(RunnerOrganization)
+    Repo.all(RunnerOrganization)
   end
 
   @doc """
   Gets a single runner organization.
   """
-  def get_runner_organization(id), do: Tuist.Repo.get(RunnerOrganization, id)
+  def get_runner_organization(id), do: Repo.get(RunnerOrganization, id)
 
   @doc """
   Gets a runner organization by account ID.
   """
   def get_runner_organization_by_account_id(account_id) do
-    Tuist.Repo.one(RunnerOrganization.by_account_id_query(account_id))
+    Repo.one(RunnerOrganization.by_account_id_query(account_id))
   end
 
   @doc """
   Gets a runner organization by GitHub app installation ID.
   """
   def get_runner_organization_by_github_installation_id(installation_id) do
-    Tuist.Repo.one(RunnerOrganization.by_github_installation_id_query(installation_id))
+    Repo.one(RunnerOrganization.by_github_installation_id_query(installation_id))
   end
 
   @doc """
@@ -134,7 +134,7 @@ defmodule Tuist.Runners do
   def create_runner_organization(attrs \\ %{}) do
     %RunnerOrganization{id: UUIDv7.generate()}
     |> RunnerOrganization.changeset(attrs)
-    |> Tuist.Repo.insert()
+    |> Repo.insert()
   end
 
   @doc """
@@ -143,14 +143,14 @@ defmodule Tuist.Runners do
   def update_runner_organization(%RunnerOrganization{} = runner_organization, attrs) do
     runner_organization
     |> RunnerOrganization.changeset(attrs)
-    |> Tuist.Repo.update()
+    |> Repo.update()
   end
 
   @doc """
   Deletes a runner organization.
   """
   def delete_runner_organization(%RunnerOrganization{} = runner_organization) do
-    Tuist.Repo.delete(runner_organization)
+    Repo.delete(runner_organization)
   end
 
   @doc """
@@ -176,7 +176,8 @@ defmodule Tuist.Runners do
   Active jobs are those in pending, spawning, running, or cleanup states.
   """
   def get_active_job_count(host_id) do
-    RunnerJob.by_host_query(host_id)
+    host_id
+    |> RunnerJob.by_host_query()
     |> where([j], j.status in [:pending, :spawning, :running, :cleanup])
     |> Repo.aggregate(:count)
   end
@@ -192,11 +193,13 @@ defmodule Tuist.Runners do
   Gets the count of active jobs for an organization.
   """
   def get_organization_active_job_count(organization_id) do
-    from(j in RunnerJob,
-      where: j.organization_id == ^organization_id,
-      where: j.status in [:pending, :spawning, :running, :cleanup]
+    Repo.aggregate(
+      from(j in RunnerJob,
+        where: j.organization_id == ^organization_id,
+        where: j.status in [:pending, :spawning, :running, :cleanup]
+      ),
+      :count
     )
-    |> Repo.aggregate(:count)
   end
 
   @doc """
@@ -213,14 +216,14 @@ defmodule Tuist.Runners do
   Gets pending runner jobs.
   """
   def get_pending_jobs do
-    Tuist.Repo.all(RunnerJob.pending_query())
+    Repo.all(RunnerJob.pending_query())
   end
 
   @doc """
   Gets enabled runner organizations.
   """
   def get_enabled_organizations do
-    Tuist.Repo.all(RunnerOrganization.enabled_query())
+    Repo.all(RunnerOrganization.enabled_query())
   end
 
   @default_label_prefix "tuist-runners"

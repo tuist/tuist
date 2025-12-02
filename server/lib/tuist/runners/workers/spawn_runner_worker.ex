@@ -77,7 +77,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   defp do_spawn_runner_on_host(job, host, attempt, max_attempts) do
     with {:ok, job} <- assign_host_to_job(job, host),
          {:ok, registration_token} <- get_registration_token(job),
-         runner_name <- generate_runner_name(job),
+         runner_name = generate_runner_name(job),
          {:ok, job} <- update_runner_name(job, runner_name),
          :ok <- setup_runner_on_host(host, job, registration_token, runner_name) do
       complete_spawn(job)
@@ -97,9 +97,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
         {:ok, updated_job}
 
       {:error, changeset} ->
-        Logger.error(
-          "SpawnRunnerWorker: Failed to transition job #{job.id} to spawning: #{inspect(changeset.errors)}"
-        )
+        Logger.error("SpawnRunnerWorker: Failed to transition job #{job.id} to spawning: #{inspect(changeset.errors)}")
 
         {:error, :transition_failed}
     end
@@ -237,9 +235,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
         enqueue_monitor(updated_job)
 
       {:error, changeset} ->
-        Logger.error(
-          "SpawnRunnerWorker: Failed to mark job #{job.id} as running: #{inspect(changeset.errors)}"
-        )
+        Logger.error("SpawnRunnerWorker: Failed to mark job #{job.id} as running: #{inspect(changeset.errors)}")
 
         {:error, :status_update_failed}
     end

@@ -1,9 +1,10 @@
 defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.DataCase
 
   import ExUnit.CaptureLog
 
   alias TuistTestSupport.Fixtures.RunnersFixtures
+  alias TuistWeb.Webhooks.GitHubController
 
   describe "workflow_job webhook with capacity management" do
     setup do
@@ -26,22 +27,21 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
         }
       }
 
-      %{runner_org: runner_org, payload: payload}
+      conn = Plug.Conn.put_req_header(Phoenix.ConnTest.build_conn(), "x-github-event", "workflow_job")
+
+      %{conn: conn, runner_org: runner_org, payload: payload}
     end
 
     test "creates job when organization has capacity", %{conn: conn, payload: payload, runner_org: runner_org} do
       Oban.Testing.with_testing_mode(:manual, fn ->
         # Organization has capacity (0/2 jobs)
-        conn =
-          conn
-          |> put_req_header("x-github-event", "workflow_job")
-          |> post(~p"/api/webhooks/github", payload)
+        conn = GitHubController.handle(conn, payload)
 
-        assert json_response(conn, 200) == %{"status" => "ok"}
+        assert conn.status == 200
 
         # Job should be created and worker enqueued
         job = Tuist.Runners.get_runner_job_by_github_job_id(123_456_789)
-        assert job != nil
+        assert job
         assert job.organization_id == runner_org.id
 
         assert_enqueued(worker: Tuist.Runners.Workers.SpawnRunnerWorker, args: %{job_id: job.id})
@@ -53,15 +53,12 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
         # Create one existing active job (1/2)
         RunnersFixtures.runner_job_fixture(organization: runner_org, status: :running)
 
-        conn =
-          conn
-          |> put_req_header("x-github-event", "workflow_job")
-          |> post(~p"/api/webhooks/github", payload)
+        conn = GitHubController.handle(conn, payload)
 
-        assert json_response(conn, 200) == %{"status" => "ok"}
+        assert conn.status == 200
 
         job = Tuist.Runners.get_runner_job_by_github_job_id(123_456_789)
-        assert job != nil
+        assert job
       end)
     end
 
@@ -72,12 +69,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
         RunnersFixtures.runner_job_fixture(organization: runner_org, status: :spawning)
 
         capture_log(fn ->
-          conn =
-            conn
-            |> put_req_header("x-github-event", "workflow_job")
-            |> post(~p"/api/webhooks/github", payload)
+          conn = GitHubController.handle(conn, payload)
 
-          assert json_response(conn, 200) == %{"status" => "ok"}
+          assert conn.status == 200
 
           # Job should NOT be created
           job = Tuist.Runners.get_runner_job_by_github_job_id(123_456_789)
@@ -97,15 +91,12 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
 
         payload = put_in(payload, ["installation", "id"], unlimited_org.github_app_installation_id)
 
-        conn =
-          conn
-          |> put_req_header("x-github-event", "workflow_job")
-          |> post(~p"/api/webhooks/github", payload)
+        conn = GitHubController.handle(conn, payload)
 
-        assert json_response(conn, 200) == %{"status" => "ok"}
+        assert conn.status == 200
 
         job = Tuist.Runners.get_runner_job_by_github_job_id(123_456_789)
-        assert job != nil
+        assert job
       end)
     end
 
@@ -119,16 +110,13 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
         # Create one active job (1/2)
         RunnersFixtures.runner_job_fixture(organization: runner_org, status: :running)
 
-        conn =
-          conn
-          |> put_req_header("x-github-event", "workflow_job")
-          |> post(~p"/api/webhooks/github", payload)
+        conn = GitHubController.handle(conn, payload)
 
-        assert json_response(conn, 200) == %{"status" => "ok"}
+        assert conn.status == 200
 
         # Should be created because only 1 active job exists
         job = Tuist.Runners.get_runner_job_by_github_job_id(123_456_789)
-        assert job != nil
+        assert job
       end)
     end
   end

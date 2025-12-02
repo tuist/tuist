@@ -1,6 +1,7 @@
 defmodule TuistTestSupport.Fixtures.RunnersFixtures do
   @moduledoc false
 
+  alias Tuist.Accounts.Account
   alias Tuist.Runners
 
   def runner_host_fixture(opts \\ []) do
@@ -27,12 +28,12 @@ defmodule TuistTestSupport.Fixtures.RunnersFixtures do
           Keyword.get(opts, :account)
 
         Keyword.has_key?(opts, :account_id) ->
-          Tuist.Repo.get!(Tuist.Accounts.Account, Keyword.get(opts, :account_id))
+          Tuist.Repo.get!(Account, Keyword.get(opts, :account_id))
 
         true ->
           organization = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture()
 
-          Tuist.Repo.get_by!(Tuist.Accounts.Account,
+          Tuist.Repo.get_by!(Account,
             organization_id: organization.id
           )
       end
@@ -44,8 +45,7 @@ defmodule TuistTestSupport.Fixtures.RunnersFixtures do
         label_prefix: Keyword.get(opts, :label_prefix, "tuist-runners"),
         allowed_labels: Keyword.get(opts, :allowed_labels, []),
         max_concurrent_jobs: Keyword.get(opts, :max_concurrent_jobs, 10),
-        github_app_installation_id:
-          Keyword.get(opts, :github_app_installation_id, :rand.uniform(1_000_000))
+        github_app_installation_id: Keyword.get(opts, :github_app_installation_id, :rand.uniform(1_000_000))
       })
 
     org
