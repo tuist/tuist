@@ -2,21 +2,21 @@ defmodule Tuist.IngestRepo.Migrations.ChangeTestRunsStatusToLowCardinalityString
   use Ecto.Migration
 
   def up do
-    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status")
+    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status SETTINGS mutations_sync = 1")
 
-    alter table(:test_runs) do
-      modify :status, :"LowCardinality(String)"
-    end
+    execute(
+      "ALTER TABLE test_runs MODIFY COLUMN status LowCardinality(String) SETTINGS mutations_sync = 1"
+    )
 
     execute("ALTER TABLE test_runs ADD INDEX idx_status (status) TYPE set(3) GRANULARITY 1")
   end
 
   def down do
-    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status")
+    execute("ALTER TABLE test_runs DROP INDEX IF EXISTS idx_status SETTINGS mutations_sync = 1")
 
-    alter table(:test_runs) do
-      modify :status, :"Enum8('success' = 0, 'failure' = 1)"
-    end
+    execute(
+      "ALTER TABLE test_runs MODIFY COLUMN status Enum8('success' = 0, 'failure' = 1) SETTINGS mutations_sync = 1"
+    )
 
     execute("ALTER TABLE test_runs ADD INDEX idx_status (status) TYPE set(2) GRANULARITY 1")
   end
