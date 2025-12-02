@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle skipped tests due to a failed build by [@fortmarek](https://github.com/fortmarek) in [#8808](https://github.com/tuist/tuist/pull/8808)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.2...4.110.3
+
 ## What's Changed in 4.110.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
