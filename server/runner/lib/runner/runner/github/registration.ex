@@ -120,9 +120,10 @@ defmodule Runner.Runner.GitHub.Registration do
 
   defp parse_registration_response(body, _params) when is_map(body) do
     runner_id = body["runner"]["id"]
+    encoded_jit_config = body["encoded_jit_config"]
 
     # The JIT config is base64-encoded JSON containing all credentials
-    case decode_jit_config(body["encoded_jit_config"]) do
+    case decode_jit_config(encoded_jit_config) do
       {:ok, jit_config} ->
         # The JIT config uses dot-prefixed keys
         # .runner is a base64-encoded JSON with PascalCase keys
@@ -160,7 +161,9 @@ defmodule Runner.Runner.GitHub.Registration do
            github_url: github_url,
            auth_url: auth_url,
            rsa_private_key: rsa_private_key,
-           credentials: credentials
+           credentials: credentials,
+           # Include the raw encoded JIT config for use with official runner binary
+           encoded_jit_config: encoded_jit_config
          }}
 
       {:error, reason} ->

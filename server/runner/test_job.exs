@@ -70,11 +70,10 @@ Configuration:
 
 Starting job execution...
 This will:
-  1. Register runner with GitHub
-  2. Create a session with the Broker API
-  3. Poll for available jobs (long-polling, may take a while)
-  4. Execute the job when one is assigned
-  5. Clean up
+  1. Register runner with GitHub (get JIT config)
+  2. Download official runner binary (if not cached)
+  3. Run official runner with --jitconfig
+  4. Clean up
 
 Press Ctrl+C to cancel.
 ===========================================
