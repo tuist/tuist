@@ -4,7 +4,7 @@ category: "product"
 tags: ["product"] 
 excerpt: "Understand, analyze, and optimize your tests with the new Test Insights"
 author: fortmarek
-og_image_path: /marketing/images/blog/2025/06/05/build-insights/og.jpg
+og_image_path: /marketing/images/blog/2025/12/03/test-insights/og.jpg
 highlighted: true
 ---
 
@@ -27,7 +27,7 @@ Once you authenticate, you will need to add a `tuist inspect test` command in yo
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-![Screenshot of how to set up an Xcode post action for test insights](/marketing/images/blog/2025/12/01/test-insights/inspect-test-scheme-post-action.png)
+![Screenshot of how to set up an Xcode post action for test insights](/marketing/images/blog/2025/12/03/test-insights/inspect-test-scheme-post-action.png)
 
 For more details how to set up test insights, head over to our [docs](https://docs.tuist.dev/en/guides/develop/insights).
 
@@ -42,21 +42,21 @@ Once you start tracking tests both on the CI and in your local environments, thi
 
 So. Much. Friction. Wouldn't it be awesome if you would get a link to your failed test directly in the PR or in your CI logs? That's exactly what you'll get with test insights:
 
-![Screenshot of a failed test detail](/marketing/images/blog/2025/12/01/test-insights/test-detail.png)
+![Screenshot of a failed test detail](/marketing/images/blog/2025/12/03/test-insights/test-detail.png)
 
 Let's imagine another scenario: your run on the CI was taking longer than expected. But you have no idea why. With test insights, you can now get a breakdown of how long individual test cases, suites, and modules took to run. And you can compare them with the average.
 
-![Screenshot of a test breakdown](/marketing/images/blog/2025/12/01/test-insights/test-breakdown.png)
+![Screenshot of a test breakdown](/marketing/images/blog/2025/12/03/test-insights/test-breakdown.png)
 
 ## Tests over time
 
 Things start to get really interesting when you start tracking tests over time. Is your test suite slow? We can tell you which of your test cases are the slowest, so you know what to focus on:
 
-![List of the slowest test cases](/marketing/images/blog/2025/12/01/test-insights/slowest-test-cases.png)
+![List of the slowest test cases](/marketing/images/blog/2025/12/03/test-insights/slowest-test-cases.png)
 
 Is your test suite getting faster or slower? Has there been a recent regression in the test execution time? The Tuist dashboard provides you with answers to these questions as well:
 
-![Graph of test execution time](/marketing/images/blog/2025/12/01/test-insights/test-execution-time.png)
+![Graph of test execution time](/marketing/images/blog/2025/12/03/test-insights/test-execution-time.png)
 
 And it bears repeating – the test insights are environment-agnostic, so you can get a holistic view of your test suite's performance across different environments, not just your CI. Additionally, the test insights are CI-agnostic, it doesn't matter which CI provider you're using, you will get the same insights wherever you run your tests.
 
