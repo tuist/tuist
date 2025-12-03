@@ -36,6 +36,14 @@ defmodule Cache.S3UploadWorker do
     |> Oban.insert()
   end
 
+  def enqueue_module_upload(account_handle, project_handle, category, hash, name) do
+    key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
+
+    %{key: key}
+    |> __MODULE__.new()
+    |> Oban.insert()
+  end
+
   defp upload_to_s3(key, local_path) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
 

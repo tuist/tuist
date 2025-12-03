@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistCache
+import TuistCAS
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -17,6 +18,7 @@ import XcodeGraph
 struct CacheStorageFactoryTests {
     private var cacheDirectoriesProvider: CacheDirectoriesProvider
     private var serverAuthenticationController: MockServerAuthenticationControlling
+    private var cacheURLStore: MockCacheURLStoring
     private var subject: CacheStorageFactory
     private var serverEnvironmentService: MockServerEnvironmentServicing
 
@@ -24,10 +26,12 @@ struct CacheStorageFactoryTests {
         cacheDirectoriesProvider = CacheDirectoriesProvider()
         serverAuthenticationController = MockServerAuthenticationControlling()
         serverEnvironmentService = MockServerEnvironmentServicing()
+        cacheURLStore = MockCacheURLStoring()
         subject = CacheStorageFactory(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             serverAuthenticationController: serverAuthenticationController,
             serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
             environmentVariables: [:]
         )
     }

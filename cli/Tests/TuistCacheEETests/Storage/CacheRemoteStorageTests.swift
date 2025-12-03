@@ -96,7 +96,8 @@ struct CacheRemoteStorageTests {
             projectId: .value(fullHandle),
             hash: .value("hash"),
             name: .value("target"),
-            cacheCategory: .value(.binaries)
+            cacheCategory: .value(.binaries),
+            authenticationURL: .value(nil)
         ).willReturn(serverCacheArtifact)
         given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
@@ -129,7 +130,8 @@ struct CacheRemoteStorageTests {
             projectId: .value(fullHandle),
             hash: .value("hash"),
             name: .value("target"),
-            cacheCategory: .value(.binaries)
+            cacheCategory: .value(.binaries),
+            authenticationURL: .value(nil)
         ).willReturn(serverCacheArtifact)
         given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
@@ -183,7 +185,8 @@ struct CacheRemoteStorageTests {
             .getCacheActionItem(
                 serverURL: .any,
                 fullHandle: .any,
-                hash: .any
+                hash: .any,
+                authenticationURL: .any
             )
             .willThrow(GetCacheActionItemServiceError.unknownError(500))
 
@@ -204,7 +207,8 @@ struct CacheRemoteStorageTests {
             .getCacheActionItem(
                 serverURL: .any,
                 fullHandle: .any,
-                hash: .any
+                hash: .any,
+                authenticationURL: .any
             )
             .willThrow(GetCacheActionItemServiceError.notFound("Cache action item not found"))
 

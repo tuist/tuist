@@ -13,7 +13,8 @@
             cacheCategory: RemoteCacheCategory,
             uploadId: String,
             partNumber: Int,
-            contentLength: Int
+            contentLength: Int,
+            authenticationURL: URL?
         ) async throws -> String
     }
 
@@ -47,9 +48,10 @@
             cacheCategory: RemoteCacheCategory,
             uploadId: String,
             partNumber: Int,
-            contentLength: Int
+            contentLength: Int,
+            authenticationURL: URL? = nil
         ) async throws -> String {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
             let response = try await client.generateCacheArtifactMultipartUploadURL(
                 .init(
                     query: .init(
