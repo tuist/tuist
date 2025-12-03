@@ -305,4 +305,37 @@ defmodule TuistWeb.RunDetailLive do
       }
     ]
   end
+
+  def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
+    has_local = local_hits > 0
+    has_remote = remote_hits > 0
+    has_misses = misses > 0
+
+    case category do
+      :local when has_local ->
+        if not has_remote and not has_misses do
+          [6, 6, 6, 6]
+        else
+          [6, 0, 0, 6]
+        end
+
+      :remote when has_remote ->
+        cond do
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          not has_local and has_misses -> [6, 0, 0, 6]
+          has_local and not has_misses -> [0, 6, 6, 0]
+          true -> [0, 0, 0, 0]
+        end
+
+      :misses when has_misses ->
+        if not has_local and not has_remote do
+          [6, 6, 6, 6]
+        else
+          [0, 6, 6, 0]
+        end
+
+      _ ->
+        [0, 0, 0, 0]
+    end
+  end
 end
