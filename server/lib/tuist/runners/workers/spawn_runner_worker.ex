@@ -129,12 +129,24 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     organization = Runners.get_runner_organization(job.organization_id)
 
     if organization && organization.github_app_installation_id do
-      GitHubClient.create_org_jit_runner_config(%{
+      Logger.info("SpawnRunnerWorker: Creating JIT config for job #{job.id}, org: #{job.org}, runner: #{runner_name}")
+      
+      result = GitHubClient.create_org_jit_runner_config(%{
         org: job.org,
         name: runner_name,
         labels: ["tuist-runners"],
         installation_id: organization.github_app_installation_id
       })
+      
+      case result do
+        {:ok, config} ->
+          Logger.info("SpawnRunnerWorker: JIT config created successfully for job #{job.id}")
+          {:ok, config}
+          
+        {:error, reason} ->
+          Logger.error("SpawnRunnerWorker: Failed to create JIT config for job #{job.id}: #{inspect(reason)}")
+          {:error, :jit_config_failed}
+      end
     else
       Logger.error("SpawnRunnerWorker: No GitHub installation found for job #{job.id}")
       {:error, :no_github_installation}
@@ -169,7 +181,10 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   end
 
   defp execute_runner_setup(connection, job, jit_config, runner_name) do
+    Logger.info("SpawnRunnerWorker: Setting up runner #{runner_name} for job #{job.id}")
     setup_command = build_setup_command(job, jit_config.encoded_jit_config, runner_name)
+    
+    Logger.info("SpawnRunnerWorker: Executing setup command for job #{job.id}")
 
     case SSHClient.run_command(connection, setup_command, @spawn_timeout) do
       {:ok, output} ->
