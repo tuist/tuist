@@ -11,7 +11,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   2. Get GitHub registration token via GitHub.Client
   3. Execute runner setup on host via SSH (configure and start GitHub Actions runner)
   4. Update job status (spawning -> running)
-  5. Enqueue MonitorRunnerWorker
+  5. Wait for GitHub workflow_job webhook to trigger cleanup
 
   ## Error Handling
 
@@ -24,7 +24,6 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners
   alias Tuist.Runners.RunnerJob
-  alias Tuist.Runners.Workers.MonitorRunnerWorker
   alias Tuist.SSHClient
 
   require Logger
@@ -271,22 +270,14 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   defp complete_spawn(job) do
     case Runners.update_runner_job(job, %{status: :running, started_at: DateTime.utc_now()}) do
       {:ok, updated_job} ->
-        Logger.info("SpawnRunnerWorker: Job #{updated_job.id} is now running")
-        enqueue_monitor(updated_job)
+        Logger.info("SpawnRunnerWorker: Job #{updated_job.id} is now running, waiting for GitHub workflow_job webhook")
+        :ok
 
       {:error, changeset} ->
         Logger.error("SpawnRunnerWorker: Failed to mark job #{job.id} as running: #{inspect(changeset.errors)}")
 
         {:error, :status_update_failed}
     end
-  end
-
-  defp enqueue_monitor(job) do
-    %{job_id: job.id, started_at: DateTime.to_iso8601(DateTime.utc_now())}
-    |> MonitorRunnerWorker.new()
-    |> Oban.insert()
-
-    :ok
   end
 
   defp handle_no_hosts(job) do
