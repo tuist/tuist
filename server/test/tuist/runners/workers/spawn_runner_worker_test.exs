@@ -201,7 +201,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
 
         connection_ref = make_ref()
 
-        expect(GitHubClient, :get_repo_runner_registration_token, fn _ ->
+        expect(GitHubClient, :get_org_runner_registration_token, fn _ ->
           {:ok, %{token: "test-token", expires_at: DateTime.utc_now()}}
         end)
 

@@ -180,8 +180,13 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
 
       {:error, reason} ->
         # Log the full error details including any output from the failed command
+        error_str = if is_binary(reason), do: reason, else: inspect(reason)
         Logger.error("SpawnRunnerWorker: Runner setup failed for job #{job.id}")
-        Logger.error("SpawnRunnerWorker: Error details: #{inspect(reason)}")
+        Logger.error("SpawnRunnerWorker: Error details: #{error_str}")
+        # Log first 2000 chars if error is very long
+        if String.length(error_str) > 500 do
+          Logger.error("SpawnRunnerWorker: Full error output (first 2000 chars): #{String.slice(error_str, 0, 2000)}")
+        end
         {:error, {:setup_command_failed, reason}}
     end
   end
@@ -205,13 +210,22 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     fi
     ./config.sh --unattended --url #{runner_url} --token #{token} --name #{runner_name} --labels tuist-runners --ephemeral --replace
     nohup ./run.sh > runner.log 2>&1 &
+    RUNNER_PID=$!
+    echo "Runner started with PID: $RUNNER_PID"
     sleep 2
-    if ! pgrep -f 'Runner.Listener.*#{runner_name}' > /dev/null; then
-      echo 'Runner failed to start. Last 50 lines of runner.log:'
-      tail -n 50 runner.log
+    # Check if the runner process is still running
+    if ! ps -p $RUNNER_PID > /dev/null 2>&1; then
+      echo "ERROR: Runner process (PID: $RUNNER_PID) exited immediately after starting" >&2
+      echo "Last 50 lines of runner.log:" >&2
+      tail -n 50 runner.log >&2
       exit 1
     fi
-    echo 'Runner started successfully'
+    # Check if runner.log shows it's listening for jobs
+    if ! grep -q "Listening for Jobs" runner.log; then
+      echo "WARNING: Runner process is running but hasn't started listening yet" >&2
+      echo "This might be normal if the runner is still initializing" >&2
+    fi
+    echo "Runner started successfully with PID: $RUNNER_PID"
     """
   end
 

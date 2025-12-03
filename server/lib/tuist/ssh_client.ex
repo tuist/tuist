@@ -38,38 +38,65 @@ defmodule Tuist.SSHClient do
     receive_message()
   end
 
-  defp receive_message(return_message \\ "") do
+  defp receive_message(return_message \\ "", seen_eof \\ false)
+  
+  defp receive_message(return_message, seen_eof) do
     receive do
       {:ssh_cm, _pid, {:data, _cid, 1, data}} ->
         Logger.error("SSH stderr data received: #{inspect(data)}")
         updated_message = return_message <> data
-        receive_message(updated_message)
+        receive_message(updated_message, seen_eof)
 
       {:ssh_cm, _pid, {:data, _cid, 0, data}} ->
         updated_message = return_message <> data
-        receive_message(updated_message)
+        receive_message(updated_message, seen_eof)
 
       {:ssh_cm, _pid, {:eof, _cid}} ->
-        receive_message(return_message)
+        receive_message(return_message, true)
 
       {:ssh_cm, _pid, {:closed, _cid}} ->
-        receive_message(return_message)
+        receive_message(return_message, seen_eof)
 
       {:ssh_cm, _pid, {:exit_status, _cid, 0}} ->
         {:ok, return_message}
 
       {:ssh_cm, _pid, {:exit_status, _cid, code}} ->
+        # If we haven't seen EOF yet, wait a bit more for any remaining data
+        final_message =
+          if !seen_eof do
+            wait_for_remaining_data(return_message, 100)
+          else
+            return_message
+          end
+
         error_details =
-          if String.trim(return_message) == "" do
+          if String.trim(final_message) == "" do
             "return from command failed with code #{code}"
           else
-            "return from command failed with code #{code}. Output: #{return_message}"
+            "return from command failed with code #{code}. Output: #{final_message}"
           end
 
         {:error, error_details}
     after
       to_timeout(minute: 2) ->
         {:error, "no return from command after 60 seconds"}
+    end
+  end
+
+  defp wait_for_remaining_data(return_message, timeout) do
+    receive do
+      {:ssh_cm, _pid, {:data, _cid, _, data}} ->
+        updated_message = return_message <> data
+        wait_for_remaining_data(updated_message, timeout)
+
+      {:ssh_cm, _pid, {:eof, _cid}} ->
+        return_message
+
+      {:ssh_cm, _pid, {:closed, _cid}} ->
+        return_message
+    after
+      timeout ->
+        return_message
     end
   end
 
