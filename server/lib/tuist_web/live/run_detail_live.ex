@@ -101,6 +101,21 @@ defmodule TuistWeb.RunDetailLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
+  def handle_event(
+        "toggle-expand",
+        %{"row-key" => target_name},
+        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
+      ) do
+    updated_expanded_names =
+      if MapSet.member?(expanded_target_names, target_name) do
+        MapSet.delete(expanded_target_names, target_name)
+      else
+        MapSet.put(expanded_target_names, target_name)
+      end
+
+    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
+  end
+
   def sort_icon("desc") do
     "square_rounded_arrow_down"
   end
@@ -138,6 +153,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
     |> assign(:binary_cache_active_filters, [])
+    |> assign(:expanded_target_names, MapSet.new())
   end
 
   defp build_uri(params) do
@@ -304,6 +320,26 @@ defmodule TuistWeb.RunDetailLive do
         value: nil
       }
     ]
+  end
+
+  def has_subhashes?(target) do
+    (target.external_hash || "") != "" or
+      (target.sources_hash || "") != "" or
+      (target.resources_hash || "") != "" or
+      (target.copy_files_hash || "") != "" or
+      (target.core_data_models_hash || "") != "" or
+      (target.target_scripts_hash || "") != "" or
+      (target.environment_hash || "") != "" or
+      (target.headers_hash || "") != "" or
+      (target.deployment_target_hash || "") != "" or
+      (target.info_plist_hash || "") != "" or
+      (target.entitlements_hash || "") != "" or
+      (target.dependencies_hash || "") != "" or
+      (target.project_settings_hash || "") != "" or
+      (target.target_settings_hash || "") != "" or
+      (target.buildable_folders_hash || "") != "" or
+      not Enum.empty?(target.destinations || []) or
+      not Enum.empty?(target.additional_strings || [])
   end
 
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do

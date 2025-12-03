@@ -63,7 +63,30 @@ defmodule Tuist.Xcode do
           id: xt.id,
           name: xt.name,
           binary_cache_hit: xt.binary_cache_hit,
-          binary_cache_hash: xt.binary_cache_hash
+          binary_cache_hash: xt.binary_cache_hash,
+          # Target metadata
+          product: xt.product,
+          bundle_id: xt.bundle_id,
+          product_name: xt.product_name,
+          # Subhashes
+          external_hash: xt.external_hash,
+          sources_hash: xt.sources_hash,
+          resources_hash: xt.resources_hash,
+          copy_files_hash: xt.copy_files_hash,
+          core_data_models_hash: xt.core_data_models_hash,
+          target_scripts_hash: xt.target_scripts_hash,
+          environment_hash: xt.environment_hash,
+          headers_hash: xt.headers_hash,
+          deployment_target_hash: xt.deployment_target_hash,
+          info_plist_hash: xt.info_plist_hash,
+          entitlements_hash: xt.entitlements_hash,
+          dependencies_hash: xt.dependencies_hash,
+          project_settings_hash: xt.project_settings_hash,
+          target_settings_hash: xt.target_settings_hash,
+          buildable_folders_hash: xt.buildable_folders_hash,
+          # Arrays
+          destinations: xt.destinations,
+          additional_strings: xt.additional_strings
         }
       )
 
@@ -75,7 +98,30 @@ defmodule Tuist.Xcode do
         %{
           name: target.name,
           binary_cache_hit: String.to_existing_atom(target.binary_cache_hit),
-          binary_cache_hash: target.binary_cache_hash
+          binary_cache_hash: target.binary_cache_hash,
+          # Target metadata
+          product: target.product,
+          bundle_id: target.bundle_id,
+          product_name: target.product_name,
+          # Subhashes
+          external_hash: target.external_hash,
+          sources_hash: target.sources_hash,
+          resources_hash: target.resources_hash,
+          copy_files_hash: target.copy_files_hash,
+          core_data_models_hash: target.core_data_models_hash,
+          target_scripts_hash: target.target_scripts_hash,
+          environment_hash: target.environment_hash,
+          headers_hash: target.headers_hash,
+          deployment_target_hash: target.deployment_target_hash,
+          info_plist_hash: target.info_plist_hash,
+          entitlements_hash: target.entitlements_hash,
+          dependencies_hash: target.dependencies_hash,
+          project_settings_hash: target.project_settings_hash,
+          target_settings_hash: target.target_settings_hash,
+          buildable_folders_hash: target.buildable_folders_hash,
+          # Arrays
+          destinations: target.destinations,
+          additional_strings: target.additional_strings
         }
       end)
 
@@ -179,7 +225,30 @@ defmodule Tuist.Xcode do
         binary_build_duration: xt.binary_build_duration,
         selective_testing_hash: xt.selective_testing_hash,
         selective_testing_hit: xt.selective_testing_hit,
-        xcode_project_id: xt.xcode_project_id
+        xcode_project_id: xt.xcode_project_id,
+        # Target metadata
+        product: xt.product,
+        bundle_id: xt.bundle_id,
+        product_name: xt.product_name,
+        # Subhashes
+        external_hash: xt.external_hash,
+        sources_hash: xt.sources_hash,
+        resources_hash: xt.resources_hash,
+        copy_files_hash: xt.copy_files_hash,
+        core_data_models_hash: xt.core_data_models_hash,
+        target_scripts_hash: xt.target_scripts_hash,
+        environment_hash: xt.environment_hash,
+        headers_hash: xt.headers_hash,
+        deployment_target_hash: xt.deployment_target_hash,
+        info_plist_hash: xt.info_plist_hash,
+        entitlements_hash: xt.entitlements_hash,
+        dependencies_hash: xt.dependencies_hash,
+        project_settings_hash: xt.project_settings_hash,
+        target_settings_hash: xt.target_settings_hash,
+        buildable_folders_hash: xt.buildable_folders_hash,
+        # Arrays
+        destinations: xt.destinations,
+        additional_strings: xt.additional_strings
       }
     )
     |> ClickHouseRepo.all()

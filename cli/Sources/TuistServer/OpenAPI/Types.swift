@@ -6563,35 +6563,241 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/hit`.
                                     public var hit: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.hitPayload
+                                    /// Individual component hashes that make up the final hash
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
+                                    public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional strings used in the hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_strings`.
+                                        public var additional_strings: [Swift.String]?
+                                        /// Buildable folders hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/buildable_folders`.
+                                        public var buildable_folders: Swift.String?
+                                        /// Copy files hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/copy_files`.
+                                        public var copy_files: Swift.String?
+                                        /// Core data models hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/core_data_models`.
+                                        public var core_data_models: Swift.String?
+                                        /// Dependencies hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/dependencies`.
+                                        public var dependencies: Swift.String?
+                                        /// Deployment target hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/deployment_target`.
+                                        public var deployment_target: Swift.String?
+                                        /// Entitlements hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/entitlements`.
+                                        public var entitlements: Swift.String?
+                                        /// Environment hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/environment`.
+                                        public var environment: Swift.String?
+                                        /// External project hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/external`.
+                                        public var external: Swift.String?
+                                        /// Headers hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/headers`.
+                                        public var headers: Swift.String?
+                                        /// Info.plist hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/info_plist`.
+                                        public var info_plist: Swift.String?
+                                        /// Project settings hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/project_settings`.
+                                        public var project_settings: Swift.String?
+                                        /// Resources hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/resources`.
+                                        public var resources: Swift.String?
+                                        /// Sources hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/sources`.
+                                        public var sources: Swift.String?
+                                        /// Target scripts hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/target_scripts`.
+                                        public var target_scripts: Swift.String?
+                                        /// Target settings hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/target_settings`.
+                                        public var target_settings: Swift.String?
+                                        /// Creates a new `subhashesPayload`.
+                                        ///
+                                        /// - Parameters:
+                                        ///   - additional_strings: Additional strings used in the hash
+                                        ///   - buildable_folders: Buildable folders hash
+                                        ///   - copy_files: Copy files hash
+                                        ///   - core_data_models: Core data models hash
+                                        ///   - dependencies: Dependencies hash
+                                        ///   - deployment_target: Deployment target hash
+                                        ///   - entitlements: Entitlements hash
+                                        ///   - environment: Environment hash
+                                        ///   - external: External project hash
+                                        ///   - headers: Headers hash
+                                        ///   - info_plist: Info.plist hash
+                                        ///   - project_settings: Project settings hash
+                                        ///   - resources: Resources hash
+                                        ///   - sources: Sources hash
+                                        ///   - target_scripts: Target scripts hash
+                                        ///   - target_settings: Target settings hash
+                                        public init(
+                                            additional_strings: [Swift.String]? = nil,
+                                            buildable_folders: Swift.String? = nil,
+                                            copy_files: Swift.String? = nil,
+                                            core_data_models: Swift.String? = nil,
+                                            dependencies: Swift.String? = nil,
+                                            deployment_target: Swift.String? = nil,
+                                            entitlements: Swift.String? = nil,
+                                            environment: Swift.String? = nil,
+                                            external: Swift.String? = nil,
+                                            headers: Swift.String? = nil,
+                                            info_plist: Swift.String? = nil,
+                                            project_settings: Swift.String? = nil,
+                                            resources: Swift.String? = nil,
+                                            sources: Swift.String? = nil,
+                                            target_scripts: Swift.String? = nil,
+                                            target_settings: Swift.String? = nil
+                                        ) {
+                                            self.additional_strings = additional_strings
+                                            self.buildable_folders = buildable_folders
+                                            self.copy_files = copy_files
+                                            self.core_data_models = core_data_models
+                                            self.dependencies = dependencies
+                                            self.deployment_target = deployment_target
+                                            self.entitlements = entitlements
+                                            self.environment = environment
+                                            self.external = external
+                                            self.headers = headers
+                                            self.info_plist = info_plist
+                                            self.project_settings = project_settings
+                                            self.resources = resources
+                                            self.sources = sources
+                                            self.target_scripts = target_scripts
+                                            self.target_settings = target_settings
+                                        }
+                                        public enum CodingKeys: String, CodingKey {
+                                            case additional_strings
+                                            case buildable_folders
+                                            case copy_files
+                                            case core_data_models
+                                            case dependencies
+                                            case deployment_target
+                                            case entitlements
+                                            case environment
+                                            case external
+                                            case headers
+                                            case info_plist
+                                            case project_settings
+                                            case resources
+                                            case sources
+                                            case target_scripts
+                                            case target_settings
+                                        }
+                                    }
+                                    /// Individual component hashes that make up the final hash
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
+                                    public var subhashes: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.subhashesPayload?
                                     /// Creates a new `binary_cache_metadataPayload`.
                                     ///
                                     /// - Parameters:
                                     ///   - build_duration: The compilation time of a binary in milliseconds.
                                     ///   - hash: Hash of the target
                                     ///   - hit: The binary cache hit status
+                                    ///   - subhashes: Individual component hashes that make up the final hash
                                     public init(
                                         build_duration: Swift.Int? = nil,
                                         hash: Swift.String,
-                                        hit: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.hitPayload
+                                        hit: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.hitPayload,
+                                        subhashes: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.subhashesPayload? = nil
                                     ) {
                                         self.build_duration = build_duration
                                         self.hash = hash
                                         self.hit = hit
+                                        self.subhashes = subhashes
                                     }
                                     public enum CodingKeys: String, CodingKey {
                                         case build_duration
                                         case hash
                                         case hit
+                                        case subhashes
                                     }
                                 }
                                 /// Binary cache metadata
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata`.
                                 public var binary_cache_metadata: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload?
+                                /// Bundle ID of the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/bundle_id`.
+                                public var bundle_id: Swift.String?
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/destinationsPayload`.
+                                @frozen public enum destinationsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case iphone = "iphone"
+                                    case ipad = "ipad"
+                                    case mac = "mac"
+                                    case mac_with_ipad_design = "mac_with_ipad_design"
+                                    case mac_catalyst = "mac_catalyst"
+                                    case apple_watch = "apple_watch"
+                                    case apple_tv = "apple_tv"
+                                    case apple_vision = "apple_vision"
+                                    case apple_vision_with_ipad_design = "apple_vision_with_ipad_design"
+                                }
+                                /// Destinations for the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/destinations`.
+                                public typealias destinationsPayload = [Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.destinationsPayloadPayload]
+                                /// Destinations for the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/destinations`.
+                                public var destinations: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.destinationsPayload?
                                 /// Name of the target
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/name`.
                                 public var name: Swift.String
+                                /// Product type of the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/product`.
+                                @frozen public enum productPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case app = "app"
+                                    case static_library = "static_library"
+                                    case dynamic_library = "dynamic_library"
+                                    case framework = "framework"
+                                    case static_framework = "static_framework"
+                                    case unit_tests = "unit_tests"
+                                    case ui_tests = "ui_tests"
+                                    case bundle = "bundle"
+                                    case command_line_tool = "command_line_tool"
+                                    case app_extension = "app_extension"
+                                    case watch_2_app = "watch_2_app"
+                                    case watch_2_extension = "watch_2_extension"
+                                    case tv_top_shelf_extension = "tv_top_shelf_extension"
+                                    case messages_extension = "messages_extension"
+                                    case sticker_pack_extension = "sticker_pack_extension"
+                                    case app_clip = "app_clip"
+                                    case xpc = "xpc"
+                                    case system_extension = "system_extension"
+                                    case extension_kit_extension = "extension_kit_extension"
+                                    case macro = "macro"
+                                }
+                                /// Product type of the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/product`.
+                                public var product: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.productPayload?
+                                /// Product name of the target
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/product_name`.
+                                public var product_name: Swift.String?
                                 /// Selective testing metadata
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata`.
@@ -6637,20 +6843,36 @@ public enum Operations {
                                 ///
                                 /// - Parameters:
                                 ///   - binary_cache_metadata: Binary cache metadata
+                                ///   - bundle_id: Bundle ID of the target
+                                ///   - destinations: Destinations for the target
                                 ///   - name: Name of the target
+                                ///   - product: Product type of the target
+                                ///   - product_name: Product name of the target
                                 ///   - selective_testing_metadata: Selective testing metadata
                                 public init(
                                     binary_cache_metadata: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload? = nil,
+                                    bundle_id: Swift.String? = nil,
+                                    destinations: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.destinationsPayload? = nil,
                                     name: Swift.String,
+                                    product: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.productPayload? = nil,
+                                    product_name: Swift.String? = nil,
                                     selective_testing_metadata: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.selective_testing_metadataPayload? = nil
                                 ) {
                                     self.binary_cache_metadata = binary_cache_metadata
+                                    self.bundle_id = bundle_id
+                                    self.destinations = destinations
                                     self.name = name
+                                    self.product = product
+                                    self.product_name = product_name
                                     self.selective_testing_metadata = selective_testing_metadata
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case binary_cache_metadata
+                                    case bundle_id
+                                    case destinations
                                     case name
+                                    case product
+                                    case product_name
                                     case selective_testing_metadata
                                 }
                             }

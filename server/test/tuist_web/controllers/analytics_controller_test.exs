@@ -315,6 +315,130 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [:miss, :remote]
     end
 
+    test "returns newly created command event with xcode_graph including subhashes", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            xcode_graph: %{
+              name: "Graph",
+              binary_build_duration: 1000,
+              projects: [
+                %{
+                  name: "ProjectA",
+                  path: ".",
+                  targets: [
+                    %{
+                      name: "TargetA",
+                      product: "framework",
+                      bundle_id: "com.example.targeta",
+                      product_name: "TargetA",
+                      destinations: ["iphone", "ipad"],
+                      binary_cache_metadata: %{
+                        hash: "hash-a",
+                        hit: "local",
+                        build_duration: 1000,
+                        subhashes: %{
+                          sources: "abc123sources",
+                          resources: "def456resources",
+                          dependencies: "ghi789dependencies",
+                          environment: "jkl012environment",
+                          deployment_target: "mno345deployment",
+                          project_settings: "pqr678projectsettings",
+                          target_settings: "stu901targetsettings",
+                          additional_strings: ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
+                        }
+                      }
+                    },
+                    %{
+                      name: "ExternalTarget",
+                      product: "static_library",
+                      bundle_id: "",
+                      product_name: "ExternalTarget",
+                      destinations: ["mac"],
+                      binary_cache_metadata: %{
+                        hash: "hash-external",
+                        hit: "remote",
+                        build_duration: 500,
+                        subhashes: %{
+                          external: "external123hash"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        )
+
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      Tuist.Xcode.XcodeGraph.Buffer.flush()
+      Tuist.Xcode.XcodeProject.Buffer.flush()
+      Tuist.Xcode.XcodeTarget.Buffer.flush()
+
+      xcode_targets = Tuist.Xcode.xcode_targets_for_command_event(command_event.id)
+
+      # Verify target names
+      assert Enum.map(xcode_targets, & &1.name) == ["ExternalTarget", "TargetA"]
+
+      # Find each target
+      target_a = Enum.find(xcode_targets, &(&1.name == "TargetA"))
+      external_target = Enum.find(xcode_targets, &(&1.name == "ExternalTarget"))
+
+      # Verify TargetA metadata
+      assert target_a.product == "framework"
+      assert target_a.bundle_id == "com.example.targeta"
+      assert target_a.product_name == "TargetA"
+      assert target_a.destinations == ["iphone", "ipad"]
+
+      # Verify TargetA subhashes
+      assert target_a.sources_hash == "abc123sources"
+      assert target_a.resources_hash == "def456resources"
+      assert target_a.dependencies_hash == "ghi789dependencies"
+      assert target_a.environment_hash == "jkl012environment"
+      assert target_a.deployment_target_hash == "mno345deployment"
+      assert target_a.project_settings_hash == "pqr678projectsettings"
+      assert target_a.target_settings_hash == "stu901targetsettings"
+      assert target_a.additional_strings == ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
+      assert target_a.external_hash == ""
+
+      # Verify ExternalTarget metadata
+      assert external_target.product == "static_library"
+      assert external_target.destinations == ["mac"]
+
+      # Verify ExternalTarget has only external_hash set
+      assert external_target.external_hash == "external123hash"
+      assert external_target.sources_hash == ""
+      assert external_target.resources_hash == ""
+    end
+
     test "returns command event URL with runs route when build_run_id is not provided", %{
       conn: conn,
       user: user

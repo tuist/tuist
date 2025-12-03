@@ -990,6 +990,34 @@ xcode_projects_data
   IngestRepo.insert_all(Tuist.Xcode.XcodeProject, chunk)
 end)
 
+product_types = [
+  "app",
+  "static_library",
+  "dynamic_library",
+  "framework",
+  "static_framework",
+  "unit_test_bundle",
+  "ui_test_bundle",
+  "app_extension",
+  "watch2_app",
+  "watch2_extension"
+]
+
+destination_types = [
+  "iphone",
+  "ipad",
+  "mac",
+  "apple_watch",
+  "apple_tv",
+  "apple_vision"
+]
+
+generate_subhash = fn ->
+  1..32
+  |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+  |> List.to_string()
+end
+
 xcode_targets_data =
   Enum.flat_map(xcode_projects_data, fn project ->
     target_count = Enum.random(3..8)
@@ -1006,6 +1034,22 @@ xcode_targets_data =
           :remote -> 2
         end
 
+      # Randomly decide if this is an external target (10% chance)
+      is_external = Enum.random(1..10) == 1
+
+      # Generate random destinations (1-3)
+      destinations = Enum.take_random(destination_types, Enum.random(1..3))
+
+      # Generate random additional strings (0-3)
+      additional_strings =
+        if Enum.random([true, false]) do
+          Enum.map(1..Enum.random(1..3), fn _ ->
+            "CUSTOM_FLAG_#{Enum.random(1..100)}"
+          end)
+        else
+          []
+        end
+
       %{
         id: UUIDv7.generate(),
         name: "#{project.name}_#{target_name}",
@@ -1016,7 +1060,30 @@ xcode_targets_data =
         selective_testing_hit: 0,
         xcode_project_id: project.id,
         command_event_id: project.command_event_id,
-        inserted_at: project.inserted_at
+        inserted_at: project.inserted_at,
+        # Target metadata
+        product: Enum.random(product_types),
+        bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
+        product_name: target_name,
+        # Subhashes - external targets only have external_hash
+        external_hash: if(is_external, do: generate_subhash.(), else: ""),
+        sources_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        resources_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
+        copy_files_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        core_data_models_hash: if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        target_scripts_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        environment_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        headers_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        deployment_target_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        info_plist_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
+        entitlements_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        dependencies_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        project_settings_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        target_settings_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        buildable_folders_hash: if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        # Arrays
+        destinations: destinations,
+        additional_strings: additional_strings
       }
     end)
   end)

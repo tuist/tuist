@@ -172,5 +172,24 @@
         height: 62px;
       }
     }
+
+    & [data-part="subhashes-list"] {
+      display: flex;
+      flex-direction: column;
+
+      & > [data-part="subhash-item"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-2);
+        padding: var(--noora-spacing-3) var(--noora-spacing-5);
+        background-color: var(--noora-surface-background-secondary);
+
+        & > [data-part="subhash-label"],
+        & > [data-part="subhash-value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
   }
 }

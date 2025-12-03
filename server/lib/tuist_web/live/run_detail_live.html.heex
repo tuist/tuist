@@ -459,7 +459,13 @@
         <div :if={Enum.any?(@binary_cache_active_filters)} data-part="active-filters">
           <.active_filter :for={filter <- @binary_cache_active_filters} filter={filter} />
         </div>
-        <.table id="binary-cache-table" rows={@binary_cache_analytics.cacheable_targets}>
+        <.table
+          id="binary-cache-table"
+          rows={@binary_cache_analytics.cacheable_targets}
+          row_key={fn target -> target.name end}
+          row_expandable={fn target -> has_subhashes?(target) end}
+          expanded_rows={MapSet.to_list(@expanded_target_names)}
+        >
           <:col
             :let={binary_cache_module}
             label={gettext("Module")}
@@ -489,6 +495,78 @@
           <:col :let={binary_cache_module} label={gettext("Hash")}>
             <.text_cell label={binary_cache_module.binary_cache_hash || gettext("Unknown")} />
           </:col>
+          <:expanded_content :let={target}>
+            <div data-part="subhashes-list">
+              <div :if={target.external_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("External")}:</span>
+                <span data-part="subhash-value">{target.external_hash}</span>
+              </div>
+              <div :if={target.sources_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Sources")}:</span>
+                <span data-part="subhash-value">{target.sources_hash}</span>
+              </div>
+              <div :if={target.resources_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Resources")}:</span>
+                <span data-part="subhash-value">{target.resources_hash}</span>
+              </div>
+              <div :if={target.copy_files_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Copy files")}:</span>
+                <span data-part="subhash-value">{target.copy_files_hash}</span>
+              </div>
+              <div :if={target.core_data_models_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Core data models")}:</span>
+                <span data-part="subhash-value">{target.core_data_models_hash}</span>
+              </div>
+              <div :if={target.target_scripts_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Target scripts")}:</span>
+                <span data-part="subhash-value">{target.target_scripts_hash}</span>
+              </div>
+              <div :if={target.environment_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Environment")}:</span>
+                <span data-part="subhash-value">{target.environment_hash}</span>
+              </div>
+              <div :if={target.headers_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Headers")}:</span>
+                <span data-part="subhash-value">{target.headers_hash}</span>
+              </div>
+              <div :if={target.deployment_target_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Deployment target")}:</span>
+                <span data-part="subhash-value">{target.deployment_target_hash}</span>
+              </div>
+              <div :if={target.info_plist_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Info.plist")}:</span>
+                <span data-part="subhash-value">{target.info_plist_hash}</span>
+              </div>
+              <div :if={target.entitlements_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Entitlements")}:</span>
+                <span data-part="subhash-value">{target.entitlements_hash}</span>
+              </div>
+              <div :if={target.dependencies_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Dependencies")}:</span>
+                <span data-part="subhash-value">{target.dependencies_hash}</span>
+              </div>
+              <div :if={target.project_settings_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Project settings")}:</span>
+                <span data-part="subhash-value">{target.project_settings_hash}</span>
+              </div>
+              <div :if={target.target_settings_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Target settings")}:</span>
+                <span data-part="subhash-value">{target.target_settings_hash}</span>
+              </div>
+              <div :if={target.buildable_folders_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Buildable folders")}:</span>
+                <span data-part="subhash-value">{target.buildable_folders_hash}</span>
+              </div>
+              <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Destinations")}:</span>
+                <span data-part="subhash-value">{Enum.join(target.destinations, ", ")}</span>
+              </div>
+              <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Additional strings")}:</span>
+                <span data-part="subhash-value">{Enum.join(target.additional_strings, ", ")}</span>
+              </div>
+            </div>
+          </:expanded_content>
           <:empty_state>
             <.table_empty_state
               icon="database"
