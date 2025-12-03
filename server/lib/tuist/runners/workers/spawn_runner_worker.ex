@@ -8,8 +8,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   ## Responsibilities
 
   1. Load job record and find available host
-  2. Get GitHub registration token via GitHub.Client
-  3. Execute runner setup on host via SSH (configure and start GitHub Actions runner)
+  2. Get GitHub JIT runner configuration via GitHub.Client
+  3. Execute runner setup on host via SSH (configure and start GitHub Actions runner with JIT config)
   4. Update job status (spawning -> running)
   5. Wait for GitHub workflow_job webhook to trigger cleanup
 
@@ -75,10 +75,10 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
 
   defp do_spawn_runner_on_host(job, host, attempt, max_attempts) do
     with {:ok, job} <- assign_host_to_job(job, host),
-         {:ok, registration_token} <- get_registration_token(job),
          runner_name = generate_runner_name(job),
          {:ok, job} <- update_runner_name(job, runner_name),
-         :ok <- setup_runner_on_host(host, job, registration_token, runner_name) do
+         {:ok, jit_config} <- get_jit_runner_config(job, runner_name),
+         :ok <- setup_runner_on_host(host, job, jit_config, runner_name) do
       complete_spawn(job)
     else
       {:error, reason} ->
@@ -125,12 +125,14 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     end
   end
 
-  defp get_registration_token(job) do
+  defp get_jit_runner_config(job, runner_name) do
     organization = Runners.get_runner_organization(job.organization_id)
 
     if organization && organization.github_app_installation_id do
-      GitHubClient.get_org_runner_registration_token(%{
+      GitHubClient.create_org_jit_runner_config(%{
         org: job.org,
+        name: runner_name,
+        labels: ["tuist-runners"],
         installation_id: organization.github_app_installation_id
       })
     else
@@ -151,12 +153,12 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     end
   end
 
-  defp setup_runner_on_host(host, job, registration_token, runner_name) do
+  defp setup_runner_on_host(host, job, jit_config, runner_name) do
     ssh_opts = build_ssh_opts()
 
     case SSHClient.connect(String.to_charlist(host.ip), host.ssh_port, ssh_opts) do
       {:ok, connection} ->
-        result = execute_runner_setup(connection, job, registration_token, runner_name)
+        result = execute_runner_setup(connection, job, jit_config, runner_name)
         SSHClient.close(connection)
         result
 
@@ -166,8 +168,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     end
   end
 
-  defp execute_runner_setup(connection, job, registration_token, runner_name) do
-    setup_command = build_setup_command(job, registration_token.token, runner_name)
+  defp execute_runner_setup(connection, job, jit_config, runner_name) do
+    setup_command = build_setup_command(job, jit_config.encoded_jit_config, runner_name)
 
     case SSHClient.run_command(connection, setup_command, @spawn_timeout) do
       {:ok, output} ->
@@ -190,10 +192,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     end
   end
 
-  defp build_setup_command(job, token, runner_name) do
+  defp build_setup_command(_job, jit_config, runner_name) do
     runner_dir = "actions-runner-#{runner_name}"
-    # Use organization-level URL for org-level runners
-    runner_url = "https://github.com/#{job.org}"
 
     """
     set -e
@@ -207,7 +207,10 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     else
       cd #{runner_dir}
     fi
-    ./config.sh --unattended --url #{runner_url} --token #{token} --name #{runner_name} --labels tuist-runners --ephemeral --replace
+    # Create JIT config file
+    echo '#{jit_config}' | base64 -d > jit-config.json
+    # Configure runner with JIT config
+    ./config.sh --unattended --jitconfig jit-config.json
     nohup ./run.sh > runner.log 2>&1 &
     RUNNER_PID=$!
     echo "Runner started with PID: $RUNNER_PID"
@@ -318,5 +321,6 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   defp format_error_message(:transition_failed), do: "Failed to transition job state"
   defp format_error_message(:host_assignment_failed), do: "Failed to assign host"
   defp format_error_message(:runner_name_update_failed), do: "Failed to update runner name"
+  defp format_error_message(:jit_config_failed), do: "Failed to create JIT runner configuration"
   defp format_error_message(reason), do: inspect(reason)
 end

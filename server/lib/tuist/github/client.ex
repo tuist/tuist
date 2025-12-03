@@ -175,6 +175,62 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Creates a JIT (Just-In-Time) runner configuration for an organization.
+
+  The JIT configuration provides a short-lived runner that can be used for a single job
+  without needing to register and unregister the runner manually.
+
+  ## Parameters
+    - `org` - The organization name
+    - `name` - The runner name
+    - `labels` - List of labels for the runner (optional)
+    - `installation_id` - The GitHub App installation ID
+
+  ## Returns
+    - `{:ok, %{runner: map(), encoded_jit_config: String.t()}}` on success
+    - `{:error, reason}` on failure
+  """
+  def create_org_jit_runner_config(%{
+        org: org,
+        name: name,
+        installation_id: installation_id,
+        labels: labels
+      }) do
+    url = "https://api.github.com/orgs/#{org}/actions/runners/generate-jitconfig"
+
+    body = %{
+      name: name,
+      runner_group_id: 1,
+      labels: labels
+    }
+
+    case github_request(&Req.post/1, url: url, installation_id: installation_id, json: body) do
+      {:ok,
+       %{
+         "encoded_jit_config" => encoded_jit_config,
+         "runner" => runner
+       }} ->
+        {:ok, %{runner: runner, encoded_jit_config: encoded_jit_config}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def create_org_jit_runner_config(%{
+        org: org,
+        name: name,
+        installation_id: installation_id
+      }) do
+    create_org_jit_runner_config(%{
+      org: org,
+      name: name,
+      installation_id: installation_id,
+      labels: []
+    })
+  end
+
+  @doc """
   Gets a registration token for configuring a self-hosted runner at the repository level.
 
   The token expires after one hour and is single-use.
