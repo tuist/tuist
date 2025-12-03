@@ -25,14 +25,6 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
 
   require Logger
 
-  # Packages with git submodules are not supported to be automatically mirrored in our registry.
-  @unsupported_packages [
-    "monzo/nearby",
-    "awslabs/aws-crt-swift",
-    "apple/swift-protobuf",
-    "RevenueCat/purchases-ios-spm"
-  ]
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     limit = Map.get(args, :limit, 350)
@@ -74,7 +66,6 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
       |> Jason.decode!()
       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
       |> Enum.map(&elem(&1, 1))
-      |> Enum.filter(&(not Enum.member?(@unsupported_packages, &1)))
       |> apply_allowlist_filter(allowlist)
       |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
 
