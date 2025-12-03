@@ -1451,3 +1451,265 @@ ci_job_runs
 end)
 
 IO.puts("Created #{length(ci_job_runs)} CI job runs")
+
+# Create CI job steps for each job run
+step_templates = [
+  %{name: "Set up job", typical_duration: 3_000..8_000},
+  %{name: "Set up runner", typical_duration: 5_000..15_000},
+  %{name: "Restore cache", typical_duration: 2_000..30_000},
+  %{name: "Run mise run install", typical_duration: 10_000..60_000},
+  %{name: "Check format", typical_duration: 5_000..20_000},
+  %{name: "Run tests", typical_duration: 30_000..300_000},
+  %{name: "Build project", typical_duration: 60_000..180_000},
+  %{name: "Upload artifacts", typical_duration: 5_000..30_000},
+  %{name: "Complete job", typical_duration: 1_000..3_000}
+]
+
+ci_job_steps =
+  Enum.flat_map(ci_job_runs, fn job_run ->
+    num_steps = Enum.random(4..9)
+    selected_steps = Enum.take(step_templates, num_steps)
+    job_status = job_run.status
+
+    {steps, _} =
+      Enum.reduce(selected_steps, {[], job_run.started_at}, fn template, {acc, current_time} ->
+        step_number = length(acc)
+
+        {step_status, duration_ms} =
+          cond do
+            job_status == 2 ->
+              {"success", Enum.random(template.typical_duration)}
+
+            job_status == 3 and step_number == num_steps - 2 ->
+              {"failure", Enum.random(template.typical_duration)}
+
+            job_status == 3 and step_number > num_steps - 2 ->
+              {"skipped", nil}
+
+            job_status == 4 ->
+              if step_number < div(num_steps, 2),
+                do: {"success", Enum.random(template.typical_duration)},
+                else: {"skipped", nil}
+
+            job_status in [0, 1] and step_number < 2 ->
+              {"success", Enum.random(template.typical_duration)}
+
+            job_status in [0, 1] and step_number == 2 ->
+              {"running", nil}
+
+            true ->
+              {"pending", nil}
+          end
+
+        finished_at =
+          if duration_ms, do: NaiveDateTime.add(current_time, duration_ms, :millisecond)
+
+        next_time = finished_at || current_time
+
+        step = %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          step_number: step_number,
+          step_name: template.name,
+          status: step_status,
+          duration_ms: duration_ms,
+          started_at: current_time,
+          finished_at: finished_at,
+          inserted_at: job_run.inserted_at
+        }
+
+        {[step | acc], next_time}
+      end)
+
+    Enum.reverse(steps)
+  end)
+
+ci_job_steps
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.CI.JobStep, chunk)
+end)
+
+IO.puts("Created #{length(ci_job_steps)} CI job steps")
+
+# Create CI job logs for completed/failed steps
+log_templates = %{
+  "Set up job" => [
+    {"stdout", "Preparing job environment..."},
+    {"stdout", "Setting up environment variables"},
+    {"stdout", "Job environment ready"}
+  ],
+  "Set up runner" => [
+    {"stdout", "QA run initialized"},
+    {"stdout", "A job started hook has been configured by the self-hosted runner administrator"},
+    {"stdout", "Runner version: 2.311.0"},
+    {"stdout", "Operating system: macOS 14.0"}
+  ],
+  "Restore cache" => [
+    {"stdout", "Searching for cache with key: deps-v1-..."},
+    {"stdout", "Cache hit found"},
+    {"stdout", "Restoring cache from /Users/runner/.cache"},
+    {"stdout", "Cache restored successfully"}
+  ],
+  "Run mise run install" => [
+    {"stdout", "mise install elixir@1.18.3"},
+    {"stdout", "mise install erlang@27.0"},
+    {"stdout", "mise install node@20.11.0"},
+    {"stdout", "All tools installed successfully"}
+  ],
+  "Check format" => [
+    {"stdout", "Running mix format --check-formatted"},
+    {"stdout", "Checking lib/tuist/accounts.ex"},
+    {"stdout", "Checking lib/tuist/projects.ex"},
+    {"stdout", "All files properly formatted"}
+  ],
+  "Run tests" => [
+    {"stdout", "Running mix test"},
+    {"stdout", "Compiling 150 files (.ex)"},
+    {"stdout", "Generated tuist app"},
+    {"stdout", "...................................."},
+    {"stdout", "Finished in 45.2 seconds (0.5s async, 44.7s sync)"},
+    {"stdout", "500 tests, 0 failures"}
+  ],
+  "Build project" => [
+    {"stdout", "Running mix compile"},
+    {"stdout", "Compiling 150 files (.ex)"},
+    {"stdout", "Generated tuist app"},
+    {"stdout", "Build completed successfully"}
+  ],
+  "Upload artifacts" => [
+    {"stdout", "Uploading build artifacts..."},
+    {"stdout", "Artifact tuist-build uploaded (15.2 MB)"},
+    {"stdout", "Upload complete"}
+  ],
+  "Complete job" => [
+    {"stdout", "Cleaning up job resources"},
+    {"stdout", "Job completed successfully"}
+  ]
+}
+
+failure_logs = [
+  {"stderr", "Error: Test failed"},
+  {"stderr", "Expected: true"},
+  {"stderr", "Actual: false"},
+  {"stderr", "    at test/tuist/accounts_test.exs:45"}
+]
+
+ci_job_logs =
+  ci_job_steps
+  |> Enum.filter(&(&1.status in ["success", "failure", "running"]))
+  |> Enum.flat_map(fn step ->
+    base_logs = Map.get(log_templates, step.step_name, [{"stdout", "Processing..."}])
+
+    logs =
+      if step.status == "failure" do
+        base_logs ++ failure_logs
+      else
+        base_logs
+      end
+
+    duration_per_log =
+      if step.duration_ms && length(logs) > 0,
+        do: div(step.duration_ms, length(logs)),
+        else: 1000
+
+    logs
+    |> Enum.with_index()
+    |> Enum.map(fn {{stream, message}, index} ->
+      timestamp = NaiveDateTime.add(step.started_at, index * duration_per_log, :millisecond)
+
+      %{
+        id: UUIDv7.generate(),
+        step_id: step.id,
+        job_run_id: step.job_run_id,
+        timestamp: timestamp,
+        message: message,
+        stream: stream,
+        inserted_at: step.inserted_at
+      }
+    end)
+  end)
+
+ci_job_logs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.CI.JobLog, chunk)
+end)
+
+IO.puts("Created #{length(ci_job_logs)} CI job logs")
+
+# Create CI job metrics for completed job runs
+completed_job_runs = Enum.filter(ci_job_runs, &(&1.status == 2 && &1.duration_ms != nil))
+
+ci_job_metrics =
+  Enum.flat_map(completed_job_runs, fn job_run ->
+    duration_seconds = div(job_run.duration_ms, 1000)
+    sample_interval = 5
+    num_samples = max(div(duration_seconds, sample_interval), 10)
+
+    cpu_base = Enum.random(30..50)
+    memory_base = Enum.random(40..60)
+    network_base = Enum.random(1_000_000..5_000_000)
+
+    Enum.flat_map(0..(num_samples - 1), fn i ->
+      timestamp = NaiveDateTime.add(job_run.started_at, i * sample_interval, :second)
+
+      cpu_variation = :rand.uniform() * 40 - 20
+      memory_variation = :rand.uniform() * 20 - 10
+      network_variation = :rand.uniform() * 2_000_000
+
+      cpu_spike = if rem(i, 7) == 0, do: 30, else: 0
+      memory_growth = i * 0.5
+
+      [
+        %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          metric_type: "cpu_percent",
+          timestamp: timestamp,
+          value: min(100.0, max(0.0, cpu_base + cpu_variation + cpu_spike)),
+          inserted_at: job_run.inserted_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          metric_type: "memory_percent",
+          timestamp: timestamp,
+          value: min(100.0, max(0.0, memory_base + memory_variation + memory_growth)),
+          inserted_at: job_run.inserted_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          metric_type: "network_bytes",
+          timestamp: timestamp,
+          value: max(0.0, network_base + network_variation),
+          inserted_at: job_run.inserted_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          metric_type: "cpu_io_wait_percent",
+          timestamp: timestamp,
+          value: min(30.0, max(0.0, :rand.uniform() * 15)),
+          inserted_at: job_run.inserted_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          job_run_id: job_run.id,
+          metric_type: "storage_percent",
+          timestamp: timestamp,
+          value: min(100.0, max(0.0, 50 + :rand.uniform() * 30)),
+          inserted_at: job_run.inserted_at
+        }
+      ]
+    end)
+  end)
+
+ci_job_metrics
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.CI.JobMetric, chunk)
+end)
+
+IO.puts("Created #{length(ci_job_metrics)} CI job metrics")

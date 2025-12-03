@@ -75,6 +75,7 @@ defmodule Tuist.CI.JobRun do
       :git_branch,
       :git_commit_sha,
       :runner_machine,
+      :runner_configuration,
       :status,
       :started_at
     ])
