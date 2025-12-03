@@ -2,12 +2,21 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.GitHub.App
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners
   alias Tuist.Runners.Workers.MonitorRunnerWorker
   alias Tuist.Runners.Workers.SpawnRunnerWorker
   alias Tuist.SSHClient
   alias TuistTestSupport.Fixtures.RunnersFixtures
+
+  setup do
+    stub(App, :get_installation_token, fn _installation_id ->
+      {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+    end)
+
+    :ok
+  end
 
   describe "perform/1" do
     test "returns error when job is not found" do
@@ -190,17 +199,17 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
       runner_org = RunnersFixtures.runner_organization_fixture()
       job = RunnersFixtures.runner_job_fixture(organization: runner_org, status: :pending)
 
-      connection_ref = make_ref()
+        connection_ref = make_ref()
 
-      expect(GitHubClient, :get_org_runner_registration_token, fn _ ->
-        {:ok, %{token: "test-token", expires_at: DateTime.utc_now()}}
-      end)
+        expect(GitHubClient, :get_repo_runner_registration_token, fn _ ->
+          {:ok, %{token: "test-token", expires_at: DateTime.utc_now()}}
+        end)
 
-      expect(SSHClient, :connect, fn _ip, _port, _opts ->
-        {:ok, connection_ref}
-      end)
+        expect(SSHClient, :connect, fn _ip, _port, _opts ->
+          {:ok, connection_ref}
+        end)
 
-      expect(SSHClient, :run_command, fn ^connection_ref, _command, _timeout ->
+        expect(SSHClient, :run_command, fn ^connection_ref, _command, _timeout ->
         {:error, "return from command failed with code 1"}
       end)
 
@@ -250,8 +259,18 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
 
         connection_ref = make_ref()
 
-        expect(GitHubClient, :get_org_runner_registration_token, fn _ ->
-          {:ok, %{token: "test-token", expires_at: DateTime.utc_now()}}
+        expect(Req, :post, fn opts ->
+          assert opts[:url] =~ "/orgs/"
+          assert opts[:url] =~ "/actions/runners/registration-token"
+
+          {:ok,
+           %Req.Response{
+             status: 201,
+             body: %{
+               "token" => "test-registration-token",
+               "expires_at" => "2025-12-03T12:00:00Z"
+             }
+           }}
         end)
 
         expect(SSHClient, :connect, fn _ip, _port, _opts ->
@@ -288,8 +307,18 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorkerTest do
 
         connection_ref = make_ref()
 
-        expect(GitHubClient, :get_org_runner_registration_token, fn _ ->
-          {:ok, %{token: "test-token", expires_at: DateTime.utc_now()}}
+        expect(Req, :post, fn opts ->
+          assert opts[:url] =~ "/orgs/"
+          assert opts[:url] =~ "/actions/runners/registration-token"
+
+          {:ok,
+           %Req.Response{
+             status: 201,
+             body: %{
+               "token" => "test-registration-token",
+               "expires_at" => "2025-12-03T12:00:00Z"
+             }
+           }}
         end)
 
         expect(SSHClient, :connect, fn _ip, _port, _opts ->

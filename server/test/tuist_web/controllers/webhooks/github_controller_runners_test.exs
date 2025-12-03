@@ -16,11 +16,14 @@ defmodule TuistWeb.Webhooks.GitHubControllerRunnersTest do
           "id" => 123_456_789,
           "run_id" => 987_654_321,
           "labels" => ["tuist-runners"],
-          "html_url" => "https://github.com/org/repo/actions/runs/123/jobs/456",
-          "repository_full_name" => "org/repo"
+          "html_url" => "https://github.com/org/repo/actions/runs/123/jobs/456"
         },
         "organization" => %{
           "login" => "test-org"
+        },
+        "repository" => %{
+          "name" => "repo",
+          "full_name" => "test-org/repo"
         },
         "installation" => %{
           "id" => runner_org.github_app_installation_id

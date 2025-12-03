@@ -256,13 +256,24 @@ defmodule Tuist.Runners do
   @doc """
   Creates a runner job from a GitHub workflow_job webhook payload.
   """
-  def create_job_from_webhook(workflow_job, organization, runner_org) do
+  def create_job_from_webhook(workflow_job, organization, repository, runner_org) do
+    # Extract repository name from the repository payload
+    # full_name is in format "owner/repo", we only want "repo"
+    repo_name = 
+      case repository["full_name"] do
+        full_name when is_binary(full_name) ->
+          full_name
+          |> String.split("/")
+          |> List.last()
+        _ ->
+          repository["name"]
+      end
+
     attrs = %{
       github_job_id: workflow_job["id"],
       run_id: workflow_job["run_id"],
       org: organization["login"],
-      repo: "tuist",
-      # repo: workflow_job["repository_full_name"] || extract_repo_name(workflow_job),
+      repo: repo_name,
       labels: workflow_job["labels"] || [],
       status: :pending,
       organization_id: runner_org.id,
@@ -271,7 +282,4 @@ defmodule Tuist.Runners do
 
     create_runner_job(attrs)
   end
-
-  # defp extract_repo_name(%{"head_repository" => %{"full_name" => name}}), do: name
-  # defp extract_repo_name(_), do: nil
 end

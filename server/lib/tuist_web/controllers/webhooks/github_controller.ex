@@ -148,6 +148,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
            "action" => "queued",
            "workflow_job" => workflow_job,
            "organization" => organization,
+           "repository" => repository,
            "installation" => %{"id" => installation_id}
          } = _params
        ) do
@@ -174,7 +175,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
             "Runner organization has capacity, creating job: github_job_id=#{github_job_id} runner_org_id=#{runner_org.id}"
           )
 
-          case Runners.create_job_from_webhook(workflow_job, organization, runner_org) do
+          case Runners.create_job_from_webhook(workflow_job, organization, repository, runner_org) do
             {:ok, job} ->
               Logger.info(
                 "Successfully created runner job: runner_job_id=#{job.id} github_job_id=#{github_job_id} org_login=#{org_login} status=#{job.status} github_repository=#{job.org}/#{job.repo} github_run_id=#{job.run_id}"

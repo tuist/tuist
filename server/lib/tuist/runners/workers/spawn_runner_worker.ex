@@ -130,8 +130,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     organization = Runners.get_runner_organization(job.organization_id)
 
     if organization && organization.github_app_installation_id do
-      GitHubClient.get_repo_runner_registration_token(%{
-        repository_full_handle: "#{job.org}/#{job.repo}",
+      GitHubClient.get_org_runner_registration_token(%{
+        org: job.org,
         installation_id: organization.github_app_installation_id
       })
     else
@@ -186,7 +186,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
 
   defp build_setup_command(job, token, runner_name) do
     runner_dir = "actions-runner-#{runner_name}"
-    runner_url = "https://github.com/#{job.org}/#{job.repo}"
+    # Use organization-level URL for org-level runners
+    runner_url = "https://github.com/#{job.org}"
 
     """
     set -e
