@@ -76,7 +76,7 @@ let workspace = Workspace(
 )
 ```
 
-::: info
+::: info Mise란?
 <!-- -->
 Tuist will resolve the dependency graph and include the projects of the
 dependencies in the workspace. You don't need to include them manually. This is
