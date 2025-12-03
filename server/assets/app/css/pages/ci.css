@@ -1,0 +1,130 @@
+#ci {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="ci-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+
+    & [data-part="active-filters"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--noora-spacing-3);
+    }
+  }
+
+  & .noora-card {
+    overflow-x: hidden;
+  }
+
+  & [data-part="job-runs-table"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="job-cell"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    padding: 0 var(--noora-spacing-7);
+  }
+
+  & [data-part="job-status"] {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+
+    & [data-status] {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      & svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    & [data-status="success"] {
+      color: var(--noora-icon-success-label);
+    }
+
+    & [data-status="error"] {
+      color: var(--noora-icon-destructive-label);
+    }
+
+    & [data-status="running"] {
+      color: var(--noora-icon-warning-label);
+    }
+
+    & [data-status="pending"] {
+      color: var(--noora-surface-label-secondary);
+    }
+
+    & [data-status="cancelled"] {
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+
+  & [data-part="job-info"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="job-name"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="job-description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="empty-job-runs"] {
+    margin-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="empty-job-runs-table-card-section"] {
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+    & > [data-part="image"] {
+      height: 150px;
+    }
+  }
+
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & .noora-dropdown-item:not([data-selected]) svg {
+    visibility: hidden;
+  }
+
+  & [data-part="vcs-link"] {
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

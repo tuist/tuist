@@ -8,6 +8,7 @@
 @import "./pages/build_run.css";
 @import "./pages/build_runs.css";
 @import "./pages/cache_runs.css";
+@import "./pages/ci.css";
 @import "./pages/error.css";
 @import "./pages/generate_runs.css";
 @import "./pages/integrations.css";

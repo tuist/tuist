@@ -179,11 +179,11 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={gettext("CI")}
         icon="git_merge"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/ci"}
         selected={
           String.starts_with?(
             @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/ci"
           )
         }
       />

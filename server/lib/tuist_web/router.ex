@@ -742,6 +742,7 @@ defmodule TuistWeb.Router do
       live "/qa", QALive
       live "/qa/:qa_run_id", QARunLive, :overview
       live "/qa/:qa_run_id/logs", QARunLive, :logs
+      live "/ci", CILive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       live "/settings", ProjectSettingsLive

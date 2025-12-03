@@ -1368,3 +1368,86 @@ Enum.map(1..20, fn index ->
 
   bundle
 end)
+
+# Create CI job runs
+workflow_names = [
+  {"server-ci", "Server"},
+  {"ios-ci", "iOS App"},
+  {"macos-ci", "macOS App"},
+  {"tests-ci", "Tests"},
+  {"lint-ci", "Lint"}
+]
+
+job_names = [
+  {"security", "Security"},
+  {"seed", "Seed"},
+  {"credentials", "Credentials"},
+  {"unit-tests", "Unit Tests"},
+  {"integration-tests", "Integration Tests"},
+  {"build", "Build"},
+  {"deploy", "Deploy"}
+]
+
+runner_machines = [
+  "mac/silicon",
+  "mac/intel",
+  "linux/x64",
+  "linux/arm64"
+]
+
+runner_configurations = [
+  "4 CPU/16 GB RAM",
+  "8 CPU/32 GB RAM",
+  "2 CPU/8 GB RAM",
+  "16 CPU/64 GB RAM"
+]
+
+ci_job_runs =
+  Enum.flat_map(1..500, fn _ ->
+    {workflow_id, workflow_name} = Enum.random(workflow_names)
+    {job_id, job_name} = Enum.random(job_names)
+    status = Enum.random([0, 1, 2, 2, 2, 2, 3, 4])
+    git_branch = Enum.random(branches)
+
+    git_commit_sha =
+      1..40
+      |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+      |> List.to_string()
+
+    started_at =
+      DateTime.utc_now()
+      |> DateTime.add(-Enum.random(0..400), :day)
+      |> DateTime.add(-Enum.random(0..86_400), :second)
+      |> DateTime.truncate(:microsecond)
+      |> DateTime.to_naive()
+
+    duration_ms = if status in [2, 3], do: Enum.random(30_000..600_000)
+
+    [
+      %{
+        id: UUIDv7.generate(),
+        project_id: tuist_project.id,
+        workflow_id: workflow_id,
+        workflow_name: workflow_name,
+        job_id: job_id,
+        job_name: job_name,
+        git_branch: git_branch,
+        git_commit_sha: git_commit_sha,
+        git_ref: "refs/heads/#{git_branch}",
+        runner_machine: Enum.random(runner_machines),
+        runner_configuration: Enum.random(runner_configurations),
+        status: status,
+        duration_ms: duration_ms,
+        started_at: started_at,
+        inserted_at: started_at
+      }
+    ]
+  end)
+
+ci_job_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.CI.JobRun, chunk)
+end)
+
+IO.puts("Created #{length(ci_job_runs)} CI job runs")

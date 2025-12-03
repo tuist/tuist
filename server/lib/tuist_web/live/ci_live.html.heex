@@ -1,0 +1,143 @@
+<div id="ci" data-part="ci">
+  <.card title={gettext("CI")} icon="git_merge" data-part="ci-card">
+    <.card_section data-part="ci-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-job-runs"
+            name="search"
+            placeholder={gettext("Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@search}
+          />
+        </.form>
+        <.dropdown
+          id="sort-by-dropdown"
+          label={sort_label(@sort_by)}
+          secondary_text={gettext("Sort by:")}
+        >
+          <.dropdown_item
+            value="started-at"
+            label={gettext("Ran at")}
+            patch={sort_dropdown_patch("started-at", @uri)}
+            data-selected={@sort_by == "started-at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="duration"
+            label={gettext("Duration")}
+            patch={sort_dropdown_patch("duration", @uri)}
+            data-selected={@sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="workflow"
+            label={gettext("Workflow")}
+            patch={sort_dropdown_patch("workflow", @uri)}
+            data-selected={@sort_by == "workflow"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={gettext("Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+
+      <div :if={not Enum.empty?(@job_runs)} data-part="job-runs-table">
+        <.table id="job-runs-table" rows={@job_runs}>
+          <:col :let={run} label={gettext("Job")}>
+            <div data-part="job-cell">
+              <div data-part="job-status">
+                <.status_indicator status={job_status(run.status)} />
+              </div>
+              <div data-part="job-info">
+                <span data-part="job-name">{run.workflow_name} &gt; {run.job_name}</span>
+                <span data-part="job-description">tuist/tuist</span>
+              </div>
+            </div>
+          </:col>
+          <:col :let={run} label={gettext("Branch")}>
+            <div data-part="cell" data-type="text">
+              <div data-part="icon"><.icon name="git_branch" /></div>
+              <.link
+                :if={branch_url(@selected_project.vcs_connection, run.git_branch)}
+                href={branch_url(@selected_project.vcs_connection, run.git_branch)}
+                target="_blank"
+                data-part="vcs-link"
+              >
+                {run.git_branch}
+              </.link>
+              <span
+                :if={is_nil(branch_url(@selected_project.vcs_connection, run.git_branch))}
+                data-part="label"
+              >
+                {run.git_branch}
+              </span>
+            </div>
+          </:col>
+          <:col :let={run} label={gettext("Commit SHA")}>
+            <div data-part="cell" data-type="text">
+              <.link
+                :if={commit_url(@selected_project.vcs_connection, run.git_commit_sha)}
+                href={commit_url(@selected_project.vcs_connection, run.git_commit_sha)}
+                target="_blank"
+                data-part="vcs-link"
+              >
+                {format_commit_sha(run.git_commit_sha)}
+              </.link>
+              <span
+                :if={is_nil(commit_url(@selected_project.vcs_connection, run.git_commit_sha))}
+                data-part="label"
+              >
+                {format_commit_sha(run.git_commit_sha)}
+              </span>
+            </div>
+          </:col>
+          <:col :let={run} label={gettext("Machine")}>
+            <.tag_cell label={run.runner_machine} />
+          </:col>
+          <:col :let={run} label={gettext("Configuration")}>
+            <.tag_cell :if={run.runner_configuration} label={run.runner_configuration} />
+            <.text_cell :if={is_nil(run.runner_configuration)} label="-" />
+          </:col>
+          <:col :let={run} label={gettext("Duration")}>
+            <.text_cell icon="history" label={format_duration(run.duration_ms)} />
+          </:col>
+          <:col :let={run} label={gettext("Ran at")}>
+            <.text_cell sublabel={DateFormatter.from_now(run.started_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@job_runs_meta.has_previous_page?}
+          has_next_page={@job_runs_meta.has_next_page?}
+          start_cursor={@job_runs_meta.start_cursor}
+          end_cursor={@job_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@job_runs)} data-part="empty-job-runs">
+        <.empty_card_section
+          title={gettext("No CI runs yet")}
+          data-part="empty-job-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>
