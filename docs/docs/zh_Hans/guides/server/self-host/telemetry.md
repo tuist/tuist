@@ -22,7 +22,7 @@ Tuist 与 [PostHog](https://posthog.com/) 集成，提供用户行为分析和�
 
 PostHog 集成是可选的，可以通过设置相应的环境变量来启用。配置后，Tuist 将自动跟踪用户事件、页面浏览和用户行为路径。
 
-| 环境变量                    | Description          | 必需  | 默认值 | 示例                                                |
+| 环境变量                    |                      | 必需  | 默认值 | 示例                                                |
 | ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
 | `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | No  |     | `https://eu.i.posthog.com`                        |
@@ -32,7 +32,6 @@ PostHog 集成是可选的，可以通过设置相应的环境变量来启用。
 只有同时配置了 `TUIST_POSTHOG_API_KEY` 和 `TUIST_POSTHOG_URL`
 时，分析功能才会启用。如果缺少任一变量，将不会发送任何分析事件。
 <!-- -->
-:::
 
 ### 功能特性 {#posthog-features}
 
@@ -79,11 +78,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-runs-total-tags}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
+|     |     |
 
 ### `tuist_runs_duration_milliseconds` (直方图) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -91,11 +90,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-runs-duration-miliseconds-tags}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
+|     |     |
 
 ## 缓存指标 {#cache-metrics}
 
@@ -107,7 +106,7 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-cache-events-total-tags}
 
-| Tag          | Description                               |
+|              |                                           |
 | ------------ | ----------------------------------------- |
 | `event_type` | 可以是 `local_hit`、`remote_hit` 或 `miss` 之一。 |
 
@@ -151,7 +150,6 @@ Tuist 运行的总次数。
 <!-- -->
 这些指标有助于了解存储操作的性能并识别潜在的瓶颈。
 <!-- -->
-:::
 
 ### `tuist_storage_get_object_size_size_bytes` (直方图) {#tuist_storage_get_object_size_size_bytes-histogram}
 
@@ -159,9 +157,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-get-object-size-size-bytes-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (直方图) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
@@ -170,9 +168,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_get_object_size_count` (计数器) {#tuist_storage_get_object_size_count-counter}
@@ -181,9 +179,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-get-object-size-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (直方图) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
@@ -191,9 +189,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_delete_all_objects_count` (计数器) {#tuist_storage_delete_all_objects_count-counter}
@@ -202,9 +200,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-count-tags}
 
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
@@ -213,9 +211,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_multipart_start_upload_duration_count` (计数器) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
@@ -223,9 +221,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (直方图) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
@@ -234,9 +232,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_get_object_as_string_count` (计数) {#tuist_storage_get_object_as_string_count-count}
 
@@ -244,9 +242,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-get-object-as-string-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (直方图) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
@@ -255,9 +253,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_check_object_existence_count` (计数) {#tuist_storage_check_object_existence_count-count}
 
@@ -265,9 +263,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-check-object-existence-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (直方图) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
@@ -275,9 +273,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 
 ### `tuist_storage_generate_download_presigned_url_count` (计数) {#tuist_storage_generate_download_presigned_url_count-count}
@@ -286,9 +284,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-generate-download-presigned-url-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+|     |     |
+| --- | --- |
+|     |     |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (直方图) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
@@ -296,11 +294,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
+|     |     |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (计数) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
@@ -308,11 +306,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
+|     |     |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
@@ -320,10 +318,10 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
 
 
 ### `tuist_storage_multipart_complete_upload_count` (计数) {#tuist_storage_multipart_complete_upload_count-count}
@@ -332,10 +330,10 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-complete-upload-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+|     |     |
+| --- | --- |
+|     |     |
+|     |     |
 
 ---
 
@@ -349,7 +347,7 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-authentication-token-refresh-error-total-tags}
 
-| Tag           | Description                                          |
+|               |                                                      |
 | ------------- | ---------------------------------------------------- |
 | `cli_version` | 遇到错误的 Tuist CLI 版本。                                  |
 | `reason`      | 令牌刷新错误的原因，例如 `invalid_token_type` 或 `invalid_token`。 |
@@ -421,19 +419,15 @@ Tuist 运行的总次数。
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (求和) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-The time it takes to retrieve a connection from the pool.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (求和) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-The time a connection has been idle waiting to be retrieved.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (分布) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-The time it takes to retrieve a connection from the pool.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (分布) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-The time a connection has been idle waiting to be retrieved.
 
 ### `tuist_http_connection_count` (计数器) {#tuist_http_connection_count-counter}
 
