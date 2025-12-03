@@ -5,7 +5,7 @@
   "description": "Learn how to migrate your projects from XcodeGen to Tuist."
 }
 ---
-# Migrate an XcodeGen project {#migrate-an-xcodegen-project}
+# XcodeGen 프로젝트 마이그레이션 {#migrate-an-xcodegen-project}
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool
 that uses YAML as [a configuration
@@ -19,19 +19,17 @@ scale. XcodeGen falls short there by design because it's a tool that generates
 Xcode projects, not a project manager. If you need a tool that helps you beyond
 generating Xcode projects, you might want to consider Tuist.
 
-::: tip SWIFT OVER YAML
+::: tip YAML대신 SWIFT
 <!-- -->
-Many organizations prefer Tuist as a project generation tool too because it uses
-Swift as a configuration format. Swift is a programming language that developers
-are familiar with, and that provides them with the convenience of using Xcode's
-autocompletion, type-checking, and validation features.
+많은 조직들이 Swift로 환경 설정을 할 수 있기 때문에 Tuist를 프로젝트 생성 도구로써 선호 합니다. Swift는 개발자들에게 친숙하고
+Xcode가 제공하는 자동 완성, 타입 검사, 기능의 유효성 검사 등의 편의성을 사용 할 수 있는 프로그래밍 언어 입니다.
 <!-- -->
 :::
 
 What follows are some considerations and guidelines to help you migrate your
 projects from XcodeGen to Tuist.
 
-## Project generation {#project-generation}
+## 프로젝트 생성 {#project-generation}
 
 Both Tuist and XcodeGen provide a `generate` command that turns your project
 declaration into Xcode projects and workspaces.
