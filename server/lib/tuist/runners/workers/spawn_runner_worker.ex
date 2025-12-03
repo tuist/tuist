@@ -222,10 +222,9 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     else
       cd #{runner_dir}
     fi
-    # Create JIT config file
-    echo '#{jit_config}' | base64 -d > jit-config.json
     # Start runner directly with JIT config (no config.sh needed for JIT)
-    nohup ./run.sh --jitconfig jit-config.json > runner.log 2>&1 &
+    # jit_config is already base64 encoded from GitHub API
+    nohup ./run.sh --jitconfig '#{jit_config}' > runner.log 2>&1 &
     RUNNER_PID=$!
     echo "Runner started with PID: $RUNNER_PID"
     sleep 2
