@@ -103,7 +103,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorkerTest do
       end)
 
       expect(SSHClient, :run_command, fn ^connection_ref, command, _timeout ->
-        assert command =~ "pkill -f 'Runner.Listener.*tuist-runner-abc123'"
+        assert command =~ "pkill -f 'actions-runner-tuist-runner-abc123'"
         assert command =~ "rm -rf ~/actions-runner-tuist-runner-abc123"
         {:ok, "Cleanup completed"}
       end)

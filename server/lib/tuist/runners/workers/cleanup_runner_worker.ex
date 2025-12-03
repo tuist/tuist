@@ -124,7 +124,7 @@ defmodule Tuist.Runners.Workers.CleanupRunnerWorker do
     # Remove the runner directory and clean up any leftover processes.
     # The runner is installed in ~/actions-runner-{runner_name}
     """
-    pkill -f 'Runner.Listener.*#{runner_name}' 2>/dev/null || true; \
+    pkill -f 'actions-runner-#{runner_name}' 2>/dev/null || true; \
     rm -rf ~/actions-runner-#{runner_name} 2>/dev/null || true
     """
   end
