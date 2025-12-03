@@ -130,8 +130,8 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     organization = Runners.get_runner_organization(job.organization_id)
 
     if organization && organization.github_app_installation_id do
-      GitHubClient.get_org_runner_registration_token(%{
-        org: job.org,
+      GitHubClient.get_repo_runner_registration_token(%{
+        repository_full_handle: "#{job.org}/#{job.repo}",
         installation_id: organization.github_app_installation_id
       })
     else
