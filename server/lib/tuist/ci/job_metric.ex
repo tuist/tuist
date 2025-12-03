@@ -7,7 +7,7 @@ defmodule Tuist.CI.JobMetric do
 
   import Ecto.Changeset
 
-  @primary_key {:id, Ecto.UUID, autogenerate: false}
+  @primary_key false
   schema "ci_job_metrics" do
     field :job_run_id, Ecto.UUID
 
@@ -24,7 +24,6 @@ defmodule Tuist.CI.JobMetric do
   def create_changeset(job_metric, attrs) do
     job_metric
     |> cast(attrs, [
-      :id,
       :job_run_id,
       :metric_type,
       :timestamp,
@@ -32,7 +31,6 @@ defmodule Tuist.CI.JobMetric do
       :inserted_at
     ])
     |> validate_required([
-      :id,
       :job_run_id,
       :metric_type,
       :timestamp,

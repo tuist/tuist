@@ -8,7 +8,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateCIJobMetricsTable do
              options:
                "PARTITION BY toYYYYMM(inserted_at) ORDER BY (job_run_id, metric_type, timestamp, inserted_at)"
            ) do
-      add :id, :uuid, null: false
       add :job_run_id, :uuid, null: false
 
       add :metric_type,
