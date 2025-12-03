@@ -186,7 +186,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
 
   defp build_setup_command(job, token, runner_name) do
     runner_dir = "actions-runner-#{runner_name}"
-    runner_url = "https://github.com/#{job.org}"
+    runner_url = "https://github.com/#{job.org}/#{job.repo}"
 
     """
     set -e
@@ -203,7 +203,12 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     ./config.sh --unattended --url #{runner_url} --token #{token} --name #{runner_name} --labels tuist-runners --ephemeral --replace
     nohup ./run.sh > runner.log 2>&1 &
     sleep 2
-    pgrep -f 'Runner.Listener.*#{runner_name}' > /dev/null && echo 'Runner started successfully' || (echo 'Runner failed to start' && exit 1)
+    if ! pgrep -f 'Runner.Listener.*#{runner_name}' > /dev/null; then
+      echo 'Runner failed to start. Last 50 lines of runner.log:'
+      tail -n 50 runner.log
+      exit 1
+    fi
+    echo 'Runner started successfully'
     """
   end
 
