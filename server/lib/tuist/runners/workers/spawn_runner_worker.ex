@@ -216,7 +216,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
     if [ ! -d "#{runner_dir}" ]; then
       mkdir -p #{runner_dir}
       cd #{runner_dir}
-      curl -s -o actions-runner-osx-arm64.tar.gz -L https://github.com/actions/runner/releases/download/v2.321.0/actions-runner-osx-arm64-2.321.0.tar.gz
+      curl -s -o actions-runner-osx-arm64.tar.gz -L https://github.com/actions/runner/releases/download/v2.330.0/actions-runner-osx-arm64-2.330.0.tar.gz
       tar xzf actions-runner-osx-arm64.tar.gz
       rm actions-runner-osx-arm64.tar.gz
     else
