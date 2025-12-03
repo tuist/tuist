@@ -179,7 +179,9 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
         :ok
 
       {:error, reason} ->
-        Logger.error("SpawnRunnerWorker: Runner setup failed for job #{job.id}: #{inspect(reason)}")
+        # Log the full error details including any output from the failed command
+        Logger.error("SpawnRunnerWorker: Runner setup failed for job #{job.id}")
+        Logger.error("SpawnRunnerWorker: Error details: #{inspect(reason)}")
         {:error, {:setup_command_failed, reason}}
     end
   end
@@ -214,9 +216,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   end
 
   defp build_ssh_opts do
-    ssh_user =
-      Tuist.Environment.runners_ssh_user()
-      |> String.to_charlist()
+    ssh_user = String.to_charlist(Tuist.Environment.runners_ssh_user())
 
     # Get SSH private key from secrets
     private_key = Tuist.Environment.runners_ssh_private_key()
@@ -241,7 +241,7 @@ defmodule Tuist.Runners.Workers.SpawnRunnerWorker do
   defp write_temp_ssh_key(private_key) do
     # Create a unique temporary directory for this SSH session
     # This ensures each connection has its own isolated key
-    session_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    session_id = 8 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
     temp_dir = Path.join([System.tmp_dir!(), "tuist_runners_ssh", session_id])
     File.mkdir_p!(temp_dir)
 

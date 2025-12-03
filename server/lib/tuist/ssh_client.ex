@@ -59,7 +59,14 @@ defmodule Tuist.SSHClient do
         {:ok, return_message}
 
       {:ssh_cm, _pid, {:exit_status, _cid, code}} ->
-        {:error, "return from command failed with code #{code}"}
+        error_details =
+          if String.trim(return_message) == "" do
+            "return from command failed with code #{code}"
+          else
+            "return from command failed with code #{code}. Output: #{return_message}"
+          end
+
+        {:error, error_details}
     after
       to_timeout(minute: 2) ->
         {:error, "no return from command after 60 seconds"}
