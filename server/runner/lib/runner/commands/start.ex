@@ -9,7 +9,7 @@ defmodule Runner.Commands.Start do
 
   require Logger
 
-  alias Runner.Runner.Connection
+  alias Runner.Runner.{Connection, VM, VMWarmer}
 
   @default_work_dir "/tmp/tuist-runner"
 
@@ -79,6 +79,23 @@ defmodule Runner.Commands.Start do
 
     # Trap exits for graceful shutdown
     Process.flag(:trap_exit, true)
+
+    # Start VMWarmer if Curie is available
+    case VM.check_curie_available() do
+      :ok ->
+        Logger.info("Starting VMWarmer for VM isolation...")
+        case VMWarmer.start_link([]) do
+          {:ok, _pid} ->
+            Logger.info("VMWarmer started, VM will be ready shortly")
+
+          {:error, reason} ->
+            Logger.warning("Failed to start VMWarmer: #{inspect(reason)}")
+            Logger.warning("Jobs will run without VM isolation")
+        end
+
+      {:error, :curie_not_found} ->
+        Logger.warning("Curie not found, jobs will run without VM isolation")
+    end
 
     case Connection.start_link(
            server_url: params.server_url,

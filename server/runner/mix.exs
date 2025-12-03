@@ -4,7 +4,7 @@ defmodule Runner.MixProject do
   def project do
     [
       app: :runner,
-      version: "0.1.0",
+      version: "0.1.10",
       build_path: "../_build",
       deps_path: "../deps",
       lockfile: "../mix.lock",
@@ -31,7 +31,8 @@ defmodule Runner.MixProject do
       {:web_driver_client, "~> 0.2.0"},
       {:sax_map, "~> 1.2"},
       {:elixir_uuid, "~> 1.2"},
-      {:jose, "~> 1.11"}
+      {:jose, "~> 1.11"},
+      {:jason, "~> 1.2"}
     ]
   end
 

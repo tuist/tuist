@@ -13,6 +13,10 @@
 #   RUNNER_LABELS           - Comma-separated labels (default: "self-hosted,macos,arm64")
 #   RUNNER_WORK_DIR         - Working directory (default: /tmp/tuist-runner-test)
 #   JOB_TIMEOUT_MS          - Job timeout in ms (default: 300000 = 5 minutes)
+#   USE_VM                  - Use VM isolation (default: true)
+#   VM_IMAGE                - VM image (default: ghcr.io/tuist/macos:26.1-xcode-26.1.1)
+#   VM_SSH_USER             - SSH user for VM (default: admin)
+#   VM_SSH_KEY_PATH         - SSH key path (default: ~/.ssh/tuist_runner_vm_key)
 #
 # The PAT needs these scopes:
 #   - For org-level runner: admin:org
@@ -20,6 +24,8 @@
 
 require Logger
 Logger.configure(level: :info)
+
+alias Runner.Runner.VMWarmer
 
 # Parse environment variables
 github_token = System.get_env("GITHUB_TOKEN")

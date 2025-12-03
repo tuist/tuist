@@ -43,6 +43,7 @@ defmodule Runner do
         case command do
           "qa" -> {:ok, :qa, rest}
           "start" -> {:ok, :start, rest}
+          "setup" -> {:ok, :setup, rest}
           "--help" -> {:error, :help}
           "-h" -> {:error, :help}
           _ -> {:error, "Unknown command: #{command}"}
@@ -58,6 +59,10 @@ defmodule Runner do
     Runner.Commands.Start.run(args)
   end
 
+  defp execute_command(:setup, args) do
+    Runner.Commands.Setup.run(args)
+  end
+
   defp print_help do
     IO.puts("""
     Tuist Runner CLI
@@ -66,21 +71,27 @@ defmodule Runner do
       runner <command> [options]
 
     Commands:
-      qa      Run AI-powered QA tests on iOS app previews
+      setup   Pre-warm a VM for job execution (run first)
       start   Start the GitHub Actions runner service
+      qa      Run AI-powered QA tests on iOS app previews
 
     Options:
       --help, -h    Show this help message
 
     For command-specific help:
-      runner qa --help
+      runner setup --help
       runner start --help
+      runner qa --help
+
+    Typical workflow:
+      # Terminal 1: Start VM warmer
+      runner setup
+
+      # Terminal 2: Start runner (after VM is ready)
+      runner start --server-url https://cloud.tuist.io --token <runner-token>
 
     Examples:
-      runner qa --preview-url <url> --bundle-identifier <id> --server-url <url> \\
-                --run-id <id> --auth-token <token> --account-handle <handle> \\
-                --launch-arguments <arguments> --app-description <description> \\
-                --project-handle <handle> --prompt "<prompt>" --anthropic-api-key <key>
+      runner setup --image ghcr.io/tuist/macos:26.1-xcode-26.1.1
 
       runner start --server-url https://cloud.tuist.io --token <runner-token>
     """)

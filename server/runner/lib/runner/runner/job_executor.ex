@@ -3,27 +3,29 @@ defmodule Runner.Runner.JobExecutor do
   Orchestrates the execution of GitHub Actions jobs using the official runner.
 
   This module is responsible for:
-  1. Registering with GitHub to get JIT configuration
-  2. Ensuring the official runner binary is available
-  3. Running the official runner with --jitconfig
-  4. Cleaning up resources after job completion
+  1. Starting an ephemeral VM for job isolation
+  2. Registering with GitHub to get JIT configuration
+  3. Running the official runner inside the VM via SSH
+  4. Cleaning up VM and resources after job completion
 
-  The official runner binary handles all the complex protocol details:
-  session management, job polling, action execution, etc.
+  Jobs run inside macOS VMs managed by Curie for isolation. The official
+  GitHub Actions runner binary is pre-installed in the VM image and handles
+  all the complex protocol details.
   """
 
   require Logger
 
-  alias Runner.Runner.GitHub.{OfficialRunner, Registration}
+  alias Runner.Runner.GitHub.OfficialRunner
+  alias Runner.Runner.{VM, VMWarmer}
 
-  @runner_cache_dir "/tmp/github-actions-runner"
+  @runner_path_in_vm "/opt/actions-runner"
 
   @type job_config :: %{
           job_id: String.t(),
           github_org: String.t(),
           github_repo: String.t() | nil,
           labels: [String.t()],
-          registration_token: String.t(),
+          encoded_jit_config: String.t(),
           timeout_ms: integer() | nil
         }
 
@@ -37,88 +39,129 @@ defmodule Runner.Runner.JobExecutor do
   @doc """
   Executes a job with full lifecycle management.
 
-  Registers with GitHub, downloads the official runner if needed,
-  and runs the job. Returns the job result.
+  Acquires a warm VM from VMWarmer, registers with GitHub, runs the job inside
+  the VM via SSH, and releases the VM back to the warmer for cleanup.
+
+  ## Options
+    - `:base_work_dir` - Base directory for job working directories (host mode)
+    - `:ssh_user` - SSH username for VM (default: "admin")
+    - `:ssh_key_path` - Path to SSH private key
+    - `:use_vm` - Whether to use VM isolation (default: true)
   """
   @spec execute(job_config(), keyword()) :: {:ok, job_result()} | {:error, term()}
   def execute(job_config, opts \\ []) do
-    base_work_dir = Keyword.get(opts, :base_work_dir, "/tmp/tuist-runner")
-    work_dir = create_working_directory(base_work_dir, job_config.job_id)
+    use_vm = Keyword.get(opts, :use_vm, true)
     start_time = System.monotonic_time(:millisecond)
 
     Logger.info("Starting job execution: #{job_config.job_id}")
+    Logger.info("VM isolation: #{use_vm}")
+
+    result = if use_vm do
+      execute_in_vm(job_config, opts)
+    else
+      execute_on_host(job_config, opts)
+    end
+
+    duration_ms = System.monotonic_time(:millisecond) - start_time
+
+    case result do
+      {:ok, exit_code} ->
+        {:ok,
+         %{
+           result: if(exit_code == 0, do: :succeeded, else: :failed),
+           exit_code: exit_code,
+           error: nil,
+           duration_ms: duration_ms
+         }}
+
+      {:error, reason} ->
+        {:ok,
+         %{
+           result: :error,
+           exit_code: 1,
+           error: reason,
+           duration_ms: duration_ms
+         }}
+    end
+  end
+
+  # VM-based execution (using VMWarmer for pre-warmed VMs)
+
+  defp execute_in_vm(job_config, opts) do
+    ssh_user = Keyword.get(opts, :ssh_user, ssh_user())
+    ssh_key_path = Keyword.get(opts, :ssh_key_path, ssh_key_path())
+
+    Logger.info("Acquiring warm VM from VMWarmer...")
+
+    vm_opts = [
+      ssh_user: ssh_user,
+      ssh_key_path: ssh_key_path
+    ]
+
+    case VMWarmer.acquire() do
+      {:ok, container_name} ->
+        Logger.info("Acquired warm VM '#{container_name}'")
+
+        try do
+          do_execute_in_vm(job_config, container_name, vm_opts)
+        after
+          # Release the VM back to the warmer for cleanup
+          # VMWarmer will stop it and start warming a new one
+          VMWarmer.release(container_name)
+        end
+
+      {:error, reason} ->
+        Logger.error("Failed to acquire VM: #{inspect(reason)}")
+        {:error, {:vm_acquire_failed, reason}}
+    end
+  end
+
+  defp do_execute_in_vm(job_config, container_name, vm_opts) do
+    encoded_jit_config = job_config.encoded_jit_config
+
+    unless is_binary(encoded_jit_config) and encoded_jit_config != "" do
+      {:error, :missing_jit_config}
+    else
+      Logger.info("Running job in VM '#{container_name}'")
+
+      command = "cd #{@runner_path_in_vm} && ./run.sh --jitconfig #{encoded_jit_config}"
+
+      output_callback = fn data ->
+        String.split(data, "\n", trim: true)
+        |> Enum.each(&Logger.info("VM Runner: #{&1}"))
+      end
+
+      VM.exec_stream(container_name, command, output_callback, vm_opts)
+    end
+  end
+
+  # Host-based execution (fallback/legacy)
+
+  defp execute_on_host(job_config, opts) do
+    base_work_dir = Keyword.get(opts, :base_work_dir, "/tmp/tuist-runner")
+    work_dir = create_working_directory(base_work_dir, job_config.job_id)
+
     Logger.info("Working directory: #{work_dir}")
 
     try do
-      result = do_execute(job_config, work_dir, opts)
-      duration_ms = System.monotonic_time(:millisecond) - start_time
-
-      case result do
-        {:ok, exit_code} ->
-          {:ok,
-           %{
-             result: if(exit_code == 0, do: :succeeded, else: :failed),
-             exit_code: exit_code,
-             error: nil,
-             duration_ms: duration_ms
-           }}
-
-        {:error, reason} ->
-          {:ok,
-           %{
-             result: :error,
-             exit_code: 1,
-             error: reason,
-             duration_ms: duration_ms
-           }}
-      end
+      do_execute_on_host(job_config, work_dir)
     after
       cleanup_working_directory(work_dir)
     end
   end
 
-  # Private functions
+  defp do_execute_on_host(job_config, work_dir) do
+    runner_cache_dir = "/tmp/github-actions-runner"
+    encoded_jit_config = job_config.encoded_jit_config
 
-  defp do_execute(job_config, work_dir, _opts) do
-    runner_name = generate_runner_name(job_config.job_id)
-
-    # Step 1: Register with GitHub to get JIT configuration
-    Logger.info("Registering runner with GitHub...")
-
-    with {:ok, registration} <- register_runner(job_config, runner_name),
-         encoded_jit_config <- registration.encoded_jit_config,
-         true <- is_binary(encoded_jit_config) || {:error, :missing_jit_config},
-         # Step 2: Ensure official runner binary is available
-         {:ok, runner_dir} <- OfficialRunner.ensure_runner_available(@runner_cache_dir),
-         # Step 3: Run the official runner with JIT config
+    with true <- is_binary(encoded_jit_config) and encoded_jit_config != "" || {:error, :missing_jit_config},
+         {:ok, runner_dir} <- OfficialRunner.ensure_runner_available(runner_cache_dir),
          {:ok, exit_code} <- OfficialRunner.run_with_jitconfig(runner_dir, encoded_jit_config, work_dir) do
       {:ok, exit_code}
     end
   end
 
-  defp register_runner(job_config, runner_name) do
-    params = %{
-      github_org: job_config.github_org,
-      github_repo: job_config.github_repo,
-      labels: job_config.labels,
-      runner_name: runner_name
-    }
-
-    case Registration.register(job_config.registration_token, params) do
-      {:ok, registration} ->
-        Logger.info("Runner registered: #{registration.runner_id}")
-        {:ok, registration}
-
-      {:error, reason} ->
-        Logger.error("Failed to register runner: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  defp generate_runner_name(job_id) do
-    short_id = job_id |> String.slice(0, 8)
-    "tuist-runner-#{short_id}-#{:rand.uniform(9999)}"
-  end
+  # Private functions
 
   defp create_working_directory(base_dir, job_id) do
     work_dir = Path.join(base_dir, job_id)
@@ -137,5 +180,15 @@ defmodule Runner.Runner.JobExecutor do
       {:error, reason, file} ->
         Logger.warning("Failed to clean up #{file}: #{inspect(reason)}")
     end
+  end
+
+  # Configuration helpers
+
+  defp ssh_user do
+    System.get_env("VM_SSH_USER", "tuist")
+  end
+
+  defp ssh_key_path do
+    System.get_env("VM_SSH_KEY_PATH", "~/.ssh/id_ed25519")
   end
 end

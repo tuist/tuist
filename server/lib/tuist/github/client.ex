@@ -203,6 +203,92 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  @doc """
+  Generates a JIT (just-in-time) configuration for a self-hosted runner at the repository level.
+
+  This creates an ephemeral runner that will be automatically removed after the job completes.
+  The returned `encoded_jit_config` can be passed directly to the runner binary.
+
+  ## Parameters
+    - `repository_full_handle` - The full repository name (owner/repo)
+    - `installation_id` - The GitHub App installation ID
+    - `runner_name` - A unique name for this runner instance
+    - `labels` - List of labels for the runner (e.g., ["self-hosted", "macOS"])
+
+  ## Returns
+    - `{:ok, %{runner_id: integer(), encoded_jit_config: String.t()}}` on success
+    - `{:error, reason}` on failure
+  """
+  def generate_repo_runner_jit_config(%{
+        repository_full_handle: repository_full_handle,
+        installation_id: installation_id,
+        runner_name: runner_name,
+        labels: labels
+      }) do
+    url = "https://api.github.com/repos/#{repository_full_handle}/actions/runners/generate-jitconfig"
+
+    body = %{
+      name: runner_name,
+      runner_group_id: 1,
+      labels: labels,
+      work_folder: "_work"
+    }
+
+    case github_request(&Req.post/1, url: url, installation_id: installation_id, json: body) do
+      {:ok, %{"runner" => %{"id" => runner_id}, "encoded_jit_config" => encoded_jit_config}} ->
+        {:ok, %{runner_id: runner_id, encoded_jit_config: encoded_jit_config}}
+
+      {:ok, response} ->
+        {:error, {:unexpected_response, response}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Generates a JIT (just-in-time) configuration for a self-hosted runner at the organization level.
+
+  This creates an ephemeral runner that will be automatically removed after the job completes.
+  The returned `encoded_jit_config` can be passed directly to the runner binary.
+
+  ## Parameters
+    - `org` - The organization name
+    - `installation_id` - The GitHub App installation ID
+    - `runner_name` - A unique name for this runner instance
+    - `labels` - List of labels for the runner (e.g., ["self-hosted", "macOS"])
+
+  ## Returns
+    - `{:ok, %{runner_id: integer(), encoded_jit_config: String.t()}}` on success
+    - `{:error, reason}` on failure
+  """
+  def generate_org_runner_jit_config(%{
+        org: org,
+        installation_id: installation_id,
+        runner_name: runner_name,
+        labels: labels
+      }) do
+    url = "https://api.github.com/orgs/#{org}/actions/runners/generate-jitconfig"
+
+    body = %{
+      name: runner_name,
+      runner_group_id: 1,
+      labels: labels,
+      work_folder: "_work"
+    }
+
+    case github_request(&Req.post/1, url: url, installation_id: installation_id, json: body) do
+      {:ok, %{"runner" => %{"id" => runner_id}, "encoded_jit_config" => encoded_jit_config}} ->
+        {:ok, %{runner_id: runner_id, encoded_jit_config: encoded_jit_config}}
+
+      {:ok, response} ->
+        {:error, {:unexpected_response, response}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
   def get_source_archive_by_tag_and_repository_full_handle(%{
         repository_full_handle: repository_full_handle,
         tag: tag,

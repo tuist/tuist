@@ -11,7 +11,7 @@ defmodule Runner.Runner.Connection do
 
   require Logger
 
-  alias Runner.Runner.JobExecutor
+  alias Runner.Runner.{JobExecutor, VMWarmer}
 
   @topic "runner:jobs"
   @heartbeat_interval_ms 30_000
@@ -23,7 +23,8 @@ defmodule Runner.Runner.Connection do
     :status,
     :current_job,
     :executor_task,
-    :heartbeat_timer
+    :heartbeat_timer,
+    :use_vm
   ]
 
   # Client API
@@ -35,6 +36,7 @@ defmodule Runner.Runner.Connection do
   - `:server_url` - The Tuist server URL
   - `:token` - The runner authentication token
   - `:base_work_dir` - Base directory for job working directories
+  - `:use_vm` - Whether to use VM isolation (default: true)
   """
   def start_link(opts) do
     config = [
@@ -45,7 +47,8 @@ defmodule Runner.Runner.Connection do
     init_args = %{
       server_url: opts[:server_url],
       token: opts[:token],
-      base_work_dir: opts[:base_work_dir] || "/tmp/tuist-runner"
+      base_work_dir: opts[:base_work_dir] || "/tmp/tuist-runner",
+      use_vm: Keyword.get(opts, :use_vm, true)
     }
 
     Slipstream.start_link(__MODULE__, {config, init_args})
@@ -55,11 +58,31 @@ defmodule Runner.Runner.Connection do
 
   @impl Slipstream
   def init({config, init_args}) do
+    use_vm = init_args.use_vm
+
+    # Check if VMWarmer is running when VM isolation is enabled
+    if use_vm do
+      case GenServer.whereis(VMWarmer) do
+        nil ->
+          Logger.warning("VMWarmer not running! Run 'runner setup' first to pre-warm a VM.")
+          Logger.warning("Jobs will wait for VM to boot, which may take 1-2 minutes.")
+
+        _pid ->
+          status = VMWarmer.status()
+          if status.warm_vm do
+            Logger.info("VMWarmer ready with warm VM: #{status.warm_vm}")
+          else
+            Logger.info("VMWarmer running, VM is warming up...")
+          end
+      end
+    end
+
     socket =
       new_socket()
       |> assign(:server_url, init_args.server_url)
       |> assign(:token, init_args.token)
       |> assign(:base_work_dir, init_args.base_work_dir)
+      |> assign(:use_vm, use_vm)
       |> assign(:status, :connecting)
       |> assign(:current_job, nil)
       |> assign(:executor_task, nil)
@@ -265,7 +288,7 @@ defmodule Runner.Runner.Connection do
       github_org: payload["github_org"],
       github_repo: payload["github_repo"],
       labels: payload["labels"] || ["self-hosted"],
-      registration_token: payload["registration_token"],
+      encoded_jit_config: payload["encoded_jit_config"],
       timeout_ms: payload["timeout_ms"]
     }
 
@@ -277,10 +300,11 @@ defmodule Runner.Runner.Connection do
 
     # Execute job in a task
     base_work_dir = socket.assigns.base_work_dir
+    use_vm = socket.assigns.use_vm
 
     task =
       Task.async(fn ->
-        JobExecutor.execute(job_config, base_work_dir: base_work_dir)
+        JobExecutor.execute(job_config, base_work_dir: base_work_dir, use_vm: use_vm)
       end)
 
     socket =
