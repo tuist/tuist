@@ -8,7 +8,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateCIJobLogsTable do
              options:
                "PARTITION BY toYYYYMM(inserted_at) ORDER BY (step_id, timestamp, inserted_at)"
            ) do
-      add :id, :uuid, null: false
       add :step_id, :uuid, null: false
       add :job_run_id, :uuid, null: false
       add :timestamp, :"DateTime64(6)", null: false
