@@ -141,7 +141,7 @@
                  100) ||
               0.0
           }
-          trend_inverse={true}
+          trend_type={:inverse}
           trend_label={bundle_size_trend_label(@bundle_size_date_range)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
@@ -163,7 +163,7 @@
           trend_value={
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
           }
-          trend_inverse={true}
+          trend_type={:inverse}
           trend_label={bundle_size_trend_label(@bundle_size_date_range)}
           empty={is_nil(@bundle_size_last_bundle)}
         />

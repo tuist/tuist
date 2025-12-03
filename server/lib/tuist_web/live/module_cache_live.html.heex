@@ -146,6 +146,7 @@
         value={Number.Delimit.number_to_delimited(@hits_analytics.total_count, precision: 0)}
         id="widget-cache-hits"
         trend_value={@hits_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_hits"
@@ -163,6 +164,7 @@
         value={Number.Delimit.number_to_delimited(@misses_analytics.total_count, precision: 0)}
         id="widget-cache-misses"
         trend_value={@misses_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_misses"
