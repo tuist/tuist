@@ -46,18 +46,14 @@ tuist generate
 <!-- -->
 :::
 
-The difference lays in the editing experience. With Tuist, you can run the
-`tuist edit` command, which generates an Xcode project on the fly that you can
-open and start working on. This is particularly useful when you want to make
-quick changes to your project.
+차이점은 수정할 때 나타납니다. Tuist에서는 열어서 작업할 수 있는 Xcode 프로젝트를 생성하는 `tuist edit` 명령을 실행할 수
+있는데 특히 프로젝트를 빠르게 수정하고 싶을 때 유용합니다.
 
 ## `project.yaml` {#projectyaml}
 
-XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover,
-you can have `Workspace.swift` as a way to customize how projects are grouped in
-workspaces. You can also have a project `Project.swift` with targets that
-reference targets from other projects. In those cases, Tuist will generate an
-Xcode Workspace including all the projects.
+XcodeGen의 `project.yaml` 설명 파일은 `Project.swift`로 바뀌고 여러분은 어떻게 프로젝트들을 그룹화 할지 설정할
+수 있는 `Workspace.swift`를 가집니다. 또한 다른 프로젝트들의 Target들을 참조하는 Target을 가진 프로젝트인
+`Project.swift`도 가집니다. . 이런 경우, Tuist 는 모든 프로젝트를 포함해 Xcode Workspace를 생성할 것 입니다.
 
 ::: code-group
 
@@ -75,7 +71,7 @@ Xcode Workspace including all the projects.
 <!-- -->
 :::
 
-::: tip XCODE'S LANGUAGE
+::: tip XCODE의 언어
 <!-- -->
 Both XcodeGen and Tuist embrace Xcode's language and concepts. However, Tuist's
 Swift-based configuration provides you with the convenience of using Xcode's
