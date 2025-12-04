@@ -149,8 +149,12 @@ struct CommandEventFactoryTests {
                         name: "Project",
                         path: try RelativePath(validating: "Project"),
                         targets: [
-                            RunTarget(
+                            .test(
                                 name: "A",
+                                product: .app,
+                                bundleId: "io.tuist.A",
+                                productName: "A",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-a",
                                     hit: .local,
@@ -159,18 +163,26 @@ struct CommandEventFactoryTests {
                                         dependencies: "deps-hash-a"
                                     )
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "ATests",
+                                product: .app,
+                                bundleId: "io.tuist.ATests",
+                                productName: "ATests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-a-tests",
                                     hit: .local
                                 )
                             ),
-                            RunTarget(
+                            .test(
                                 name: "B",
+                                product: .app,
+                                bundleId: "io.tuist.B",
+                                productName: "B",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-b",
                                     hit: .remote,
@@ -179,28 +191,40 @@ struct CommandEventFactoryTests {
                                         resources: "resources-hash-b"
                                     )
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "BTests",
+                                product: .app,
+                                bundleId: "io.tuist.BTests",
+                                productName: "BTests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-b-tests",
                                     hit: .remote
                                 )
                             ),
-                            RunTarget(
+                            .test(
                                 name: "C",
+                                product: .app,
+                                bundleId: "io.tuist.C",
+                                productName: "C",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-c",
                                     hit: .miss
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "CTests",
+                                product: .app,
+                                bundleId: "io.tuist.CTests",
+                                productName: "CTests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-c-tests",
                                     hit: .miss
                                 )

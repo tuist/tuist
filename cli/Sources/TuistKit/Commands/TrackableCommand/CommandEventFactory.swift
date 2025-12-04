@@ -118,6 +118,10 @@ public final class CommandEventFactory {
 
                     return RunTarget(
                         name: target.value.name,
+                        product: target.value.product,
+                        bundleId: target.value.bundleId,
+                        productName: target.value.productName,
+                        destinations: target.value.destinations,
                         binaryCacheMetadata: binaryCacheMetadata,
                         selectiveTestingMetadata: selectiveTestingMetadata
                     )
