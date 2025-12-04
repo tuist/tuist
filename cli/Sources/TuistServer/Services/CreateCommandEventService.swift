@@ -3,6 +3,7 @@
     import Mockable
     import OpenAPIURLSession
     import TuistCore
+    import XcodeGraph
 
     @Mockable
     public protocol CreateCommandEventServicing {
@@ -127,10 +128,34 @@
                                         return .init(
                                             build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
-                                            hit: hit
+                                            hit: hit,
+                                            subhashes: binaryCacheMetadata.subhashes.map { subhashes in
+                                                .init(
+                                                    additional_strings: subhashes.additionalStrings,
+                                                    buildable_folders: subhashes.buildableFolders,
+                                                    copy_files: subhashes.copyFiles,
+                                                    core_data_models: subhashes.coreDataModels,
+                                                    dependencies: subhashes.dependencies,
+                                                    deployment_target: subhashes.deploymentTarget,
+                                                    entitlements: subhashes.entitlements,
+                                                    environment: subhashes.environment,
+                                                    external: subhashes.external,
+                                                    headers: subhashes.headers,
+                                                    info_plist: subhashes.infoPlist,
+                                                    project_settings: subhashes.projectSettings,
+                                                    resources: subhashes.resources,
+                                                    sources: subhashes.sources,
+                                                    target_scripts: subhashes.targetScripts,
+                                                    target_settings: subhashes.targetSettings
+                                                )
+                                            }
                                         )
                                     },
+                                bundle_id: target.bundleId,
+                                destinations: target.destinations.map { map(destination: $0) },
                                 name: target.name,
+                                product: map(product: target.product),
+                                product_name: target.productName,
                                 selective_testing_metadata: target.selectiveTestingMetadata
                                     .map { selectiveTestingMetadata in
                                         let hit: Operations.createCommandEvent.Input.Body.jsonPayload
@@ -155,6 +180,53 @@
                     )
                 }
             )
+        }
+
+        private func map(
+            product: XcodeGraph.Product
+        ) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload
+            .targetsPayloadPayload.productPayload
+        {
+            switch product {
+            case .app: .app
+            case .staticLibrary: .static_library
+            case .dynamicLibrary: .dynamic_library
+            case .framework: .framework
+            case .staticFramework: .static_framework
+            case .unitTests: .unit_tests
+            case .uiTests: .ui_tests
+            case .bundle: .bundle
+            case .commandLineTool: .command_line_tool
+            case .appExtension: .app_extension
+            case .watch2App: .watch_2_app
+            case .watch2Extension: .watch_2_extension
+            case .tvTopShelfExtension: .tv_top_shelf_extension
+            case .messagesExtension: .messages_extension
+            case .stickerPackExtension: .sticker_pack_extension
+            case .appClip: .app_clip
+            case .xpc: .xpc
+            case .systemExtension: .system_extension
+            case .extensionKitExtension: .extension_kit_extension
+            case .macro: .macro
+            }
+        }
+
+        private func map(
+            destination: XcodeGraph.Destination
+        ) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload
+            .targetsPayloadPayload.destinationsPayloadPayload
+        {
+            switch destination {
+            case .iPhone: .iphone
+            case .iPad: .ipad
+            case .mac: .mac
+            case .macWithiPadDesign: .mac_with_ipad_design
+            case .macCatalyst: .mac_catalyst
+            case .appleWatch: .apple_watch
+            case .appleTv: .apple_tv
+            case .appleVision: .apple_vision
+            case .appleVisionWithiPadDesign: .apple_vision_with_ipad_design
+            }
         }
     }
 #endif

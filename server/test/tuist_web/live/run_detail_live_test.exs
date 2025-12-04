@@ -90,7 +90,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         )
 
       # Then
-      assert has_element?(lv, "span", "Compilation Optimizations")
+      assert has_element?(lv, "span", "Module Cache")
       assert has_element?(lv, "table span", "AppTests")
       assert has_element?(lv, "table span", "AppTests-hash")
     end

@@ -814,25 +814,31 @@ final class EmptyCacheService: CacheServicing {
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
 
             let cacheableTargets = sortedCacheableTargets.reduce(into: Set<CacheStorableTarget>()) { acc, next in
-                if let hash = hashesByCacheableTarget[next] {
-                    acc.formUnion([CacheStorableTarget(target: next, hash: hash)])
+                if let targetContentHash = hashesByCacheableTarget[next] {
+                    acc.formUnion([CacheStorableTarget(target: next, hash: targetContentHash.hash)])
                 }
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(hashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value) }),
+                Set(hashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
                 cacheCategory: .binaries
             )
 
             await RunMetadataStorage.current.update(
                 binaryCacheItems: hashesByCacheableTarget.reduce(into: [:]) { result, element in
-                    let cacheItem = cacheItems.keys.first(where: { $0.hash == element.value }) ?? CacheItem(
+                    let cacheItem = cacheItems.keys.first(where: { $0.hash == element.value.hash }) ?? CacheItem(
                         name: element.key.target.name,
-                        hash: element.value,
+                        hash: element.value.hash,
                         source: .miss,
                         cacheCategory: .binaries
                     )
                     result[element.key.path, default: [:]][element.key.target.name] = cacheItem
+                }
+            )
+
+            await RunMetadataStorage.current.update(
+                targetContentHashSubhashes: hashesByCacheableTarget.reduce(into: [:]) { result, element in
+                    result[element.value.hash] = element.value.subhashes
                 }
             )
 

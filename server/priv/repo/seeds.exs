@@ -4,7 +4,6 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Bundles
-alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Event
 alias Tuist.IngestRepo
 alias Tuist.Projects
@@ -15,7 +14,6 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
-alias Tuist.Xcode
 
 # Stubs
 email = "tuistrocks@tuist.dev"
@@ -901,6 +899,197 @@ command_events
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Event, chunk)
+end)
+
+# Generate XcodeGraphs for generate command events (for Compilation Optimizations tab)
+generate_events = Enum.filter(command_events, fn event -> event.name == "generate" end)
+
+project_names = [
+  "App",
+  "Framework",
+  "Core",
+  "UI",
+  "Networking",
+  "Database",
+  "Analytics",
+  "Authentication"
+]
+
+target_names = [
+  "AppTarget",
+  "FrameworkTarget",
+  "CoreKit",
+  "UIComponents",
+  "NetworkLayer",
+  "DataStore",
+  "AnalyticsSDK",
+  "AuthService",
+  "FeatureA",
+  "FeatureB",
+  "FeatureC",
+  "CommonUtils",
+  "TestHelpers",
+  "Mocks"
+]
+
+generate_hash = fn ->
+  1..64
+  |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+  |> List.to_string()
+end
+
+xcode_graphs_data =
+  generate_events
+  |> Enum.take(100)
+  |> Enum.map(fn event ->
+    xcode_graph_id = UUIDv7.generate()
+    inserted_at = NaiveDateTime.truncate(event.created_at, :second)
+
+    %{
+      id: xcode_graph_id,
+      name: "Workspace",
+      command_event_id: event.id,
+      binary_build_duration: Enum.random(10_000..300_000),
+      inserted_at: inserted_at,
+      event: event
+    }
+  end)
+
+xcode_graphs_data
+|> Enum.map(fn graph ->
+  Map.delete(graph, :event)
+end)
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Xcode.XcodeGraph, chunk)
+end)
+
+xcode_projects_data =
+  Enum.flat_map(xcode_graphs_data, fn graph ->
+    project_count = Enum.random(2..5)
+
+    Enum.map(1..project_count, fn i ->
+      project_name = Enum.at(project_names, rem(i - 1, length(project_names)))
+
+      %{
+        id: UUIDv7.generate(),
+        name: project_name,
+        path: "/#{project_name}/#{project_name}.xcodeproj",
+        xcode_graph_id: graph.id,
+        command_event_id: graph.event.id,
+        inserted_at: graph.inserted_at
+      }
+    end)
+  end)
+
+xcode_projects_data
+|> Enum.chunk_every(50)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Xcode.XcodeProject, chunk)
+end)
+
+product_types = [
+  "app",
+  "static_library",
+  "dynamic_library",
+  "framework",
+  "static_framework",
+  "unit_test_bundle",
+  "ui_test_bundle",
+  "app_extension",
+  "watch2_app",
+  "watch2_extension"
+]
+
+destination_types = [
+  "iphone",
+  "ipad",
+  "mac",
+  "apple_watch",
+  "apple_tv",
+  "apple_vision"
+]
+
+generate_subhash = fn ->
+  1..32
+  |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+  |> List.to_string()
+end
+
+xcode_targets_data =
+  Enum.flat_map(xcode_projects_data, fn project ->
+    target_count = Enum.random(3..8)
+
+    Enum.map(1..target_count, fn i ->
+      target_name = Enum.at(target_names, rem(i - 1, length(target_names)))
+
+      binary_cache_hit = Enum.random([:miss, :local, :remote])
+
+      hit_value =
+        case binary_cache_hit do
+          :miss -> 0
+          :local -> 1
+          :remote -> 2
+        end
+
+      # Randomly decide if this is an external target (10% chance)
+      is_external = Enum.random(1..10) == 1
+
+      # Generate random destinations (1-3)
+      destinations = Enum.take_random(destination_types, Enum.random(1..3))
+
+      # Generate random additional strings (0-3)
+      additional_strings =
+        if Enum.random([true, false]) do
+          Enum.map(1..Enum.random(1..3), fn _ ->
+            "CUSTOM_FLAG_#{Enum.random(1..100)}"
+          end)
+        else
+          []
+        end
+
+      %{
+        id: UUIDv7.generate(),
+        name: "#{project.name}_#{target_name}",
+        binary_cache_hash: generate_hash.(),
+        binary_cache_hit: hit_value,
+        binary_build_duration: Enum.random(1000..30_000),
+        selective_testing_hash: nil,
+        selective_testing_hit: 0,
+        xcode_project_id: project.id,
+        command_event_id: project.command_event_id,
+        inserted_at: project.inserted_at,
+        product: Enum.random(product_types),
+        bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
+        product_name: target_name,
+        destinations: destinations,
+        # Subhashes
+        external_hash: if(is_external, do: generate_subhash.(), else: ""),
+        sources_hash: if(is_external, do: "", else: generate_subhash.()),
+        resources_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
+        copy_files_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        core_data_models_hash:
+          if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        target_scripts_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        environment_hash: if(is_external, do: "", else: generate_subhash.()),
+        headers_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        deployment_target_hash: if(is_external, do: "", else: generate_subhash.()),
+        info_plist_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
+        entitlements_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
+        dependencies_hash: if(is_external, do: "", else: generate_subhash.()),
+        project_settings_hash: if(is_external, do: "", else: generate_subhash.()),
+        target_settings_hash: if(is_external, do: "", else: generate_subhash.()),
+        buildable_folders_hash:
+          if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        additional_strings: additional_strings
+      }
+    end)
+  end)
+
+xcode_targets_data
+|> Enum.chunk_every(50)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Xcode.XcodeTarget, chunk)
 end)
 
 bundle_identifiers = [
