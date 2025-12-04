@@ -311,6 +311,19 @@
       </.card_section>
     </.card>
     <.card title={gettext("Module Cache")} icon="database" data-part="binary-cache">
+      <:actions>
+        <.button
+          id="copy-binary-cache-json"
+          variant="secondary"
+          label={gettext("Copy as JSON")}
+          size="medium"
+          phx-hook="Clipboard"
+          data-clipboard-value={@binary_cache_json}
+          disabled={Enum.empty?(@binary_cache_analytics.cacheable_targets)}
+        >
+          <:icon_left><.copy /></:icon_left>
+        </.button>
+      </:actions>
       <.card_section data-part="binary-cache-section">
         <.card_section
           :if={
@@ -563,7 +576,9 @@
               </div>
               <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
                 <span data-part="subhash-label">{gettext("Additional strings")}:</span>
-                <span data-part="subhash-value">{Enum.join(target.additional_strings, ", ")}</span>
+                <span data-part="subhash-value">
+                  {Enum.join(target.additional_strings, ", ")}
+                </span>
               </div>
             </div>
           </:expanded_content>

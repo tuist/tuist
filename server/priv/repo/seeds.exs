@@ -1067,20 +1067,22 @@ xcode_targets_data =
         product_name: target_name,
         # Subhashes - external targets only have external_hash
         external_hash: if(is_external, do: generate_subhash.(), else: ""),
-        sources_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        sources_hash: if(is_external, do: "", else: generate_subhash.()),
         resources_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
         copy_files_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
-        core_data_models_hash: if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        core_data_models_hash:
+          if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
         target_scripts_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
-        environment_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        environment_hash: if(is_external, do: "", else: generate_subhash.()),
         headers_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
-        deployment_target_hash: if(not is_external, do: generate_subhash.(), else: ""),
+        deployment_target_hash: if(is_external, do: "", else: generate_subhash.()),
         info_plist_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
         entitlements_hash: if(not is_external and Enum.random([true, false, false]), do: generate_subhash.(), else: ""),
-        dependencies_hash: if(not is_external, do: generate_subhash.(), else: ""),
-        project_settings_hash: if(not is_external, do: generate_subhash.(), else: ""),
-        target_settings_hash: if(not is_external, do: generate_subhash.(), else: ""),
-        buildable_folders_hash: if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
+        dependencies_hash: if(is_external, do: "", else: generate_subhash.()),
+        project_settings_hash: if(is_external, do: "", else: generate_subhash.()),
+        target_settings_hash: if(is_external, do: "", else: generate_subhash.()),
+        buildable_folders_hash:
+          if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
         # Arrays
         destinations: destinations,
         additional_strings: additional_strings
