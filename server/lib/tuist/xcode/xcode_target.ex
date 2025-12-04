@@ -24,13 +24,11 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :selective_testing_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
     field :xcode_project_id, Ch, type: "UUID"
     field :command_event_id, Ch, type: "UUID"
-
-    # Target metadata
     field :product, Ch, type: "LowCardinality(String)", default: ""
     field :bundle_id, Ch, type: "String", default: ""
     field :product_name, Ch, type: "String", default: ""
 
-    # Subhashes for binary cache
+    # Subhashes
     field :sources_hash, Ch, type: "String", default: ""
     field :resources_hash, Ch, type: "String", default: ""
     field :copy_files_hash, Ch, type: "String", default: ""
@@ -45,12 +43,8 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :project_settings_hash, Ch, type: "String", default: ""
     field :target_settings_hash, Ch, type: "String", default: ""
     field :buildable_folders_hash, Ch, type: "String", default: ""
-
-    # Arrays
     field :destinations, Ch, type: "Array(LowCardinality(String))", default: []
     field :additional_strings, Ch, type: "Array(String)", default: []
-
-    # External project hash (when target is from an external dependency)
     field :external_hash, Ch, type: "String", default: ""
 
     belongs_to :command_event, Tuist.CommandEvents.Event,
@@ -82,11 +76,9 @@ defmodule Tuist.Xcode.XcodeTarget do
       binary_build_duration: binary_cache_metadata["build_duration"],
       selective_testing_hash: selective_testing_metadata["hash"],
       selective_testing_hit: hit_enum_to_int(hit_value_to_enum(selective_testing_metadata["hit"], :miss)),
-      # Target metadata
       product: xcode_target["product"],
       bundle_id: xcode_target["bundle_id"],
       product_name: xcode_target["product_name"],
-      # Subhashes
       sources_hash: subhashes["sources"],
       resources_hash: subhashes["resources"],
       copy_files_hash: subhashes["copy_files"],
@@ -101,10 +93,8 @@ defmodule Tuist.Xcode.XcodeTarget do
       project_settings_hash: subhashes["project_settings"],
       target_settings_hash: subhashes["target_settings"],
       buildable_folders_hash: subhashes["buildable_folders"],
-      # Arrays
       destinations: xcode_target["destinations"],
       additional_strings: subhashes["additional_strings"],
-      # External hash
       external_hash: subhashes["external"],
       inserted_at: inserted_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
