@@ -2268,7 +2268,7 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_account_from_customer_id/1" do
-    test "returns the account with the given customer_id" do
+    test "returns {:ok, account} with the given customer_id" do
       # Given
       stub(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
       user = AccountsFixtures.user_fixture()
@@ -2279,10 +2279,10 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id(customer_id)
 
       # Then
-      assert got == account
+      assert got == {:ok, account}
     end
 
-    test "returns nil if the account with the given customer_id does not exist" do
+    test "returns {:error, :not_found} if the account with the given customer_id does not exist" do
       # Given
       AccountsFixtures.user_fixture()
 
@@ -2290,7 +2290,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id("unknown")
 
       # Then
-      assert got == nil
+      assert got == {:error, :not_found}
     end
   end
 

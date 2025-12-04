@@ -812,7 +812,10 @@ defmodule Tuist.Accounts do
         where: a.customer_id == ^customer_id
       )
 
-    Repo.one(query)
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      account -> {:ok, account}
+    end
   end
 
   def get_account_from_user(%User{} = user) do
