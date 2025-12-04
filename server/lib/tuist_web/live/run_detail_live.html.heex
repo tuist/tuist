@@ -510,6 +510,24 @@
           </:col>
           <:expanded_content :let={target}>
             <div data-part="subhashes-list">
+              <div :if={target.product != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Product")}:</span>
+                <span data-part="subhash-value">{target.product}</span>
+              </div>
+              <div :if={target.product_name != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Product name")}:</span>
+                <span data-part="subhash-value">{target.product_name}</span>
+              </div>
+              <div :if={target.bundle_id != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Bundle ID")}:</span>
+                <span data-part="subhash-value">{target.bundle_id}</span>
+              </div>
+              <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
+                <span data-part="subhash-label">{gettext("Destinations")}:</span>
+                <span data-part="subhash-value">
+                  {target.destinations |> Enum.map(&humanize_destination/1) |> Enum.join(", ")}
+                </span>
+              </div>
               <div :if={target.external_hash != ""} data-part="subhash-item">
                 <span data-part="subhash-label">{gettext("External")}:</span>
                 <span data-part="subhash-value">{target.external_hash}</span>
@@ -569,10 +587,6 @@
               <div :if={target.buildable_folders_hash != ""} data-part="subhash-item">
                 <span data-part="subhash-label">{gettext("Buildable folders")}:</span>
                 <span data-part="subhash-value">{target.buildable_folders_hash}</span>
-              </div>
-              <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Destinations")}:</span>
-                <span data-part="subhash-value">{Enum.join(target.destinations, ", ")}</span>
               </div>
               <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
                 <span data-part="subhash-label">{gettext("Additional strings")}:</span>

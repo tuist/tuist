@@ -305,14 +305,15 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert Enum.map(xcode_projects, & &1.name) == ["ProjectA"]
 
-      xcode_targets = Tuist.Xcode.xcode_targets_for_command_event(command_event.id)
+      command_event = ClickHouseRepo.preload(command_event, [:xcode_targets])
+      xcode_targets = Enum.sort_by(command_event.xcode_targets, & &1.name)
 
       assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
       assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
-      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, :miss]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == ["local", "miss"]
       assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
-      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [:miss, :remote]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == ["miss", "remote"]
     end
 
     test "returns newly created command event with xcode_graph including subhashes", %{
@@ -403,7 +404,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       Tuist.Xcode.XcodeProject.Buffer.flush()
       Tuist.Xcode.XcodeTarget.Buffer.flush()
 
-      xcode_targets = Tuist.Xcode.xcode_targets_for_command_event(command_event.id)
+      command_event = ClickHouseRepo.preload(command_event, [:xcode_targets])
+      xcode_targets = Enum.sort_by(command_event.xcode_targets, & &1.name)
 
       # Verify target names
       assert Enum.map(xcode_targets, & &1.name) == ["ExternalTarget", "TargetA"]

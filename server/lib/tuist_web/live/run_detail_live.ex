@@ -23,6 +23,7 @@ defmodule TuistWeb.RunDetailLive do
         _ -> nil
       end
 
+    run = Tuist.ClickHouseRepo.preload(run, [:xcode_targets])
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,
@@ -193,7 +194,7 @@ defmodule TuistWeb.RunDetailLive do
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
-    all_targets_json = load_all_binary_cache_targets_json(socket.assigns.run, params)
+    all_targets_json = load_all_binary_cache_targets_json(socket.assigns.run)
 
     socket
     |> assign(:binary_cache_analytics, analytics)
@@ -275,21 +276,10 @@ defmodule TuistWeb.RunDetailLive do
     {analytics, meta}
   end
 
-  defp load_all_binary_cache_targets_json(run, params) do
-    filters = Filter.Operations.decode_filters_from_query(params, define_binary_cache_filters())
-
-    text_filters = build_text_flop_filters(params["binary-cache-filter"])
-    filter_flop_filters = build_binary_cache_flop_filters(filters)
-
-    flop_params = %{
-      filters: text_filters ++ filter_flop_filters,
-      order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
-      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
-    }
-
-    {analytics, _meta} = Xcode.binary_cache_analytics(run, flop_params)
-
-    analytics.cacheable_targets
+  defp load_all_binary_cache_targets_json(run) do
+    run.xcode_targets
+    |> Enum.filter(&(&1.binary_cache_hash != nil))
+    |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map/1)
     |> Jason.encode!(pretty: true)
   end
@@ -379,8 +369,21 @@ defmodule TuistWeb.RunDetailLive do
     ]
   end
 
+  def humanize_destination("iphone"), do: "iPhone"
+  def humanize_destination("ipad"), do: "iPad"
+  def humanize_destination("mac"), do: "Mac"
+  def humanize_destination("mac_with_ipad_design"), do: "Mac with iPad design"
+  def humanize_destination("apple_watch"), do: "Apple Watch"
+  def humanize_destination("apple_tv"), do: "Apple TV"
+  def humanize_destination("apple_vision"), do: "Apple Vision"
+  def humanize_destination(other), do: other
+
   def has_subhashes?(target) do
-    (target.external_hash || "") != "" or
+    (target.product || "") != "" or
+      (target.product_name || "") != "" or
+      (target.bundle_id || "") != "" or
+      not Enum.empty?(target.destinations || []) or
+      (target.external_hash || "") != "" or
       (target.sources_hash || "") != "" or
       (target.resources_hash || "") != "" or
       (target.copy_files_hash || "") != "" or
@@ -395,7 +398,6 @@ defmodule TuistWeb.RunDetailLive do
       (target.project_settings_hash || "") != "" or
       (target.target_settings_hash || "") != "" or
       (target.buildable_folders_hash || "") != "" or
-      not Enum.empty?(target.destinations || []) or
       not Enum.empty?(target.additional_strings || [])
   end
 
