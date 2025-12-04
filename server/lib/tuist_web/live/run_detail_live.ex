@@ -368,15 +368,6 @@ defmodule TuistWeb.RunDetailLive do
     ]
   end
 
-  def humanize_destination("iphone"), do: "iPhone"
-  def humanize_destination("ipad"), do: "iPad"
-  def humanize_destination("mac"), do: "Mac"
-  def humanize_destination("mac_with_ipad_design"), do: "Mac with iPad design"
-  def humanize_destination("apple_watch"), do: "Apple Watch"
-  def humanize_destination("apple_tv"), do: "Apple TV"
-  def humanize_destination("apple_vision"), do: "Apple Vision"
-  def humanize_destination(other), do: other
-
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
     has_local = local_hits > 0
     has_remote = remote_hits > 0

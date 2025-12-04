@@ -252,4 +252,13 @@ defmodule Tuist.Xcode do
   def normalize_hit_value(value) when value in ["miss", "local", "remote"], do: String.to_atom(value)
 
   def normalize_hit_value(_), do: :miss
+
+  def humanize_xcode_target_destination("iphone"), do: "iPhone"
+  def humanize_xcode_target_destination("ipad"), do: "iPad"
+  def humanize_xcode_target_destination("mac"), do: "Mac"
+  def humanize_xcode_target_destination("mac_with_ipad_design"), do: "Mac with iPad design"
+  def humanize_xcode_target_destination("apple_watch"), do: "Apple Watch"
+  def humanize_xcode_target_destination("apple_tv"), do: "Apple TV"
+  def humanize_xcode_target_destination("apple_vision"), do: "Apple Vision"
+  def humanize_xcode_target_destination(other), do: other
 end
