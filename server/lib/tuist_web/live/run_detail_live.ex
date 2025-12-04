@@ -194,7 +194,6 @@ defmodule TuistWeb.RunDetailLive do
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
-    all_targets_json = load_all_binary_cache_targets_json(socket.assigns.run)
 
     socket
     |> assign(:binary_cache_analytics, analytics)
@@ -205,7 +204,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
-    |> assign(:binary_cache_json, all_targets_json)
+    |> assign(:binary_cache_json, binary_cache_targets_json(socket.assigns.run))
   end
 
   defp assign_selective_testing_defaults(socket) do
@@ -276,7 +275,7 @@ defmodule TuistWeb.RunDetailLive do
     {analytics, meta}
   end
 
-  defp load_all_binary_cache_targets_json(run) do
+  defp binary_cache_targets_json(run) do
     run.xcode_targets
     |> Enum.filter(&(&1.binary_cache_hash != nil))
     |> Enum.sort_by(& &1.name)
@@ -377,29 +376,6 @@ defmodule TuistWeb.RunDetailLive do
   def humanize_destination("apple_tv"), do: "Apple TV"
   def humanize_destination("apple_vision"), do: "Apple Vision"
   def humanize_destination(other), do: other
-
-  def has_subhashes?(target) do
-    (target.product || "") != "" or
-      (target.product_name || "") != "" or
-      (target.bundle_id || "") != "" or
-      not Enum.empty?(target.destinations || []) or
-      (target.external_hash || "") != "" or
-      (target.sources_hash || "") != "" or
-      (target.resources_hash || "") != "" or
-      (target.copy_files_hash || "") != "" or
-      (target.core_data_models_hash || "") != "" or
-      (target.target_scripts_hash || "") != "" or
-      (target.environment_hash || "") != "" or
-      (target.headers_hash || "") != "" or
-      (target.deployment_target_hash || "") != "" or
-      (target.info_plist_hash || "") != "" or
-      (target.entitlements_hash || "") != "" or
-      (target.dependencies_hash || "") != "" or
-      (target.project_settings_hash || "") != "" or
-      (target.target_settings_hash || "") != "" or
-      (target.buildable_folders_hash || "") != "" or
-      not Enum.empty?(target.additional_strings || [])
-  end
 
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
     has_local = local_hits > 0

@@ -476,7 +476,7 @@
           id="binary-cache-table"
           rows={@binary_cache_analytics.cacheable_targets}
           row_key={fn target -> target.name end}
-          row_expandable={fn target -> has_subhashes?(target) end}
+          row_expandable={fn target -> target.product_name != "" end}
           expanded_rows={MapSet.to_list(@expanded_target_names)}
         >
           <:col
