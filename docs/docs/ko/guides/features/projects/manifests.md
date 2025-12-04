@@ -7,23 +7,19 @@
 ---
 # Manifests {#manifests}
 
-Tuist defaults to Swift files as the primary way to define projects and
-workspaces and configure the generation process. These files are referred to as
-**manifest files** throughout the documentation.
+Tuist는 프로젝트와 워크스페이스를 선언하고 생성 프로세스를 환경 설정하는 주요 방법으로써 Swift 파일들을 기본으로 합니다. 이 파일들은
+These 문서를 통해 **manifest 파일** 로 참조 됩니다.
 
-The decision of using Swift was inspired by the [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/), which also uses
-Swift files to define packages. Thanks to the usage of Swift, we can leverage
-the compiler to validate the correctness of the content and reuse code across
-different manifest files, and Xcode to provide a first-class editing experience
-thanks to the syntax highlighting, auto-completion, and validation.
+Swift를 사용하는 것에 대한 결정은 [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)가 패키지를 정의하기 위해
+Swift 파일들을 사용하는 것에서 영감을 받았습니다고맙게도 Swift를 사용해서 우리는 컴파일러를 실행할 수 있었는데 여러 다른
+Manifest 파일들에 전체적으로 내용의 정확성과 코드 재사용을, 문법 강조, 자동완성, 유효성 검증 등 최고의 편집 경험을 제공하기 위해
+Xcode를 문법을 강조하고 사용할 수 있게 되었습니다.
 
-::: info CACHING
+::: info 캐싱
 <!-- -->
-Since manifest files are Swift files that need to be compiled, Tuist caches the
-compilation results to speed up the parsing process. Therefore, you'll notice
-that the first time you run Tuist, it might take a bit longer to generate the
-project. Subsequent runs will be faster.
+Manifest 파일들이 컴파일이 되어야 하는 Swift 파일들이기 때문에, Tuist는 파싱 속도를 높이기 위해 컴파일 결과를 캐시 합니다.
+그러므로, 여러분은 Tuist를 처음 실행하면 프로젝트를 다시 만들지 않고 다음에는 더 빨라 진다는 것을 알 겁니다.
 <!-- -->
 :::
 
