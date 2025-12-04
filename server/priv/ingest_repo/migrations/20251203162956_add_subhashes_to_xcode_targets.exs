@@ -3,10 +3,10 @@ defmodule Tuist.IngestRepo.Migrations.AddSubhashesToXcodeTargets do
 
   def change do
     alter table(:xcode_targets) do
-      # Target metadata
       add :product, :"LowCardinality(String)", default: ""
       add :bundle_id, :string, default: ""
       add :product_name, :string, default: ""
+      add :destinations, :"Array(LowCardinality(String))", default: fragment("[]")
 
       # Subhashes
       add :sources_hash, :string, default: ""
@@ -23,12 +23,7 @@ defmodule Tuist.IngestRepo.Migrations.AddSubhashesToXcodeTargets do
       add :project_settings_hash, :string, default: ""
       add :target_settings_hash, :string, default: ""
       add :buildable_folders_hash, :string, default: ""
-
-      # Arrays
-      add :destinations, :"Array(LowCardinality(String))", default: fragment("[]")
       add :additional_strings, :"Array(String)", default: fragment("[]")
-
-      # External hash
       add :external_hash, :string, default: ""
     end
   end
