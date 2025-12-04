@@ -4,7 +4,6 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Bundles
-alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Event
 alias Tuist.IngestRepo
 alias Tuist.Projects
@@ -15,7 +14,6 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
-alias Tuist.Xcode
 
 # Stubs
 email = "tuistrocks@tuist.dev"
@@ -1061,11 +1059,11 @@ xcode_targets_data =
         xcode_project_id: project.id,
         command_event_id: project.command_event_id,
         inserted_at: project.inserted_at,
-        # Target metadata
         product: Enum.random(product_types),
         bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
         product_name: target_name,
-        # Subhashes - external targets only have external_hash
+        destinations: destinations,
+        # Subhashes
         external_hash: if(is_external, do: generate_subhash.(), else: ""),
         sources_hash: if(is_external, do: "", else: generate_subhash.()),
         resources_hash: if(not is_external and Enum.random([true, false]), do: generate_subhash.(), else: ""),
@@ -1083,8 +1081,6 @@ xcode_targets_data =
         target_settings_hash: if(is_external, do: "", else: generate_subhash.()),
         buildable_folders_hash:
           if(not is_external and Enum.random([true, false, false, false]), do: generate_subhash.(), else: ""),
-        # Arrays
-        destinations: destinations,
         additional_strings: additional_strings
       }
     end)
@@ -1095,10 +1091,6 @@ xcode_targets_data
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Tuist.Xcode.XcodeTarget, chunk)
 end)
-
-IO.puts(
-  "Created #{length(xcode_graphs_data)} xcode graphs with #{length(xcode_projects_data)} projects and #{length(xcode_targets_data)} targets"
-)
 
 bundle_identifiers = [
   "com.example.myapp.mixed",
