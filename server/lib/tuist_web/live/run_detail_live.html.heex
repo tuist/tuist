@@ -525,7 +525,9 @@
               <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
                 <span data-part="subhash-label">{gettext("Destinations")}:</span>
                 <span data-part="subhash-value">
-                  {target.destinations |> Enum.map(&Xcode.humanize_xcode_target_destination/1) |> Enum.join(", ")}
+                  {target.destinations
+                  |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
+                  |> Enum.join(", ")}
                 </span>
               </div>
               <div :if={target.external_hash != ""} data-part="subhash-item">
