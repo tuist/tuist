@@ -61,14 +61,12 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify new package was created
-      new_package =
-        Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
-
-      assert new_package
+      assert {:ok, _new_package} =
+               Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
 
       # Verify existing package timestamp was updated
-      updated_package =
-        Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      assert {:ok, updated_package} =
+               Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
 
       assert updated_package.last_updated_releases_at == ~U[2024-07-31 00:03:00Z]
     end
@@ -96,7 +94,7 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
 
       # Then
       assert result == :ok
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "only syncs existing package releases when update_packages=false and update_releases=true" do
@@ -123,8 +121,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify existing package timestamp was updated
-      updated_package =
-        Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      assert {:ok, updated_package} =
+               Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
 
       assert updated_package.last_updated_releases_at == ~U[2024-07-31 00:03:00Z]
     end
@@ -154,10 +152,11 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify unsupported package was not created
-      refute Packages.get_package_by_scope_and_name(%{scope: "monzo", name: "nearby"})
+      assert {:error, :not_found} =
+               Packages.get_package_by_scope_and_name(%{scope: "monzo", name: "nearby"})
 
       # Verify supported package was created
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "removes packages no longer present in SwiftPackageIndex" do
@@ -192,13 +191,14 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify removed package is gone
-      refute Packages.get_package_by_scope_and_name(%{
-               scope: existing_package.scope,
-               name: existing_package.name
-             })
+      assert {:error, :not_found} =
+               Packages.get_package_by_scope_and_name(%{
+                 scope: existing_package.scope,
+                 name: existing_package.name
+               })
 
       # Verify new package was created
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "handles packages with dots in names" do
@@ -229,10 +229,11 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify package with converted name was created
-      assert Packages.get_package_by_scope_and_name(%{
-               scope: "stephenceilis",
-               name: "SQLite_swift"
-             })
+      assert {:ok, _} =
+               Packages.get_package_by_scope_and_name(%{
+                 scope: "stephenceilis",
+                 name: "SQLite_swift"
+               })
     end
 
     test "limits existing package releases processing" do
@@ -307,12 +308,15 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify only tuist packages were created
-      assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "XcodeGraph"})
-      assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "XcodeGraph"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
 
       # Verify other packages were not created
-      refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
-      refute Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:error, :not_found} =
+               Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+
+      assert {:error, :not_found} =
+               Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "allowlist supports exact matches and wildcard patterns" do
@@ -346,14 +350,15 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify wildcard matched packages
-      assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "XcodeGraph"})
-      assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "XcodeGraph"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
 
       # Verify exact match
-      assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
 
       # Verify non-matching package was not created
-      refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "AlamofireImage"})
+      assert {:error, :not_found} =
+               Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "AlamofireImage"})
     end
 
     test "empty allowlist allows all packages" do
@@ -381,8 +386,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify all packages were created
-      assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "nil allowlist allows all packages" do
@@ -410,8 +415,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify all packages were created
-      assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      assert {:ok, _} = Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
   end
 end
