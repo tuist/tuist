@@ -109,7 +109,16 @@ struct CommandEventFactoryTests {
                     ),
                 ],
             ],
-            targetContentHashSubhashes: [:],
+            targetContentHashSubhashes: [
+                "hash-a": .test(
+                    sources: "sources-hash-a",
+                    dependencies: "deps-hash-a"
+                ),
+                "hash-b": .test(
+                    sources: "sources-hash-b",
+                    resources: "resources-hash-b"
+                ),
+            ],
             previewId: nil,
             resultBundlePath: nil,
             ranAt: ranAt,
@@ -144,7 +153,11 @@ struct CommandEventFactoryTests {
                                 name: "A",
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-a",
-                                    hit: .local
+                                    hit: .local,
+                                    subhashes: .test(
+                                        sources: "sources-hash-a",
+                                        dependencies: "deps-hash-a"
+                                    )
                                 ),
                                 selectiveTestingMetadata: nil
                             ),
@@ -160,7 +173,11 @@ struct CommandEventFactoryTests {
                                 name: "B",
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-b",
-                                    hit: .remote
+                                    hit: .remote,
+                                    subhashes: .test(
+                                        sources: "sources-hash-b",
+                                        resources: "resources-hash-b"
+                                    )
                                 ),
                                 selectiveTestingMetadata: nil
                             ),
