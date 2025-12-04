@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.111.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* report module cache subhashes by [@fortmarek](https://github.com/fortmarek) in [#8822](https://github.com/tuist/tuist/pull/8822)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.111.0
+
 ## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
