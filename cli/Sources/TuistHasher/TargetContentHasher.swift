@@ -241,6 +241,10 @@ public final class TargetContentHasher: TargetContentHashing {
                 }
             }
 
+        let buildableFoldersHash: String? = buildableFolderHashes.isEmpty
+            ? nil
+            : try contentHasher.hash(buildableFolderHashes)
+
         var stringsToHash =
             [
                 graphTarget.target.name,
@@ -254,7 +258,11 @@ public final class TargetContentHasher: TargetContentHashing {
                 coreDataModelHash,
                 targetScriptsHash,
                 environmentHash,
-            ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
+            ] + destinations + additionalStrings + destinationHashes
+
+        if let buildableFoldersHash {
+            stringsToHash.append(buildableFoldersHash)
+        }
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -316,16 +324,12 @@ public final class TargetContentHasher: TargetContentHashing {
             destinations: \(destinations.joined(separator: ", "))
             destinationHashes: \(destinationHashes.joined(separator: ", "))
             additionalStrings: \(additionalStrings.joined(separator: ", "))
-            buildableFolders: \(buildableFolderHashes.joined(separator: ","))
+            buildableFolders: \(buildableFoldersHash ?? "nil")
             headers: \(headersHash ?? "nil")
             deploymentTarget: \(deploymentTargetHash)
             infoPlist: \(infoPlistHash ?? "nil")
             entitlements: \(entitlementsHash ?? "nil")
         """)
-
-        let buildableFoldersHash: String? = buildableFolderHashes.isEmpty
-            ? nil
-            : try contentHasher.hash(buildableFolderHashes)
 
         let subhashes = TargetContentHashSubhashes(
             sources: sourcesHash,

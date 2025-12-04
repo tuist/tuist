@@ -244,7 +244,7 @@ struct TargetContentHasherTests {
         #expect(
             got.hash ==
                 """
-                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
         )
         #expect(
