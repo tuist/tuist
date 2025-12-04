@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import TuistCache
 import TuistCore
+import TuistHasher
 import TuistServer
 import XcodeGraph
 import XCTest
@@ -79,9 +80,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: cHash,
-            bGraphTarget: bHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: cHash),
+            bGraphTarget: .test(hash: bHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -189,10 +190,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: cHash,
-            bGraphTarget: bHash,
-            appGraphTarget: appHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: cHash),
+            bGraphTarget: .test(hash: bHash),
+            appGraphTarget: .test(hash: appHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -293,10 +294,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: packageHash,
-            bGraphTarget: packageHash,
-            appGraphTarget: appHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: packageHash),
+            bGraphTarget: .test(hash: packageHash),
+            appGraphTarget: .test(hash: appHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(

@@ -16,10 +16,27 @@ public protocol TargetContentHashing {
     ) async throws -> TargetContentHash
 }
 
-public struct TargetContentHash {
+public struct TargetContentHash: Equatable {
     public let hash: String
     public let hashedPaths: [AbsolutePath: String]
+    public let subhashes: TargetContentHashSubhashes
 }
+
+#if DEBUG
+    extension TargetContentHash {
+        public static func test(
+            hash: String = "test-hash",
+            hashedPaths: [AbsolutePath: String] = [:],
+            subhashes: TargetContentHashSubhashes = .test()
+        ) -> TargetContentHash {
+            TargetContentHash(
+                hash: hash,
+                hashedPaths: hashedPaths,
+                subhashes: subhashes
+            )
+        }
+    }
+#endif
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
@@ -152,9 +169,18 @@ public final class TargetContentHasher: TargetContentHashing {
                 additionalStrings: \(additionalStrings.joined(separator: ", "))
             """)
 
+            let subhashes = TargetContentHashSubhashes(
+                dependencies: dependenciesHash.hash,
+                projectSettings: projectSettingsHash,
+                targetSettings: settingsHash,
+                additionalStrings: additionalStrings,
+                external: projectHash
+            )
+
             return TargetContentHash(
                 hash: hash,
-                hashedPaths: [:]
+                hashedPaths: [:],
+                subhashes: subhashes
             )
         }
         var hashedPaths = hashedPaths
@@ -297,9 +323,32 @@ public final class TargetContentHasher: TargetContentHashing {
             entitlements: \(entitlementsHash ?? "nil")
         """)
 
+        let buildableFoldersHash: String? = buildableFolderHashes.isEmpty
+            ? nil
+            : try contentHasher.hash(buildableFolderHashes)
+
+        let subhashes = TargetContentHashSubhashes(
+            sources: sourcesHash,
+            resources: resourcesHash,
+            copyFiles: copyFilesHash,
+            coreDataModels: coreDataModelHash,
+            targetScripts: targetScriptsHash,
+            dependencies: dependenciesHash.hash,
+            environment: environmentHash,
+            headers: headersHash,
+            deploymentTarget: deploymentTargetHash,
+            infoPlist: infoPlistHash,
+            entitlements: entitlementsHash,
+            projectSettings: projectSettingsHash,
+            targetSettings: settingsHash,
+            buildableFolders: buildableFoldersHash,
+            additionalStrings: additionalStrings
+        )
+
         return TargetContentHash(
             hash: hash,
-            hashedPaths: hashedPaths
+            hashedPaths: hashedPaths,
+            subhashes: subhashes
         )
     }
 }

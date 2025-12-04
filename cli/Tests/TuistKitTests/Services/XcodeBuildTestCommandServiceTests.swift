@@ -166,12 +166,12 @@ struct XcodeBuildTestCommandServiceTests {
                                 path: project.path,
                                 target: aUnitTestsTarget,
                                 project: project
-                            ): "hash-a-unit-tests",
+                            ): .test(hash: "hash-a-unit-tests"),
                             GraphTarget(
                                 path: project.path,
                                 target: bUnitTestsTarget,
                                 project: project
-                            ): "hash-b-unit-tests",
+                            ): .test(hash: "hash-b-unit-tests"),
                         ]
                     )
                 given(selectiveTestingService)
@@ -306,12 +306,12 @@ struct XcodeBuildTestCommandServiceTests {
                                 path: project.path,
                                 target: aUnitTestsTarget,
                                 project: project
-                            ): "hash-a-unit-tests",
+                            ): .test(hash: "hash-a-unit-tests"),
                             GraphTarget(
                                 path: project.path,
                                 target: bUnitTestsTarget,
                                 project: project
-                            ): "hash-b-unit-tests",
+                            ): .test(hash: "hash-b-unit-tests"),
                         ]
                     )
                 given(selectiveTestingService)
@@ -444,7 +444,7 @@ struct XcodeBuildTestCommandServiceTests {
                                 path: project.path,
                                 target: aUnitTestsTarget,
                                 project: project
-                            ): "hash-a-unit-tests",
+                            ): .test(hash: "hash-a-unit-tests"),
                         ]
                     )
                 given(selectiveTestingService)
@@ -568,12 +568,12 @@ struct XcodeBuildTestCommandServiceTests {
                             path: project.path,
                             target: aUnitTestsTarget,
                             project: project
-                        ): "hash-a-unit-tests",
+                        ): .test(hash: "hash-a-unit-tests"),
                         GraphTarget(
                             path: project.path,
                             target: bUnitTestsTarget,
                             project: project
-                        ): "hash-b-unit-tests",
+                        ): .test(hash: "hash-b-unit-tests"),
                     ]
                 )
             given(selectiveTestingService)
@@ -689,12 +689,12 @@ struct XcodeBuildTestCommandServiceTests {
                             path: project.path,
                             target: aUnitTestsTarget,
                             project: project
-                        ): "hash-a-unit-tests",
+                        ): .test(hash: "hash-a-unit-tests"),
                         GraphTarget(
                             path: project.path,
                             target: bUnitTestsTarget,
                             project: project
-                        ): "hash-b-unit-tests",
+                        ): .test(hash: "hash-b-unit-tests"),
                     ]
                 )
             given(selectiveTestingService)

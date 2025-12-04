@@ -22,6 +22,7 @@ public struct TrackableCommandInfo {
     let graphBinaryBuildDuration: TimeInterval?
     let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
     let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+    let targetContentHashSubhashes: [String: TargetContentHashSubhashes]
     let previewId: String?
     let resultBundlePath: AbsolutePath?
     let ranAt: Date
@@ -126,6 +127,7 @@ public class TrackableCommand {
             graphBinaryBuildDuration: runMetadataStorage.graphBinaryBuildDuration,
             binaryCacheItems: runMetadataStorage.binaryCacheItems,
             selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
+            targetContentHashSubhashes: runMetadataStorage.targetContentHashSubhashes,
             previewId: runMetadataStorage.previewId,
             resultBundlePath: runMetadataStorage.resultBundlePath,
             ranAt: Date(),

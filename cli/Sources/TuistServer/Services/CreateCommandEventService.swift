@@ -127,7 +127,27 @@
                                         return .init(
                                             build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
-                                            hit: hit
+                                            hit: hit,
+                                            subhashes: binaryCacheMetadata.subhashes.map { subhashes in
+                                                .init(
+                                                    additional_strings: subhashes.additionalStrings,
+                                                    buildable_folders: subhashes.buildableFolders,
+                                                    copy_files: subhashes.copyFiles,
+                                                    core_data_models: subhashes.coreDataModels,
+                                                    dependencies: subhashes.dependencies,
+                                                    deployment_target: subhashes.deploymentTarget,
+                                                    entitlements: subhashes.entitlements,
+                                                    environment: subhashes.environment,
+                                                    external: subhashes.external,
+                                                    headers: subhashes.headers,
+                                                    info_plist: subhashes.infoPlist,
+                                                    project_settings: subhashes.projectSettings,
+                                                    resources: subhashes.resources,
+                                                    sources: subhashes.sources,
+                                                    target_scripts: subhashes.targetScripts,
+                                                    target_settings: subhashes.targetSettings
+                                                )
+                                            }
                                         )
                                     },
                                 name: target.name,
