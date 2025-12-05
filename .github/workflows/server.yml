@@ -160,6 +160,10 @@ jobs:
           --health-retries 5
       clickhouse:
         image: clickhouse/clickhouse-server:25.8
+        env:
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ""
         ports:
           - 8123:8123
         options: >-
@@ -449,6 +453,10 @@ jobs:
           --health-retries 5
       clickhouse:
         image: clickhouse/clickhouse-server:25.8
+        env:
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ""
         ports:
           - 8123:8123
         options: >-
