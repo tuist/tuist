@@ -4,7 +4,7 @@
   sops = "3.9.3"
   age = "1.2.1"
   "ubi:aquasecurity/trivy" = "0.63.0"
-  "clickhouse" = "25.5.1"
+  "clickhouse" = "25.11.2.24-stable"
   "npm:prettier" = "3.4.2"
   "elixir" = "1.19.1"
   "erlang" = "28.1"

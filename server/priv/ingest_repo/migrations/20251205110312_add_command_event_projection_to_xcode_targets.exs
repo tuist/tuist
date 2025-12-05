@@ -2,6 +2,8 @@ defmodule Tuist.IngestRepo.Migrations.AddCommandEventProjectionToXcodeTargets do
   use Ecto.Migration
 
   def up do
+    # Add projection ordered by command_event_id for efficient filtering
+    # This optimizes queries that filter by command_event_id on the xcode_targets table
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     ALTER TABLE xcode_targets
@@ -11,6 +13,7 @@ defmodule Tuist.IngestRepo.Migrations.AddCommandEventProjectionToXcodeTargets do
     )
     """
 
+    # Materialize projection for existing data (runs in background)
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE xcode_targets MATERIALIZE PROJECTION proj_by_command_event"
   end
