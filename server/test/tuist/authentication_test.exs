@@ -65,13 +65,14 @@ defmodule Tuist.AuthenticationTest do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
     {:ok, {_, token_value}} =
-      Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+      Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
 
     # When/Then
-    assert Authentication.authenticated_subject(token_value) == %AuthenticatedAccount{
-             scopes: [:registry_read],
-             account: account
-           }
+    result = Authentication.authenticated_subject(token_value)
+    assert result.scopes == ["account:registry:read"]
+    assert result.account == account
+    assert result.all_projects == false
+    assert result.project_ids == []
   end
 
   test "authenticated_subject returns AuthenticatedAccount for JWT account token" do

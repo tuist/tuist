@@ -31,18 +31,11 @@ defmodule Tuist.Authentication do
     if is_nil(project_token) do
       case Accounts.account_token(token, preload: [:account, :account_token_projects]) do
         {:ok, account_token} ->
-          project_ids =
-            if account_token.all_projects do
-              nil
-            else
-              Enum.map(account_token.account_token_projects, & &1.project_id)
-            end
-
           %AuthenticatedAccount{
             account: account_token.account,
             scopes: account_token.scopes,
             all_projects: account_token.all_projects,
-            project_ids: project_ids,
+            project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
             token_id: account_token.id,
             created_by_account_id: account_token.created_by_account_id
           }
