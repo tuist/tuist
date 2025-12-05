@@ -153,6 +153,11 @@ struct TuistGeneratedProjectManifestMapperTests {
                     [
                         "debug": .profile(
                             .onlyExternal,
+                            and: [.tagged("stable")],
+                            except: ["Excluded", .tagged("no-cache")]
+                        ),
+                        "simple": .profile(
+                            .allPossible,
                             and: [.tagged("stable")]
                         ),
                     ],
@@ -165,6 +170,11 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.profiles.profileByName == [
             "debug": .init(
                 base: .onlyExternal,
+                targetQueries: ["tag:stable"],
+                exceptTargetQueries: ["Excluded", "tag:no-cache"]
+            ),
+            "simple": .init(
+                base: .allPossible,
                 targetQueries: ["tag:stable"]
             ),
         ])
