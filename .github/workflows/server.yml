@@ -158,6 +158,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -181,7 +190,6 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
-      - run: mise run clickhouse:start
       - run: mise run db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
@@ -439,6 +447,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -462,7 +479,6 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
-      - run: mise run clickhouse:start
       - run: mise run db:reset
       - name: Run migrations
         run: mix ecto.migrate
