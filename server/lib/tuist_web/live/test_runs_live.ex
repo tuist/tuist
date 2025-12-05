@@ -84,6 +84,13 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_params(params, _uri, socket) do
+    params =
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
+      end
+
     {
       :noreply,
       socket
@@ -94,7 +101,10 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -107,7 +117,10 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
