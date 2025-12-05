@@ -116,7 +116,9 @@ defmodule TuistWeb.API.AccountTokensController do
     project_handles = Map.get(body_params, :project_handles, [])
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
-         {:ok, project_ids} <- resolve_project_handles(selected_account, project_handles, all_projects) do
+         {:ok, projects} <- Projects.get_projects_by_handles_for_account(selected_account, project_handles) do
+      project_ids = Enum.map(projects, & &1.id)
+
       case Accounts.create_account_token(%{
              account: selected_account,
              scopes: scopes,
@@ -141,7 +143,7 @@ defmodule TuistWeb.API.AccountTokensController do
           |> json(%{message: format_changeset_errors(changeset)})
       end
     else
-      {:error, :project_not_found, handle} ->
+      {:error, :not_found, handle} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Project #{handle} not found in account #{selected_account.name}"})
@@ -308,23 +310,6 @@ defmodule TuistWeb.API.AccountTokensController do
   end
 
   # Helper functions
-
-  defp resolve_project_handles(_account, _handles, true), do: {:ok, []}
-  defp resolve_project_handles(_account, [], false), do: {:ok, []}
-
-  defp resolve_project_handles(account, handles, false) when is_list(handles) do
-    handles
-    |> Enum.reduce_while({:ok, []}, fn handle, {:ok, acc} ->
-      case Projects.get_project_by_account_and_project_handles(account.name, handle) do
-        nil -> {:halt, {:error, :project_not_found, handle}}
-        project -> {:cont, {:ok, [project.id | acc]}}
-      end
-    end)
-    |> case do
-      {:ok, ids} -> {:ok, Enum.reverse(ids)}
-      error -> error
-    end
-  end
 
   defp format_token(token) do
     project_handles =
