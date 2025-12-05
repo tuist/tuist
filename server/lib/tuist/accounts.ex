@@ -1449,35 +1449,39 @@ defmodule Tuist.Accounts do
     all_projects = Map.get(params, :all_projects, false)
     project_ids = Map.get(params, :project_ids, [])
 
-    Repo.transaction(fn ->
-      case %{
-             account_id: account.id,
-             created_by_account_id: created_by_account && created_by_account.id,
-             encrypted_token_hash: encrypted_token_hash,
-             scopes: scopes,
-             name: name,
-             expires_at: expires_at,
-             all_projects: all_projects
-           }
-           |> AccountToken.create_changeset()
-           |> Repo.insert() do
-        {:ok, token} ->
-          Enum.each(project_ids, fn project_id ->
-            %{
-              account_token_id: token.id,
-              project_id: project_id
-            }
-            |> AccountTokenProject.create_changeset()
-            |> Repo.insert!()
-          end)
+    token_changeset =
+      AccountToken.create_changeset(%{
+        account_id: account.id,
+        created_by_account_id: created_by_account && created_by_account.id,
+        encrypted_token_hash: encrypted_token_hash,
+        scopes: scopes,
+        name: name,
+        expires_at: expires_at,
+        all_projects: all_projects
+      })
 
-          token = Repo.preload(token, preload)
-          {token, "tuist_#{token.id}_#{token_hash}"}
+    result =
+      Multi.new()
+      |> Multi.insert(:token, token_changeset)
+      |> Multi.run(:project_associations, fn _repo, %{token: token} ->
+        Enum.each(project_ids, fn project_id ->
+          %{account_token_id: token.id, project_id: project_id}
+          |> AccountTokenProject.create_changeset()
+          |> Repo.insert!()
+        end)
 
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
-    end)
+        {:ok, :created}
+      end)
+      |> Repo.transaction()
+
+    case result do
+      {:ok, %{token: token}} ->
+        token = Repo.preload(token, preload)
+        {:ok, {token, "tuist_#{token.id}_#{token_hash}"}}
+
+      {:error, :token, changeset, _changes} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -1524,20 +1528,6 @@ defmodule Tuist.Accounts do
       )
 
     Flop.validate_and_run!(base_query, attrs, for: AccountToken)
-  end
-
-  @doc """
-  Gets a specific account token by ID for a given account.
-  """
-  def get_account_token_by_id(%Account{} = account, token_id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
-
-    Repo.one(
-      from(t in AccountToken,
-        where: t.id == ^token_id and t.account_id == ^account.id,
-        preload: ^preload
-      )
-    )
   end
 
   @doc """

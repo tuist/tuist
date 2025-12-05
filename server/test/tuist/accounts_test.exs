@@ -2953,6 +2953,42 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "delete_account_token/1" do
+    test "deletes an account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "token-to-delete")
+
+      # When
+      {:ok, deleted_token} = Accounts.delete_account_token(token)
+
+      # Then
+      assert deleted_token.id == token.id
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "token-to-delete")
+    end
+
+    test "deletes an account token with project associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {:ok, _} = Accounts.delete_account_token(token)
+
+      # Then
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "restricted-token")
+    end
+  end
+
   describe "find_unassigned_sso_users/3" do
     test "finds users with matching SSO credentials not assigned to organization" do
       # Given
