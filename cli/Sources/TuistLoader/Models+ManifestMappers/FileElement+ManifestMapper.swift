@@ -19,7 +19,7 @@ extension XcodeGraph.FileElement {
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
-            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+            if try await fileSystem.exists(path), !(try await fileSystem.isDirectory(path)) { return [path] }
 
             let files: [AbsolutePath]
 
@@ -34,30 +34,15 @@ extension XcodeGraph.FileElement {
                 files = []
             }
 
-            if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
-                    Logger.current
-                        .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else if !path.isGlobPath {
-                    // FIXME: This should be done in a linter.
-                    Logger.current.warning("No files found at: \(path.pathString)")
-                }
-            }
-
             return files
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             guard try await fileSystem.exists(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current.warning("\(path.pathString) does not exist")
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
-                // FIXME: This should be done in a linter.
-                Logger.current
-                    .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
+            guard try await fileSystem.isDirectory(path) else {
                 return []
             }
 
