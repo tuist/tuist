@@ -344,7 +344,7 @@ end
 
 # Oban
 config :tuist, Oban,
-  queues: [default: 10, registry: 2],
+  queues: [default: 10, registry: 2, runners: 5],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},

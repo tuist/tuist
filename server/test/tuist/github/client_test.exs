@@ -671,4 +671,138 @@ defmodule Tuist.GitHub.ClientTest do
                 "Unexpected status code: 329 when getting contents at https://api.github.com/repos/Alamofire/Alamofire/contents/."}
     end
   end
+
+  describe "get_org_runner_registration_token/1" do
+    test "returns registration token for organization" do
+      # Given
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/orgs/tuist/actions/runners/registration-token"
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "token" => "LLBF3JGZDX3P5PMEXLND6TS6FCWO6",
+             "expires_at" => "2020-01-22T12:13:35.123-08:00"
+           }
+         }}
+      end)
+
+      # When
+      result =
+        Client.get_org_runner_registration_token(%{
+          org: "tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      {:ok, %{token: token, expires_at: expires_at}} = result
+      assert token == "LLBF3JGZDX3P5PMEXLND6TS6FCWO6"
+      assert %DateTime{} = expires_at
+    end
+
+    test "returns error when API returns non-201 status" do
+      # Given
+      stub(Req, :post, fn _ ->
+        {:ok, %Req.Response{status: 403, body: %{"message" => "Forbidden"}}}
+      end)
+
+      # When
+      result =
+        Client.get_org_runner_registration_token(%{
+          org: "tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      assert {:error, _} = result
+    end
+
+    test "returns error when getting token fails" do
+      # Given
+      stub(App, :get_installation_token, fn _installation_id ->
+        {:error, "Failed to get token."}
+      end)
+
+      # When
+      result =
+        Client.get_org_runner_registration_token(%{
+          org: "tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      assert result == {:error, "Failed to get token."}
+    end
+  end
+
+  describe "get_repo_runner_registration_token/1" do
+    test "returns registration token for repository" do
+      # Given
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+
+        assert opts[:url] ==
+                 "https://api.github.com/repos/tuist/tuist/actions/runners/registration-token"
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "token" => "LLBF3JGZDX3P5PMEXLND6TS6FCWO6",
+             "expires_at" => "2020-01-22T12:13:35.123-08:00"
+           }
+         }}
+      end)
+
+      # When
+      result =
+        Client.get_repo_runner_registration_token(%{
+          repository_full_handle: "tuist/tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      {:ok, %{token: token, expires_at: expires_at}} = result
+      assert token == "LLBF3JGZDX3P5PMEXLND6TS6FCWO6"
+      assert %DateTime{} = expires_at
+    end
+
+    test "returns error when API returns non-201 status" do
+      # Given
+      stub(Req, :post, fn _ ->
+        {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}}
+      end)
+
+      # When
+      result =
+        Client.get_repo_runner_registration_token(%{
+          repository_full_handle: "tuist/tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      assert {:error, _} = result
+    end
+
+    test "returns error when getting token fails" do
+      # Given
+      stub(App, :get_installation_token, fn _installation_id ->
+        {:error, "Failed to get token."}
+      end)
+
+      # When
+      result =
+        Client.get_repo_runner_registration_token(%{
+          repository_full_handle: "tuist/tuist",
+          installation_id: "installation-id"
+        })
+
+      # Then
+      assert result == {:error, "Failed to get token."}
+    end
+  end
 end
