@@ -63,6 +63,9 @@ defmodule Tuist.Authorization do
       )
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:bundles:write scope to create bundles.")
+      allow([:authenticated_as_account, scopes_permit: "project:bundles:write"])
     end
 
     action :read do
@@ -82,6 +85,10 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any bundle.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:bundles:read or project:bundles:write scope to read bundles.")
+      allow([:authenticated_as_account, scopes_permit: "project:bundles:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:bundles:write"])
     end
   end
 
@@ -96,6 +103,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:cache:write scope to create cache entries.")
+      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
     end
 
     action :read do
@@ -114,6 +124,10 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any cache.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:cache:read or project:cache:write scope to read cache.")
+      allow([:authenticated_as_account, scopes_permit: "project:cache:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
     end
 
     action :update do
@@ -125,6 +139,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the authenticated project to update cache if it matches the project.")
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:cache:write scope to update cache.")
+      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
     end
   end
 
@@ -159,6 +176,7 @@ defmodule Tuist.Authorization do
       )
 
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:write"])
 
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
@@ -247,6 +265,9 @@ defmodule Tuist.Authorization do
       )
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:previews:write scope to create previews.")
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
     end
 
     action :read do
@@ -266,6 +287,10 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any preview.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:previews:read or project:previews:write scope to read previews.")
+      allow([:authenticated_as_account, scopes_permit: "project:previews:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
     end
 
     action :delete do
@@ -280,6 +305,9 @@ defmodule Tuist.Authorization do
       )
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:previews:write scope to delete previews.")
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
     end
   end
 

@@ -77,7 +77,15 @@ defmodule Tuist.Authorization.Checks do
 
   Scopes are expected to be strings in the format "entity:object:action"
   (e.g., "project:cache:read", "account:registry:read").
+
+  When the object is a Project, this also verifies the token has access to that
+  specific project (either via `all_projects: true` or the project being in `project_ids`).
   """
+  def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
+      when is_binary(scope) do
+    Enum.member?(scopes, scope) and project_access_permitted(auth_account, project)
+  end
+
   def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
     Enum.member?(scopes, scope)
   end

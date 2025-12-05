@@ -175,9 +175,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/api/accounts/#{user.account.name}/tokens")
+      conn = get(conn, "/api/accounts/#{user.account.name}/tokens")
 
       # Then
       response = json_response(conn, :ok)
@@ -194,9 +192,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/api/accounts/#{organization.account.name}/tokens")
+      conn = get(conn, "/api/accounts/#{organization.account.name}/tokens")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -213,9 +209,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> delete("/api/accounts/#{user.account.name}/tokens/token-to-delete")
+      conn = delete(conn, "/api/accounts/#{user.account.name}/tokens/token-to-delete")
 
       # Then
       assert response(conn, :no_content)
@@ -229,9 +223,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> delete("/api/accounts/#{user.account.name}/tokens/non-existent")
+      conn = delete(conn, "/api/accounts/#{user.account.name}/tokens/non-existent")
 
       # Then
       response = json_response(conn, :not_found)
@@ -247,9 +239,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> delete("/api/accounts/#{organization.account.name}/tokens/org-token")
+      conn = delete(conn, "/api/accounts/#{organization.account.name}/tokens/org-token")
 
       # Then
       response = json_response(conn, :forbidden)

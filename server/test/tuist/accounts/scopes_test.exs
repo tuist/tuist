@@ -43,6 +43,7 @@ defmodule Tuist.Accounts.ScopesTest do
       scopes = Scopes.project_scopes()
 
       assert length(scopes) == 12
+
       Enum.each(scopes, fn scope ->
         assert String.starts_with?(scope, "project:")
       end)

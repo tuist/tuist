@@ -221,6 +221,7 @@ defmodule Tuist.Accounts.AccountTokenTest do
 
       # Then - unique constraint error appears on first field of constraint
       errors = errors_on(got)
+
       assert "has already been taken" in Map.get(errors, :name, []) or
                "has already been taken" in Map.get(errors, :account_id, [])
     end

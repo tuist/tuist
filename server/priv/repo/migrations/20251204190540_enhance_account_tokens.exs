@@ -15,7 +15,10 @@ defmodule Tuist.Repo.Migrations.EnhanceAccountTokens do
     # Create the join table for project restrictions
     create table(:account_token_projects, primary_key: false) do
       add :id, :uuid, primary_key: true, null: false
-      add :account_token_id, references(:account_tokens, type: :uuid, on_delete: :delete_all), null: false
+
+      add :account_token_id, references(:account_tokens, type: :uuid, on_delete: :delete_all),
+        null: false
+
       add :project_id, references(:projects, on_delete: :delete_all), null: false
 
       timestamps(type: :timestamptz)
