@@ -35,7 +35,7 @@ struct AccountTokensRevokeCommand: AsyncParsableCommand {
         try await AccountTokensRevokeCommandService().run(
             accountHandle: accountHandle,
             tokenName: tokenName,
-            directory: path
+            path: path
         )
     }
 }

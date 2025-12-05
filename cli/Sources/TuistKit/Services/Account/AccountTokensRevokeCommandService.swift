@@ -4,15 +4,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol AccountTokensRevokeCommandServicing {
-    func run(
-        accountHandle: String,
-        tokenName: String,
-        directory: String?
-    ) async throws
-}
-
-final class AccountTokensRevokeCommandService: AccountTokensRevokeCommandServicing {
+struct AccountTokensRevokeCommandService {
     private let revokeAccountTokenService: RevokeAccountTokenServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -30,9 +22,9 @@ final class AccountTokensRevokeCommandService: AccountTokensRevokeCommandServici
     func run(
         accountHandle: String,
         tokenName: String,
-        directory: String?
+        path: String?
     ) async throws {
-        let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 

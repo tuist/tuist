@@ -28,7 +28,7 @@ struct AccountTokensListCommand: AsyncParsableCommand {
     func run() async throws {
         try await AccountTokensListCommandService().run(
             accountHandle: accountHandle,
-            directory: path
+            path: path
         )
     }
 }

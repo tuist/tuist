@@ -4,18 +4,6 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol AccountTokensCreateCommandServicing {
-    func run(
-        accountHandle: String,
-        scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
-        name: String,
-        expires: String?,
-        allProjects: Bool,
-        projects: [String],
-        directory: String?
-    ) async throws
-}
-
 enum AccountTokensCreateCommandServiceError: LocalizedError {
     case invalidExpiresDuration(String)
 
@@ -27,7 +15,7 @@ enum AccountTokensCreateCommandServiceError: LocalizedError {
     }
 }
 
-final class AccountTokensCreateCommandService: AccountTokensCreateCommandServicing {
+struct AccountTokensCreateCommandService {
     private let createAccountTokenService: CreateAccountTokenServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -49,9 +37,9 @@ final class AccountTokensCreateCommandService: AccountTokensCreateCommandServici
         expires: String?,
         allProjects: Bool,
         projects: [String],
-        directory: String?
+        path: String?
     ) async throws {
-        let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 

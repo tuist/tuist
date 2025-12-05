@@ -4,14 +4,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol AccountTokensListCommandServicing {
-    func run(
-        accountHandle: String,
-        directory: String?
-    ) async throws
-}
-
-final class AccountTokensListCommandService: AccountTokensListCommandServicing {
+struct AccountTokensListCommandService {
     private let listAccountTokensService: ListAccountTokensServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -28,9 +21,9 @@ final class AccountTokensListCommandService: AccountTokensListCommandServicing {
 
     func run(
         accountHandle: String,
-        directory: String?
+        path: String?
     ) async throws {
-        let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
@@ -54,7 +47,10 @@ final class AccountTokensListCommandService: AccountTokensListCommandServicing {
                     TextTable.Column(title: "ID", value: $0.id),
                     TextTable.Column(title: "Name", value: $0.name ?? "-"),
                     TextTable.Column(title: "Scopes", value: $0.scopes.map(\.rawValue).joined(separator: ", ")),
-                    TextTable.Column(title: "Projects", value: $0.all_projects ? "All" : ($0.project_handles ?? []).joined(separator: ", ")),
+                    TextTable.Column(
+                        title: "Projects",
+                        value: $0.all_projects ? "All" : ($0.project_handles ?? []).joined(separator: ", ")
+                    ),
                     TextTable.Column(title: "Expires", value: $0.expires_at.map { dateFormatter.string(from: $0) } ?? "Never"),
                     TextTable.Column(title: "Created", value: dateFormatter.string(from: $0.inserted_at)),
                 ]

@@ -3,12 +3,6 @@ import Foundation
 import TuistServer
 import TuistSupport
 
-extension Components.Schemas.CreateAccountToken.scopesPayloadPayload: ExpressibleByArgument {
-    public init?(argument: String) {
-        self.init(rawValue: argument)
-    }
-}
-
 struct AccountTokensCreateCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -34,14 +28,16 @@ struct AccountTokensCreateCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "A friendly name for the token.",
+        help:
+        "A unique identifier for the token. Must be 1-32 characters and contain only alphanumeric characters, hyphens, and underscores.",
         envKey: .accountTokensName
     )
     var name: String
 
     @Option(
         name: .shortAndLong,
-        help: "When the token should expire. Use format like '30d' (days), '6m' (months), or '1y' (years). If not specified, the token never expires.",
+        help:
+        "When the token should expire. Use format like '30d' (days), '6m' (months), or '1y' (years). If not specified, the token never expires.",
         envKey: .accountTokensExpires
     )
     var expires: String?
@@ -55,7 +51,8 @@ struct AccountTokensCreateCommand: AsyncParsableCommand {
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The project handles to grant the token access to. Only used when --all-projects is not set.",
+        help:
+        "The project handles to grant the token access to. Only used when --all-projects is not set.",
         envKey: .accountTokensProjects
     )
     var projects: [String] = []
@@ -76,7 +73,13 @@ struct AccountTokensCreateCommand: AsyncParsableCommand {
             expires: expires,
             allProjects: allProjects,
             projects: projects,
-            directory: path
+            path: path
         )
+    }
+}
+
+extension Components.Schemas.CreateAccountToken.scopesPayloadPayload: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
     }
 }
