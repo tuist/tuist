@@ -24,6 +24,16 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     %{conn: conn, account: account}
   end
 
+  describe "GET /api/registry/swift" do
+    test "returns :ok response", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/registry/swift")
+
+      # Then
+      assert conn.status == 200
+    end
+  end
+
   describe "GET /api/registry/swift/availability" do
     test "returns :ok response for availability", %{conn: conn} do
       # When

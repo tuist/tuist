@@ -14,8 +14,12 @@ defmodule TuistWeb.API.Registry.SwiftController do
   alias TuistWeb.Authentication
 
   plug(:assign_package when action in [:list_releases, :show_release, :show_package_swift])
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :registry)
+  plug(TuistWeb.Plugs.LoaderPlug when action not in [:root])
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :registry when action not in [:root])
+
+  def root(conn, _params) do
+    conn |> Plug.Conn.send_resp(200, []) |> Plug.Conn.halt()
+  end
 
   def availability(conn, _params) do
     conn |> Plug.Conn.send_resp(200, []) |> Plug.Conn.halt()
