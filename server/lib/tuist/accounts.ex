@@ -1462,16 +1462,14 @@ defmodule Tuist.Accounts do
            |> AccountToken.create_changeset()
            |> Repo.insert() do
         {:ok, token} ->
-          if not all_projects and length(project_ids) > 0 do
-            Enum.each(project_ids, fn project_id ->
-              %{
-                account_token_id: token.id,
-                project_id: project_id
-              }
-              |> AccountTokenProject.create_changeset()
-              |> Repo.insert!()
-            end)
-          end
+          Enum.each(project_ids, fn project_id ->
+            %{
+              account_token_id: token.id,
+              project_id: project_id
+            }
+            |> AccountTokenProject.create_changeset()
+            |> Repo.insert!()
+          end)
 
           token = Repo.preload(token, preload)
           {token, "tuist_#{token.id}_#{token_hash}"}
