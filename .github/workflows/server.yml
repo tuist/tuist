@@ -166,7 +166,7 @@ jobs:
           # https://github.com/ClickHouse/ClickHouse/issues/75494
           CLICKHOUSE_SKIP_USER_SETUP: 1
         options: >-
-          --health-cmd "nc -zw3 localhost 8123"
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -466,7 +466,7 @@ jobs:
           # https://github.com/ClickHouse/ClickHouse/issues/75494
           CLICKHOUSE_SKIP_USER_SETUP: 1
         options: >-
-          --health-cmd "nc -zw3 localhost 8123"
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
