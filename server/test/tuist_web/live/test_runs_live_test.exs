@@ -7,6 +7,7 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "lists latest test runs" do
     setup do
@@ -29,8 +30,6 @@ defmodule TuistWeb.TestRunsLiveTest do
       project: project
     } do
       # Given
-      alias TuistTestSupport.Fixtures.RunsFixtures
-
       {:ok, _test_run1} =
         RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id, scheme: "App")
 
@@ -46,23 +45,21 @@ defmodule TuistWeb.TestRunsLiveTest do
 
     test "handles cursor from another page with different sort fields", %{
       conn: conn,
-      user: user,
       organization: organization,
       project: project
     } do
       for i <- 1..25 do
-        CommandEventsFixtures.command_event_fixture(
+        RunsFixtures.test_fixture(
           project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "App-#{i}"],
+          account_id: organization.account.id,
+          scheme: "App-#{i}",
           duration: i * 1000
         )
       end
 
       # Generate a cursor with duration sorting (simulating a cursor from another page like bundles)
-      {_events, %{end_cursor: cursor}} =
-        Tuist.CommandEvents.list_command_events(%{
+      {_test_runs, %{end_cursor: cursor}} =
+        Tuist.Runs.list_test_runs(%{
           filters: [
             %{field: :project_id, op: :==, value: project.id}
           ],
@@ -80,7 +77,8 @@ defmodule TuistWeb.TestRunsLiveTest do
                  ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?after=#{cursor}"
                )
 
-      assert has_element?(lv, "span", "tuist test App-1")
+      # The cursor is cleared on initial load, so the page should load without error
+      assert has_element?(lv, "[data-part='test-runs-table']")
     end
   end
 end

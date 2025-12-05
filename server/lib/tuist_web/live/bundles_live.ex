@@ -33,15 +33,10 @@ defmodule TuistWeb.BundlesLive do
     bundles_type = params["bundles-type"] || "any"
 
     params =
-      cond do
-        Query.sort_changed?(socket, bundles_sort_by, bundles_sort_order, :bundles) ->
-          Query.clear_cursors(params)
-
-        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :bundles) ->
-          Query.clear_cursors(params)
-
-        true ->
-          params
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
       end
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
@@ -63,6 +58,7 @@ defmodule TuistWeb.BundlesLive do
         :uri,
         uri
       )
+      |> assign(:current_params, params)
       |> assign(:bundles_sort_by, bundles_sort_by)
       |> assign(:bundles_sort_order, bundles_sort_order)
       |> assign(:bundles_type, bundles_type)

@@ -99,7 +99,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       assert {:ok, lv, _html} =
                live(
                  conn,
-                 ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs?generate_runs_sort_by=duration&generate_runs_sort_order=asc&after=#{cursor}"
+                 ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs?generate_runs_sort_by=duration&generate_runs_sort_order=asc&after=#{cursor}"
                )
 
       assert has_element?(lv, "span", "generate App-1")

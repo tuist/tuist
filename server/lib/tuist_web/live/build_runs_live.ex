@@ -36,21 +36,11 @@ defmodule TuistWeb.BuildRunsLive do
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
-    # Clear cursors if sort parameters have changed to prevent cursor/order mismatch
-    # This handles both UI navigation (socket state changes) and direct URL navigation
     params =
-      cond do
-        # If sort params changed from previous socket state
-        Query.sort_changed?(socket, build_runs_sort_by, build_runs_sort_order, :build_runs) ->
-          Query.clear_cursors(params)
-
-        # If explicit sort params are present with cursors (e.g., bookmarked URL)
-        # Default sort is "ran-at"/"desc", so explicit params indicate potential cursor mismatch
-        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :"build-runs") ->
-          Query.clear_cursors(params)
-
-        true ->
-          params
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
       end
 
     socket =

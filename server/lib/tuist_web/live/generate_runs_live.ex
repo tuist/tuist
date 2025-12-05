@@ -33,15 +33,10 @@ defmodule TuistWeb.GenerateRunsLive do
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
 
     params =
-      cond do
-        Query.sort_changed?(socket, generate_runs_sort_by, generate_runs_sort_order, :generate_runs) ->
-          Query.clear_cursors(params)
-
-        Query.has_cursor?(params) and Query.has_explicit_sort_params?(params, :generate_runs) ->
-          Query.clear_cursors(params)
-
-        true ->
-          params
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
       end
 
     {
