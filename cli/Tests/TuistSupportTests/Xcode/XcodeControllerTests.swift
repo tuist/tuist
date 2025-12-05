@@ -91,4 +91,54 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(Version(11, 3, 0), xcodeVersion)
     }
+
+    func test_selectedVersion_when_developerDirIsSet() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
+        let infoPlistPath = contentsPath.appending(component: "Info.plist")
+        let developerPath = contentsPath.appending(component: "Developer")
+        let infoPlist = Xcode.InfoPlist(version: "11.3")
+        let infoPlistData = try PropertyListEncoder().encode(infoPlist)
+        try infoPlistData.write(to: infoPlistPath.url)
+        let environment = try MockEnvironment()
+
+        system.succeedCommand(["xcode-select", "-p"], output: "/dev/null")
+
+        let developerPaths = [
+            // DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer
+            developerPath,
+
+            // DEVELOPER_DIR=/path/to/Xcode.app
+            temporaryPath,
+        ]
+
+        for path in developerPaths {
+            // When
+            environment.variables["DEVELOPER_DIR"] = path.pathString
+            try await Environment.$current.withValue(environment) {
+                let xcodeVersion = try await subject.selectedVersion()
+
+                // Then
+                XCTAssertEqual(Version(11, 3, 0), xcodeVersion, "path: \(path)")
+            }
+        }
+    }
+
+    func test_selectedVersion_when_developerDirIsInvalid() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let developerPath = temporaryPath.appending(component: "does-not-exist")
+        let environment = try MockEnvironment()
+        environment.variables["DEVELOPER_DIR"] = developerPath.pathString
+
+        try await Environment.$current.withValue(environment) {
+            // Then
+            await XCTAssertThrowsSpecific(
+                try await subject.selectedVersion(),
+                XcodeError.infoPlistNotFound(.environment(developerPath))
+            )
+        }
+    }
 }
