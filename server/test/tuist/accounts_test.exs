@@ -2989,6 +2989,32 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "account_token_expired?/1" do
+    test "returns false when expires_at is nil" do
+      # Given
+      token = %AccountToken{expires_at: nil}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns false when expires_at is in the future" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), 1, :hour)}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns true when expires_at is in the past" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), -1, :hour)}
+
+      # When/Then
+      assert Accounts.account_token_expired?(token)
+    end
+  end
+
   describe "find_unassigned_sso_users/3" do
     test "finds users with matching SSO credentials not assigned to organization" do
       # Given

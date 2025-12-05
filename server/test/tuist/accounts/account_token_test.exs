@@ -256,21 +256,4 @@ defmodule Tuist.Accounts.AccountTokenTest do
       refute Map.has_key?(errors_on(got), :expires_at)
     end
   end
-
-  describe "expired?/1" do
-    test "returns false when expires_at is nil" do
-      token = %AccountToken{expires_at: nil}
-      refute AccountToken.expired?(token)
-    end
-
-    test "returns false when expires_at is in the future" do
-      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), 1, :hour)}
-      refute AccountToken.expired?(token)
-    end
-
-    test "returns true when expires_at is in the past" do
-      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), -1, :hour)}
-      assert AccountToken.expired?(token)
-    end
-  end
 end

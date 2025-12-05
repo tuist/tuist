@@ -119,13 +119,4 @@ defmodule Tuist.Accounts.AccountToken do
       end
     end)
   end
-
-  @doc """
-  Checks if the token has expired.
-  """
-  def expired?(%__MODULE__{expires_at: nil}), do: false
-
-  def expired?(%__MODULE__{expires_at: expires_at}) do
-    DateTime.compare(expires_at, DateTime.utc_now()) != :gt
-  end
 end

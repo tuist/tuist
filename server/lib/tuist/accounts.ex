@@ -1504,7 +1504,7 @@ defmodule Tuist.Accounts do
              from(t in AccountToken, where: t.id == ^token_id)
              |> Repo.one()
              |> Repo.preload(preload),
-           false <- AccountToken.expired?(token),
+           false <- account_token_expired?(token),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else
@@ -1552,6 +1552,15 @@ defmodule Tuist.Accounts do
   """
   def delete_account_token(%AccountToken{} = token) do
     Repo.delete(token)
+  end
+
+  @doc """
+  Checks if the token has expired.
+  """
+  def account_token_expired?(%AccountToken{expires_at: nil}), do: false
+
+  def account_token_expired?(%AccountToken{expires_at: expires_at}) do
+    DateTime.compare(expires_at, DateTime.utc_now()) != :gt
   end
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
