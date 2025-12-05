@@ -1433,7 +1433,7 @@ defmodule Tuist.Accounts do
   - `created_by_account` - Optional account that created this token (for tracking)
   - `name` - Optional friendly name for the token
   - `expires_at` - Optional expiration datetime
-  - `all_projects` - When true, token has access to all projects (default: true)
+  - `all_projects` - When true, token has access to all projects (default: false)
   - `project_ids` - List of project IDs to restrict access to (only used when all_projects is false)
   """
   def create_account_token(%{account: %Account{} = account, scopes: scopes} = params, opts \\ []) do
@@ -1446,7 +1446,7 @@ defmodule Tuist.Accounts do
     created_by_account = Map.get(params, :created_by_account)
     name = Map.get(params, :name)
     expires_at = Map.get(params, :expires_at)
-    all_projects = Map.get(params, :all_projects, true)
+    all_projects = Map.get(params, :all_projects, false)
     project_ids = Map.get(params, :project_ids, [])
 
     Repo.transaction(fn ->

@@ -24,7 +24,7 @@ defmodule Tuist.Accounts.AccountToken do
     field :scopes, {:array, :string}
     field :name, :string
     field :expires_at, :utc_datetime
-    field :all_projects, :boolean, default: true
+    field :all_projects, :boolean, default: false
 
     belongs_to :account, Account
     belongs_to :created_by_account, Account

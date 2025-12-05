@@ -4,7 +4,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-enum AccountTokensCreateCommandServiceError: LocalizedError {
+enum AccountTokensCreateCommandServiceError: LocalizedError, Equatable {
     case invalidExpiresDuration(String)
 
     var errorDescription: String? {

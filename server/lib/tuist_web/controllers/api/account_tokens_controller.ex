@@ -63,8 +63,8 @@ defmodule TuistWeb.API.AccountTokensController do
            all_projects: %Schema{
              type: :boolean,
              description:
-               "When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.",
-             default: true
+               "When true, token has access to all projects. When false, use project_handles to specify access. Defaults to false.",
+             default: false
            },
            project_handles: %Schema{
              type: :array,
@@ -112,7 +112,7 @@ defmodule TuistWeb.API.AccountTokensController do
     current_user = Authentication.current_user(conn)
     name = Map.get(body_params, :name)
     expires_at = Map.get(body_params, :expires_at)
-    all_projects = Map.get(body_params, :all_projects, true)
+    all_projects = Map.get(body_params, :all_projects, false)
     project_handles = Map.get(body_params, :project_handles, [])
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
