@@ -19,7 +19,10 @@ config :phoenix_live_view, :debug_heex_annotations, true
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_development"
+  database: "tuist_development",
+  # Disable lazy materialization to work around ClickHouse bug with projections
+  # https://github.com/ClickHouse/ClickHouse/issues/80201
+  settings: [query_plan_optimize_lazy_materialization: 0]
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -28,7 +31,10 @@ config :tuist, Tuist.IngestRepo,
   flush_interval_ms: 5000,
   # Bytes
   max_buffer_size: 100_000,
-  pool_size: 5
+  pool_size: 5,
+  # Disable lazy materialization to work around ClickHouse bug with projections
+  # https://github.com/ClickHouse/ClickHouse/issues/80201
+  settings: [query_plan_optimize_lazy_materialization: 0]
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
