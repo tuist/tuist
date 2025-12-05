@@ -47,7 +47,7 @@ defmodule Tuist do
       Accounts.Account,
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
-      Accounts.Scopes,
+      Accounts.AccountToken,
       Accounts.User,
       Authentication,
       Authorization,

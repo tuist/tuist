@@ -4,7 +4,7 @@ defmodule TuistWeb.API.AccountTokensController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
-  alias Tuist.Accounts.Scopes
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Authorization
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
@@ -44,7 +44,7 @@ defmodule TuistWeb.API.AccountTokensController do
              type: :array,
              items: %Schema{
                type: :string,
-               enum: Scopes.all_scopes(),
+               enum: AccountToken.valid_scopes(),
                description: "A scope string in format entity:object:access_level."
              },
              description: "The scopes for the new account token.",
@@ -116,7 +116,6 @@ defmodule TuistWeb.API.AccountTokensController do
     project_handles = Map.get(body_params, :project_handles, [])
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
-         :ok <- Scopes.validate(scopes),
          {:ok, project_ids} <- resolve_project_handles(selected_account, project_handles, all_projects) do
       case Accounts.create_account_token(%{
              account: selected_account,
@@ -142,11 +141,6 @@ defmodule TuistWeb.API.AccountTokensController do
           |> json(%{message: format_changeset_errors(changeset)})
       end
     else
-      {:error, invalid_scopes} when is_list(invalid_scopes) ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Invalid scopes: #{Enum.join(invalid_scopes, ", ")}"})
-
       {:error, :project_not_found, handle} ->
         conn
         |> put_status(:not_found)
@@ -205,7 +199,7 @@ defmodule TuistWeb.API.AccountTokensController do
                   name: %Schema{type: :string, nullable: true, description: "Friendly name for the token."},
                   scopes: %Schema{
                     type: :array,
-                    items: %Schema{type: :string, enum: Scopes.all_scopes()},
+                    items: %Schema{type: :string, enum: AccountToken.valid_scopes()},
                     description: "Token scopes."
                   },
                   all_projects: %Schema{type: :boolean, description: "Whether token has access to all projects."},

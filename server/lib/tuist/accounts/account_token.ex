@@ -4,6 +4,18 @@ defmodule Tuist.Accounts.AccountToken do
 
   Account tokens provide scoped API access with optional project restrictions
   and expiration dates.
+
+  ## Scopes
+
+  Scopes follow the format: `{entity_type}:{object}:{access_level}`
+
+  Access levels:
+  - `read` - Read-only access
+  - `write` - Full access (read and write)
+
+  Entity types:
+  - `account:` - Account-level scopes (organization-wide)
+  - `project:` - Project-level scopes (per-project)
   """
   use Ecto.Schema
 
@@ -11,7 +23,25 @@ defmodule Tuist.Accounts.AccountToken do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountTokenProject
-  alias Tuist.Accounts.Scopes
+
+  @valid_scopes [
+    "account:members:read",
+    "account:members:write",
+    "account:registry:read",
+    "account:registry:write",
+    "project:previews:read",
+    "project:previews:write",
+    "project:admin:read",
+    "project:admin:write",
+    "project:cache:read",
+    "project:cache:write",
+    "project:bundles:read",
+    "project:bundles:write",
+    "project:tests:read",
+    "project:tests:write",
+    "project:builds:read",
+    "project:builds:write"
+  ]
 
   @derive {
     Flop.Schema,
@@ -34,6 +64,11 @@ defmodule Tuist.Accounts.AccountToken do
 
     timestamps(type: :utc_datetime)
   end
+
+  @doc """
+  Returns all valid scopes for account tokens.
+  """
+  def valid_scopes, do: @valid_scopes
 
   def create_changeset(attrs) do
     %__MODULE__{}
@@ -65,9 +100,12 @@ defmodule Tuist.Accounts.AccountToken do
 
   defp validate_scopes(changeset) do
     validate_change(changeset, :scopes, fn :scopes, scopes ->
-      case Scopes.validate(scopes) do
-        :ok -> []
-        {:error, invalid} -> [scopes: "contains invalid scopes: #{Enum.join(invalid, ", ")}"]
+      invalid = Enum.reject(scopes, &(&1 in @valid_scopes))
+
+      if Enum.empty?(invalid) do
+        []
+      else
+        [scopes: "contains invalid scopes: #{Enum.join(invalid, ", ")}"]
       end
     end)
   end
