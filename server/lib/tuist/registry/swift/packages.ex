@@ -56,7 +56,7 @@ defmodule Tuist.Registry.Swift.Packages do
   def get_package_by_scope_and_name(%{scope: scope, name: name}, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Package |> Repo.get_by(scope: scope, name: name) do
+    case Repo.get_by(Package, scope: scope, name: name) do
       nil -> {:error, :not_found}
       package -> {:ok, Repo.preload(package, preload)}
     end
