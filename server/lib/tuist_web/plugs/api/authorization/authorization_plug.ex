@@ -5,7 +5,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
 
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization
+  alias Tuist.Authorization.Checks
   alias TuistWeb.Authentication
 
   def init(:run), do: :run
@@ -89,43 +91,62 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     subject =
       Authentication.authenticated_subject(conn)
 
-    subject_id =
+    # Check project access restrictions for AuthenticatedAccount
+    project_permitted? =
       case subject do
-        %{id: id} -> id
-        %{account: %{id: id}} -> id
+        %AuthenticatedAccount{} = auth_account ->
+          Checks.project_access_permitted(auth_account, selected_project)
+
+        _ ->
+          true
       end
 
-    cache_key = [
-      Atom.to_string(__MODULE__),
-      "authorize",
-      "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
-      "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
-    ]
+    if project_permitted? do
+      subject_id =
+        case subject |> dbg do
+          %{id: id} -> id
+          %{account: %{id: id}} -> id
+        end
 
-    authorized? =
-      if caching do
-        Tuist.KeyValueStore.get_or_update(
-          cache_key,
-          [
-            cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
-            locking: true
-          ],
-          fn ->
-            authorize(subject, action, selected_project, category)
-          end
-        )
+      cache_key = [
+        Atom.to_string(__MODULE__),
+        "authorize",
+        "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
+        "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
+      ]
+
+      authorized? =
+        if caching do
+          Tuist.KeyValueStore.get_or_update(
+            cache_key,
+            [
+              cache: Map.get(conn.assigns, :cache, :tuist),
+              ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
+              locking: true
+            ],
+            fn ->
+              authorize(subject, action, selected_project, category)
+            end
+          )
+        else
+          authorize(subject, action, selected_project, category)
+        end
+
+      if authorized? do
+        conn
       else
-        authorize(subject, action, selected_project, category)
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        })
+        |> halt()
       end
-
-    if authorized? do
-      conn
     else
       conn
       |> put_status(:forbidden)
       |> json(%{
-        message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        message: "Token does not have access to project #{selected_project.name}"
       })
       |> halt()
     end

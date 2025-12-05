@@ -330,7 +330,7 @@ struct SetupCacheCommandServiceTests {
 
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
         #expect(plistContent.contains("<key>EnvironmentVariables</key>"))
-        #expect(plistContent.contains("<key>TUIST_CONFIG_TOKEN</key>"))
+        #expect(plistContent.contains("<key>TUIST_TOKEN</key>"))
         #expect(plistContent.contains("<string>\(token)</string>"))
     }
 

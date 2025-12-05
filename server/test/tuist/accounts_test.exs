@@ -2753,11 +2753,67 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["account:registry:read"],
+          name: "my-token"
+        })
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+    end
+  end
+
+  describe "get_account_token_by_name/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token_by_name(account, "my-token")
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token not found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token_by_name(account, "non-existent")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "shared-name")
+
+      # When
+      result = Accounts.get_account_token_by_name(account2, "shared-name")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} =
+        Accounts.get_account_token_by_name(account, "my-token", preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
     end
   end
 

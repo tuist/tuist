@@ -1,38 +1,93 @@
 defmodule Tuist.Accounts.AccountToken do
-  @moduledoc ~S"""
-  A module that represents the account_tokens table.
+  @moduledoc """
+  A module that represents fine-grained access tokens for accounts.
+
+  Account tokens provide scoped API access with optional project restrictions
+  and expiration dates.
   """
   use Ecto.Schema
 
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountTokenProject
+  alias Tuist.Accounts.Scopes
+
+  @derive {
+    Flop.Schema,
+    filterable: [:account_id, :name, :all_projects], sortable: [:inserted_at, :expires_at, :name]
+  }
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "account_tokens" do
     field :encrypted_token_hash, :string
-    field :scopes, {:array, Ecto.Enum}, values: [registry_read: 0]
+    field :scopes, {:array, :string}
+    field :name, :string
+    field :expires_at, :utc_datetime
+    field :all_projects, :boolean, default: true
 
     belongs_to :account, Account
+    belongs_to :created_by_account, Account
+
+    has_many :account_token_projects, AccountTokenProject
+    has_many :projects, through: [:account_token_projects, :project]
 
     timestamps(type: :utc_datetime)
   end
 
-  def create_changeset(account, attrs) do
-    attrs =
-      Map.update(attrs, :scopes, nil, fn scopes ->
-        scopes
-        |> Enum.map(fn
-          :account_registry_read -> :registry_read
-          scope -> scope
-        end)
-        |> Enum.uniq()
-      end)
-
-    account
-    |> cast(attrs, [:account_id, :encrypted_token_hash, :scopes])
-    |> validate_required([:account_id, :encrypted_token_hash, :scopes])
-    |> validate_subset(:scopes, Ecto.Enum.values(__MODULE__, :scopes))
+  def create_changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, [
+      :account_id,
+      :created_by_account_id,
+      :encrypted_token_hash,
+      :scopes,
+      :name,
+      :expires_at,
+      :all_projects
+    ])
+    |> validate_required([:account_id, :encrypted_token_hash, :scopes, :name])
+    |> validate_name()
+    |> validate_scopes()
+    |> validate_expiration()
     |> unique_constraint([:account_id, :encrypted_token_hash])
+    |> unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
+  end
+
+  defp validate_name(changeset) do
+    changeset
+    |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
+      message: "must contain only alphanumeric characters, hyphens, and underscores"
+    )
+    |> validate_length(:name, min: 1, max: 32)
+    |> update_change(:name, &String.downcase/1)
+  end
+
+  defp validate_scopes(changeset) do
+    validate_change(changeset, :scopes, fn :scopes, scopes ->
+      case Scopes.validate(scopes) do
+        :ok -> []
+        {:error, invalid} -> [scopes: "contains invalid scopes: #{Enum.join(invalid, ", ")}"]
+      end
+    end)
+  end
+
+  defp validate_expiration(changeset) do
+    validate_change(changeset, :expires_at, fn :expires_at, expires_at ->
+      if DateTime.after?(expires_at, DateTime.utc_now()) do
+        []
+      else
+        [expires_at: "must be in the future"]
+      end
+    end)
+  end
+
+  @doc """
+  Checks if the token has expired.
+  """
+  def expired?(%__MODULE__{expires_at: nil}), do: false
+
+  def expired?(%__MODULE__{expires_at: expires_at}) do
+    DateTime.compare(expires_at, DateTime.utc_now()) != :gt
   end
 end

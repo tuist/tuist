@@ -576,15 +576,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             ] {
                 return .project(configToken)
             } else if let deprecatedToken = Environment.current.tuistVariables[
+                Constants.EnvironmentVariables.deprecatedToken
+            ] {
+                AlertController.current
+                    .warning(
+                        .alert(
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI"
+                        )
+                    )
+                return .project(deprecatedToken)
+            } else if let deprecatedCloudToken = Environment.current.tuistVariables[
                 "TUIST_CONFIG_CLOUD_TOKEN"
             ] {
                 AlertController.current
                     .warning(
                         .alert(
-                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                         )
                     )
-                return .project(deprecatedToken)
+                return .project(deprecatedCloudToken)
             } else {
                 return nil
             }

@@ -8,6 +8,7 @@ defmodule Tuist.Accounts do
   alias Ecto.Multi
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AccountTokenProject
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
@@ -1423,31 +1424,74 @@ defmodule Tuist.Accounts do
     |> binary_part(0, length)
   end
 
-  def create_account_token(%{account: %Account{} = account, scopes: scopes}, opts \\ []) do
+  @doc """
+  Creates a new account token with fine-grained permissions.
+
+  ## Parameters
+  - `account` - The account that owns the token
+  - `scopes` - List of scope strings (e.g., ["project:cache:read", "account:registry:read"])
+  - `created_by_account` - Optional account that created this token (for tracking)
+  - `name` - Optional friendly name for the token
+  - `expires_at` - Optional expiration datetime
+  - `all_projects` - When true, token has access to all projects (default: true)
+  - `project_ids` - List of project IDs to restrict access to (only used when all_projects is false)
+  """
+  def create_account_token(%{account: %Account{} = account, scopes: scopes} = params, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
     token_hash = Base64.encode(:crypto.strong_rand_bytes(20))
 
     encrypted_token_hash =
       Bcrypt.hash_pwd_salt(token_hash <> Environment.secret_key_password())
 
-    case %AccountToken{}
-         |> AccountToken.create_changeset(%{
-           account_id: account.id,
-           encrypted_token_hash: encrypted_token_hash,
-           scopes: scopes
-         })
-         |> Repo.insert() do
-      {:ok, token} ->
-        token = Repo.preload(token, preload)
-        {:ok, {token, "tuist_#{token.id}_#{token_hash}"}}
+    created_by_account = Map.get(params, :created_by_account)
+    name = Map.get(params, :name)
+    expires_at = Map.get(params, :expires_at)
+    all_projects = Map.get(params, :all_projects, true)
+    project_ids = Map.get(params, :project_ids, [])
 
-      {:error, changeset} ->
-        {:error, changeset}
-    end
+    Repo.transaction(fn ->
+      case %{
+             account_id: account.id,
+             created_by_account_id: created_by_account && created_by_account.id,
+             encrypted_token_hash: encrypted_token_hash,
+             scopes: scopes,
+             name: name,
+             expires_at: expires_at,
+             all_projects: all_projects
+           }
+           |> AccountToken.create_changeset()
+           |> Repo.insert() do
+        {:ok, token} ->
+          if not all_projects and length(project_ids) > 0 do
+            Enum.each(project_ids, fn project_id ->
+              %{
+                account_token_id: token.id,
+                project_id: project_id
+              }
+              |> AccountTokenProject.create_changeset()
+              |> Repo.insert!()
+            end)
+          end
+
+          token = Repo.preload(token, preload)
+          {token, "tuist_#{token.id}_#{token_hash}"}
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
+  @doc """
+  Retrieves and validates an account token from its full token string.
+
+  Returns `{:ok, token}` if valid, or `{:error, reason}` where reason is one of:
+  - `:not_found` - Token does not exist
+  - `:expired` - Token has expired
+  - `:invalid_token` - Token format is invalid or hash doesn't match
+  """
   def account_token(full_token, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+    preload = Keyword.get(opts, :preload, []) ++ [:account_token_projects]
     full_token_components = String.split(full_token, "_")
 
     if length(full_token_components) == 3 do
@@ -1458,15 +1502,68 @@ defmodule Tuist.Accounts do
              from(t in AccountToken, where: t.id == ^token_id)
              |> Repo.one()
              |> Repo.preload(preload),
+           false <- AccountToken.expired?(token),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else
         nil -> {:error, :not_found}
+        true -> {:error, :expired}
         _ -> {:error, :invalid_token}
       end
     else
       {:error, :invalid_token}
     end
+  end
+
+  @doc """
+  Lists account tokens for a given account with pagination support via Flop.
+  """
+  def list_account_tokens(%Account{} = account, attrs \\ %{}) do
+    base_query =
+      from(t in AccountToken,
+        where: t.account_id == ^account.id,
+        preload: [:projects, :created_by_account]
+      )
+
+    Flop.validate_and_run!(base_query, attrs, for: AccountToken)
+  end
+
+  @doc """
+  Gets a specific account token by ID for a given account.
+  """
+  def get_account_token_by_id(%Account{} = account, token_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    Repo.one(
+      from(t in AccountToken,
+        where: t.id == ^token_id and t.account_id == ^account.id,
+        preload: ^preload
+      )
+    )
+  end
+
+  @doc """
+  Gets a specific account token by name for a given account.
+  """
+  def get_account_token_by_name(%Account{} = account, token_name, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    case Repo.one(
+           from(t in AccountToken,
+             where: t.name == ^token_name and t.account_id == ^account.id,
+             preload: ^preload
+           )
+         ) do
+      nil -> {:error, :not_found}
+      token -> {:ok, token}
+    end
+  end
+
+  @doc """
+  Deletes (revokes) an account token.
+  """
+  def delete_account_token(%AccountToken{} = token) do
+    Repo.delete(token)
   end
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when

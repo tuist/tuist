@@ -140,7 +140,7 @@ defmodule Tuist.Authorization do
         "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
       )
 
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: :registry_read])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:read"])
 
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
@@ -158,7 +158,7 @@ defmodule Tuist.Authorization do
         "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
       )
 
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: :registry_read])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:read"])
 
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
@@ -210,12 +210,12 @@ defmodule Tuist.Authorization do
   object :qa_step do
     action :create do
       desc("Allows an account token with qa_step_create scope to create QA steps.")
-      allow([:authenticated_as_account, scopes_permit: :qa_step_create])
+      allow([:authenticated_as_account, scopes_permit: "project:qa_step:create"])
     end
 
     action :update do
       desc("Allows an account token with qa_step_update scope to update QA steps.")
-      allow([:authenticated_as_account, scopes_permit: :qa_step_update])
+      allow([:authenticated_as_account, scopes_permit: "project:qa_step:update"])
     end
   end
 
@@ -223,14 +223,14 @@ defmodule Tuist.Authorization do
     action :create do
       desc("Allows an account token with qa_screenshot_create scope to create QA screenshots.")
 
-      allow([:authenticated_as_account, scopes_permit: :qa_screenshot_create])
+      allow([:authenticated_as_account, scopes_permit: "project:qa_screenshot:create"])
     end
   end
 
   object :qa_run do
     action :update do
       desc("Allows an account token with qa_run_update scope to update a QA run.")
-      allow([:authenticated_as_account, scopes_permit: :qa_run_update])
+      allow([:authenticated_as_account, scopes_permit: "project:qa_run:update"])
     end
   end
 
