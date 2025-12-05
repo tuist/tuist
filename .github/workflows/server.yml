@@ -158,20 +158,24 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:25.8
-        ports:
-          - 8123:8123
-        env:
-          # https://github.com/ClickHouse/ClickHouse/issues/75494
-          CLICKHOUSE_SKIP_USER_SETUP: 1
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - name: Start ClickHouse
+        run: |
+          docker run -d --name clickhouse \
+            -p 8123:8123 \
+            -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+            clickhouse/clickhouse-server:25.8 \
+            -- --keep_alive_timeout=60
+          # Wait for ClickHouse to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8123/ping > /dev/null 2>&1; then
+              echo "ClickHouse is ready"
+              break
+            fi
+            echo "Waiting for ClickHouse... ($i/30)"
+            sleep 1
+          done
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -458,20 +462,24 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:25.8
-        ports:
-          - 8123:8123
-        env:
-          # https://github.com/ClickHouse/ClickHouse/issues/75494
-          CLICKHOUSE_SKIP_USER_SETUP: 1
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - name: Start ClickHouse
+        run: |
+          docker run -d --name clickhouse \
+            -p 8123:8123 \
+            -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+            clickhouse/clickhouse-server:25.8 \
+            -- --keep_alive_timeout=60
+          # Wait for ClickHouse to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8123/ping > /dev/null 2>&1; then
+              echo "ClickHouse is ready"
+              break
+            fi
+            echo "Waiting for ClickHouse... ($i/30)"
+            sleep 1
+          done
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
