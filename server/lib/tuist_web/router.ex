@@ -288,6 +288,8 @@ defmodule TuistWeb.Router do
 
       scope "/tokens" do
         post "/", AccountTokensController, :create
+        get "/", AccountTokensController, :index
+        delete "/:token_name", AccountTokensController, :delete
       end
     end
 

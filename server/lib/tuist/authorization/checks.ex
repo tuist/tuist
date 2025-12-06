@@ -72,12 +72,54 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) do
+  @doc """
+  Checks if the authenticated account's scopes include the required scope.
+
+  Scopes are expected to be strings in the format "entity:object:action"
+  (e.g., "project:cache:read", "account:registry:read").
+
+  When the object is a Project, this also verifies the token has access to that
+  specific project (either via `all_projects: true` or the project being in `project_ids`).
+  """
+  def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
+      when is_binary(scope) do
+    Enum.member?(scopes, scope) and project_access_permitted(auth_account, project)
+  end
+
+  def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
     Enum.member?(scopes, scope)
   end
 
   def scopes_permit(_, _, _) do
     false
+  end
+
+  @doc """
+  Checks if the authenticated account has access to the specified project.
+
+  When `all_projects` is true, the token has access to all projects under the account.
+  When `all_projects` is false, access is restricted to projects in `project_ids`.
+  """
+  def project_access_permitted(%AuthenticatedAccount{all_projects: true}, _project) do
+    true
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: nil}, _project) do
+    false
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: []}, _project) do
+    false
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: project_ids}, %Project{
+        id: project_id
+      }) do
+    project_id in project_ids
+  end
+
+  def project_access_permitted(_, _) do
+    true
   end
 
   def projects_match(%User{}, %Project{}) do

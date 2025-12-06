@@ -6,9 +6,13 @@ import OpenAPIURLSession
 public protocol CreateAccountTokenServicing {
     func createAccountToken(
         accountHandle: String,
-        scopes: [AccountToken.Scope],
+        scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
+        name: String,
+        expiresAt: Date?,
+        allProjects: Bool,
+        projectHandles: [String],
         serverURL: URL
-    ) async throws -> String
+    ) async throws -> Operations.createAccountToken.Output.Ok.Body.jsonPayload
 }
 
 enum CreateAccountTokenServiceError: LocalizedError {
@@ -33,31 +37,36 @@ public final class CreateAccountTokenService: CreateAccountTokenServicing {
 
     public func createAccountToken(
         accountHandle: String,
-        scopes: [AccountToken.Scope],
+        scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
+        name: String,
+        expiresAt: Date?,
+        allProjects: Bool,
+        projectHandles: [String],
         serverURL: URL
-    ) async throws -> String {
+    ) async throws -> Operations.createAccountToken.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
 
-        let scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload = scopes.map {
-            switch $0 {
-            case .accountRegistryRead:
-                .registry_read
-            }
+        let operationScopes = scopes.compactMap {
+            Operations.createAccountToken.Input.Body.jsonPayload.scopesPayloadPayload(rawValue: $0.rawValue)
         }
 
         let response = try await client.createAccountToken(
             .init(
-                path: .init(
-                    account_handle: accountHandle
-                ),
-                body: .json(.init(scopes: scopes))
+                path: .init(account_handle: accountHandle),
+                body: .json(.init(
+                    all_projects: allProjects,
+                    expires_at: expiresAt,
+                    name: name,
+                    project_handles: projectHandles,
+                    scopes: operationScopes
+                ))
             )
         )
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(accountToken):
-                return accountToken.token
+                return accountToken
             }
         case let .notFound(notFound):
             switch notFound.body {

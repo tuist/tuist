@@ -2710,7 +2710,7 @@ defmodule Tuist.AccountsTest do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2753,11 +2753,265 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["account:registry:read"],
+          name: "my-token"
+        })
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+    end
+
+    test "creates account token with all_projects: false by default" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "default-token"
+        })
+
+      # Then
+      assert token.all_projects == false
+    end
+
+    test "creates account token with all_projects: true when explicitly set" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "all-projects-token",
+          all_projects: true
+        })
+
+      # Then
+      assert token.all_projects == true
+    end
+
+    test "creates account token with project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 1
+      assert hd(token_with_projects.projects).id == project.id
+    end
+
+    test "creates account token with multiple project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id)
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "multi-project-token",
+          all_projects: false,
+          project_ids: [project1.id, project2.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 2
+      project_ids = Enum.map(token_with_projects.projects, & &1.id)
+      assert project1.id in project_ids
+      assert project2.id in project_ids
+    end
+  end
+
+  describe "list_account_tokens/2" do
+    test "returns tokens for the account with pagination" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account, name: "token-2")
+
+      # When
+      {tokens, meta} = Accounts.list_account_tokens(account, %{page: 1, page_size: 10})
+
+      # Then
+      assert length(tokens) == 2
+      assert meta.total_count == 2
+    end
+
+    test "does not return tokens from other accounts" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account2, name: "token-2")
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account1)
+
+      # Then
+      assert length(tokens) == 1
+      assert hd(tokens).name == "token-1"
+    end
+
+    test "preloads projects association" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {_token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account)
+
+      # Then
+      assert length(tokens) == 1
+      token = hd(tokens)
+      assert Ecto.assoc_loaded?(token.projects)
+      assert length(token.projects) == 1
+      assert hd(token.projects).id == project.id
+    end
+  end
+
+  describe "get_account_token_by_name/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token_by_name(account, "my-token")
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token not found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token_by_name(account, "non-existent")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "shared-name")
+
+      # When
+      result = Accounts.get_account_token_by_name(account2, "shared-name")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} =
+        Accounts.get_account_token_by_name(account, "my-token", preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
+  describe "delete_account_token/1" do
+    test "deletes an account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "token-to-delete")
+
+      # When
+      {:ok, deleted_token} = Accounts.delete_account_token(token)
+
+      # Then
+      assert deleted_token.id == token.id
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "token-to-delete")
+    end
+
+    test "deletes an account token with project associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {:ok, _} = Accounts.delete_account_token(token)
+
+      # Then
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "restricted-token")
+    end
+  end
+
+  describe "account_token_expired?/1" do
+    test "returns false when expires_at is nil" do
+      # Given
+      token = %AccountToken{expires_at: nil}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns false when expires_at is in the future" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), 1, :hour)}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns true when expires_at is in the past" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), -1, :hour)}
+
+      # When/Then
+      assert Accounts.account_token_expired?(token)
     end
   end
 

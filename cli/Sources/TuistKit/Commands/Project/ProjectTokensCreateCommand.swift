@@ -7,7 +7,7 @@ struct ProjectTokensCreateCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "create",
             _superCommandName: "tokens",
-            abstract: "Create a new Tuist project token. You can save this token in the `TUIST_CONFIG_TOKEN` environment variable to authenticate requests against the Tuist API."
+            abstract: "Create a new Tuist project token. You can save this token in the `TUIST_TOKEN` environment variable to authenticate requests against the Tuist API."
         )
     }
 

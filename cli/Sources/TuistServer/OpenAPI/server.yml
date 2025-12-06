@@ -2,6 +2,33 @@
 components:
   responses: {}
   schemas:
+    AccountTokenCreated:
+      description: A newly created account token.
+      properties:
+        expires_at:
+          description: When the token expires, if set.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: The token unique identifier.
+          type: string
+          x-struct:
+          x-validate:
+        token:
+          description: The generated account token. Store this securely - it cannot be retrieved again.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - id
+      title: AccountTokenCreated
+      type: object
+      x-struct:
+      x-validate:
     CacheActionItem:
       description: Represents an action item stored in the cache.
       properties:
@@ -581,6 +608,95 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
+      x-validate:
+    AccountTokens:
+      properties:
+        meta:
+          $ref: '#/components/schemas/PaginationMetadata'
+        tokens:
+          items:
+            properties:
+              all_projects:
+                description: Whether token has access to all projects.
+                type: boolean
+                x-struct:
+                x-validate:
+              expires_at:
+                description: When the token expires.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                description: Token unique identifier.
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                description: When the token was created.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: Friendly name for the token.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              project_handles:
+                description: List of project handles the token can access (when all_projects is false).
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              scopes:
+                description: Token scopes.
+                items:
+                  enum:
+                    - account:members:read
+                    - account:members:write
+                    - account:registry:read
+                    - account:registry:write
+                    - project:previews:read
+                    - project:previews:write
+                    - project:admin:read
+                    - project:admin:write
+                    - project:cache:read
+                    - project:cache:write
+                    - project:bundles:read
+                    - project:bundles:write
+                    - project:tests:read
+                    - project:tests:write
+                    - project:builds:read
+                    - project:builds:write
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - scopes
+              - all_projects
+              - inserted_at
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - tokens
+        - meta
+      title: AccountTokens
+      type: object
+      x-struct:
       x-validate:
     PreviewSupportedPlatform:
       enum:
@@ -1934,14 +2050,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    AccountTokenScope:
-      description: The scope of the token.
-      enum:
-        - registry_read
-      title: AccountTokenScope
-      type: string
-      x-struct:
-      x-validate:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
@@ -2053,20 +2161,6 @@ components:
       title: Error
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
-      x-validate:
-    AccountToken:
-      description: A new account token.
-      properties:
-        token:
-          description: The generated account token.
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - token
-      title: AccountToken
-      type: object
-      x-struct:
       x-validate:
     RunsIndexPage:
       default: 1
@@ -2967,13 +3061,56 @@ components:
     CreateAccountToken:
       description: The request to create a new account token.
       properties:
+        all_projects:
+          default: true
+          description: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
+          type: boolean
+          x-struct:
+          x-validate:
+        expires_at:
+          description: Optional expiration datetime (ISO8601). If not set, the token never expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+          type: string
+          x-struct:
+          x-validate:
+        project_handles:
+          description: List of project handles to restrict access to. Only used when all_projects is false.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scopes:
           description: The scopes for the new account token.
+          example:
+            - project:cache:read
+            - project:builds:write
           items:
-            description: The scope of the token.
+            description: A scope string in format entity:object:access_level.
             enum:
-              - registry_read
-            title: AccountTokenScope
+              - account:members:read
+              - account:members:write
+              - account:registry:read
+              - account:registry:write
+              - project:previews:read
+              - project:previews:write
+              - project:admin:read
+              - project:admin:write
+              - project:cache:read
+              - project:cache:write
+              - project:bundles:read
+              - project:bundles:write
+              - project:tests:read
+              - project:tests:write
+              - project:builds:read
+              - project:builds:write
             type: string
             x-struct:
             x-validate:
@@ -2982,6 +3119,7 @@ components:
           x-validate:
       required:
         - scopes
+        - name
       title: CreateAccountToken
       type: object
       x-struct:
@@ -3974,22 +4112,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -3998,10 +4120,26 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -5564,9 +5702,153 @@ paths:
       tags:
         - Bundles
   /api/accounts/{account_handle}/tokens:
+    get:
+      callbacks: {}
+      description: This endpoint returns all tokens for a given account with pagination support.
+      operationId: listAccountTokens
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  meta:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tokens:
+                    items:
+                      properties:
+                        all_projects:
+                          description: Whether token has access to all projects.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        expires_at:
+                          description: When the token expires.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: Token unique identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: When the token was created.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: Friendly name for the token.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project_handles:
+                          description: List of project handles the token can access (when all_projects is false).
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        scopes:
+                          description: Token scopes.
+                          items:
+                            enum:
+                              - account:members:read
+                              - account:members:write
+                              - account:registry:read
+                              - account:registry:write
+                              - project:previews:read
+                              - project:previews:write
+                              - project:admin:read
+                              - project:admin:write
+                              - project:cache:read
+                              - project:cache:write
+                              - project:bundles:read
+                              - project:bundles:write
+                              - project:tests:read
+                              - project:tests:write
+                              - project:builds:read
+                              - project:builds:write
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - scopes
+                        - all_projects
+                        - inserted_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tokens
+                  - meta
+                title: AccountTokens
+                type: object
+                x-struct:
+                x-validate:
+          description: A list of account tokens.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to list tokens
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account was not found
+      summary: List all account tokens.
+      tags:
+        - Account tokens
     post:
       callbacks: {}
-      description: This endpoint returns a new account token.
+      description: This endpoint returns a new fine-grained account token with specified scopes and optional project restrictions.
       operationId: createAccountToken
       parameters:
         - description: The account handle.
@@ -5583,13 +5865,56 @@ paths:
             schema:
               description: The request to create a new account token.
               properties:
+                all_projects:
+                  default: true
+                  description: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                expires_at:
+                  description: Optional expiration datetime (ISO8601). If not set, the token never expires.
+                  format: date-time
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  description: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+                  type: string
+                  x-struct:
+                  x-validate:
+                project_handles:
+                  description: List of project handles to restrict access to. Only used when all_projects is false.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scopes:
                   description: The scopes for the new account token.
+                  example:
+                    - project:cache:read
+                    - project:builds:write
                   items:
-                    description: The scope of the token.
+                    description: A scope string in format entity:object:access_level.
                     enum:
-                      - registry_read
-                    title: AccountTokenScope
+                      - account:members:read
+                      - account:members:write
+                      - account:registry:read
+                      - account:registry:write
+                      - project:previews:read
+                      - project:previews:write
+                      - project:admin:read
+                      - project:admin:write
+                      - project:cache:read
+                      - project:cache:write
+                      - project:bundles:read
+                      - project:bundles:write
+                      - project:tests:read
+                      - project:tests:write
+                      - project:builds:read
+                      - project:builds:write
                     type: string
                     x-struct:
                     x-validate:
@@ -5598,6 +5923,7 @@ paths:
                   x-validate:
               required:
                 - scopes
+                - name
               title: CreateAccountToken
               type: object
               x-struct:
@@ -5609,16 +5935,29 @@ paths:
           content:
             application/json:
               schema:
-                description: A new account token.
+                description: A newly created account token.
                 properties:
+                  expires_at:
+                    description: When the token expires, if set.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The token unique identifier.
+                    type: string
+                    x-struct:
+                    x-validate:
                   token:
-                    description: The generated account token.
+                    description: The generated account token. Store this securely - it cannot be retrieved again.
                     type: string
                     x-struct:
                     x-validate:
                 required:
                   - token
-                title: AccountToken
+                  - id
+                title: AccountTokenCreated
                 type: object
                 x-struct:
                 x-validate:
@@ -5646,7 +5985,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The account was not found
+          description: The account or project was not found
       summary: Create a new account token.
       tags:
         - Account tokens
@@ -5755,6 +6094,52 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/accounts/{account_handle}/tokens/{token_name}:
+    delete:
+      callbacks: {}
+      description: This endpoint revokes (deletes) an account token by name.
+      operationId: revokeAccountToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The token name to revoke.
+          in: path
+          name: token_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The account token was revoked
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to revoke tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to revoke tokens
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token was not found
+      summary: Revoke an account token.
+      tags:
+        - Account tokens
   /api/organizations/{organization_name}/invitations:
     delete:
       callbacks: {}

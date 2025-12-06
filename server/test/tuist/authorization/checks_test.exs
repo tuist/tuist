@@ -285,21 +285,88 @@ defmodule Tuist.Authorization.ChecksTest do
   end
 
   describe "scopes_permit/3" do
-    test "returns true when the scopes permit :registry_read", %{user: user} do
+    test "returns true when the scopes contain the required scope", %{user: user} do
       # When/Then
       assert Checks.scopes_permit(
-               %AuthenticatedAccount{account: user.account, scopes: [:registry_read]},
-               user,
-               :registry_read
+               %AuthenticatedAccount{account: user.account, scopes: ["account:registry:read"]},
+               user.account,
+               "account:registry:read"
              ) == true
     end
 
-    test "returns false when the scopes don't permit :registry_read", %{user: user} do
+    test "returns false when the scopes don't contain the required scope", %{user: user} do
       # When/Then
       assert Checks.scopes_permit(
-               %AuthenticatedAccount{account: user.account, scopes: [:account_token_create]},
-               user,
-               :registry_read
+               %AuthenticatedAccount{account: user.account, scopes: ["project:cache:read"]},
+               user.account,
+               "account:registry:read"
+             ) == false
+    end
+
+    test "returns true for project when scopes match and all_projects is true", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:bundles:read"],
+                 all_projects: true
+               },
+               project,
+               "project:bundles:read"
+             ) == true
+    end
+
+    test "returns true for project when scopes match and project is in project_ids", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:bundles:read"],
+                 all_projects: false,
+                 project_ids: [project.id]
+               },
+               project,
+               "project:bundles:read"
+             ) == true
+    end
+
+    test "returns false for project when scopes match but project is not in project_ids", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      other_project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:bundles:read"],
+                 all_projects: false,
+                 project_ids: [other_project.id]
+               },
+               project,
+               "project:bundles:read"
+             ) == false
+    end
+
+    test "returns false for project when scopes don't match even with all_projects true", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:cache:read"],
+                 all_projects: true
+               },
+               project,
+               "project:bundles:read"
              ) == false
     end
   end

@@ -85,9 +85,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
     caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
-
-    subject =
-      Authentication.authenticated_subject(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     subject_id =
       case subject do
