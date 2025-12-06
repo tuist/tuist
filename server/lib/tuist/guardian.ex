@@ -34,12 +34,10 @@ defmodule Tuist.Guardian do
     account = Accounts.get_account_by_id(id)
 
     if account do
-      scopes = Enum.map(claims["scopes"], &String.to_atom/1)
-
       {:ok,
        %AuthenticatedAccount{
          account: account,
-         scopes: scopes
+         scopes: claims["scopes"]
        }}
     else
       {:error, :resource_not_found}

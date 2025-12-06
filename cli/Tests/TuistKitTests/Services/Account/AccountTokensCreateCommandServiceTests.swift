@@ -30,7 +30,7 @@ struct AccountTokensCreateCommandServiceTests {
         )
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .withMockedLogger()) func create_account_token() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
@@ -56,10 +56,14 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(ui().contains("generated-token-value") == true)
+        #expect(Logger.testingLogHandler.collected[.info, ==].contains("generated-token-value") == true)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token_with_expiration() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        .withMockedLogger()
+    ) func create_account_token_with_expiration() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
@@ -85,10 +89,14 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(ui().contains("expiring-token") == true)
+        #expect(Logger.testingLogHandler.collected[.info, ==].contains("expiring-token") == true)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token_with_specific_projects() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        .withMockedLogger()
+    ) func create_account_token_with_specific_projects() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
@@ -114,7 +122,7 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(ui().contains("project-specific-token") == true)
+        #expect(Logger.testingLogHandler.collected[.info, ==].contains("project-specific-token") == true)
     }
 
     @Test(
@@ -135,21 +143,20 @@ struct AccountTokensCreateCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token_parses_days() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        .withMockedLogger()
+    ) func create_account_token_parses_days() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
-                accountHandle: .any,
-                scopes: .any,
-                name: .any,
-                expiresAt: .matching { date in
-                    guard let date else { return false }
-                    let calendar = Calendar.current
-                    let days = calendar.dateComponents([.day], from: Date(), to: date).day ?? 0
-                    return days >= 29 && days <= 31
-                },
-                allProjects: .any,
-                projectHandles: .any,
+                accountHandle: .value("tuist-org"),
+                scopes: .value([.project_colon_cache_colon_read]),
+                name: .value("test-token"),
+                expiresAt: .matching { $0 != nil },
+                allProjects: .value(true),
+                projectHandles: .value([]),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -171,7 +178,12 @@ struct AccountTokensCreateCommandServiceTests {
                 accountHandle: .any,
                 scopes: .any,
                 name: .any,
-                expiresAt: .any,
+                expiresAt: .matching { date in
+                    guard let date else { return false }
+                    let calendar = Calendar.current
+                    let days = calendar.dateComponents([.day], from: Date(), to: date).day ?? 0
+                    return days >= 29 && days <= 31
+                },
                 allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any
@@ -179,21 +191,20 @@ struct AccountTokensCreateCommandServiceTests {
             .called(1)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token_parses_months() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        .withMockedLogger()
+    ) func create_account_token_parses_months() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
-                accountHandle: .any,
-                scopes: .any,
-                name: .any,
-                expiresAt: .matching { date in
-                    guard let date else { return false }
-                    let calendar = Calendar.current
-                    let months = calendar.dateComponents([.month], from: Date(), to: date).month ?? 0
-                    return months >= 5 && months <= 7
-                },
-                allProjects: .any,
-                projectHandles: .any,
+                accountHandle: .value("tuist-org"),
+                scopes: .value([.project_colon_cache_colon_read]),
+                name: .value("test-token"),
+                expiresAt: .matching { $0 != nil },
+                allProjects: .value(true),
+                projectHandles: .value([]),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -215,7 +226,12 @@ struct AccountTokensCreateCommandServiceTests {
                 accountHandle: .any,
                 scopes: .any,
                 name: .any,
-                expiresAt: .any,
+                expiresAt: .matching { date in
+                    guard let date else { return false }
+                    let calendar = Calendar.current
+                    let months = calendar.dateComponents([.month], from: Date(), to: date).month ?? 0
+                    return months >= 5 && months <= 7
+                },
                 allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any
@@ -223,21 +239,20 @@ struct AccountTokensCreateCommandServiceTests {
             .called(1)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func create_account_token_parses_years() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        .withMockedLogger()
+    ) func create_account_token_parses_years() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
-                accountHandle: .any,
-                scopes: .any,
-                name: .any,
-                expiresAt: .matching { date in
-                    guard let date else { return false }
-                    let calendar = Calendar.current
-                    let years = calendar.dateComponents([.year], from: Date(), to: date).year ?? 0
-                    return years == 1
-                },
-                allProjects: .any,
-                projectHandles: .any,
+                accountHandle: .value("tuist-org"),
+                scopes: .value([.project_colon_cache_colon_read]),
+                name: .value("test-token"),
+                expiresAt: .matching { $0 != nil },
+                allProjects: .value(true),
+                projectHandles: .value([]),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -259,7 +274,12 @@ struct AccountTokensCreateCommandServiceTests {
                 accountHandle: .any,
                 scopes: .any,
                 name: .any,
-                expiresAt: .any,
+                expiresAt: .matching { date in
+                    guard let date else { return false }
+                    let calendar = Calendar.current
+                    let days = calendar.dateComponents([.day], from: Date(), to: date).day ?? 0
+                    return days == 364
+                },
                 allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any

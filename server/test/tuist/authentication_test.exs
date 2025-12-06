@@ -93,7 +93,7 @@ defmodule Tuist.AuthenticationTest do
     # When
     %AuthenticatedAccount{
       account: %Account{id: account_id},
-      scopes: [:qa_run_update, :qa_step_create, :qa_screenshot_create]
+      scopes: ["qa_run_update", "qa_step_create", "qa_screenshot_create"]
     } = Authentication.authenticated_subject(jwt_token)
 
     # Then
