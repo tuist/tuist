@@ -122,6 +122,21 @@
                 {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
               </span>
             </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@run.git_branch || gettext("None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Commit SHA")}</div>
+              <span data-part="label">
+                {@run.git_commit_sha || gettext("None")}
+              </span>
+            </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Run duration")}</div>
               <span data-part="label">
@@ -133,13 +148,6 @@
             </div>
           </div>
           <div data-part="metadata-row">
-            <div data-part="metadata">
-              <div data-part="title">{gettext("Source")}</div>
-              <span data-part="label">
-                <.git_branch />
-                {@run.git_branch || gettext("None")}
-              </span>
-            </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Tuist version")}</div>
               <span data-part="label">
