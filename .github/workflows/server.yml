@@ -14,6 +14,7 @@ on:
       - server/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
+      - pnpm-lock.yaml
   merge_group: {}
 
 permissions:
