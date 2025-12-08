@@ -19,7 +19,6 @@ where you can edit the project. One of the files that are generated is the
 familiar with the Swift Package Manager, think of it as the `Package.swift` but
 with the lingo of Xcode projects.
 
-::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -57,7 +56,6 @@ let project = Project(
 )
 ```
 <!-- -->
-:::
 
 ::: info
 <!-- -->
@@ -66,7 +64,6 @@ maintenance overhead. If you want to create a project that doesn't represent an
 application, for example a framework, you can use `tuist init` as a starting
 point and then modify the generated project to suit your needs.
 <!-- -->
-:::
 
 ## Manually creating a project {#manually-creating-a-project}
 
@@ -83,7 +80,6 @@ Then create a `Tuist.swift` file, which will configure Tuist and is used by
 Tuist to determine the root directory of the project, and a `Project.swift`,
 where your project will be declared:
 
-::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -107,7 +103,6 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 <!-- -->
-:::
 
 ::: warning
 <!-- -->
@@ -116,4 +111,3 @@ from there it looks for other manifest files globbing the directories. We
 recommend creating those files with your editor of choice, and from that point
 on, you can use `tuist edit` to edit the project with Xcode.
 <!-- -->
-:::
