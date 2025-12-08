@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistSupport
 
 @Mockable
 public protocol MultipartUploadCompletePreviewsServicing {

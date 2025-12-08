@@ -452,6 +452,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
                 ]
             case .kit:
                 [
@@ -592,7 +594,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.core.targetName, condition: .when([.macos])),
-                    .target(name: Module.cache.targetName, condition: .when([.macos])),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
@@ -626,6 +627,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
+                    .external(name: "HTTPTypes"),
                 ]
             case .simulator:
                 [
@@ -675,6 +679,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
                     .target(name: Module.casAnalytics.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
@@ -891,6 +896,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
                 ]
             case .xcActivityLog:
                 [
@@ -937,6 +944,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
                     .target(name: Module.casAnalytics.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),

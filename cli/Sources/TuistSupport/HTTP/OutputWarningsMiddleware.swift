@@ -2,12 +2,11 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-#if canImport(TuistSupport)
-    import TuistSupport
-#endif
+public enum OutputWarningsMiddlewareError: LocalizedError {
+    case couldntConvertToData
+    case invalidSchema
 
-enum CloudClientOutputWarningsMiddlewareError: LocalizedError {
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .couldntConvertToData:
             "We couldn't convert Tuist warnings into a data instance"
@@ -15,15 +14,14 @@ enum CloudClientOutputWarningsMiddlewareError: LocalizedError {
             "The Tuist warnings returned by the server have an unexpected schema"
         }
     }
-
-    case couldntConvertToData
-    case invalidSchema
 }
 
-/// A middleware that gets any warning returned in a "x-cloud-warning" header
+/// A middleware that gets any warning returned in a "x-tuist-cloud-warnings" header
 /// and outputs it to the user.
-struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
-    func intercept(
+public struct OutputWarningsMiddleware: ClientMiddleware {
+    public init() {}
+
+    public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,
@@ -40,18 +38,16 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
         guard let warningsData = warnings.data(using: .utf8),
               let data = Data(base64Encoded: warningsData)
         else {
-            throw CloudClientOutputWarningsMiddlewareError.couldntConvertToData
+            throw OutputWarningsMiddlewareError.couldntConvertToData
         }
 
         guard let json = try JSONSerialization
             .jsonObject(with: data) as? [String]
         else {
-            throw CloudClientOutputWarningsMiddlewareError.invalidSchema
+            throw OutputWarningsMiddlewareError.invalidSchema
         }
 
-        #if canImport(TuistSupport)
-            json.forEach { AlertController.current.warning(.alert("\($0)")) }
-        #endif
+        json.forEach { AlertController.current.warning(.alert("\($0)")) }
 
         return (response, body)
     }

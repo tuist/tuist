@@ -2,10 +2,11 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-/// A middleware that gets any warning returned in a "x-cloud-warning" header
-/// and outputs it to the user.
-struct ServerClientRequestIdMiddleware: ClientMiddleware {
-    func intercept(
+/// A middleware that adds a unique request ID header to every request.
+public struct RequestIdMiddleware: ClientMiddleware {
+    public init() {}
+
+    public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,

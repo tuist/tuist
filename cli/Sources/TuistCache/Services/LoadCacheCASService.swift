@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistSupport
 
 @Mockable
 public protocol LoadCacheCASServicing: Sendable {
@@ -9,7 +10,8 @@ public protocol LoadCacheCASServicing: Sendable {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        authenticationProvider: CacheAuthenticationProviding
     ) async throws -> Data
 }
 
@@ -19,16 +21,16 @@ public enum LoadCacheCASServiceError: LocalizedError {
     case forbidden(String)
     case badRequest(String)
     case notFound(String)
-    case invalidResponse
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
+        case let .unauthorized(message),
+             let .forbidden(message),
+             let .notFound(message),
+             let .badRequest(message):
             return message
-        case .invalidResponse:
-            return "The server returned an invalid response format."
         }
     }
 }
@@ -52,12 +54,17 @@ public final class LoadCacheCASService: LoadCacheCASServicing {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        authenticationProvider: CacheAuthenticationProviding
     ) async throws -> Data {
-        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
+        let client = Client.authenticated(
+            cacheURL: serverURL,
+            authenticationURL: authenticationURL,
+            authenticationProvider: authenticationProvider
+        )
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.loadCacheCAS(
+        let response = try await client.downloadCASArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -74,15 +81,15 @@ public final class LoadCacheCASService: LoadCacheCASServicing {
                 let data = try await Data(collecting: httpBody, upTo: .max)
                 return data
             }
-        case let .forbidden(forbidden):
-            switch forbidden.body {
-            case let .json(error):
-                throw LoadCacheCASServiceError.forbidden(error.message)
-            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
                 throw LoadCacheCASServiceError.unauthorized(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw LoadCacheCASServiceError.forbidden(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

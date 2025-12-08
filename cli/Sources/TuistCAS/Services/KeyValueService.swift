@@ -3,8 +3,8 @@ import Foundation
 import GRPCCore
 import Logging
 import Path
+import TuistCache
 import TuistCASAnalytics
-import TuistServer
 import TuistSupport
 
 public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
@@ -16,6 +16,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let fileSystem: FileSystem
     private let nodeStore: CASNodeStoring
     private let metadataStore: KeyValueMetadataStoring
+    private let authenticationProvider: CacheAuthenticationProviding
 
     public init(
         fullHandle: String,
@@ -25,7 +26,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
         nodeStore: CASNodeStoring = CASNodeStore(),
-        metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore()
+        metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore(),
+        authenticationProvider: CacheAuthenticationProviding = ServerCacheAuthenticationAdapter()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -35,6 +37,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         self.fileSystem = fileSystem
         self.nodeStore = nodeStore
         self.metadataStore = metadataStore
+        self.authenticationProvider = authenticationProvider
     }
 
     public func putValue(
@@ -42,7 +45,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         context _: ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
         let startTime = ProcessInfo.processInfo.systemUptime
-        let casID = converKeyToCasID(request.key)
+        let casID = convertKeyToCasID(request.key)
         let keySize = request.key.count
         let entriesCount = request.value.entries.count
         let totalValueSize = request.value.entries.values.reduce(0) { $0 + $1.count }
@@ -66,7 +69,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 entries: entries,
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
-                authenticationURL: serverURL
+                authenticationURL: serverURL,
+                authenticationProvider: authenticationProvider
             )
 
             Task {
@@ -109,7 +113,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
         let startTime = ProcessInfo.processInfo.systemUptime
-        let casID = converKeyToCasID(request.key)
+        let casID = convertKeyToCasID(request.key)
         let keySize = request.key.count
 
         Logger.current.debug("KeyValue.getValue starting - key size: \(keySize) bytes, casID: \(casID)")
@@ -123,7 +127,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 casId: casID,
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
-                authenticationURL: serverURL
+                authenticationURL: serverURL,
+                authenticationProvider: authenticationProvider
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
 
@@ -175,7 +180,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         return response
     }
 
-    private func converKeyToCasID(_ key: Data) -> String {
+    private func convertKeyToCasID(_ key: Data) -> String {
         "0~" + key.dropFirst().base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")

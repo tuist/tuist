@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistSupport
 
 @Mockable
 public protocol PutCacheValueServicing: Sendable {
@@ -10,7 +11,8 @@ public protocol PutCacheValueServicing: Sendable {
         entries: [String: String],
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        authenticationProvider: CacheAuthenticationProviding
     ) async throws
 }
 
@@ -54,25 +56,30 @@ public final class PutCacheValueService: PutCacheValueServicing {
         entries: [String: String],
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        authenticationProvider: CacheAuthenticationProviding
     ) async throws {
-        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
+        let client = Client.authenticated(
+            cacheURL: serverURL,
+            authenticationURL: authenticationURL,
+            authenticationProvider: authenticationProvider
+        )
         let handles = try fullHandleService.parse(fullHandle)
 
-        let entriesPayload = Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload(
+        let entriesPayload = Operations.putKeyValue.Input.Body.jsonPayload.entriesPayload(
             entries
                 .filter { $0.key == "value" }
                 .map {
-                    Operations.putCacheValue.Input.Body.jsonPayload.entriesPayloadPayload(value: $0.value)
+                    Operations.putKeyValue.Input.Body.jsonPayload.entriesPayloadPayload(value: $0.value)
                 }
         )
 
-        let requestBody = Operations.putCacheValue.Input.Body.jsonPayload(
+        let requestBody = Operations.putKeyValue.Input.Body.jsonPayload(
             cas_id: casId,
             entries: entriesPayload
         )
 
-        let response = try await client.putCacheValue(
+        let response = try await client.putKeyValue(
             .init(
                 query: .init(
                     account_handle: handles.accountHandle,
@@ -85,20 +92,10 @@ public final class PutCacheValueService: PutCacheValueServicing {
         switch response {
         case .noContent:
             return
-        case let .forbidden(forbidden):
-            switch forbidden.body {
-            case let .json(error):
-                throw PutCacheValueServiceError.forbidden(error.message)
-            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
                 throw PutCacheValueServiceError.unauthorized(error.message)
-            }
-        case let .notFound(notFound):
-            switch notFound.body {
-            case let .json(error):
-                throw PutCacheValueServiceError.notFound(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

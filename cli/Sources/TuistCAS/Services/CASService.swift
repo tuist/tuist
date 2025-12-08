@@ -4,8 +4,8 @@ import Foundation
 import GRPCCore
 import Logging
 import Path
+import TuistCache
 import TuistCASAnalytics
-import TuistServer
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
@@ -16,6 +16,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let fileSystem: FileSysteming
     private let metadataStore: CASOutputMetadataStoring
     private let dataCompressingService: DataCompressingServicing
+    private let authenticationProvider: CacheAuthenticationProviding
 
     public init(
         fullHandle: String,
@@ -30,6 +31,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         fileSystem = FileSystem()
         dataCompressingService = DataCompressingService()
         metadataStore = CASOutputMetadataStore()
+        authenticationProvider = ServerCacheAuthenticationAdapter()
     }
 
     init(
@@ -40,7 +42,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         loadCacheCASService: LoadCacheCASServicing,
         fileSystem: FileSysteming,
         dataCompressingService: DataCompressingServicing,
-        metadataStore: CASOutputMetadataStoring
+        metadataStore: CASOutputMetadataStoring,
+        authenticationProvider: CacheAuthenticationProviding
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -50,6 +53,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.fileSystem = fileSystem
         self.metadataStore = metadataStore
         self.dataCompressingService = dataCompressingService
+        self.authenticationProvider = authenticationProvider
     }
 
     public func load(
@@ -77,7 +81,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 casId: casID,
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
-                authenticationURL: serverURL
+                authenticationURL: serverURL,
+                authenticationProvider: authenticationProvider
             )
 
             let decompressedData: Data
@@ -193,7 +198,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 casId: fingerprint,
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
-                authenticationURL: serverURL
+                authenticationURL: serverURL,
+                authenticationProvider: authenticationProvider
             )
             response.casID = message
             response.contents = .casID(message)

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistSupport
 
 @Mockable
 public protocol UpdateProjectServicing {

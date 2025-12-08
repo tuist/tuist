@@ -1,3 +1,4 @@
+import TuistSupport
 #if canImport(Rosalind)
     import Foundation
     import Mockable

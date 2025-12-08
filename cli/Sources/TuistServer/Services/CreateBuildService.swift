@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistSupport
 
 #if canImport(TuistSupport)
     import TuistCI

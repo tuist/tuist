@@ -1,13 +1,16 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-#if canImport(TuistSupport)
-    import TuistSupport
-#endif
 
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
-struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
-    func intercept(
+public struct VerboseLoggingMiddleware: ClientMiddleware {
+    private let serviceName: String
+
+    public init(serviceName: String = "Tuist") {
+        self.serviceName = serviceName
+    }
+
+    public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,
@@ -15,35 +18,31 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (requestBodyToLog, requestBodyForNext) = try await process(body)
-        #if canImport(TuistSupport)
-            Logger.current.debug("""
-            Sending HTTP request to Tuist:
-              - Method: \(request.method.rawValue)
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Body: \(requestBodyToLog)
-              - Headers: \(request.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Sending HTTP request to \(serviceName):
+          - Method: \(request.method.rawValue)
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Body: \(requestBodyToLog)
+          - Headers: \(request.headerFields)
+        """)
 
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
         let (responseBodyToLog, responseBodyForNext) = try await process(responseBody)
 
-        #if canImport(TuistSupport)
-            Logger.current.debug("""
-            Received HTTP response from Tuist:
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Status: \(response.status.code)
-              - Body: \(responseBodyToLog)
-              - Headers: \(response.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Received HTTP response from \(serviceName):
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Status: \(response.status.code)
+          - Body: \(responseBodyToLog)
+          - Headers: \(response.headerFields)
+        """)
 
         return (response, responseBodyForNext)
     }
 
-    enum BodyLog: Equatable, CustomStringConvertible {
+    public enum BodyLog: Equatable, CustomStringConvertible {
         /// There is no body to log.
         case none
         /// The policy forbids logging the body.
@@ -55,7 +54,7 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
         /// The body can be logged.
         case complete(Data)
 
-        var description: String {
+        public var description: String {
             switch self {
             case .none: return "<none>"
             case .redacted: return "<redacted>"
@@ -68,7 +67,7 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
         }
     }
 
-    func process(_ body: HTTPBody?) async throws -> (bodyToLog: BodyLog, bodyForNext: HTTPBody?) {
+    public func process(_ body: HTTPBody?) async throws -> (bodyToLog: BodyLog, bodyForNext: HTTPBody?) {
         switch body?.length {
         case .none: return (.none, body)
         case .unknown: return (.unknownLength, body)

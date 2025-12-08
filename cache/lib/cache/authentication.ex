@@ -116,7 +116,7 @@ defmodule Cache.Authentication do
         cache_projects(cache_key, projects)
 
       {:ok, %{status: 403}} ->
-        cache_result(cache_key, {:error, 404, "Unauthorized or not found"}, failure_ttl())
+        cache_result(cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
 
       {:ok, %{status: 401}} ->
         cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
@@ -188,7 +188,7 @@ defmodule Cache.Authentication do
       if MapSet.member?(project_handles, requested_handle) do
         :ok
       else
-        {:error, 404, "Unauthorized or not found"}
+        {:error, 403, "You don't have access to this project"}
       end
 
     cache_result({auth_key, requested_handle}, result, ttl)

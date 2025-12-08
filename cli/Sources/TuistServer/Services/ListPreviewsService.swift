@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import TuistSimulator
+import TuistSupport
 
 public enum ListPreviewsDistinctField {
     case bundleIdentifier
