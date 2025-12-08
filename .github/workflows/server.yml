@@ -160,22 +160,6 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Start ClickHouse
-        run: |
-          docker run -d --name clickhouse \
-            -p 8123:8123 \
-            -e CLICKHOUSE_SKIP_USER_SETUP=1 \
-            clickhouse/clickhouse-server:25.8 \
-            -- --keep_alive_timeout=60
-          # Wait for ClickHouse to be ready
-          for i in {1..30}; do
-            if curl -s http://localhost:8123/ping > /dev/null 2>&1; then
-              echo "ClickHouse is ready"
-              break
-            fi
-            echo "Waiting for ClickHouse... ($i/30)"
-            sleep 1
-          done
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -197,17 +181,10 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
+      - run: mise run clickhouse:start
       - run: mise run db:reset
-        env:
-          # Skip data migrations that require cross-database PostgreSQL connections
-          # CI uses fresh databases with no data to migrate
-          TUIST_SKIP_DATA_MIGRATION: "1"
       - name: Run tests
         run: mix test --warnings-as-errors
-        env:
-          # Skip data migrations that require cross-database PostgreSQL connections
-          # CI uses fresh databases with no data to migrate
-          TUIST_SKIP_DATA_MIGRATION: "1"
   credo:
     name: Credo
     runs-on: namespace-profile-default
@@ -464,22 +441,6 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Start ClickHouse
-        run: |
-          docker run -d --name clickhouse \
-            -p 8123:8123 \
-            -e CLICKHOUSE_SKIP_USER_SETUP=1 \
-            clickhouse/clickhouse-server:25.8 \
-            -- --keep_alive_timeout=60
-          # Wait for ClickHouse to be ready
-          for i in {1..30}; do
-            if curl -s http://localhost:8123/ping > /dev/null 2>&1; then
-              echo "ClickHouse is ready"
-              break
-            fi
-            echo "Waiting for ClickHouse... ($i/30)"
-            sleep 1
-          done
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -501,14 +462,9 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
+      - run: mise run clickhouse:start
       - run: mise run db:reset
-        env:
-          # Skip data migrations that require cross-database PostgreSQL connections
-          # CI uses fresh databases with no data to migrate
-          TUIST_SKIP_DATA_MIGRATION: "1"
       - name: Run migrations
         run: mix ecto.migrate
-        env:
-          TUIST_SKIP_DATA_MIGRATION: "1"
       - name: Seed the database
         run: mix run priv/repo/seeds.exs

@@ -130,7 +130,7 @@ defmodule Tuist.MixProject do
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
-      {:ecto_ch, "~> 0.7"},
+      {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.45.0"},
