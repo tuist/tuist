@@ -223,7 +223,7 @@ defmodule TuistWeb.CacheRunsLive do
 
     options = %{
       filters: flop_filters,
-      order_by: [Keyword.get(attrs, :order_by, :created_at)],
+      order_by: [Keyword.get(attrs, :order_by, :ran_at)],
       order_directions: [Keyword.get(attrs, :order_direction, :desc)]
     }
 

@@ -163,7 +163,7 @@ defmodule TuistWeb.GenerateRunsLive do
         %{field: :name, op: :in, value: ["generate"]}
         | build_flop_filters(Keyword.get(attrs, :filters, []))
       ],
-      order_by: [Keyword.get(attrs, :order_by, :created_at)],
+      order_by: [Keyword.get(attrs, :order_by, :ran_at)],
       order_directions: [Keyword.get(attrs, :order_direction, :desc)]
     }
 
