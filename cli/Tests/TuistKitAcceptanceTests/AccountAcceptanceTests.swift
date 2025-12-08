@@ -36,4 +36,64 @@ struct AccountAcceptanceTests {
             """) == true)
         }
     }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+    )
+    func create_list_revoke_account_token() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let tokenName = "acceptance-test-token-\(UUID().uuidString.prefix(8).lowercased())"
+
+        // When: Create an account token
+        try await TuistTest.run(
+            AccountTokensCreateCommand.self,
+            [
+                "tuist",
+                "--path", fixtureDirectory.pathString,
+                "--scopes", "project:cache:read",
+                "--name", tokenName,
+                "--all-projects",
+            ]
+        )
+
+        // Then: The token value is output
+        let tokenOutput = Logger.testingLogHandler.collected[.info, ==]
+        #expect(tokenOutput.isEmpty == false)
+
+        // When: List account tokens
+        try await TuistTest.run(
+            AccountTokensListCommand.self,
+            ["--path", fixtureDirectory.pathString, "tuist"]
+        )
+
+        // Then: The token is in the list
+        TuistTest.expectLogs(tokenName)
+
+        // When: Revoke the token
+        try await TuistTest.run(
+            AccountTokensRevokeCommand.self,
+            ["--path", fixtureDirectory.pathString, "tuist", tokenName]
+        )
+
+        // Then: Success message is shown
+        TuistTest.expectLogs("The account token '\(tokenName)' was successfully revoked.")
+
+        Logger.testingLogHandler.flush()
+
+        // When: List account tokens again
+        try await TuistTest.run(
+            AccountTokensListCommand.self,
+            ["--path", fixtureDirectory.pathString, "tuist"]
+        )
+
+        // Then: The token is no longer in the list (either empty or doesn't contain the token name)
+        let finalLogs = Logger.testingLogHandler.collected[.notice, ==]
+        let tokenStillExists = finalLogs.contains(tokenName)
+        #expect(tokenStillExists == false)
+    }
 }
