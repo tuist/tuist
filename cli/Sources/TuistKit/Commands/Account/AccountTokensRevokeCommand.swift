@@ -21,7 +21,7 @@ struct AccountTokensRevokeCommand: AsyncParsableCommand {
         help: "The name of the token to revoke.",
         envKey: .accountTokensName
     )
-    var tokenName: String
+    var name: String
 
     @Option(
         name: .shortAndLong,
@@ -34,7 +34,7 @@ struct AccountTokensRevokeCommand: AsyncParsableCommand {
     func run() async throws {
         try await AccountTokensRevokeCommandService().run(
             accountHandle: accountHandle,
-            tokenName: tokenName,
+            tokenName: name,
             path: path
         )
     }
