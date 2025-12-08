@@ -276,4 +276,37 @@ defmodule TuistWeb.BundlesLiveTest do
     # Then
     assert has_element?(lv, "#widget-download-size span", "0.0%")
   end
+
+  test "handles cursor mismatch when sort order changes", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    for i <- 1..25 do
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App-#{i}",
+        install_size: i * 1000
+      )
+    end
+
+    # Generate a cursor with inserted_at sorting
+    {_bundles, %{end_cursor: cursor}} =
+      Tuist.Bundles.list_bundles(%{
+        filters: [%{field: :project_id, op: :==, value: project.id}],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 20
+      })
+
+    # Navigate with install_size sorting but use the cursor from inserted_at sorting
+    # Before the fix, this would raise Flop.InvalidParamsError
+    assert {:ok, lv, _html} =
+             live(
+               conn,
+               ~p"/#{organization.account.name}/#{project.name}/bundles?bundles-sort-by=install-size&bundles-sort-order=asc&after=#{cursor}"
+             )
+
+    assert has_element?(lv, "span", "App-1")
+  end
 end
