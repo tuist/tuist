@@ -67,7 +67,7 @@ final class GraphImportsLinter: GraphImportsLinting {
                 graphTraverser: graphTraverser,
                 target: target,
                 includeExternalDependencies: inspectType == .implicit,
-                excludeAppDependenciesForUnitTests: inspectType == .redundant
+                excludeAppDependenciesForTests: inspectType == .redundant
             )
 
             let observedImports = switch inspectType {
@@ -88,7 +88,7 @@ final class GraphImportsLinter: GraphImportsLinting {
         graphTraverser: GraphTraverser,
         target: GraphTarget,
         includeExternalDependencies: Bool,
-        excludeAppDependenciesForUnitTests: Bool
+        excludeAppDependenciesForTests: Bool
     ) -> Set<String> {
         let targetDependencies = if includeExternalDependencies {
             graphTraverser
@@ -125,19 +125,10 @@ final class GraphImportsLinter: GraphImportsLinting {
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                         return true
                     }
-                case .unitTests:
+                case .unitTests, .uiTests:
                     switch dependency.target.product {
                     case .app:
-                        return !excludeAppDependenciesForUnitTests
-                    case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                         .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
-                         .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
-                        return true
-                    }
-                case .uiTests:
-                    switch dependency.target.product {
-                    case .app:
-                        return false
+                        return !excludeAppDependenciesForTests
                     case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
                          .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:

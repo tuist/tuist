@@ -36,6 +36,12 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
+    /// Target content hash subhashes keyed by hash
+    public private(set) var targetContentHashSubhashes: [String: TargetContentHashSubhashes] = [:]
+    public func update(targetContentHashSubhashes: [String: TargetContentHashSubhashes]) {
+        self.targetContentHashSubhashes = targetContentHashSubhashes
+    }
+
     /// Preview associated with the current run
     public private(set) var previewId: String?
     public func update(previewId: String?) {

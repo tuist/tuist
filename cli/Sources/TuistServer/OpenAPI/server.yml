@@ -1308,6 +1308,7 @@ components:
               enum:
                 - success
                 - failure
+                - skipped
               type: string
               x-struct:
               x-validate:
@@ -1768,6 +1769,7 @@ components:
           enum:
             - success
             - failure
+            - skipped
           type: string
           x-struct:
           x-validate:
@@ -3403,14 +3405,159 @@ paths:
                                       type: string
                                       x-struct:
                                       x-validate:
+                                    subhashes:
+                                      description: Individual component hashes that make up the final hash
+                                      properties:
+                                        additional_strings:
+                                          description: Additional strings used in the hash
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        buildable_folders:
+                                          description: Buildable folders hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        copy_files:
+                                          description: Copy files hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        core_data_models:
+                                          description: Core data models hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        dependencies:
+                                          description: Dependencies hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        deployment_target:
+                                          description: Deployment target hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        entitlements:
+                                          description: Entitlements hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        environment:
+                                          description: Environment hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        external:
+                                          description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        headers:
+                                          description: Headers hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        info_plist:
+                                          description: Info.plist hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        project_settings:
+                                          description: Project settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        resources:
+                                          description: Resources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        sources:
+                                          description: Sources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_scripts:
+                                          description: Target scripts hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_settings:
+                                          description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      type: object
+                                      x-struct:
+                                      x-validate:
                                   required:
                                     - hash
                                     - hit
                                   type: object
                                   x-struct:
                                   x-validate:
+                                bundle_id:
+                                  description: Bundle ID of the target
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                destinations:
+                                  description: Destinations for the target
+                                  items:
+                                    enum:
+                                      - iphone
+                                      - ipad
+                                      - mac
+                                      - mac_with_ipad_design
+                                      - mac_catalyst
+                                      - apple_watch
+                                      - apple_tv
+                                      - apple_vision
+                                      - apple_vision_with_ipad_design
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
                                 name:
                                   description: Name of the target
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                product:
+                                  description: Product type of the target
+                                  enum:
+                                    - app
+                                    - static_library
+                                    - dynamic_library
+                                    - framework
+                                    - static_framework
+                                    - unit_tests
+                                    - ui_tests
+                                    - bundle
+                                    - command_line_tool
+                                    - app_extension
+                                    - watch_2_app
+                                    - watch_2_extension
+                                    - tv_top_shelf_extension
+                                    - messages_extension
+                                    - sticker_pack_extension
+                                    - app_clip
+                                    - xpc
+                                    - system_extension
+                                    - extension_kit_extension
+                                    - macro
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                product_name:
+                                  description: Product name of the target
                                   type: string
                                   x-struct:
                                   x-validate:
@@ -7406,6 +7553,7 @@ paths:
                       enum:
                         - success
                         - failure
+                        - skipped
                       type: string
                       x-struct:
                       x-validate:

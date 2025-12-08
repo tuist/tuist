@@ -235,27 +235,36 @@ defmodule Tuist.Storage do
   end
 
   def get_object_size(object_key, actor) do
-    {time, size} =
-      Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+    {config, bucket_name} = s3_config_and_bucket(actor)
 
-        bucket_name
-        |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
-        |> Map.get(:headers)
-        |> Enum.find(fn {key, _value} -> key == "content-length" end)
-        |> elem(1)
-        |> List.first()
-        |> String.to_integer()
-      end)
+    case bucket_name
+         |> ExAws.S3.head_object(object_key)
+         |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
+      {:ok, response} ->
+        {time, size} =
+          Performance.measure_time_in_milliseconds(fn ->
+            response
+            |> Map.get(:headers)
+            |> Enum.find(fn {key, _value} -> key == "content-length" end)
+            |> elem(1)
+            |> List.first()
+            |> String.to_integer()
+          end)
 
-    :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
-      %{duration: time, size: size},
-      %{object_key: object_key}
-    )
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
+          %{duration: time, size: size},
+          %{object_key: object_key}
+        )
 
-    size
+        {:ok, size}
+
+      {:error, {:http_error, 404, _}} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp s3_config_and_bucket(actor) do

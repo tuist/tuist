@@ -111,20 +111,37 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    user = Accounts.find_or_create_user_from_oauth2(auth)
+    case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
+      {:ok, oauth2_identity} ->
+        user = oauth2_identity.user
+        oauth_return_url = get_session(conn, :oauth_return_to)
 
-    oauth_return_url = get_session(conn, :oauth_return_to)
+        if oauth_return_url do
+          conn
+          |> put_session(:user_return_to, oauth_return_url)
+          |> delete_session(:oauth_return_to)
+          |> Authentication.log_in_user(user)
+        else
+          Authentication.log_in_user(conn, user)
+        end
 
-    if oauth_return_url do
-      conn
-      |> put_flash(:info, "Successfully authenticated.")
-      |> put_session(:user_return_to, oauth_return_url)
-      |> delete_session(:oauth_return_to)
-      |> Authentication.log_in_user(user)
-    else
-      conn
-      |> put_flash(:info, "Successfully authenticated.")
-      |> Authentication.log_in_user(user)
+      {:error, :not_found} ->
+        provider_organization_id = Accounts.extract_provider_organization_id(auth)
+        oauth_return_url = get_session(conn, :oauth_return_to)
+
+        oauth_data = %{
+          "provider" => to_string(auth.provider),
+          "uid" => to_string(auth.uid),
+          "email" => auth.info.email,
+          "provider_organization_id" => provider_organization_id,
+          "oauth_return_url" => oauth_return_url
+        }
+
+        conn
+        |> delete_session(:oauth_return_to)
+        |> put_session(:pending_oauth_signup, oauth_data)
+        |> redirect(to: ~p"/users/choose-username")
+        |> halt()
     end
   end
 
@@ -220,6 +237,29 @@ defmodule TuistWeb.AuthController do
     if is_nil(Accounts.get_device_code(device_code)) do
       Accounts.create_device_code(device_code)
     end
+  end
+
+  def complete_signup(conn, %{"token" => token}) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, "signup_completion", token, max_age: 300) do
+      {:ok, %{user_id: user_id, oauth_return_url: oauth_return_url}} ->
+        case Accounts.get_user_by_id(user_id) do
+          nil ->
+            redirect(conn, to: ~p"/users/log_in")
+
+          user ->
+            conn
+            |> delete_session(:pending_oauth_signup)
+            |> put_session(:user_return_to, oauth_return_url)
+            |> Authentication.log_in_user(user)
+        end
+
+      {:error, _reason} ->
+        redirect(conn, to: ~p"/users/log_in")
+    end
+  end
+
+  def complete_signup(conn, _params) do
+    redirect(conn, to: ~p"/users/log_in")
   end
 
   defp okta_strategy_options(config, params) do

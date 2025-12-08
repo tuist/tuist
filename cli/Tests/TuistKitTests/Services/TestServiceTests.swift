@@ -3,7 +3,9 @@ import Mockable
 import Path
 import TuistAutomation
 import TuistCache
+import TuistCI
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -31,6 +33,11 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
+    private var inspectResultBundleService: MockInspectResultBundleServicing!
+    private var derivedDataLocator: MockDerivedDataLocating!
+    private var createTestService: MockCreateTestServicing!
+    private var gitController: MockGitControlling!
+    private var ciController: MockCIControlling!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -45,6 +52,11 @@ final class TestServiceTests: TuistUnitTestCase {
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        inspectResultBundleService = .init()
+        derivedDataLocator = .init()
+        createTestService = .init()
+        gitController = .init()
+        ciController = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -78,6 +90,26 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(destination: nil)
             )
 
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(try temporaryPath().appending(component: "DerivedData"))
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(try temporaryPath())
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        given(ciController)
+            .ciInfo()
+            .willReturn(nil)
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
@@ -86,7 +118,12 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
-            xcResultService: xcResultService
+            xcResultService: xcResultService,
+            gitController: gitController,
+            inspectResultBundleService: inspectResultBundleService,
+            derivedDataLocator: derivedDataLocator,
+            createTestService: createTestService,
+            ciController: ciController
         )
 
         given(simulatorController)
@@ -147,6 +184,11 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = nil
         testedSchemes = []
         runMetadataStorage = nil
+        inspectResultBundleService = nil
+        derivedDataLocator = nil
+        createTestService = nil
+        gitController = nil
+        ciController = nil
         subject = nil
         super.tearDown()
     }
@@ -2403,6 +2445,54 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(existing, [testPlan])
         } catch {
             throw error
+        }
+    }
+
+    func test_run_logsWarningWhenInspectResultBundleFails() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn(
+                    [
+                        Scheme.test(name: "ProjectScheme"),
+                    ]
+                )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist"
+                    )
+                )
+
+            given(inspectResultBundleService)
+                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .willThrow(TestError("Inspect failed"))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            let warnings = AlertController.current.warnings()
+            XCTAssertEqual(warnings.count, 1)
+            XCTAssertTrue(warnings.first?.message.plain().contains("Failed to upload test results") == true)
         }
     }
 

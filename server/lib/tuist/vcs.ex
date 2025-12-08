@@ -581,6 +581,7 @@ defmodule Tuist.VCS do
     case test_run.status do
       "failure" -> "❌"
       "success" -> "✅"
+      "skipped" -> "⏭️"
     end
   end
 

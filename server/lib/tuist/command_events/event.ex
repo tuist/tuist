@@ -68,6 +68,10 @@ defmodule Tuist.CommandEvents.Event do
     belongs_to :project, Tuist.Projects.Project, define_field: false
     belongs_to :user, Tuist.Accounts.User, define_field: false
 
+    has_many :xcode_targets, Tuist.Xcode.XcodeTarget,
+      foreign_key: :command_event_id,
+      references: :id
+
     field :user_account_name, :string, virtual: true
   end
 

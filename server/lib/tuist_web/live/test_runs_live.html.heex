@@ -335,15 +335,26 @@
   <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
     <.card_section data-part="test-runs-section">
       <div data-part="filters">
+        <.form for={%{}} phx-change="search-test-runs" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-test-runs"
+            name="search"
+            placeholder={gettext("Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@test_runs_filter}
+          />
+        </.form>
         <.filter_dropdown
           id="filter-dropdown"
           label={gettext("Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
-        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
-        </div>
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
       <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
@@ -373,6 +384,11 @@
               :if={test_run.status == "failure"}
               label={gettext("Failed")}
               status="error"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "skipped"}
+              label={gettext("Skipped")}
+              status="warning"
             />
           </:col>
           <:col :let={test_run} label={gettext("Branch")}>

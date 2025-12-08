@@ -124,9 +124,10 @@ struct XcodeBuildTestCommandService {
                 passthroughXcodebuildArguments
             )
         )
+        let selectiveTestingHashStrings = selectiveTestingHashes.mapValues(\.hash)
         let selectiveTestingCacheItems = try await cacheStorage.fetch(
             Set(
-                selectiveTestingHashes.map {
+                selectiveTestingHashStrings.map {
                     CacheStorableItem(name: $0.key.target.name, hash: $0.value)
                 }
             ),
@@ -158,12 +159,12 @@ struct XcodeBuildTestCommandService {
         )
         let skipTestTargets = try await selectiveTestingService.cachedTests(
             testableGraphTargets: testableGraphTargets,
-            selectiveTestingHashes: selectiveTestingHashes,
+            selectiveTestingHashes: selectiveTestingHashStrings,
             selectiveTestingCacheItems: selectiveTestingCacheItems
         )
 
         let targetTestCacheItems: [AbsolutePath: [String: CacheItem]] =
-            selectiveTestingHashes
+            selectiveTestingHashStrings
                 .reduce(into: [:]) { result, element in
                     if let cacheItem = selectiveTestingCacheItems.first(where: {
                         $0.hash == element.value
@@ -181,7 +182,7 @@ struct XcodeBuildTestCommandService {
             Logger.current.info("There are no tests to run, exiting early...")
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
-                selectiveTestingHashes: selectiveTestingHashes,
+                selectiveTestingHashes: selectiveTestingHashStrings,
                 targetTestCacheItems: targetTestCacheItems
             )
             return
@@ -216,10 +217,10 @@ struct XcodeBuildTestCommandService {
         } catch {
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
-                selectiveTestingHashes: selectiveTestingHashes,
+                selectiveTestingHashes: selectiveTestingHashStrings,
                 targetTestCacheItems: targetTestCacheItems
             )
-            try? await inspectResultBundleIfNeeded(
+            await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
@@ -229,18 +230,18 @@ struct XcodeBuildTestCommandService {
 
         await updateRunMetadataStorage(
             with: testableGraphTargets,
-            selectiveTestingHashes: selectiveTestingHashes,
+            selectiveTestingHashes: selectiveTestingHashStrings,
             targetTestCacheItems: targetTestCacheItems
         )
 
         try await storeTestableGraphTargets(
             testableGraphTargets,
-            selectiveTestingHashes: selectiveTestingHashes,
+            selectiveTestingHashes: selectiveTestingHashStrings,
             targetTestCacheItems: targetTestCacheItems,
             cacheStorage: cacheStorage
         )
 
-        try await inspectResultBundleIfNeeded(
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config
@@ -383,15 +384,19 @@ struct XcodeBuildTestCommandService {
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath,
         config: Tuist
-    ) async throws {
+    ) async {
         guard let resultBundlePath, config.fullHandle != nil,
-              try await fileSystem.exists(resultBundlePath)
+              (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
 
-        _ = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            projectDerivedDataDirectory: projectDerivedDataDirectory,
-            config: config
-        )
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 }

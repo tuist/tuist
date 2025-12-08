@@ -161,7 +161,7 @@ public struct XCResultService: XCResultServicing {
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
 
         return TestSummary(
-            testPlanName: output.testNodes.first?.name,
+            testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
             testModules: testModules
@@ -440,6 +440,9 @@ public struct XCResultService: XCResultServicing {
         #"[✔✘] Test (\w+)\(\) (?:passed|failed) after ([\d.]+) seconds"#,
         #"✔ Test (\w+)\(\) passed after ([\d.]+) seconds"#,
         #"✘ Test (\w+)\(\) failed after ([\d.]+) seconds"#,
+        #"[✔✘] Test "([^"]+)" (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Test "([^"]+)" passed after ([\d.]+) seconds"#,
+        #"✘ Test "([^"]+)" failed after ([\d.]+) seconds"#,
     ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
     private static let suiteDurationPatterns = [
