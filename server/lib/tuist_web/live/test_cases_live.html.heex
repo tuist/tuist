@@ -60,6 +60,7 @@
         value={Number.Delimit.number_to_delimited(@test_case_runs_analytics.count, precision: 0)}
         id="widget-test-case-run-count"
         trend_value={@test_case_runs_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="test_case_run_count"
@@ -79,7 +80,7 @@
         id="widget-failed-test-case-run-count"
         trend_value={@failed_test_case_runs_analytics.trend}
         trend_label={@analytics_trend_label}
-        trend_inverse
+        trend_type={:inverse}
         phx_click="select_widget"
         phx_value_widget="failed_test_case_run_count"
         selected={@analytics_selected_widget == "failed_test_case_run_count"}
@@ -140,7 +141,7 @@
         event_name="select_duration_type"
         trend_value={@test_case_runs_duration_analytics.trend}
         trend_label={@analytics_trend_label}
-        trend_inverse
+        trend_type={:inverse}
         phx_click="select_widget"
         phx_value_widget="test_case_run_duration"
         selected={@analytics_selected_widget == "test_case_run_duration"}

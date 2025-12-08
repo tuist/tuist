@@ -138,6 +138,7 @@
         phx_value_widget="total-builds"
         selected={@analytics_selected_widget == "total-builds"}
         trend_value={@total_builds_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={@total_builds_analytics.count == 0}
       />
@@ -168,7 +169,7 @@
         phx_value_widget="failed-builds"
         selected={@analytics_selected_widget == "failed-builds"}
         trend_value={@failed_builds_analytics.trend}
-        trend_inverse={true}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@failed_builds_analytics.count == 0}
       />
@@ -234,7 +235,7 @@
             _ -> @builds_duration_analytics.trend
           end
         }
-        trend_inverse={true}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@builds_duration_analytics.total_average_duration == 0}
       />
