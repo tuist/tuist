@@ -34,11 +34,11 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
     end
 
     case Packages.get_package_by_scope_and_name(%{scope: scope, name: name}) do
-      nil ->
+      {:error, :not_found} ->
         Logger.error("Package #{scope}/#{name} not found")
         {:error, :package_not_found}
 
-      package ->
+      {:ok, package} ->
         case Packages.get_package_release_by_version(%{package: package, version: Packages.semantic_version(version)}) do
           nil ->
             Packages.create_package_release(%{

@@ -36,7 +36,7 @@ defmodule TuistWeb.Widget do
         legend_color="secondary"
         trend_value={-5}
         trend_label="vs last week"
-        trend_inverse={true}
+        trend_type={:inverse}
       />
 
   ### Interactive Widget
@@ -108,9 +108,11 @@ defmodule TuistWeb.Widget do
 
   attr(:trend_label, :string, required: false, doc: "The trend label of the widget.")
 
-  attr(:trend_inverse, :boolean,
-    default: false,
-    doc: "Set this to true when smaller number means the trend is positive."
+  attr(:trend_type, :atom,
+    default: :regular,
+    values: [:regular, :inverse, :neutral],
+    doc:
+      "The trend type: :regular (higher is better), :inverse (lower is better), or :neutral (no positive/negative connotation)."
   )
 
   attr(:selected, :boolean,
@@ -199,7 +201,7 @@ defmodule TuistWeb.Widget do
       </div>
       <span data-part="value">{@value}</span>
       <div :if={@trend_value} data-part="trend">
-        <.trend_badge trend_value={@trend_value} trend_inverse={@trend_inverse} />
+        <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
         <span data-part="label">{@trend_label}</span>
       </div>
     </.card_section>

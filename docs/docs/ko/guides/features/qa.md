@@ -58,7 +58,7 @@ You can see all QA runs that we do for our
 <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
 app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
 
-::: info
+::: info Mise란?
 <!-- -->
 The QA agent runs autonomously and cannot be interrupted with additional prompts
 once started. We provide detailed logs throughout the execution to help you

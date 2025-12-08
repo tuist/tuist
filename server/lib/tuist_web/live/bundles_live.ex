@@ -32,6 +32,13 @@ defmodule TuistWeb.BundlesLive do
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
     bundles_type = params["bundles-type"] || "any"
 
+    params =
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
+      end
+
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
     bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
@@ -51,6 +58,7 @@ defmodule TuistWeb.BundlesLive do
         :uri,
         uri
       )
+      |> assign(:current_params, params)
       |> assign(:bundles_sort_by, bundles_sort_by)
       |> assign(:bundles_sort_order, bundles_sort_order)
       |> assign(:bundles_type, bundles_type)
@@ -271,8 +279,7 @@ defmodule TuistWeb.BundlesLive do
       |> URI.decode_query()
       |> Map.put("bundles-sort-by", column_value)
       |> Map.put("bundles-sort-order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
@@ -282,8 +289,7 @@ defmodule TuistWeb.BundlesLive do
       uri.query
       |> URI.decode_query()
       |> Map.put("bundles-sort-by", bundles_sort_by)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
       |> Map.delete("bundles-sort-order")
 
     "?#{URI.encode_query(query_params)}"
@@ -298,7 +304,10 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -311,7 +320,10 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket

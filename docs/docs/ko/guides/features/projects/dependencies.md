@@ -618,7 +618,7 @@ import`</LocalizedLink>:
 internal import StaticModule
 ```
 
-::: info
+::: info Mise란?
 <!-- -->
 Access level on imports was included in Swift 6. If you're using older versions
 of Swift, you need to use

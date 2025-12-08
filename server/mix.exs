@@ -55,7 +55,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.2"},
+      {:bandit, git: "https://github.com/tuist/bandit", branch: "skip-body-drain-on-connection-close", override: true},
       {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.15.0"},
       {:appsignal_phoenix, "~> 2.5"},
@@ -130,7 +130,7 @@ defmodule Tuist.MixProject do
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
-      {:ecto_ch, "~> 0.7"},
+      {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.45.0"},
