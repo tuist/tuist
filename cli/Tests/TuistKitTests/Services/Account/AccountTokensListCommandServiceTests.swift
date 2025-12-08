@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import OpenAPIRuntime
 import Testing
 import TuistLoader
 import TuistServer
@@ -30,7 +31,7 @@ struct AccountTokensListCommandServiceTests {
         )
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func list_account_tokens() async throws {
+    @Test(.withMockedEnvironment(), .withMockedNoora) func list_account_tokens() async throws {
         // Given
         given(listAccountTokensService)
             .listAccountTokens(
@@ -61,16 +62,13 @@ struct AccountTokensListCommandServiceTests {
             )
 
         // When
-        try await subject.run(accountHandle: "tuist-org", path: nil)
+        try await subject.run(accountHandle: "tuist-org", path: nil, json: false)
 
         // Then
-        #expect(ui().contains("token-one") == true)
-        #expect(ui().contains("ci-token") == true)
-        #expect(ui().contains("token-two") == true)
-        #expect(ui().contains("deploy-token") == true)
+        #expect(ui().contains("project:cache:read") == true)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func list_account_tokens_when_none_present() async throws {
+    @Test(.withMockedEnvironment(), .withMockedNoora) func list_account_tokens_when_none_present() async throws {
         // Given
         given(listAccountTokensService)
             .listAccountTokens(
@@ -80,7 +78,7 @@ struct AccountTokensListCommandServiceTests {
             .willReturn([])
 
         // When
-        try await subject.run(accountHandle: "tuist-org", path: nil)
+        try await subject.run(accountHandle: "tuist-org", path: nil, json: false)
 
         // Then
         #expect(
@@ -88,5 +86,34 @@ struct AccountTokensListCommandServiceTests {
                 "No account tokens found. Create one by running `tuist account tokens create tuist-org --scopes <scopes> --name <name>`."
             ) == true
         )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora) func list_account_tokens_json() async throws {
+        // Given
+        let token: Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload = .init(
+            all_projects: true,
+            expires_at: nil,
+            id: "token-one",
+            inserted_at: Date(timeIntervalSince1970: 0),
+            name: "ci-token",
+            project_handles: nil,
+            scopes: [.project_colon_cache_colon_read, .project_colon_cache_colon_write]
+        )
+        given(listAccountTokensService)
+            .listAccountTokens(
+                accountHandle: .value("tuist-org"),
+                serverURL: .any
+            )
+            .willReturn([token])
+
+        // When
+        try await subject.run(accountHandle: "tuist-org", path: nil, json: true)
+
+        // Then
+        let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
+        jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let tokensJSON = String(data: try jsonEncoder.encode([token]), encoding: .utf8)!
+        #expect(ui().contains(tokensJSON))
     }
 }

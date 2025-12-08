@@ -30,7 +30,7 @@ struct AccountTokensCreateCommandServiceTests {
         )
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies(), .withMockedLogger()) func create_account_token() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .withMockedNoora) func create_account_token() async throws {
         // Given
         given(createAccountTokenService)
             .createAccountToken(
@@ -56,13 +56,13 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(Logger.testingLogHandler.collected[.info, ==].contains("generated-token-value") == true)
+        #expect(ui().contains("generated-token-value") == true)
     }
 
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies(),
-        .withMockedLogger()
+        .withMockedNoora
     ) func create_account_token_with_expiration() async throws {
         // Given
         given(createAccountTokenService)
@@ -89,13 +89,13 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(Logger.testingLogHandler.collected[.info, ==].contains("expiring-token") == true)
+        #expect(ui().contains("expiring-token") == true)
     }
 
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies(),
-        .withMockedLogger()
+        .withMockedNoora
     ) func create_account_token_with_specific_projects() async throws {
         // Given
         given(createAccountTokenService)
@@ -122,7 +122,7 @@ struct AccountTokensCreateCommandServiceTests {
         )
 
         // Then
-        #expect(Logger.testingLogHandler.collected[.info, ==].contains("project-specific-token") == true)
+        #expect(ui().contains("project-specific-token") == true)
     }
 
     @Test(

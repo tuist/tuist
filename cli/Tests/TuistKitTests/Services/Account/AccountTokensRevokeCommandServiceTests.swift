@@ -30,7 +30,7 @@ struct AccountTokensRevokeCommandServiceTests {
         )
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func revoke_account_token() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .withMockedNoora) func revoke_account_token() async throws {
         // Given
         given(revokeAccountTokenService)
             .revokeAccountToken(

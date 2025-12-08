@@ -25,10 +25,17 @@ struct AccountTokensListCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: .long,
+        help: "Output the result as JSON."
+    )
+    var json: Bool = false
+
     func run() async throws {
         try await AccountTokensListCommandService().run(
             accountHandle: accountHandle,
-            path: path
+            path: path,
+            json: json
         )
     }
 }

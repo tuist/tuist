@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistLoader
 import TuistServer
@@ -21,7 +22,8 @@ struct AccountTokensListCommandService {
 
     func run(
         accountHandle: String,
-        path: String?
+        path: String?,
+        json: Bool
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
@@ -32,30 +34,40 @@ struct AccountTokensListCommandService {
             serverURL: serverURL
         )
 
-        if tokens.isEmpty {
-            Logger.current
-                .notice(
-                    "No account tokens found. Create one by running `tuist account tokens create \(accountHandle) --scopes <scopes> --name <name>`."
-                )
-        } else {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .medium
-            dateFormatter.timeStyle = .short
-
-            let textTable = TextTable<Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload> {
-                [
-                    TextTable.Column(title: "ID", value: $0.id),
-                    TextTable.Column(title: "Name", value: $0.name ?? "-"),
-                    TextTable.Column(title: "Scopes", value: $0.scopes.map(\.rawValue).joined(separator: ", ")),
-                    TextTable.Column(
-                        title: "Projects",
-                        value: $0.all_projects ? "All" : ($0.project_handles ?? []).joined(separator: ", ")
-                    ),
-                    TextTable.Column(title: "Expires", value: $0.expires_at.map { dateFormatter.string(from: $0) } ?? "Never"),
-                    TextTable.Column(title: "Created", value: dateFormatter.string(from: $0.inserted_at)),
-                ]
-            }
-            Logger.current.notice("\(textTable.render(tokens))")
+        if json {
+            try Noora.current.json(tokens)
+            return
         }
+
+        if tokens.isEmpty {
+            Noora.current.passthrough(
+                "No account tokens found. Create one by running `tuist account tokens create \(accountHandle) --scopes <scopes> --name <name>`."
+            )
+            return
+        }
+
+        try Noora.current.paginatedTable(
+            TableData(
+                columns: [
+                    TableColumn(title: "ID", width: .auto),
+                    TableColumn(title: "Name", width: .auto),
+                    TableColumn(title: "Scopes", width: .auto),
+                    TableColumn(title: "Projects", width: .auto),
+                    TableColumn(title: "Expires", width: .auto),
+                    TableColumn(title: "Created", width: .auto),
+                ],
+                rows: tokens.map { token in
+                    [
+                        "\(token.id)",
+                        "\(token.name ?? "-")",
+                        "\(token.scopes.map(\.rawValue).joined(separator: ", "))",
+                        "\(token.all_projects ? "All" : (token.project_handles ?? []).joined(separator: ", "))",
+                        "\(token.expires_at.map { Formatters.formatDate($0) } ?? "Never")",
+                        "\(Formatters.formatDate(token.inserted_at))",
+                    ]
+                }
+            ),
+            pageSize: 10
+        )
     }
 }

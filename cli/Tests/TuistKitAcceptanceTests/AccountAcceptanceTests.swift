@@ -72,7 +72,7 @@ struct AccountAcceptanceTests {
         )
 
         // Then: The token is in the list
-        TuistTest.expectLogs(tokenName)
+        #expect(ui().contains(tokenName))
 
         // When: Revoke the token
         try await TuistTest.run(
@@ -83,7 +83,7 @@ struct AccountAcceptanceTests {
         // Then: Success message is shown
         TuistTest.expectLogs("The account token '\(tokenName)' was successfully revoked.")
 
-        Logger.testingLogHandler.flush()
+        resetUI()
 
         // When: List account tokens again
         try await TuistTest.run(
@@ -92,8 +92,6 @@ struct AccountAcceptanceTests {
         )
 
         // Then: The token is no longer in the list (either empty or doesn't contain the token name)
-        let finalLogs = Logger.testingLogHandler.collected[.notice, ==]
-        let tokenStillExists = finalLogs.contains(tokenName)
-        #expect(tokenStillExists == false)
+        #expect(ui().contains(tokenName) == false)
     }
 }

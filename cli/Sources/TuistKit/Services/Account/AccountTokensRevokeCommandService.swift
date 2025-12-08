@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistLoader
 import TuistServer
@@ -34,6 +35,6 @@ struct AccountTokensRevokeCommandService {
             serverURL: serverURL
         )
 
-        Logger.current.info("The account token '\(tokenName)' was successfully revoked.")
+        Noora.current.success("The account token '\(tokenName)' was successfully revoked.")
     }
 }

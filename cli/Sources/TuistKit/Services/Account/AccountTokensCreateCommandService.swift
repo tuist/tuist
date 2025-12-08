@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistLoader
 import TuistServer
@@ -60,7 +61,7 @@ struct AccountTokensCreateCommandService {
             serverURL: serverURL
         )
 
-        Logger.current.info(.init(stringLiteral: result.token))
+        Noora.current.info(.init(stringLiteral: result.token))
     }
 
     private func parseExpiresDuration(_ duration: String) throws -> Date {
