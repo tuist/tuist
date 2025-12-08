@@ -3061,12 +3061,6 @@ components:
     CreateAccountToken:
       description: The request to create a new account token.
       properties:
-        all_projects:
-          default: true
-          description: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
-          type: boolean
-          x-struct:
-          x-validate:
         expires_at:
           description: Optional expiration datetime (ISO8601). If not set, the token never expires.
           format: date-time
@@ -3079,7 +3073,7 @@ components:
           x-struct:
           x-validate:
         project_handles:
-          description: List of project handles to restrict access to. Only used when all_projects is false.
+          description: List of project handles to restrict access to. If not provided, the token has access to all projects.
           items:
             type: string
             x-struct:
@@ -4104,14 +4098,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4120,20 +4106,28 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: Filter bundles by git branch.
@@ -5865,12 +5859,6 @@ paths:
             schema:
               description: The request to create a new account token.
               properties:
-                all_projects:
-                  default: true
-                  description: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
-                  type: boolean
-                  x-struct:
-                  x-validate:
                 expires_at:
                   description: Optional expiration datetime (ISO8601). If not set, the token never expires.
                   format: date-time
@@ -5883,7 +5871,7 @@ paths:
                   x-struct:
                   x-validate:
                 project_handles:
-                  description: List of project handles to restrict access to. Only used when all_projects is false.
+                  description: List of project handles to restrict access to. If not provided, the token has access to all projects.
                   items:
                     type: string
                     x-struct:

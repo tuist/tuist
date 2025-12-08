@@ -36,8 +36,7 @@ struct AccountTokensCreateCommandService {
         scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
         name: String,
         expires: String?,
-        allProjects: Bool,
-        projects: [String],
+        projects: [String]?,
         path: String?
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -56,7 +55,6 @@ struct AccountTokensCreateCommandService {
             scopes: scopes,
             name: name,
             expiresAt: expiresAt,
-            allProjects: allProjects,
             projectHandles: projects,
             serverURL: serverURL
         )

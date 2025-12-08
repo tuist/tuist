@@ -38,8 +38,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .value([.project_colon_cache_colon_read, .project_colon_cache_colon_write]),
                 name: .value("ci-token"),
                 expiresAt: .any,
-                allProjects: .value(true),
-                projectHandles: .value([]),
+                projectHandles: .value(nil),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "generated-token-value"))
@@ -50,8 +49,7 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_cache_colon_read, .project_colon_cache_colon_write],
             name: "ci-token",
             expires: nil,
-            allProjects: true,
-            projects: [],
+            projects: nil,
             path: nil
         )
 
@@ -71,8 +69,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .any,
                 name: .value("temp-token"),
                 expiresAt: .matching { $0 != nil },
-                allProjects: .value(true),
-                projectHandles: .value([]),
+                projectHandles: .value(nil),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "expiring-token"))
@@ -83,8 +80,7 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_cache_colon_read],
             name: "temp-token",
             expires: "30d",
-            allProjects: true,
-            projects: [],
+            projects: nil,
             path: nil
         )
 
@@ -104,7 +100,6 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .any,
                 name: .value("project-token"),
                 expiresAt: .any,
-                allProjects: .value(false),
                 projectHandles: .value(["project-a", "project-b"]),
                 serverURL: .any
             )
@@ -116,7 +111,6 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_previews_colon_write],
             name: "project-token",
             expires: nil,
-            allProjects: false,
             projects: ["project-a", "project-b"],
             path: nil
         )
@@ -136,8 +130,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: [.project_colon_cache_colon_read],
                 name: "test-token",
                 expires: "invalid",
-                allProjects: true,
-                projects: [],
+                projects: nil,
                 path: nil
             )
         }
@@ -155,8 +148,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .value([.project_colon_cache_colon_read]),
                 name: .value("test-token"),
                 expiresAt: .matching { $0 != nil },
-                allProjects: .value(true),
-                projectHandles: .value([]),
+                projectHandles: .value(nil),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -167,8 +159,7 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_cache_colon_read],
             name: "test-token",
             expires: "30d",
-            allProjects: true,
-            projects: [],
+            projects: nil,
             path: nil
         )
 
@@ -184,7 +175,6 @@ struct AccountTokensCreateCommandServiceTests {
                     let days = calendar.dateComponents([.day], from: Date(), to: date).day ?? 0
                     return days >= 29 && days <= 31
                 },
-                allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any
             )
@@ -203,8 +193,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .value([.project_colon_cache_colon_read]),
                 name: .value("test-token"),
                 expiresAt: .matching { $0 != nil },
-                allProjects: .value(true),
-                projectHandles: .value([]),
+                projectHandles: .value(nil),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -215,8 +204,7 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_cache_colon_read],
             name: "test-token",
             expires: "6m",
-            allProjects: true,
-            projects: [],
+            projects: nil,
             path: nil
         )
 
@@ -232,7 +220,6 @@ struct AccountTokensCreateCommandServiceTests {
                     let months = calendar.dateComponents([.month], from: Date(), to: date).month ?? 0
                     return months >= 5 && months <= 7
                 },
-                allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any
             )
@@ -251,8 +238,7 @@ struct AccountTokensCreateCommandServiceTests {
                 scopes: .value([.project_colon_cache_colon_read]),
                 name: .value("test-token"),
                 expiresAt: .matching { $0 != nil },
-                allProjects: .value(true),
-                projectHandles: .value([]),
+                projectHandles: .value(nil),
                 serverURL: .any
             )
             .willReturn(.init(id: "token-id", token: "token"))
@@ -263,8 +249,7 @@ struct AccountTokensCreateCommandServiceTests {
             scopes: [.project_colon_cache_colon_read],
             name: "test-token",
             expires: "1y",
-            allProjects: true,
-            projects: [],
+            projects: nil,
             path: nil
         )
 
@@ -280,7 +265,6 @@ struct AccountTokensCreateCommandServiceTests {
                     let days = calendar.dateComponents([.day], from: Date(), to: date).day ?? 0
                     return days == 364
                 },
-                allProjects: .any,
                 projectHandles: .any,
                 serverURL: .any
             )

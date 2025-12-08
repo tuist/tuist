@@ -45,7 +45,7 @@ For more fine-grained control over permissions in CI environments, you can use a
 
 ```bash
 tuist account tokens create my-account \
-  --scopes project:cache:read,project:cache:write \
+  --scopes project:cache:read project:cache:write \
   --name ci-cache-token \
   --expires 1y \
   --all-projects
@@ -58,8 +58,7 @@ The command accepts the following options:
 | `--scopes` | Required. Comma-separated list of scopes to grant the token. |
 | `--name` | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only). |
 | `--expires` | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
-| `--all-projects` | Grant the token access to all projects in the account. |
-| `--projects` | Limit the token to specific project handles (only used when `--all-projects` is not set). |
+| `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified. |
 
 ### Available scopes {#available-scopes}
 

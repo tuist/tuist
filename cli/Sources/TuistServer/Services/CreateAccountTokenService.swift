@@ -9,8 +9,7 @@ public protocol CreateAccountTokenServicing {
         scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
         name: String,
         expiresAt: Date?,
-        allProjects: Bool,
-        projectHandles: [String],
+        projectHandles: [String]?,
         serverURL: URL
     ) async throws -> Operations.createAccountToken.Output.Ok.Body.jsonPayload
 }
@@ -40,8 +39,7 @@ public final class CreateAccountTokenService: CreateAccountTokenServicing {
         scopes: [Components.Schemas.CreateAccountToken.scopesPayloadPayload],
         name: String,
         expiresAt: Date?,
-        allProjects: Bool,
-        projectHandles: [String],
+        projectHandles: [String]?,
         serverURL: URL
     ) async throws -> Operations.createAccountToken.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
@@ -54,7 +52,6 @@ public final class CreateAccountTokenService: CreateAccountTokenServicing {
             .init(
                 path: .init(account_handle: accountHandle),
                 body: .json(.init(
-                    all_projects: allProjects,
                     expires_at: expiresAt,
                     name: name,
                     project_handles: projectHandles,

@@ -42,17 +42,11 @@ struct AccountTokensCreateCommand: AsyncParsableCommand {
     )
     var expires: String?
 
-    @Flag(
-        name: .long,
-        help: "Grant the token access to all projects in the account."
-    )
-    var allProjects: Bool = false
-
     @Option(
         name: .long,
         parsing: .upToNextOption,
         help:
-        "The project handles to grant the token access to. Only used when --all-projects is not set.",
+        "The project handles to grant the token access to. If not provided, the token has access to all projects.",
         envKey: .accountTokensProjects
     )
     var projects: [String] = []
@@ -71,8 +65,7 @@ struct AccountTokensCreateCommand: AsyncParsableCommand {
             scopes: scopes,
             name: name,
             expires: expires,
-            allProjects: allProjects,
-            projects: projects,
+            projects: projects.isEmpty ? nil : projects,
             path: path
         )
     }

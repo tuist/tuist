@@ -139,7 +139,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert response["message"] =~ "not authorized"
     end
 
-    test "creates token with project restrictions when all_projects is false", %{conn: conn} do
+    test "creates token with project restrictions when project_handles is provided", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account: user.account)
@@ -153,7 +153,6 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         |> post("/api/accounts/#{user.account.name}/tokens", %{
           scopes: ["project:cache:read"],
           name: "restricted-token",
-          all_projects: false,
           project_handles: [project.name]
         })
 
@@ -163,6 +162,28 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert token.all_projects == false
       assert length(token.projects) == 1
       assert hd(token.projects).id == project.id
+    end
+
+    test "creates token with all_projects true when project_handles is not provided", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/accounts/#{user.account.name}/tokens", %{
+          scopes: ["project:cache:read"],
+          name: "all-projects-token"
+        })
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, token} = Accounts.account_token(response["token"], preload: [:projects])
+      assert token.all_projects == true
+      assert token.projects == []
     end
   end
 

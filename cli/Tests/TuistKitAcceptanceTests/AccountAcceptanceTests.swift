@@ -57,7 +57,6 @@ struct AccountAcceptanceTests {
                 "--path", fixtureDirectory.pathString,
                 "--scopes", "project:cache:read",
                 "--name", tokenName,
-                "--all-projects",
             ]
         )
 

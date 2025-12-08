@@ -161,8 +161,7 @@ struct RegistryLoginCommandService {
             scopes: [.account_colon_registry_colon_read],
             name: "registry-login",
             expiresAt: nil,
-            allProjects: true,
-            projectHandles: [],
+            projectHandles: nil,
             serverURL: serverURL
         )
         try await swiftPackageManagerController.packageRegistryLogin(

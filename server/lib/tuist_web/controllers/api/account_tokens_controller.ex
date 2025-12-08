@@ -60,16 +60,11 @@ defmodule TuistWeb.API.AccountTokensController do
              format: "date-time",
              description: "Optional expiration datetime (ISO8601). If not set, the token never expires."
            },
-           all_projects: %Schema{
-             type: :boolean,
-             description:
-               "When true, token has access to all projects. When false, use project_handles to specify access. Defaults to false.",
-             default: false
-           },
            project_handles: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             description: "List of project handles to restrict access to. Only used when all_projects is false."
+             description:
+               "List of project handles to restrict access to. If not provided, the token has access to all projects."
            }
          },
          required: [:scopes, :name]
@@ -112,8 +107,8 @@ defmodule TuistWeb.API.AccountTokensController do
     current_user = Authentication.current_user(conn)
     name = Map.get(body_params, :name)
     expires_at = Map.get(body_params, :expires_at)
-    all_projects = Map.get(body_params, :all_projects, false)
     project_handles = Map.get(body_params, :project_handles, [])
+    all_projects = project_handles == []
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
          {:ok, projects} <- Projects.get_projects_by_handles_for_account(selected_account, project_handles) do

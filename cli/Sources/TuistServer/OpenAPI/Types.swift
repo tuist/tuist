@@ -5973,10 +5973,6 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CreateAccountToken`.
         public struct CreateAccountToken: Codable, Hashable, Sendable {
-            /// When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/all_projects`.
-            public var all_projects: Swift.Bool?
             /// Optional expiration datetime (ISO8601). If not set, the token never expires.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/expires_at`.
@@ -5985,7 +5981,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/name`.
             public var name: Swift.String
-            /// List of project handles to restrict access to. Only used when all_projects is false.
+            /// List of project handles to restrict access to. If not provided, the token has access to all projects.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/project_handles`.
             public var project_handles: [Swift.String]?
@@ -6021,26 +6017,22 @@ public enum Components {
             /// Creates a new `CreateAccountToken`.
             ///
             /// - Parameters:
-            ///   - all_projects: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
             ///   - expires_at: Optional expiration datetime (ISO8601). If not set, the token never expires.
             ///   - name: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
-            ///   - project_handles: List of project handles to restrict access to. Only used when all_projects is false.
+            ///   - project_handles: List of project handles to restrict access to. If not provided, the token has access to all projects.
             ///   - scopes: The scopes for the new account token.
             public init(
-                all_projects: Swift.Bool? = nil,
                 expires_at: Foundation.Date? = nil,
                 name: Swift.String,
                 project_handles: [Swift.String]? = nil,
                 scopes: Components.Schemas.CreateAccountToken.scopesPayload
             ) {
-                self.all_projects = all_projects
                 self.expires_at = expires_at
                 self.name = name
                 self.project_handles = project_handles
                 self.scopes = scopes
             }
             public enum CodingKeys: String, CodingKey {
-                case all_projects
                 case expires_at
                 case name
                 case project_handles
@@ -17066,10 +17058,6 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/all_projects`.
-                    public var all_projects: Swift.Bool?
                     /// Optional expiration datetime (ISO8601). If not set, the token never expires.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/expires_at`.
@@ -17078,7 +17066,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/name`.
                     public var name: Swift.String
-                    /// List of project handles to restrict access to. Only used when all_projects is false.
+                    /// List of project handles to restrict access to. If not provided, the token has access to all projects.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/project_handles`.
                     public var project_handles: [Swift.String]?
@@ -17114,26 +17102,22 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - all_projects: When true, token has access to all projects. When false, use project_handles to specify access. Defaults to true.
                     ///   - expires_at: Optional expiration datetime (ISO8601). If not set, the token never expires.
                     ///   - name: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
-                    ///   - project_handles: List of project handles to restrict access to. Only used when all_projects is false.
+                    ///   - project_handles: List of project handles to restrict access to. If not provided, the token has access to all projects.
                     ///   - scopes: The scopes for the new account token.
                     public init(
-                        all_projects: Swift.Bool? = nil,
                         expires_at: Foundation.Date? = nil,
                         name: Swift.String,
                         project_handles: [Swift.String]? = nil,
                         scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload
                     ) {
-                        self.all_projects = all_projects
                         self.expires_at = expires_at
                         self.name = name
                         self.project_handles = project_handles
                         self.scopes = scopes
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case all_projects
                         case expires_at
                         case name
                         case project_handles

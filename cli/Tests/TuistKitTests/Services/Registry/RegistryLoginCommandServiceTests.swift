@@ -61,7 +61,6 @@ struct RegistryLoginCommandServiceTests {
                     scopes: .any,
                     name: .any,
                     expiresAt: .any,
-                    allProjects: .any,
                     projectHandles: .any,
                     serverURL: .any
                 )
