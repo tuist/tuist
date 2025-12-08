@@ -8,11 +8,12 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# A virtual platform team for developers who ship
+# Ürün geliştiriciler için sanal bir platform ekibi
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building
-apps** – transforming Apple platform development from frustrating complexity
-into a smooth, productive experience that grows with your team.
+**Tuist, ekiplerin ölçeklenmesine ve uygulama geliştirmeye odaklanmasına
+yardımcı olmak için Apple’ın araç takımını genişletir** – Apple platformlarında
+geliştirmeyi yorucu bir karmaşadan, ekibinizle birlikte büyüyen akıcı ve verimli
+bir deneyime dönüştürür.
 
 <br/>
 
@@ -65,7 +66,7 @@ into a smooth, productive experience that grows with your team.
         link="/guides/features/registry"/>
 </HomeCards>
 
-## Join thousands of developers who've made the switch
+## Geçiş yapan binlerce yazılımcının arasına katılın
 
 **Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
 [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
