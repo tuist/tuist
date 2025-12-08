@@ -16,7 +16,6 @@ config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
-  transport_opts: [keepalive: true],
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0]
@@ -28,7 +27,6 @@ config :tuist, Tuist.IngestRepo,
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
   pool_size: 5,
-  transport_opts: [keepalive: true],
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0]

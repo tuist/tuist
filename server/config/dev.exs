@@ -19,8 +19,7 @@ config :phoenix_live_view, :debug_heex_annotations, true
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_development",
-  transport_opts: [keepalive: true]
+  database: "tuist_development"
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -29,8 +28,7 @@ config :tuist, Tuist.IngestRepo,
   flush_interval_ms: 5000,
   # Bytes
   max_buffer_size: 100_000,
-  pool_size: 5,
-  transport_opts: [keepalive: true]
+  pool_size: 5
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
