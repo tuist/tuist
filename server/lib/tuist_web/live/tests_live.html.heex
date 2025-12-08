@@ -60,6 +60,7 @@
         phx_value_widget="test_run_count"
         selected={@analytics_selected_widget == "test_run_count"}
         trend_value={@test_runs_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={@test_runs_analytics.count == 0}
       />
@@ -73,7 +74,7 @@
         phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
         trend_value={@failed_test_runs_analytics.trend}
-        trend_inverse={true}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@failed_test_runs_analytics.count == 0}
       />
@@ -134,7 +135,7 @@
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
         trend_value={@test_runs_duration_analytics.trend}
-        trend_inverse={true}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@test_runs_duration_analytics.total_average_duration == 0}
       />
@@ -684,6 +685,11 @@
             :if={test_run.status == "failure"}
             label={gettext("Failed")}
             status="error"
+          />
+          <.status_badge_cell
+            :if={test_run.status == "skipped"}
+            label={gettext("Skipped")}
+            status="warning"
           />
         </:col>
         <:col :let={test_run} label={gettext("Branch")}>

@@ -23,7 +23,7 @@ use language to interact with your projects.
 
 In this page you'll learn about how to set it up and its capabilities.
 
-::: info
+::: info Mise란?
 <!-- -->
 Tuist MCP server uses Xcode's most-recent projects as the source of truth for
 projects you want to interact with.

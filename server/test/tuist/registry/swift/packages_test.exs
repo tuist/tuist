@@ -37,7 +37,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       Packages.delete_package(package)
 
       # Then
-      assert Packages.get_package_by_scope_and_name(%{scope: "Scope", name: "Name"}) == nil
+      assert Packages.get_package_by_scope_and_name(%{scope: "Scope", name: "Name"}) == {:error, :not_found}
     end
   end
 
@@ -75,15 +75,15 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       got = Packages.get_package_by_scope_and_name(%{scope: "Scope", name: "Name"})
 
       # Then
-      assert got == package
+      assert got == {:ok, package}
     end
 
-    test "returns nil when the package does not exist" do
+    test "returns error when the package does not exist" do
       # When
       got = Packages.get_package_by_scope_and_name(%{scope: "Scope", name: "Name"})
 
       # Then
-      assert got == nil
+      assert got == {:error, :not_found}
     end
   end
 

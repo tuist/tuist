@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistAutomation
+import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -88,6 +89,12 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let inspectResultBundleService: InspectResultBundleServicing
+    private let derivedDataLocator: DerivedDataLocating
+    private let createTestService: CreateTestServicing
+    private let machineEnvironment: MachineEnvironmentRetrieving
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let ciController: CIControlling
+    private let clock: Clock
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -116,7 +123,13 @@ final class TestService { // swiftlint:disable:this type_body_length
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
+        createTestService: CreateTestServicing = CreateTestService(),
+        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        ciController: CIControlling = CIController(),
+        clock: Clock = WallClock()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -131,6 +144,12 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.inspectResultBundleService = inspectResultBundleService
+        self.derivedDataLocator = derivedDataLocator
+        self.createTestService = createTestService
+        self.machineEnvironment = machineEnvironment
+        self.serverEnvironmentService = serverEnvironmentService
+        self.ciController = ciController
+        self.clock = clock
     }
 
     static func validateParameters(
@@ -435,6 +454,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist
     ) async throws {
+        let timer = clock.startTimer()
         let graphTraverser = GraphTraverser(graph: graph)
         let testSchemes =
             schemes
@@ -445,14 +465,22 @@ final class TestService { // swiftlint:disable:this type_body_length
                     ).isEmpty
                 }
 
-        guard shouldRunTest(
+        if !shouldRunTest(
             for: schemes,
             testPlanConfiguration: testPlanConfiguration,
             mapperEnvironment: mapperEnvironment,
             graph: graph,
             action: action
-        )
-        else { return }
+        ) {
+            if action != .build {
+                try await uploadSkippedTestSummary(
+                    schemeName: schemes.first?.name,
+                    config: config,
+                    timer: timer
+                )
+            }
+            return
+        }
 
         let uploadCacheStorage: CacheStoring
         if noUpload {
@@ -839,6 +867,15 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let projectDerivedDataDirectory: AbsolutePath?
+        if let derivedDataPath {
+            projectDerivedDataDirectory = derivedDataPath
+        } else {
+            projectDerivedDataDirectory = try? await derivedDataLocator.locate(
+                for: graphTraverser.workspace.xcWorkspacePath
+            )
+        }
+
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -862,18 +899,18 @@ final class TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
-            try? await inspectResultBundleIfNeeded(
+            await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
             )
             throw error
         }
 
-        try await inspectResultBundleIfNeeded(
+        await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
-            derivedDataPath: derivedDataPath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action
         )
@@ -881,19 +918,23 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
-        derivedDataPath: AbsolutePath?,
+        projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction
-    ) async throws {
+    ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
-              try await fileSystem.exists(resultBundlePath)
+              (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
 
-        _ = try await inspectResultBundleService.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
-            projectDerivedDataDirectory: derivedDataPath,
-            config: config
-        )
+        do {
+            _ = try await inspectResultBundleService.inspectResultBundle(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                config: config
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
     }
 
     private func destination(
@@ -938,5 +979,51 @@ final class TestService { // swiftlint:disable:this type_body_length
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }
+    }
+
+    private func uploadSkippedTestSummary(
+        schemeName: String?,
+        config: Tuist,
+        timer: any ClockTimer
+    ) async throws {
+        guard let fullHandle = config.fullHandle else { return }
+
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let rootDirectory = try await rootDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+
+        let durationInMs = Int(timer.stop() * 1000)
+
+        let testSummary = TestSummary(
+            testPlanName: schemeName,
+            status: .passed,
+            duration: durationInMs,
+            testModules: []
+        )
+
+        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let ciInfo = ciController.ciInfo()
+
+        let test = try await createTestService.createTest(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            testSummary: testSummary,
+            buildRunId: nil,
+            gitBranch: gitInfo.branch,
+            gitCommitSHA: gitInfo.sha,
+            gitRef: gitInfo.ref,
+            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            isCI: Environment.current.isCI,
+            modelIdentifier: machineEnvironment.modelIdentifier(),
+            macOSVersion: machineEnvironment.macOSVersion,
+            xcodeVersion: try await xcodebuildController.version()?.description,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider
+        )
+
+        await RunMetadataStorage.current.update(testRunId: test.id)
     }
 }

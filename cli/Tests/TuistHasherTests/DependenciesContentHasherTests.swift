@@ -58,7 +58,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "target-foo-hash")
+        XCTAssertEqual(hash, "target-foo-hash-hash")
     }
 
     func test_hash_whenDependencyIsTarget_throwsWhenTheDependencyHasntBeenHashed() async throws {
@@ -93,7 +93,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "project-file-hashed-foo-hash")
+        XCTAssertEqual(hash, "project-file-hashed-foo-hash-hash")
     }
 
     func test_hash_whenDependencyIsProjectWithACondition_returnsTheRightHash() async throws {
@@ -111,7 +111,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "project-file-hashed-foo-hash")
+        XCTAssertEqual(hash, "project-file-hashed-foo-hash-hash")
     }
 
     func test_hash_whenDependencyIsProject_throwsAnErrorIfTheDependencyHashDoesntExist() async throws {
@@ -144,7 +144,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "file-hashed")
+        XCTAssertEqual(hash, "file-hashed-hash")
         verify(contentHasher)
             .hash(path: .any)
             .called(1)
@@ -162,7 +162,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "file-hashed")
+        XCTAssertEqual(hash, "file-hashed-hash")
         verify(contentHasher)
             .hash(path: .any)
             .called(1)
@@ -190,13 +190,13 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-file3-hashed-hash")
+        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-file3-hashed-hash-hash")
         verify(contentHasher)
             .hash(path: .any)
             .called(3)
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() async throws {
@@ -218,13 +218,13 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-hash")
+        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-hash-hash")
         verify(contentHasher)
             .hash(path: .any)
             .called(2)
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_whenDependencyIsPackage_callsContentHasherAsExpected() async throws {
@@ -236,10 +236,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "package-foo-runtime-hash")
+        XCTAssertEqual(hash, "package-foo-runtime-hash-hash")
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_whenDependencyIsOptionalSDK_callsContentHasherAsExpected() async throws {
@@ -251,10 +251,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "sdk-foo-optional-hash")
+        XCTAssertEqual(hash, "sdk-foo-optional-hash-hash")
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_whenDependencyIsRequiredSDK_callsContentHasherAsExpected() async throws {
@@ -266,10 +266,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "sdk-foo-required-hash")
+        XCTAssertEqual(hash, "sdk-foo-required-hash-hash")
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_whenDependencyIsXCTest_callsContentHasherAsExpected() async throws {
@@ -281,10 +281,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "xctest-hash")
+        XCTAssertEqual(hash, "xctest-hash-hash")
         verify(contentHasher)
             .hash(Parameter<String>.any)
-            .called(1)
+            .called(2)
     }
 
     func test_hash_sorts_dependency_hashes() async throws {
@@ -309,6 +309,6 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths).hash
 
         // Then
-        XCTAssertEqual(hash, "target-bar-hashtarget-foo-hash")
+        XCTAssertEqual(hash, "target-bar-hashtarget-foo-hash-hash")
     }
 }

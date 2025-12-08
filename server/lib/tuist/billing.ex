@@ -161,8 +161,20 @@ defmodule Tuist.Billing do
   end
 
   def on_subscription_change(subscription) do
-    account = Accounts.get_account_from_customer_id(subscription.customer)
+    case Accounts.get_account_from_customer_id(subscription.customer) do
+      {:error, :not_found} ->
+        # We had a race-condition that caused multiple customers to be created on Stripe
+        # for the same account. Because of that, we were getting webhooks for customers
+        # that we couldn't look up in our database. Until we sync the customers, we'll
+        # ignore the webhooks for those customers.
+        :ok
 
+      {:ok, account} ->
+        on_subscription_change_for_account(subscription, account)
+    end
+  end
+
+  defp on_subscription_change_for_account(subscription, account) do
     plan = get_plan(subscription)
     current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
@@ -174,13 +186,6 @@ defmodule Tuist.Billing do
       end
 
     cond do
-      is_nil(account) ->
-        # We had a race-condition that caused multiple customers to be created on Stripe
-        # for the same account. Because of that, we were getting webhooks for customers
-        # that we couldn't look up in our database. Until we sync the customers, we'll
-        # ignore the webhooks for those customers.
-        :ok
-
       plan == :none ->
         raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
@@ -539,7 +544,8 @@ defmodule Tuist.Billing do
   for instance unit minutes (event name: `namespace_unit_minute`).
   """
   def update_namespace_usage_meter(customer_id, idempotency_key) do
-    with %Account{} = account when is_binary(account.namespace_tenant_id) <-
+    with {:ok, %Account{namespace_tenant_id: namespace_tenant_id} = account}
+         when is_binary(namespace_tenant_id) <-
            Accounts.get_account_from_customer_id(customer_id) do
       # Namespace compute usage is reported by day, so being more specific than `Date` is unnecessary.
       yesterday = Date.add(Date.utc_today(), -1)

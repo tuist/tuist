@@ -36,6 +36,13 @@ defmodule TuistWeb.BuildRunsLive do
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
+    params =
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
+      end
+
     socket =
       socket
       |> assign(:uri, uri)
@@ -150,14 +157,16 @@ defmodule TuistWeb.BuildRunsLive do
       |> URI.decode_query()
       |> Map.put("build-runs-sort-by", column_value)
       |> Map.put("build-runs-sort-order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -170,7 +179,10 @@ defmodule TuistWeb.BuildRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket

@@ -110,7 +110,7 @@ defmodule TuistWeb.API.RunsController do
         page: page,
         page_size: page_size,
         filters: filters,
-        order_by: [:created_at],
+        order_by: [:ran_at],
         order_directions: [:desc]
       })
 
@@ -561,7 +561,7 @@ defmodule TuistWeb.API.RunsController do
                status: %Schema{
                  type: :string,
                  description: "The status of the test run.",
-                 enum: ["success", "failure"]
+                 enum: ["success", "failure", "skipped"]
                },
                git_commit_sha: %Schema{
                  type: :string,

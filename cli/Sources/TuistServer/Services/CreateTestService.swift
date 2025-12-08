@@ -93,7 +93,7 @@ import OpenAPIURLSession
                 case .failed:
                     .failure
                 case .skipped:
-                    .success
+                    .skipped
                 }
 
             let testModules = testSummary.testModules.map { module in

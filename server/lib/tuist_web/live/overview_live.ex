@@ -69,6 +69,7 @@ defmodule TuistWeb.OverviewLive do
           case run.status do
             "success" -> "var:noora-chart-primary"
             "failure" -> "var:noora-chart-destructive"
+            "skipped" -> "var:noora-chart-warning"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)

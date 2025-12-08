@@ -130,4 +130,64 @@ defmodule TuistWeb.Utilities.QueryTest do
       assert Query.has_pagination_params?("name=%E2%9C%93&limit=10") == true
     end
   end
+
+  describe "clear_cursors/1" do
+    test "removes both after and before cursor params" do
+      params = %{"foo" => "bar", "after" => "cursor123", "before" => "cursor456"}
+      result = Query.clear_cursors(params)
+      assert result == %{"foo" => "bar"}
+      refute Map.has_key?(result, "after")
+      refute Map.has_key?(result, "before")
+    end
+
+    test "removes only after cursor param" do
+      params = %{"foo" => "bar", "after" => "cursor123"}
+      result = Query.clear_cursors(params)
+      assert result == %{"foo" => "bar"}
+      refute Map.has_key?(result, "after")
+    end
+
+    test "removes only before cursor param" do
+      params = %{"foo" => "bar", "before" => "cursor123"}
+      result = Query.clear_cursors(params)
+      assert result == %{"foo" => "bar"}
+      refute Map.has_key?(result, "before")
+    end
+
+    test "handles params with no cursor params" do
+      params = %{"foo" => "bar", "baz" => "qux"}
+      result = Query.clear_cursors(params)
+      assert result == %{"foo" => "bar", "baz" => "qux"}
+    end
+
+    test "handles empty params" do
+      result = Query.clear_cursors(%{})
+      assert result == %{}
+    end
+  end
+
+  describe "has_cursor?/1" do
+    test "returns true when after param present" do
+      assert Query.has_cursor?(%{"after" => "cursor123"}) == true
+      assert Query.has_cursor?(%{"foo" => "bar", "after" => "cursor123"}) == true
+    end
+
+    test "returns true when before param present" do
+      assert Query.has_cursor?(%{"before" => "cursor123"}) == true
+      assert Query.has_cursor?(%{"foo" => "bar", "before" => "cursor123"}) == true
+    end
+
+    test "returns true when both params present" do
+      assert Query.has_cursor?(%{"after" => "abc", "before" => "xyz"}) == true
+    end
+
+    test "returns false when no cursor params present" do
+      assert Query.has_cursor?(%{"foo" => "bar"}) == false
+      assert Query.has_cursor?(%{"limit" => "10", "offset" => "20"}) == false
+    end
+
+    test "returns false for empty params" do
+      assert Query.has_cursor?(%{}) == false
+    end
+  end
 end

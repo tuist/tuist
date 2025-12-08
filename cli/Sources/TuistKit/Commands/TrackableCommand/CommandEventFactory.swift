@@ -33,7 +33,8 @@ public final class CommandEventFactory {
                 $0,
                 graphBinaryBuildDuration: info.graphBinaryBuildDuration,
                 binaryCacheItems: info.binaryCacheItems,
-                selectiveTestingCacheItems: info.selectiveTestingCacheItems
+                selectiveTestingCacheItems: info.selectiveTestingCacheItems,
+                targetContentHashSubhashes: info.targetContentHashSubhashes
             )
         }
 
@@ -68,7 +69,8 @@ public final class CommandEventFactory {
         _ graph: Graph,
         graphBinaryBuildDuration: TimeInterval?,
         binaryCacheItems: [AbsolutePath: [String: CacheItem]],
-        selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+        selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]],
+        targetContentHashSubhashes: [String: TargetContentHashSubhashes]
     ) -> RunGraph {
         let graphProjects = graph.projects.map { project in
             RunProject(
@@ -89,7 +91,8 @@ public final class CommandEventFactory {
                         binaryCacheMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
                             hit: hit,
-                            buildDuration: cacheItem.buildDuration
+                            buildDuration: cacheItem.buildDuration,
+                            subhashes: targetContentHashSubhashes[cacheItem.hash]
                         )
                     } else {
                         binaryCacheMetadata = nil
@@ -115,6 +118,10 @@ public final class CommandEventFactory {
 
                     return RunTarget(
                         name: target.value.name,
+                        product: target.value.product,
+                        bundleId: target.value.bundleId,
+                        productName: target.value.productName,
+                        destinations: target.value.destinations,
                         binaryCacheMetadata: binaryCacheMetadata,
                         selectiveTestingMetadata: selectiveTestingMetadata
                     )
