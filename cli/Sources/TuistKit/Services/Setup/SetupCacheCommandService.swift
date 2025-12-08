@@ -153,7 +153,7 @@ struct SetupCacheCommandService {
         if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
             environmentVariables["TUIST_TOKEN"] = token
         } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-            Logger.current
+            AlertController.current
                 .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
             environmentVariables["TUIST_TOKEN"] = token
         }
