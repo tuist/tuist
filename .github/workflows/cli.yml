@@ -104,7 +104,7 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
