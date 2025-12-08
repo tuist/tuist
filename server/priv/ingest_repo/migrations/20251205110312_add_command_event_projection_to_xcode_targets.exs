@@ -12,10 +12,6 @@ defmodule Tuist.IngestRepo.Migrations.AddCommandEventProjectionToXcodeTargets do
       ORDER BY command_event_id
     )
     """
-
-    # Materialize projection for existing data (runs in background)
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE xcode_targets MATERIALIZE PROJECTION proj_by_command_event"
   end
 
   def down do
