@@ -49,7 +49,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       :get
-      |> build_conn(~p"/api/accounts/#{account.name}/#{project.name}/bundles")
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
       |> assign(:selected_project, project)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
@@ -73,7 +73,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       :get
-      |> build_conn(~p"/api/accounts/#{account.name}/#{project.name}/bundles")
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
       |> assign(:selected_project, project)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
@@ -97,7 +97,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       :get
-      |> build_conn(~p"/api/accounts/#{account.name}/#{project.name}/bundles")
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
       |> assign(:selected_project, project)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       :get
-      |> build_conn(~p"/api/accounts/#{account.name}/#{project.name}/bundles")
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
       |> assign(:selected_project, project)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
@@ -148,7 +148,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       :get
-      |> build_conn(~p"/api/accounts/#{account.name}/#{project.name}/bundles")
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
       |> assign(:selected_project, project)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,

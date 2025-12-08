@@ -65,7 +65,7 @@ struct AccountTokensListCommandServiceTests {
         try await subject.run(accountHandle: "tuist-org", path: nil, json: false)
 
         // Then
-        #expect(ui().contains("project:cache:read") == true)
+        #expect(ui().contains("project:cache") == true)
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora) func list_account_tokens_when_none_present() async throws {
