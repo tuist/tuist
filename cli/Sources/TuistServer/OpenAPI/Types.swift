@@ -5980,7 +5980,7 @@ public enum Components {
             /// Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/name`.
-            public var name: Swift.String
+            public var name: Swift.String?
             /// List of project handles to restrict access to. If not provided, the token has access to all projects.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/project_handles`.
@@ -6023,7 +6023,7 @@ public enum Components {
             ///   - scopes: The scopes for the new account token.
             public init(
                 expires_at: Foundation.Date? = nil,
-                name: Swift.String,
+                name: Swift.String? = nil,
                 project_handles: [Swift.String]? = nil,
                 scopes: Components.Schemas.CreateAccountToken.scopesPayload
             ) {
@@ -17065,7 +17065,7 @@ public enum Operations {
                     /// Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/name`.
-                    public var name: Swift.String
+                    public var name: Swift.String?
                     /// List of project handles to restrict access to. If not provided, the token has access to all projects.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/project_handles`.
@@ -17108,7 +17108,7 @@ public enum Operations {
                     ///   - scopes: The scopes for the new account token.
                     public init(
                         expires_at: Foundation.Date? = nil,
-                        name: Swift.String,
+                        name: Swift.String? = nil,
                         project_handles: [Swift.String]? = nil,
                         scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload
                     ) {

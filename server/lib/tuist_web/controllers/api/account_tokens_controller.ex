@@ -11,6 +11,7 @@ defmodule TuistWeb.API.AccountTokensController do
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.LoaderPlug)
+  plug(TuistWeb.Plugs.LegacyAccountTokenScopesPlug when action == :create)
 
   plug(
     OpenApiSpex.Plug.CastAndValidate,
@@ -67,7 +68,7 @@ defmodule TuistWeb.API.AccountTokensController do
                "List of project handles to restrict access to. If not provided, the token has access to all projects."
            }
          },
-         required: [:scopes, :name]
+         required: [:scopes]
        }},
     responses: %{
       ok: {
@@ -105,7 +106,7 @@ defmodule TuistWeb.API.AccountTokensController do
         _opts
       ) do
     current_user = Authentication.current_user(conn)
-    name = Map.get(body_params, :name)
+    name = Map.get(body_params, :name, generate_token_name())
     expires_at = Map.get(body_params, :expires_at)
     project_handles = Map.get(body_params, :project_handles, [])
     all_projects = project_handles == []
@@ -336,6 +337,11 @@ defmodule TuistWeb.API.AccountTokensController do
       total_count: meta.total_count,
       total_pages: meta.total_pages
     }
+  end
+
+  defp generate_token_name do
+    random_suffix = :rand.bytes(4) |> Base.encode16(case: :lower)
+    "token-#{random_suffix}"
   end
 
   defp format_changeset_errors(changeset) do

@@ -3113,7 +3113,6 @@ components:
           x-validate:
       required:
         - scopes
-        - name
       title: CreateAccountToken
       type: object
       x-struct:
@@ -5911,7 +5910,6 @@ paths:
                   x-validate:
               required:
                 - scopes
-                - name
               title: CreateAccountToken
               type: object
               x-struct:
