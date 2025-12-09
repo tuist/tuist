@@ -41,17 +41,23 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
       {:ok, package} ->
         case Packages.get_package_release_by_version(%{package: package, version: Packages.semantic_version(version)}) do
           nil ->
-            Packages.create_package_release(%{
-              package: package,
-              version: version,
-              token: Environment.github_token_update_package_releases()
-            })
+            case Packages.create_package_release(%{
+                   package: package,
+                   version: version,
+                   token: Environment.github_token_update_package_releases()
+                 }) do
+              {:error, reason} ->
+                Logger.error("Failed to create package release for #{scope}/#{name}@#{version}: #{reason}")
+                {:error, reason}
+
+              _package_release ->
+                :ok
+            end
 
           _existing_release ->
             Logger.info("Package release #{scope}/#{name}@#{version} already exists, skipping")
+            :ok
         end
-
-        :ok
     end
   rescue
     error ->

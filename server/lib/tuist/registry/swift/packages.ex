@@ -158,24 +158,58 @@ defmodule Tuist.Registry.Swift.Packages do
         version: version,
         token: token
       }) do
-    {:ok, source_archive_path} =
-      VCS.get_source_archive_by_tag_and_repository_full_handle(%{
-        provider: :github,
-        repository_full_handle: repository_full_handle,
-        tag: version,
-        token: token
-      })
-
     {:ok, source_archive_directory} = Briefly.create(type: :directory)
 
-    System.cmd(
-      "unzip",
-      [source_archive_path, "-d", source_archive_directory]
-    )
+    source_result =
+      if has_submodules?(%{repository_full_handle: repository_full_handle, token: token, tag: version}) do
+        Logger.info("Using git clone with submodules for #{repository_full_handle}@#{version}")
+        repo_name = repository_full_handle |> String.split("/") |> List.last()
+        clone_dest = Path.join(source_archive_directory, "#{repo_name}-#{String.replace(version, "/", "-")}")
 
-    [source_directory] = File.ls!(source_archive_directory)
+        clone_with_submodules(%{
+          repository_full_handle: repository_full_handle,
+          tag: version,
+          token: token,
+          destination: clone_dest
+        })
+      else
+        get_source_from_zipball(%{
+          repository_full_handle: repository_full_handle,
+          tag: version,
+          token: token,
+          temp_dir: source_archive_directory
+        })
+      end
 
-    new_source_archive_directory = "#{source_archive_directory}/source_archive.zip"
+    case source_result do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, source_directory} ->
+        create_package_release_from_source(%{
+          package: package,
+          package_id: package_id,
+          scope: scope,
+          name: name,
+          version: version,
+          token: token,
+          source_archive_directory: source_archive_directory,
+          source_directory: source_directory
+        })
+    end
+  end
+
+  defp create_package_release_from_source(%{
+         package: package,
+         package_id: package_id,
+         scope: scope,
+         name: name,
+         version: version,
+         token: token,
+         source_archive_directory: source_archive_directory,
+         source_directory: source_directory
+       }) do
+    new_source_archive_path = "#{source_archive_directory}/source_archive.zip"
 
     {_, 0} =
       System.cmd(
@@ -183,13 +217,13 @@ defmodule Tuist.Registry.Swift.Packages do
         [
           "--symlinks",
           "-r",
-          new_source_archive_directory,
-          source_directory
+          new_source_archive_path,
+          Path.basename(source_directory)
         ],
         cd: source_archive_directory
       )
 
-    data = File.read!(new_source_archive_directory)
+    data = File.read!(new_source_archive_path)
 
     object_key =
       package_object_key(%{scope: scope, name: name},
@@ -224,6 +258,80 @@ defmodule Tuist.Registry.Swift.Packages do
     })
 
     package_release
+  end
+
+  defp has_submodules?(%{repository_full_handle: repository_full_handle, token: token, tag: tag}) do
+    case VCS.get_repository_content(
+           %{repository_full_handle: repository_full_handle, provider: :github, token: token},
+           reference: tag,
+           path: ".gitmodules"
+         ) do
+      {:ok, %Content{content: content}} when is_binary(content) and content != "" -> true
+      _ -> false
+    end
+  end
+
+  defp clone_with_submodules(%{
+         repository_full_handle: repository_full_handle,
+         tag: tag,
+         token: token,
+         destination: destination
+       }) do
+    clone_url = "https://#{token}@github.com/#{repository_full_handle}.git"
+
+    case System.cmd(
+           "git",
+           [
+             "clone",
+             "--depth",
+             "1",
+             "--branch",
+             tag,
+             "--recurse-submodules",
+             "--shallow-submodules",
+             clone_url,
+             destination
+           ],
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        remove_git_metadata(destination)
+        {:ok, destination}
+
+      {output, code} ->
+        Logger.warning("Git clone failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}")
+        {:error, "Git clone failed (exit #{code}): #{output}"}
+    end
+  end
+
+  defp remove_git_metadata(directory) do
+    directory
+    |> Path.join("**/.git")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.each(&File.rm_rf!/1)
+
+    gitmodules_path = Path.join(directory, ".gitmodules")
+    if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
+  end
+
+  defp get_source_from_zipball(%{
+         repository_full_handle: repository_full_handle,
+         tag: tag,
+         token: token,
+         temp_dir: temp_dir
+       }) do
+    {:ok, source_archive_path} =
+      VCS.get_source_archive_by_tag_and_repository_full_handle(%{
+        provider: :github,
+        repository_full_handle: repository_full_handle,
+        tag: tag,
+        token: token
+      })
+
+    System.cmd("unzip", [source_archive_path, "-d", temp_dir])
+
+    [source_directory] = File.ls!(temp_dir)
+    {:ok, Path.join(temp_dir, source_directory)}
   end
 
   defp create_package_manifests(%{

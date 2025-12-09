@@ -6,6 +6,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
@@ -513,6 +514,157 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       # Then
       assert package_download_event.package_release_id == package_release.id
       assert package_download_event.account_id == account.id
+    end
+  end
+
+  describe "create_package_release/1" do
+    setup do
+      stub(Storage, :put_object, fn _object_key, _content, _actor -> :ok end)
+      {:ok, temp_dir} = Briefly.create(type: :directory)
+      {:ok, temp_dir: temp_dir}
+    end
+
+    test "uses zipball for packages without submodules", %{temp_dir: temp_dir} do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "TestScope",
+          name: "TestName",
+          repository_full_handle: "TestScope/TestName"
+        )
+
+      # Create the directory structure that unzip would create
+      source_dir = Path.join(temp_dir, "TestName-1.0.0")
+      File.mkdir_p!(source_dir)
+      File.write!(Path.join(source_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
+
+      stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
+        _, [reference: "1.0.0", path: "Package.swift"] ->
+          {:ok, %Content{content: "// swift-tools-version:5.9\ncontent", path: "Package.swift"}}
+
+        _, [reference: "1.0.0"] ->
+          {:ok, [%Content{content: nil, path: "Package.swift"}]}
+      end)
+
+      stub(VCS, :get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      stub(Briefly, :create, fn [type: :directory] ->
+        {:ok, temp_dir}
+      end)
+
+      stub(System, :cmd, fn
+        "unzip", ["/tmp/source_archive.zip", "-d", ^temp_dir] ->
+          {"", 0}
+      end)
+
+      # When
+      package_release =
+        Packages.create_package_release(%{
+          package: package,
+          version: "1.0.0",
+          token: "test_token"
+        })
+
+      # Then
+      assert package_release.version == "1.0.0"
+    end
+
+    test "uses git clone for packages with submodules", %{temp_dir: temp_dir} do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "apple",
+          name: "swift-protobuf",
+          repository_full_handle: "apple/swift-protobuf"
+        )
+
+      # Create the directory structure that git clone would create
+      clone_dir = Path.join(temp_dir, "swift-protobuf-1.0.0")
+      File.mkdir_p!(clone_dir)
+      File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
+
+      stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:ok,
+           %Content{
+             content: "[submodule \"protobuf\"]\n\tpath = protobuf\n\turl = ../protobuf.git",
+             path: ".gitmodules"
+           }}
+
+        _, [reference: "1.0.0", path: "Package.swift"] ->
+          {:ok, %Content{content: "// swift-tools-version:5.9\ncontent", path: "Package.swift"}}
+
+        _, [reference: "1.0.0"] ->
+          {:ok, [%Content{content: nil, path: "Package.swift"}]}
+      end)
+
+      stub(Briefly, :create, fn [type: :directory] ->
+        {:ok, temp_dir}
+      end)
+
+      stub(System, :cmd, fn
+        "git", _, [stderr_to_stdout: true] ->
+          {"Cloning...", 0}
+
+        "zip", [_, "-r", archive_path, _], [cd: _] ->
+          # Create a minimal zip file for the test
+          File.write!(archive_path, "PK\x03\x04minimal zip content")
+          {"", 0}
+      end)
+
+      # When
+      package_release =
+        Packages.create_package_release(%{
+          package: package,
+          version: "1.0.0",
+          token: "test_token"
+        })
+
+      # Then
+      assert package_release.version == "1.0.0"
+    end
+
+    test "handles git clone failure gracefully", %{temp_dir: temp_dir} do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "apple",
+          name: "swift-protobuf",
+          repository_full_handle: "apple/swift-protobuf"
+        )
+
+      stub(VCS, :get_repository_content, fn _, [reference: "1.0.0", path: ".gitmodules"] ->
+        {:ok,
+         %Content{
+           content: "[submodule \"protobuf\"]\n\tpath = protobuf\n\turl = ../protobuf.git",
+           path: ".gitmodules"
+         }}
+      end)
+
+      stub(Briefly, :create, fn [type: :directory] ->
+        {:ok, temp_dir}
+      end)
+
+      stub(System, :cmd, fn
+        "git", _, [stderr_to_stdout: true] ->
+          {"fatal: repository not found", 128}
+      end)
+
+      # When
+      result =
+        Packages.create_package_release(%{
+          package: package,
+          version: "1.0.0",
+          token: "test_token"
+        })
+
+      # Then
+      assert {:error, "Git clone failed (exit 128): fatal: repository not found"} = result
     end
   end
 end
