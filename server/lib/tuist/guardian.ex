@@ -37,7 +37,9 @@ defmodule Tuist.Guardian do
       {:ok,
        %AuthenticatedAccount{
          account: account,
-         scopes: claims["scopes"]
+         scopes: claims["scopes"],
+         all_projects: false,
+         project_ids: claims["project_ids"]
        }}
     else
       {:error, :resource_not_found}

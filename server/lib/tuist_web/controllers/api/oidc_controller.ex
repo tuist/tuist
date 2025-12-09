@@ -175,7 +175,6 @@ defmodule TuistWeb.API.OIDCController do
     claims = %{
       "type" => "account",
       "scopes" => @default_ci_scopes,
-      "all_projects" => false,
       "project_ids" => project_ids
     }
 

@@ -46,8 +46,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
         Tuist.Guardian.decode_and_verify(response["access_token"])
 
       assert claims["type"] == "account"
-      assert claims["scopes"] == ["project:cache:read", "project:cache:write", "project:previews:read", "project:previews:write"]
-      assert claims["all_projects"] == false
+      assert claims["scopes"] == ["project:cache:read", "project:cache:write", "project:previews:read", "project:previews:write", "project:bundles:read", "project:bundles:write"]
       assert project.id in claims["project_ids"]
     end
 
