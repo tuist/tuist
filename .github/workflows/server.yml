@@ -98,6 +98,58 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
+  gettext_default:
+    name: Gettext (Default)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check default gettext template is up-to-date
+        run: |
+          # Extract only (without --merge) to check if default.pot changes
+          # DO NOT use --merge here as it would modify .po translation files
+          cp priv/gettext/default.pot priv/gettext/default.pot.backup
+          mix gettext.extract > /dev/null 2>&1 || true
+
+          if ! diff -q priv/gettext/default.pot.backup priv/gettext/default.pot > /dev/null; then
+            echo "::error title=Default gettext template out of sync::The default.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            rm priv/gettext/default.pot.backup
+            exit 1
+          else
+            echo "✅ Default gettext template is up-to-date"
+            rm priv/gettext/default.pot.backup
+          fi
+      - name: Check default translations exist
+        run: |
+          # Check if default.pot exists
+          if [ ! -f priv/gettext/default.pot ]; then
+            echo "::error title=Missing default translations::default.pot file is missing. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          echo "✅ Default translations template present"
   translation_protection:
     name: Translation Protection
     runs-on: namespace-profile-default
