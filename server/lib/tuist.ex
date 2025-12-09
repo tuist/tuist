@@ -51,6 +51,8 @@ defmodule Tuist do
       Accounts.User,
       Authentication,
       Authorization,
+      Guardian,
+      OIDC.GitHubActions,
       Authorization.Checks,
       Billing,
       Billing.Subscription,
