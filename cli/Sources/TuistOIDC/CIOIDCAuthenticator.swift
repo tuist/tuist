@@ -3,24 +3,6 @@
     import Mockable
     import TuistSupport
 
-    enum OIDCCIProvider: String, CaseIterable {
-        case githubActions
-
-        var displayName: String {
-            switch self {
-            case .githubActions:
-                "GitHub Actions"
-            }
-        }
-
-        var oidcAudience: String {
-            switch self {
-            case .githubActions:
-                "tuist"
-            }
-        }
-    }
-
     @Mockable
     public protocol CIOIDCAuthenticating {
         func fetchOIDCToken() async throws -> String
@@ -33,11 +15,9 @@
         var errorDescription: String? {
             switch self {
             case .unsupportedCIEnvironment:
-                "OIDC authentication is not supported in this environment. " +
-                    "Supported CI providers: GitHub Actions."
+                "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions."
             case .missingGitHubActionsOIDCPermissions:
-                "GitHub Actions OIDC token request variables not set. " +
-                    "Ensure your workflow has 'permissions: id-token: write' set."
+                "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
             }
         }
     }
@@ -77,7 +57,7 @@
             return try await oidcTokenFetcher.fetchToken(
                 requestURL: requestURL,
                 requestToken: requestToken,
-                audience: OIDCCIProvider.githubActions.oidcAudience
+                audience: "tuist"
             )
         }
     }
