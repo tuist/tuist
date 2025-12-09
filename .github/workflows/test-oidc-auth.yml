@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  TUIST_URL: ${{ inputs.tuist_url || 'https://staging.tuist.dev' }}
+  TUIST_URL: "https://staging.tuist.dev"
 
 jobs:
   test-oidc:
