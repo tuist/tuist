@@ -49,42 +49,34 @@ Workspace.swift
 - **Root directory**: The root directory of your project that also contains the
   `Tuist` directory.
   - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>
-    This file contains configuration for Tuist that's shared across all the
-    projects, workspaces, and environments. For example, it can be used to
-    disable automatic generation of schemes, or to define the deployment target
-    of the projects.
+    이 파일은 모든 프로젝트, 워크스페이스, 환경 변수에 공유되는 Tuist의 환경 설정을 포함 합니다. 예를 들어, 자동 Scheme
+    생성을 비활성화 하거나 배포 대상 OS Target을 정의하는데 사용될 수 있습니다.
   - <LocalizedLink href="/guides/features/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink>
-    This manifest represents an Xcode workspace. It's used to group other
-    projects and can also add additional files and schemes.
+    이 Manifest는 Xcode의 워크스페이스를 나타내는데 다른 프로젝트들을 그룹화하기 위해 사용하고 추가적인 파일이나 Scheme을
+    추가하는데도 사용됩니다.
   - <LocalizedLink href="/guides/features/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink>
-    This manifest represents an Xcode project. It's used to define the targets
-    that are part of the project, and their dependencies.
+    이 Manifest는 Xcode 프로젝트를 나타내는데 프로젝트의 일부인 Target과 Target의 의존성들을 정의하기 위해 사용
+    됩니다.
 
-When interacting with the above project, commands expect to find either a
-`Workspace.swift` or a `Project.swift` file in the working directory or the
-directory indicated via the `--path` flag. The manifest should be in a directory
-or subdirectory of a directory containing a `Tuist` directory, which represents
-the root of the project.
+위의 프로젝트들과 상호작용 할 때, 명령어는 `Workspace.swift` 나 `Project.swift` 파일을 작업 디렉토리나
+`--path`로 지정된 디렉토리에서 찾기를 기대합니다. Manifest는 최상위 프로젝트를 나타내는 `Tuist` 디렉토리를 가지고 있는
+디렉토리나 하위 디렉토리에 있어야 합니다.
 
 ::: tip
 <!-- -->
-Xcode workspaces allowed splitting projects into multiple Xcode projects to
-reduce the likelihood of merge conflicts. If that's what you were using
-workspaces for, you don't need them in Tuist. Tuist auto-generates a workspace
-containing a project and its dependencies' projects.
+Xcode 워크스페이스는 병합 출동의 가능성을 줄이기 위해 프로젝트들을 여러 Xcode 프로젝트로 나눌 수 있습니다. 그게 우리가 워크스페이스를
+사용하고 있던 이유라면, Tuist에서는 필요하지 않습니다 Tuist는 프로젝트와 의존하는 프로젝트들을 포함하는 워크스페이스를 자동으로 생성
+합니다.
 <!-- -->
 :::
 
-## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
+## Swift 패키지 <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
-Tuist also supports SPM package projects. If you are working on an SPM package,
-you shouldn't need to update anything. Tuist automatically picks up on your root
-`Package.swift` and all the features of Tuist work as if it was a
-`Project.swift` manifest.
+Tuist는 SPM 패키지 프로젝트들도 지원 합니다. SPM 패키지에서 작업하고 있다면 아무것도 업데이트할 필요가 없습니다. Tuist가
+자동으로 최상위 `Package.swift`가 자동으로 가져가고 모든 Tuist 기능들은 `Project.swift` Manifest 처럼 동작
+합니다.
 
-To get started, run `tuist install` and `tuist generate` in your SPM package.
-Your project should now have all the same schemes and files that you would see
-in the vanilla Xcode SPM integration. However, now you can also run
-<LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink> and
-have majority of your SPM dependencies and modules precompiled, making
-subsequent builds extremely fast.
+시작하려면, SPM 패키지에서 `tuist install` 와 `tuist generate` 를 실행하세요. 프로젝트는 이제 순수 Xcode
+SPM 통합에서 볼게 될 같은 Scheme과 File들을 가져야 합니다. 하지만, 이제 계속되는 빌드를 극도록 빠르게 만들기 위해
+<LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink>를 실행하고
+SPM 의존성 대부분과 미리 컴파일 된 모듈들을 가질 수 있습니다.
