@@ -3,7 +3,7 @@ name: Test OIDC Authentication
 on:
   push:
     branches:
-      - feat/oidc-tokens
+      - feat/account-tokens
   workflow_dispatch:
     inputs:
       tuist_url:
@@ -15,11 +15,21 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  TUIST_URL: ${{ inputs.tuist_url || 'https://staging.tuist.dev' }}
+
 jobs:
   test-oidc:
     name: Test OIDC Token Exchange
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default-macos
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+
+      - name: Install Tuist dependencies
+        run: tuist install
+
       - name: Get GitHub OIDC Token
         id: get-oidc-token
         run: |
@@ -38,7 +48,6 @@ jobs:
       - name: Exchange OIDC Token for Tuist Token
         id: exchange-token
         env:
-          TUIST_URL: https://staging.tuist.dev
           OIDC_TOKEN: ${{ steps.get-oidc-token.outputs.oidc_token }}
         run: |
           echo "Exchanging OIDC token at $TUIST_URL/api/oidc/token..."
@@ -76,17 +85,11 @@ jobs:
           echo "::add-mask::$TUIST_TOKEN"
           echo "tuist_token=$TUIST_TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Verify Tuist Token Works
+      - name: Test Tuist Token with bundle list
         env:
-          TUIST_URL: https://staging.tuist.dev
-          TUIST_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
+          TUIST_CONFIG_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
         run: |
-          echo "Testing Tuist token by making an authenticated request..."
-
-          # Try to access a protected endpoint (this will depend on what endpoints exist)
-          # For now, we just verify the token was obtained successfully
-          echo "OIDC authentication test completed successfully!"
+          echo "Testing Tuist token by running 'tuist bundle list'..."
+          tuist bundle list
           echo ""
-          echo "The token can be used with:"
-          echo "  export TUIST_CONFIG_TOKEN=\$TUIST_TOKEN"
-          echo "  tuist cache warm"
+          echo "OIDC authentication test completed successfully!"
