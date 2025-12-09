@@ -9,7 +9,7 @@ highlighted: true
 
 As mobile developers, we all understand the importance of testing latest changes as automated tests often fall short in catching UI and behavior-related issues. However, the current solutions for testing apps in PRs come with their own set of challenges. Tools like TestFlight, while powerful, have not been built with PRs in mind. Instead, they are focused for testing changes that have already been merged – critical metadata like commit SHA, branch name, and PR number are lost in the process.
 
-Additionally, TestFlight brings a lot of overhead to upload builds – such as going through the app review or having to sign the app in the PR workflows – which can be quite cumbersome for open source projects. This is where [Tuist Previews](https://docs.tuist.dev/en/guides/share/previews) come in. They offer a streamlined way to test the latest changes in PRs, making it easier for maintainers and contributors alike.
+Additionally, TestFlight brings a lot of overhead to upload builds – such as going through the app review or having to sign the app in the PR workflows – which can be quite cumbersome for open source projects. This is where [Tuist Previews](https://docs.tuist.dev/en/guides/features/previews) come in. They offer a streamlined way to test the latest changes in PRs, making it easier for maintainers and contributors alike.
 
 Recognizing the potential for open source apps, we partnered with [Thomas Ricouard](https://github.com/Dimillian) and integrated Tuist Previews in the new [IcySky](https://github.com/Dimillian/IcySky) app. IcySky can now benefit from all the features that Tuist Previews offer and we get to iterate with Thomas and IcySky's contributors to make Tuist Previews even better.
 
@@ -23,7 +23,7 @@ Ideally, the issue author would test changes from the PR to confirm the issue is
 
 ![Github PR comment](/marketing/images/blog/2024/11/25/tuist-previews-in-opensource/github-pr-comment.png)
 
-Now, they can just click a link to see the changes on their simulator. The only prerequisite is to have Xcode and the [Tuist macOS app](https://docs.tuist.dev/en/guides/share/previews#tuist-macos-app) installed. Contributors can then use the macOS app to test changes in multiple environments, such as iPhone or Apple TV:
+Now, they can just click a link to see the changes on their simulator. The only prerequisite is to have Xcode and the [Tuist macOS app](https://docs.tuist.dev/en/guides/features/previews#tuist-macos-app) installed. Contributors can then use the macOS app to test changes in multiple environments, such as iPhone or Apple TV:
 
 <img src="/marketing/images/blog/2024/11/25/tuist-previews-in-opensource/tuist-macos-app.png" width=300px alt="Tuist macOS app screenshot" />
 
@@ -53,12 +53,12 @@ let config = Config(
 
 6. `tuist project update {organization-name}/{project-name} --repository-url {your-repository-url} --visibility public` – connect your Tuist project with the GitHub repository and make its visibility public to make it accessible to developers outside of your Tuist organization.
 7. `tuist project tokens create {organization-name}/{project-name}` – create a token for your project. This token will be used to authenticate with Tuist in your CI – copy this token and set it as a secret in your repository.
-8. Install the [Tuist GitHub app](https://github.com/marketplace/tuist) in your repository to get [PR comments](https://docs.tuist.dev/en/guides/share/previews#pullmerge-request-comments).
+8. Install the [Tuist GitHub app](https://github.com/marketplace/tuist) in your repository to get [PR comments](https://docs.tuist.dev/en/guides/features/previews#pullmerge-request-comments).
 9. Add `tuist share NameOfYourApp --configuration Debug --platforms iOS` to your CI script to share a Tuist Preview. This needs to be done _after_ you build the app. You can find an example of a CI script with `tuist share` in the [IcySky repository](https://github.com/Dimillian/IcySky/blob/6f1e92bc4a3f1b8c83f1e61230ebef7034dca142/.github/workflows/icy_sky.yml). Ensure that the CI steps with `tuist share` has the `TUIST_CONFIG_TOKEN` environment variable defined with the value from step 6.
-10. [Add a badge](https://docs.tuist.dev/en/guides/share/previews#readme-badge) to your README, so that you and contributors can easily download the latest version.
+10. [Add a badge](https://docs.tuist.dev/en/guides/features/previews#readme-badge) to your README, so that you and contributors can easily download the latest version.
 
 
-... and that's it – you have now made testing changes easier for maintainers, contributors, and users! All Tuist features are **free for open source projects**, so you can start using Tuist Previews today with no strings attached. To learn more about Tuist Previews, you can find our up-to-date [documentation here](https://docs.tuist.dev/en/guides/share/previews).
+... and that's it – you have now made testing changes easier for maintainers, contributors, and users! All Tuist features are **free for open source projects**, so you can start using Tuist Previews today with no strings attached. To learn more about Tuist Previews, you can find our up-to-date [documentation here](https://docs.tuist.dev/en/guides/features/previews).
 
 Additionally, to see Tuist Previews in action, head over to the [IcySky](https://github.com/Dimillian/IcySky) repository, including the [PR](https://github.com/Dimillian/IcySky/pull/3) for the initial Tuist Preview support. **Huge thanks to Thomas** for taking the time to set everything up and give us feedback. It means a lot 💜
 
