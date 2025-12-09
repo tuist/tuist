@@ -47,8 +47,7 @@ For more fine-grained control over permissions in CI environments, you can use a
 tuist account tokens create my-account \
   --scopes project:cache:read project:cache:write \
   --name ci-cache-token \
-  --expires 1y \
-  --all-projects
+  --expires 1y
 ```
 
 The command accepts the following options:
