@@ -3,13 +3,13 @@ name: Test OIDC Authentication
 on:
   push:
     branches:
-      - feat/account-tokens
+      - feat/oidc-tokens
   workflow_dispatch:
     inputs:
       tuist_url:
-        description: 'Tuist server URL'
+        description: "Tuist server URL"
         required: false
-        default: 'https://staging.tuist.dev'
+        default: "https://staging.tuist.dev"
 
 permissions:
   id-token: write
