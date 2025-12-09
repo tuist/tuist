@@ -97,6 +97,31 @@ defmodule Tuist.Projects do
   end
 
   @doc """
+  Gets projects by their handles (names) for a specific account in a single query.
+
+  Returns `{:ok, projects}` if all handles are found, or `{:error, :not_found, missing_handle}`
+  if any handle is not found.
+  """
+  def get_projects_by_handles_for_account(_account, []), do: {:ok, []}
+
+  def get_projects_by_handles_for_account(%Account{id: account_id}, handles) when is_list(handles) do
+    projects =
+      Repo.all(
+        from(p in Project,
+          where: p.account_id == ^account_id and p.name in ^handles
+        )
+      )
+
+    found_handles = MapSet.new(projects, & &1.name)
+    requested_handles = MapSet.new(handles)
+
+    case requested_handles |> MapSet.difference(found_handles) |> MapSet.to_list() do
+      [] -> {:ok, projects}
+      [missing | _] -> {:error, :not_found, missing}
+    end
+  end
+
+  @doc """
   Gets projects by their full handles (account_handle/project_handle) in a single query.
   Returns a map of full_handle => project.
   """

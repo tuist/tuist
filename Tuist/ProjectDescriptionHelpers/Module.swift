@@ -792,6 +792,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "MCP"),
                     .external(name: "Noora"),
                     .external(name: "Command"),
+                    .external(name: "OpenAPIRuntime"),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [

@@ -209,9 +209,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
     func getBundle(_ input: Operations.getBundle.Input) async throws -> Operations.getBundle.Output
+    /// List all account tokens.
+    ///
+    /// This endpoint returns all tokens for a given account with pagination support.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)`.
+    func listAccountTokens(_ input: Operations.listAccountTokens.Input) async throws -> Operations.listAccountTokens.Output
     /// Create a new account token.
     ///
-    /// This endpoint returns a new account token.
+    /// This endpoint returns a new fine-grained account token with specified scopes and optional project restrictions.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
@@ -229,6 +236,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
+    /// Revoke an account token.
+    ///
+    /// This endpoint revokes (deletes) an account token by name.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/tokens/{token_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)`.
+    func revokeAccountToken(_ input: Operations.revokeAccountToken.Input) async throws -> Operations.revokeAccountToken.Output
     /// Creates an invitation
     ///
     /// Invites a user with a given email to a given organization.
@@ -871,9 +885,26 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List all account tokens.
+    ///
+    /// This endpoint returns all tokens for a given account with pagination support.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)`.
+    public func listAccountTokens(
+        path: Operations.listAccountTokens.Input.Path,
+        query: Operations.listAccountTokens.Input.Query = .init(),
+        headers: Operations.listAccountTokens.Input.Headers = .init()
+    ) async throws -> Operations.listAccountTokens.Output {
+        try await listAccountTokens(Operations.listAccountTokens.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Create a new account token.
     ///
-    /// This endpoint returns a new account token.
+    /// This endpoint returns a new fine-grained account token with specified scopes and optional project restrictions.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
@@ -915,6 +946,21 @@ extension APIProtocol {
         headers: Operations.cleanCache.Input.Headers = .init()
     ) async throws -> Operations.cleanCache.Output {
         try await cleanCache(Operations.cleanCache.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Revoke an account token.
+    ///
+    /// This endpoint revokes (deletes) an account token by name.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/tokens/{token_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)`.
+    public func revokeAccountToken(
+        path: Operations.revokeAccountToken.Input.Path,
+        headers: Operations.revokeAccountToken.Input.Headers = .init()
+    ) async throws -> Operations.revokeAccountToken.Output {
+        try await revokeAccountToken(Operations.revokeAccountToken.Input(
             path: path,
             headers: headers
         ))
@@ -1354,6 +1400,43 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// A newly created account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountTokenCreated`.
+        public struct AccountTokenCreated: Codable, Hashable, Sendable {
+            /// When the token expires, if set.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenCreated/expires_at`.
+            public var expires_at: Foundation.Date?
+            /// The token unique identifier.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenCreated/id`.
+            public var id: Swift.String
+            /// The generated account token. Store this securely - it cannot be retrieved again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenCreated/token`.
+            public var token: Swift.String
+            /// Creates a new `AccountTokenCreated`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: When the token expires, if set.
+            ///   - id: The token unique identifier.
+            ///   - token: The generated account token. Store this securely - it cannot be retrieved again.
+            public init(
+                expires_at: Foundation.Date? = nil,
+                id: Swift.String,
+                token: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.id = id
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case id
+                case token
+            }
+        }
         /// Represents an action item stored in the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
@@ -2177,6 +2260,121 @@ public enum Components {
                 case plan
                 case sso_organization_id
                 case sso_provider
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AccountTokens`.
+        public struct AccountTokens: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AccountTokens/meta`.
+            public var meta: Components.Schemas.PaginationMetadata
+            /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload`.
+            public struct tokensPayloadPayload: Codable, Hashable, Sendable {
+                /// Whether token has access to all projects.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/all_projects`.
+                public var all_projects: Swift.Bool
+                /// When the token expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/expires_at`.
+                public var expires_at: Foundation.Date?
+                /// Token unique identifier.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/id`.
+                public var id: Swift.String
+                /// When the token was created.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/inserted_at`.
+                public var inserted_at: Foundation.Date
+                /// Friendly name for the token.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/name`.
+                public var name: Swift.String?
+                /// List of project handles the token can access (when all_projects is false).
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/project_handles`.
+                public var project_handles: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/scopesPayload`.
+                @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case account_colon_members_colon_read = "account:members:read"
+                    case account_colon_members_colon_write = "account:members:write"
+                    case account_colon_registry_colon_read = "account:registry:read"
+                    case account_colon_registry_colon_write = "account:registry:write"
+                    case project_colon_previews_colon_read = "project:previews:read"
+                    case project_colon_previews_colon_write = "project:previews:write"
+                    case project_colon_admin_colon_read = "project:admin:read"
+                    case project_colon_admin_colon_write = "project:admin:write"
+                    case project_colon_cache_colon_read = "project:cache:read"
+                    case project_colon_cache_colon_write = "project:cache:write"
+                    case project_colon_bundles_colon_read = "project:bundles:read"
+                    case project_colon_bundles_colon_write = "project:bundles:write"
+                    case project_colon_tests_colon_read = "project:tests:read"
+                    case project_colon_tests_colon_write = "project:tests:write"
+                    case project_colon_builds_colon_read = "project:builds:read"
+                    case project_colon_builds_colon_write = "project:builds:write"
+                }
+                /// Token scopes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/scopes`.
+                public typealias scopesPayload = [Components.Schemas.AccountTokens.tokensPayloadPayload.scopesPayloadPayload]
+                /// Token scopes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/scopes`.
+                public var scopes: Components.Schemas.AccountTokens.tokensPayloadPayload.scopesPayload
+                /// Creates a new `tokensPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - all_projects: Whether token has access to all projects.
+                ///   - expires_at: When the token expires.
+                ///   - id: Token unique identifier.
+                ///   - inserted_at: When the token was created.
+                ///   - name: Friendly name for the token.
+                ///   - project_handles: List of project handles the token can access (when all_projects is false).
+                ///   - scopes: Token scopes.
+                public init(
+                    all_projects: Swift.Bool,
+                    expires_at: Foundation.Date? = nil,
+                    id: Swift.String,
+                    inserted_at: Foundation.Date,
+                    name: Swift.String? = nil,
+                    project_handles: [Swift.String]? = nil,
+                    scopes: Components.Schemas.AccountTokens.tokensPayloadPayload.scopesPayload
+                ) {
+                    self.all_projects = all_projects
+                    self.expires_at = expires_at
+                    self.id = id
+                    self.inserted_at = inserted_at
+                    self.name = name
+                    self.project_handles = project_handles
+                    self.scopes = scopes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case all_projects
+                    case expires_at
+                    case id
+                    case inserted_at
+                    case name
+                    case project_handles
+                    case scopes
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AccountTokens/tokens`.
+            public typealias tokensPayload = [Components.Schemas.AccountTokens.tokensPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AccountTokens/tokens`.
+            public var tokens: Components.Schemas.AccountTokens.tokensPayload
+            /// Creates a new `AccountTokens`.
+            ///
+            /// - Parameters:
+            ///   - meta:
+            ///   - tokens:
+            public init(
+                meta: Components.Schemas.PaginationMetadata,
+                tokens: Components.Schemas.AccountTokens.tokensPayload
+            ) {
+                self.meta = meta
+                self.tokens = tokens
+            }
+            public enum CodingKeys: String, CodingKey {
+                case meta
+                case tokens
             }
         }
         /// - Remark: Generated from `#/components/schemas/PreviewSupportedPlatform`.
@@ -4356,12 +4554,6 @@ public enum Components {
                 case xcode_version
             }
         }
-        /// The scope of the token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountTokenScope`.
-        @frozen public enum AccountTokenScope: String, Codable, Hashable, Sendable, CaseIterable {
-            case registry_read = "registry_read"
-        }
         /// The usage of an organization.
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
@@ -4528,25 +4720,6 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case message
-            }
-        }
-        /// A new account token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountToken`.
-        public struct AccountToken: Codable, Hashable, Sendable {
-            /// The generated account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountToken/token`.
-            public var token: Swift.String
-            /// Creates a new `AccountToken`.
-            ///
-            /// - Parameters:
-            ///   - token: The generated account token.
-            public init(token: Swift.String) {
-                self.token = token
-            }
-            public enum CodingKeys: String, CodingKey {
-                case token
             }
         }
         /// The page number to return.
@@ -5800,11 +5973,38 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CreateAccountToken`.
         public struct CreateAccountToken: Codable, Hashable, Sendable {
-            /// The scope of the token.
+            /// Optional expiration datetime (ISO8601). If not set, the token never expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/expires_at`.
+            public var expires_at: Foundation.Date?
+            /// Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/name`.
+            public var name: Swift.String?
+            /// List of project handles to restrict access to. If not provided, the token has access to all projects.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/project_handles`.
+            public var project_handles: [Swift.String]?
+            /// A scope string in format entity:object:access_level.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case registry_read = "registry_read"
+                case account_colon_members_colon_read = "account:members:read"
+                case account_colon_members_colon_write = "account:members:write"
+                case account_colon_registry_colon_read = "account:registry:read"
+                case account_colon_registry_colon_write = "account:registry:write"
+                case project_colon_previews_colon_read = "project:previews:read"
+                case project_colon_previews_colon_write = "project:previews:write"
+                case project_colon_admin_colon_read = "project:admin:read"
+                case project_colon_admin_colon_write = "project:admin:write"
+                case project_colon_cache_colon_read = "project:cache:read"
+                case project_colon_cache_colon_write = "project:cache:write"
+                case project_colon_bundles_colon_read = "project:bundles:read"
+                case project_colon_bundles_colon_write = "project:bundles:write"
+                case project_colon_tests_colon_read = "project:tests:read"
+                case project_colon_tests_colon_write = "project:tests:write"
+                case project_colon_builds_colon_read = "project:builds:read"
+                case project_colon_builds_colon_write = "project:builds:write"
             }
             /// The scopes for the new account token.
             ///
@@ -5817,11 +6017,25 @@ public enum Components {
             /// Creates a new `CreateAccountToken`.
             ///
             /// - Parameters:
+            ///   - expires_at: Optional expiration datetime (ISO8601). If not set, the token never expires.
+            ///   - name: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+            ///   - project_handles: List of project handles to restrict access to. If not provided, the token has access to all projects.
             ///   - scopes: The scopes for the new account token.
-            public init(scopes: Components.Schemas.CreateAccountToken.scopesPayload) {
+            public init(
+                expires_at: Foundation.Date? = nil,
+                name: Swift.String? = nil,
+                project_handles: [Swift.String]? = nil,
+                scopes: Components.Schemas.CreateAccountToken.scopesPayload
+            ) {
+                self.expires_at = expires_at
+                self.name = name
+                self.project_handles = project_handles
                 self.scopes = scopes
             }
             public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case name
+                case project_handles
                 case scopes
             }
         }
@@ -16375,9 +16589,436 @@ public enum Operations {
             }
         }
     }
+    /// List all account tokens.
+    ///
+    /// This endpoint returns all tokens for a given account with pagination support.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)`.
+    public enum listAccountTokens {
+        public static let id: Swift.String = "listAccountTokens"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.listAccountTokens.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/query/page`.
+                public var page: Swift.Int?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page: Page number for pagination.
+                ///   - page_size: Number of items per page.
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                }
+            }
+            public var query: Operations.listAccountTokens.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAccountTokens.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAccountTokens.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listAccountTokens.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listAccountTokens.Input.Path,
+                query: Operations.listAccountTokens.Input.Query = .init(),
+                headers: Operations.listAccountTokens.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/meta`.
+                        public var meta: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload`.
+                        public struct tokensPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether token has access to all projects.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/all_projects`.
+                            public var all_projects: Swift.Bool
+                            /// When the token expires.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/expires_at`.
+                            public var expires_at: Foundation.Date?
+                            /// Token unique identifier.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/id`.
+                            public var id: Swift.String
+                            /// When the token was created.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/inserted_at`.
+                            public var inserted_at: Foundation.Date
+                            /// Friendly name for the token.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/name`.
+                            public var name: Swift.String?
+                            /// List of project handles the token can access (when all_projects is false).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/project_handles`.
+                            public var project_handles: [Swift.String]?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/scopesPayload`.
+                            @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case account_colon_members_colon_read = "account:members:read"
+                                case account_colon_members_colon_write = "account:members:write"
+                                case account_colon_registry_colon_read = "account:registry:read"
+                                case account_colon_registry_colon_write = "account:registry:write"
+                                case project_colon_previews_colon_read = "project:previews:read"
+                                case project_colon_previews_colon_write = "project:previews:write"
+                                case project_colon_admin_colon_read = "project:admin:read"
+                                case project_colon_admin_colon_write = "project:admin:write"
+                                case project_colon_cache_colon_read = "project:cache:read"
+                                case project_colon_cache_colon_write = "project:cache:write"
+                                case project_colon_bundles_colon_read = "project:bundles:read"
+                                case project_colon_bundles_colon_write = "project:bundles:write"
+                                case project_colon_tests_colon_read = "project:tests:read"
+                                case project_colon_tests_colon_write = "project:tests:write"
+                                case project_colon_builds_colon_read = "project:builds:read"
+                                case project_colon_builds_colon_write = "project:builds:write"
+                            }
+                            /// Token scopes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/scopes`.
+                            public typealias scopesPayload = [Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload.scopesPayloadPayload]
+                            /// Token scopes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/scopes`.
+                            public var scopes: Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload.scopesPayload
+                            /// Creates a new `tokensPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - all_projects: Whether token has access to all projects.
+                            ///   - expires_at: When the token expires.
+                            ///   - id: Token unique identifier.
+                            ///   - inserted_at: When the token was created.
+                            ///   - name: Friendly name for the token.
+                            ///   - project_handles: List of project handles the token can access (when all_projects is false).
+                            ///   - scopes: Token scopes.
+                            public init(
+                                all_projects: Swift.Bool,
+                                expires_at: Foundation.Date? = nil,
+                                id: Swift.String,
+                                inserted_at: Foundation.Date,
+                                name: Swift.String? = nil,
+                                project_handles: [Swift.String]? = nil,
+                                scopes: Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload.scopesPayload
+                            ) {
+                                self.all_projects = all_projects
+                                self.expires_at = expires_at
+                                self.id = id
+                                self.inserted_at = inserted_at
+                                self.name = name
+                                self.project_handles = project_handles
+                                self.scopes = scopes
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case all_projects
+                                case expires_at
+                                case id
+                                case inserted_at
+                                case name
+                                case project_handles
+                                case scopes
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokens`.
+                        public typealias tokensPayload = [Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokens`.
+                        public var tokens: Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - meta:
+                        ///   - tokens:
+                        public init(
+                            meta: Components.Schemas.PaginationMetadata,
+                            tokens: Operations.listAccountTokens.Output.Ok.Body.jsonPayload.tokensPayload
+                        ) {
+                            self.meta = meta
+                            self.tokens = tokens
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case meta
+                            case tokens
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/application\/json`.
+                    case json(Operations.listAccountTokens.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listAccountTokens.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAccountTokens.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAccountTokens.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A list of account tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listAccountTokens.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listAccountTokens.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAccountTokens.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAccountTokens.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listAccountTokens.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listAccountTokens.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAccountTokens.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAccountTokens.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listAccountTokens.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listAccountTokens.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAccountTokens.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAccountTokens.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The account was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/get(listAccountTokens)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listAccountTokens.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listAccountTokens.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Create a new account token.
     ///
-    /// This endpoint returns a new account token.
+    /// This endpoint returns a new fine-grained account token with specified scopes and optional project restrictions.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
@@ -16417,11 +17058,38 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The scope of the token.
+                    /// Optional expiration datetime (ISO8601). If not set, the token never expires.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/expires_at`.
+                    public var expires_at: Foundation.Date?
+                    /// Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/name`.
+                    public var name: Swift.String?
+                    /// List of project handles to restrict access to. If not provided, the token has access to all projects.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/project_handles`.
+                    public var project_handles: [Swift.String]?
+                    /// A scope string in format entity:object:access_level.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case registry_read = "registry_read"
+                        case account_colon_members_colon_read = "account:members:read"
+                        case account_colon_members_colon_write = "account:members:write"
+                        case account_colon_registry_colon_read = "account:registry:read"
+                        case account_colon_registry_colon_write = "account:registry:write"
+                        case project_colon_previews_colon_read = "project:previews:read"
+                        case project_colon_previews_colon_write = "project:previews:write"
+                        case project_colon_admin_colon_read = "project:admin:read"
+                        case project_colon_admin_colon_write = "project:admin:write"
+                        case project_colon_cache_colon_read = "project:cache:read"
+                        case project_colon_cache_colon_write = "project:cache:write"
+                        case project_colon_bundles_colon_read = "project:bundles:read"
+                        case project_colon_bundles_colon_write = "project:bundles:write"
+                        case project_colon_tests_colon_read = "project:tests:read"
+                        case project_colon_tests_colon_write = "project:tests:write"
+                        case project_colon_builds_colon_read = "project:builds:read"
+                        case project_colon_builds_colon_write = "project:builds:write"
                     }
                     /// The scopes for the new account token.
                     ///
@@ -16434,11 +17102,25 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - expires_at: Optional expiration datetime (ISO8601). If not set, the token never expires.
+                    ///   - name: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+                    ///   - project_handles: List of project handles to restrict access to. If not provided, the token has access to all projects.
                     ///   - scopes: The scopes for the new account token.
-                    public init(scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload) {
+                    public init(
+                        expires_at: Foundation.Date? = nil,
+                        name: Swift.String? = nil,
+                        project_handles: [Swift.String]? = nil,
+                        scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload
+                    ) {
+                        self.expires_at = expires_at
+                        self.name = name
+                        self.project_handles = project_handles
                         self.scopes = scopes
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case expires_at
+                        case name
+                        case project_handles
                         case scopes
                     }
                 }
@@ -16466,22 +17148,40 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A new account token.
+                    /// A newly created account token.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The generated account token.
+                        /// When the token expires, if set.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
+                        /// The token unique identifier.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// The generated account token. Store this securely - it cannot be retrieved again.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json/token`.
                         public var token: Swift.String
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - token: The generated account token.
-                        public init(token: Swift.String) {
+                        ///   - expires_at: When the token expires, if set.
+                        ///   - id: The token unique identifier.
+                        ///   - token: The generated account token. Store this securely - it cannot be retrieved again.
+                        public init(
+                            expires_at: Foundation.Date? = nil,
+                            id: Swift.String,
+                            token: Swift.String
+                        ) {
+                            self.expires_at = expires_at
+                            self.id = id
                             self.token = token
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case expires_at
+                            case id
                             case token
                         }
                     }
@@ -16714,7 +17414,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The account was not found
+            /// The account or project was not found
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)/responses/404`.
             ///
@@ -17318,6 +18018,284 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.cleanCache.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Revoke an account token.
+    ///
+    /// This endpoint revokes (deletes) an account token by name.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/tokens/{token_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)`.
+    public enum revokeAccountToken {
+        public static let id: Swift.String = "revokeAccountToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The token name to revoke.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/path/token_name`.
+                public var token_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - token_name: The token name to revoke.
+                public init(
+                    account_handle: Swift.String,
+                    token_name: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.token_name = token_name
+                }
+            }
+            public var path: Operations.revokeAccountToken.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeAccountToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeAccountToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.revokeAccountToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.revokeAccountToken.Input.Path,
+                headers: Operations.revokeAccountToken.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The account token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.revokeAccountToken.Output.NoContent)
+            /// The account token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.revokeAccountToken.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeAccountToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.revokeAccountToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to revoke tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.revokeAccountToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.revokeAccountToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeAccountToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.revokeAccountToken.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to revoke tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.revokeAccountToken.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.revokeAccountToken.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/{token_name}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeAccountToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.revokeAccountToken.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The token was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.revokeAccountToken.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.revokeAccountToken.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

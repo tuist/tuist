@@ -82,10 +82,6 @@ struct DependenciesAcceptanceTests {
             RegistrySetupCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        try await TuistTest.run(
-            RegistryLoginCommand.self,
-            ["--path", fixtureDirectory.pathString]
-        )
 
         // When: Install dependencies
         try await TuistTest.run(
@@ -139,10 +135,6 @@ struct DependenciesAcceptanceTests {
             RegistrySetupCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        try await TuistTest.run(
-            RegistryLoginCommand.self,
-            ["--path", fixtureDirectory.pathString]
-        )
 
         // When: Generate and build
         try await TuistTest.run(
@@ -169,10 +161,6 @@ struct DependenciesAcceptanceTests {
         // When: Set up registry
         try await TuistTest.run(
             RegistrySetupCommand.self,
-            ["--path", fixtureDirectory.pathString]
-        )
-        try await TuistTest.run(
-            RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
 
@@ -212,10 +200,6 @@ struct DependenciesAcceptanceTests {
         // When: Set up registry
         try await TuistTest.run(
             RegistrySetupCommand.self,
-            ["--path", fixtureDirectory.pathString]
-        )
-        try await TuistTest.run(
-            RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
 

@@ -40,7 +40,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_create]
+          scopes: ["project:qa_step:create"]
         })
 
       # When
@@ -74,7 +74,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_create]
+          scopes: ["project:qa_step:create"]
         })
 
       started_at = DateTime.add(DateTime.utc_now(), -5, :second)
@@ -114,7 +114,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_create]
+          scopes: ["project:qa_step:create"]
         })
 
       # Create some screenshots without step_id
@@ -157,7 +157,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_create]
+          scopes: ["project:qa_step:create"]
         })
 
       non_existent_run_id = Ecto.UUID.generate()
@@ -225,7 +225,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_screenshot_create]
+          scopes: ["project:qa_screenshot:create"]
         })
 
       # Given a QA step
@@ -266,7 +266,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_screenshot_create]
+          scopes: ["project:qa_screenshot:create"]
         })
 
       non_existent_run_id = Ecto.UUID.generate()
@@ -334,7 +334,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_update]
+          scopes: ["project:qa_step:update"]
         })
 
       # When
@@ -370,7 +370,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_step_update]
+          scopes: ["project:qa_step:update"]
         })
 
       non_existent_step_id = Ecto.UUID.generate()
@@ -440,7 +440,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_run_update]
+          scopes: ["project:qa_run:update"]
         })
 
       # When
@@ -470,7 +470,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_run_update]
+          scopes: ["project:qa_run:update"]
         })
 
       # Mock datetime to verify finished_at is set
@@ -506,7 +506,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:qa_run_update]
+          scopes: ["project:qa_run:update"]
         })
 
       non_existent_run_id = Ecto.UUID.generate()

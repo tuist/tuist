@@ -31,8 +31,15 @@ struct RegistrySetupCommandServiceTests {
         )
 
         given(createAccountTokenService)
-            .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
-            .willReturn("token")
+            .createAccountToken(
+                accountHandle: .any,
+                scopes: .any,
+                name: .any,
+                expiresAt: .any,
+                projectHandles: .any,
+                serverURL: .any
+            )
+            .willReturn(.init(id: "token-id", token: "token"))
         given(defaultsController)
             .setPackageDendencySCMToRegistryTransformation(.any)
             .willReturn()

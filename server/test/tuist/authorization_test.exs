@@ -1299,7 +1299,7 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.authorize(
              :registry_read,
-             %AuthenticatedAccount{account: account, scopes: [:registry_read]},
+             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
              account
            ) == :ok
   end
@@ -1311,7 +1311,7 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.authorize(
              :registry_read,
-             %AuthenticatedAccount{account: account, scopes: [:registry_write]},
+             %AuthenticatedAccount{account: account, scopes: ["account:registry:create"]},
              account
            ) == {:error, :forbidden}
   end
@@ -1324,7 +1324,7 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.authorize(
              :registry_read,
-             %AuthenticatedAccount{account: account, scopes: [:registry_read]},
+             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
              another_account
            ) == {:error, :forbidden}
   end

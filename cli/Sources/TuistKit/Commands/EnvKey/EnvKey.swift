@@ -197,6 +197,15 @@ public enum EnvKey: String, CaseIterable {
     case projectTokenPath = "TUIST_PROJECT_TOKEN_PATH"
     case projectTokenId = "TUIST_PROJECT_TOKEN_ID"
 
+    // ACCOUNT TOKENS
+
+    case accountTokensAccountHandle = "TUIST_ACCOUNT_TOKENS_ACCOUNT_HANDLE"
+    case accountTokensPath = "TUIST_ACCOUNT_TOKENS_PATH"
+    case accountTokensName = "TUIST_ACCOUNT_TOKENS_NAME"
+    case accountTokensScopes = "TUIST_ACCOUNT_TOKENS_SCOPES"
+    case accountTokensExpires = "TUIST_ACCOUNT_TOKENS_EXPIRES"
+    case accountTokensProjects = "TUIST_ACCOUNT_TOKENS_PROJECTS"
+
     // ORGANIZATION LIST
 
     case organizationListJson = "TUIST_ORGANIZATION_LIST_JSON"
