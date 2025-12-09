@@ -7,7 +7,7 @@
 ---
 # Authentication {#authentication}
 
-To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user, as an account, or using an OIDC token.
+To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user, as an account, as project, or using an OIDC token.
 
 ## As a user {#as-a-user}
 

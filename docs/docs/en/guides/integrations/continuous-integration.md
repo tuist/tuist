@@ -45,7 +45,7 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC authentication for Xcode Cloud is not supported. Use an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your Xcode Cloud workflow settings.
+Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your Xcode Cloud workflow settings.
 <!-- -->
 :::
 
@@ -92,7 +92,7 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC authentication for Codemagic is not supported. Create an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> and add it as a secret environment variable named `TUIST_TOKEN`.
+Create a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -147,7 +147,7 @@ jobs:
       - run: tuist auth login
       - run: tuist setup cache
 ```
-```yaml [Account token (Mise)]
+```yaml [Project token (Mise)]
 name: Build Application
 on:
   pull_request:
@@ -168,7 +168,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist setup cache
 ```
-```yaml [Account token (Homebrew)]
+```yaml [Project token (Homebrew)]
 name: Build Application
 on:
   pull_request:
@@ -194,7 +194,7 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-Before using OIDC authentication, you need to <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> with the `TUIST_TOKEN` secret.
+Before using OIDC authentication, you need to <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` secret.
 <!-- -->
 :::
 
@@ -206,7 +206,7 @@ We recommend using `mise use --pin` in your Tuist projects to pin the version of
 
 ### CircleCI {#circleci}
 
-In [CircleCI](https://circleci.com), you can install Tuist and authenticate using an account token:
+In [CircleCI](https://circleci.com), you can install Tuist and authenticate using a project token:
 
 ```yaml
 version: 2.1
@@ -233,7 +233,7 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC authentication for CircleCI is not supported. Create an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> and add it as an environment variable named `TUIST_TOKEN` in your project settings.
+Create a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as an environment variable named `TUIST_TOKEN` in your project settings.
 <!-- -->
 :::
 
@@ -264,6 +264,6 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC authentication for Bitrise is not supported. Create an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> and add it as a secret environment variable named `TUIST_TOKEN`.
+Create a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named `TUIST_TOKEN`.
 <!-- -->
 :::
