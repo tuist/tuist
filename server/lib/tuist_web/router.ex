@@ -466,7 +466,7 @@ defmodule TuistWeb.Router do
 
     get "/registry/swift", Registry.SwiftController, :availability
 
-    post "/oidc/token", OIDCController, :exchange_token
+    post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
   scope "/oauth2", TuistWeb.Oauth do

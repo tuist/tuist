@@ -50,9 +50,9 @@ jobs:
         env:
           OIDC_TOKEN: ${{ steps.get-oidc-token.outputs.oidc_token }}
         run: |
-          echo "Exchanging OIDC token at $TUIST_URL/api/oidc/token..."
+          echo "Exchanging OIDC token at $TUIST_URL/api/auth/oidc/token..."
 
-          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$TUIST_URL/api/oidc/token" \
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$TUIST_URL/api/auth/oidc/token" \
             -H "Content-Type: application/json" \
             -d "{\"token\": \"$OIDC_TOKEN\"}")
 
@@ -69,7 +69,6 @@ jobs:
           fi
 
           TUIST_TOKEN=$(echo "$BODY" | jq -r '.access_token')
-          TOKEN_TYPE=$(echo "$BODY" | jq -r '.token_type')
           EXPIRES_IN=$(echo "$BODY" | jq -r '.expires_in')
 
           if [ -z "$TUIST_TOKEN" ] || [ "$TUIST_TOKEN" = "null" ]; then
@@ -78,7 +77,6 @@ jobs:
           fi
 
           echo "Successfully obtained Tuist token"
-          echo "Token type: $TOKEN_TYPE"
           echo "Expires in: $EXPIRES_IN seconds"
 
           # Mask the token in logs

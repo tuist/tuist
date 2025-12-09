@@ -10,7 +10,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     :ok
   end
 
-  describe "POST /api/oidc/token" do
+  describe "POST /api/auth/oidc/token" do
     test "returns access token when OIDC token is valid and project has VCS connection", %{conn: conn} do
       # Given
       project =
@@ -33,7 +33,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: token})
+        |> post(~p"/api/auth/oidc/token", %{token: token})
 
       # Then
       response = json_response(conn, :ok)
@@ -86,7 +86,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: token})
+        |> post(~p"/api/auth/oidc/token", %{token: token})
 
       # Then
       response = json_response(conn, :ok)
@@ -113,7 +113,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: token})
+        |> post(~p"/api/auth/oidc/token", %{token: token})
 
       # Then
       response = json_response(conn, :forbidden)
@@ -125,7 +125,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: "invalid-token"})
+        |> post(~p"/api/auth/oidc/token", %{token: "invalid-token"})
 
       # Then
       response = json_response(conn, :unauthorized)
@@ -140,7 +140,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: token})
+        |> post(~p"/api/auth/oidc/token", %{token: token})
 
       # Then
       response = json_response(conn, :bad_request)
@@ -162,7 +162,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/oidc/token", %{token: token})
+        |> post(~p"/api/auth/oidc/token", %{token: token})
 
       # Then
       response = json_response(conn, :unauthorized)
