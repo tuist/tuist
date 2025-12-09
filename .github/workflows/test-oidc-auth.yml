@@ -35,14 +35,19 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
 
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
 
       - name: Build Tuist CLI
-        run: swift build --configuration debug --product tuist
+        env:
+          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+        run: |
+          tuist generate tuist ProjectDescription
+          DERIVED_DATA_PATH="$PWD/DerivedData"
+          xcodebuild build -workspace Tuist.xcworkspace -scheme ProjectDescription -derivedDataPath "$DERIVED_DATA_PATH"
+          xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -derivedDataPath "$DERIVED_DATA_PATH"
 
       - name: Create tuist-built symlink
-        run: ln -s .build/debug/tuist ./tuist-built
+        run: ln -s DerivedData/Build/Products/Debug/tuist ./tuist-built
 
       - name: Test tuist auth login with OIDC
         run: |
