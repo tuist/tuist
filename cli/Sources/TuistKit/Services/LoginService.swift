@@ -1,8 +1,10 @@
 import Foundation
 import Mockable
+import Noora
 import Path
 import TuistCore
 import TuistLoader
+import TuistOIDC
 import TuistServer
 import TuistSupport
 
@@ -173,8 +175,8 @@ extension LoginServicing {
         switch event {
         case .completed:
             AlertController.current.success(.alert("\(event.description)"))
-        default:
-            Logger.current.notice("\(event.description)")
+        case .oidcAuthenticating, .openingBrowser, .waitForAuthentication:
+            Noora.current.info(.init(stringLiteral: event.description))
         }
     }
 }

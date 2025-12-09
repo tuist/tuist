@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import TuistCore
 import TuistLoader
+import TuistOIDC
 import TuistServer
 import TuistSupport
 import XCTest
@@ -231,6 +232,68 @@ final class LoginServiceTests: TuistUnitTestCase {
             verify(userInputReader)
                 .readString(asking: .any)
                 .called(0)
+        }
+    }
+
+    func test_authenticate_with_oidc_in_ci_environment() async throws {
+        try await withMockedDependencies {
+            try await withMockedEnvironment {
+                // Given
+                let mockEnvironment = try XCTUnwrap(Environment.mocked)
+                mockEnvironment.variables["CI"] = "1"
+
+                let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+
+                given(ciOIDCAuthenticator)
+                    .fetchOIDCToken()
+                    .willReturn("oidc-jwt-token")
+
+                given(exchangeOIDCTokenService)
+                    .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .value(serverURL))
+                    .willReturn("tuist-access-token")
+
+                given(serverCredentialsStore)
+                    .store(
+                        credentials: .value(
+                            ServerCredentials(
+                                accessToken: "tuist-access-token",
+                                refreshToken: ""
+                            )
+                        ),
+                        serverURL: .value(serverURL)
+                    )
+                    .willReturn()
+
+                // When
+                try await subject.run(
+                    email: nil,
+                    password: nil,
+                    directory: nil
+                )
+
+                // Then
+                XCTAssertEqual(
+                    ui(),
+                    """
+                    i Info
+                      Detected CI environment, authenticating with OIDC...
+                    ✔ Success
+                      Successfully logged in.
+                    """
+                )
+
+                verify(ciOIDCAuthenticator)
+                    .fetchOIDCToken()
+                    .called(1)
+
+                verify(exchangeOIDCTokenService)
+                    .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .value(serverURL))
+                    .called(1)
+
+                verify(serverSessionController)
+                    .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
+                    .called(0)
+            }
         }
     }
 }
