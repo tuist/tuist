@@ -66,8 +66,7 @@ exactly which scopes and projects the token can access.
 tuist account tokens create my-account \
   --scopes project:cache:read project:cache:write \
   --name ci-cache-token \
-  --expires 1y \
-  --all-projects
+  --expires 1y
 ```
 
 The command accepts the following options:
