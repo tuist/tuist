@@ -38,7 +38,6 @@ defmodule TuistWeb.API.OIDCControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["access_token"]
-      assert response["token_type"] == "Bearer"
       assert response["expires_in"] == 3600
 
       # Verify the token can be used for authentication
@@ -46,7 +45,15 @@ defmodule TuistWeb.API.OIDCControllerTest do
         Tuist.Guardian.decode_and_verify(response["access_token"])
 
       assert claims["type"] == "account"
-      assert claims["scopes"] == ["project:cache:read", "project:cache:write", "project:previews:read", "project:previews:write", "project:bundles:read", "project:bundles:write"]
+
+      assert claims["scopes"] == [
+               "project:cache:write",
+               "project:previews:write",
+               "project:bundles:write",
+               "project:tests:write",
+               "project:builds:write"
+             ]
+
       assert project.id in claims["project_ids"]
     end
 
@@ -125,13 +132,9 @@ defmodule TuistWeb.API.OIDCControllerTest do
       assert response["message"] =~ "Invalid"
     end
 
-    test "returns 401 when OIDC token has wrong issuer", %{conn: conn} do
+    test "returns 400 when OIDC token is from unsupported CI provider", %{conn: conn} do
       # Given
-      {token, jwks} = generate_test_token_and_jwks(issuer: "https://wrong-issuer.com")
-
-      stub(Req, :get, fn _url ->
-        {:ok, %{status: 200, body: jwks}}
-      end)
+      {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com")
 
       # When
       conn =
@@ -140,16 +143,16 @@ defmodule TuistWeb.API.OIDCControllerTest do
         |> post(~p"/api/oidc/token", %{token: token})
 
       # Then
-      response = json_response(conn, :unauthorized)
-      assert response["message"] =~ "issuer"
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "Unsupported CI provider"
+      assert response["message"] =~ "gitlab.com"
+      assert response["message"] =~ "GitHub Actions"
     end
 
     test "returns 401 when OIDC token is expired", %{conn: conn} do
       # Given
       {token, jwks} =
-        generate_test_token_and_jwks(
-          exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix()
-        )
+        generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
 
       stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
@@ -170,21 +173,11 @@ defmodule TuistWeb.API.OIDCControllerTest do
   defp generate_test_token_and_jwks(opts \\ []) do
     jwk = JOSE.JWK.generate_key({:rsa, 2048})
 
-    claims =
-      %{
-        "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
-        "sub" => "repo:tuist/tuist:ref:refs/heads/main",
-        "aud" => "tuist",
-        "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
-        "iat" => DateTime.utc_now() |> DateTime.to_unix(),
-        "repository" => Keyword.get(opts, :repository, "tuist/tuist"),
-        "repository_owner" => "tuist",
-        "ref" => "refs/heads/main",
-        "workflow" => "CI",
-        "actor" => "test-user",
-        "run_id" => "123456789"
-      }
-      |> Map.reject(fn {_k, v} -> is_nil(v) end)
+    claims = %{
+      "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
+      "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
+      "repository" => Keyword.get(opts, :repository, "tuist/tuist")
+    }
 
     jws = %{"alg" => "RS256", "kid" => "test-key-1"}
     jwt = JOSE.JWT.from_map(claims)

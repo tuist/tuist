@@ -11,9 +11,21 @@ defmodule TuistWeb.API.OIDCController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Guardian
-  alias Tuist.OIDC.GitHubActions
+  alias Tuist.OIDC
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
+
+  @providers %{
+    "https://token.actions.githubusercontent.com" => %{
+      jwks_uri: "https://token.actions.githubusercontent.com/.well-known/jwks",
+      repository_claim: "repository"
+    }
+    # Future providers:
+    # "https://gitlab.com" => %{
+    #   jwks_uri: "https://gitlab.com/oauth/discovery/keys",
+    #   repository_claim: "project_path"
+    # }
+  }
 
   plug(
     OpenApiSpex.Plug.CastAndValidate,
@@ -24,12 +36,11 @@ defmodule TuistWeb.API.OIDCController do
   tags(["OIDC Authentication"])
 
   @default_ci_scopes [
-    "project:cache:read",
     "project:cache:write",
-    "project:previews:read",
     "project:previews:write",
-    "project:bundles:read",
-    "project:bundles:write"
+    "project:bundles:write",
+    "project:tests:write",
+    "project:builds:write"
   ]
 
   @token_ttl_seconds 3600
@@ -39,28 +50,6 @@ defmodule TuistWeb.API.OIDCController do
     description: """
     Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
     for a short-lived Tuist access token.
-
-    The token is validated against the provider's JWKS and matched to projects
-    via their VCS connection (repository URL).
-
-    ## GitHub Actions Usage
-
-    In your workflow, request an OIDC token and send it to this endpoint:
-
-    ```yaml
-    permissions:
-      id-token: write
-
-    steps:
-      - name: Get Tuist token
-        run: |
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \\
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=tuist" | jq -r '.value')
-          TUIST_TOKEN=$(curl -sS -X POST https://cloud.tuist.dev/api/oidc/token \\
-            -H "Content-Type: application/json" \\
-            -d "{\"token\": \"$OIDC_TOKEN\"}" | jq -r '.access_token')
-          echo "TUIST_TOKEN=$TUIST_TOKEN" >> $GITHUB_ENV
-    ```
     """,
     operation_id: "exchangeOIDCToken",
     request_body:
@@ -87,16 +76,12 @@ defmodule TuistWeb.API.OIDCController do
                type: :string,
                description: "The Tuist access token to use for API requests."
              },
-             token_type: %Schema{
-               type: :string,
-               description: "The token type (always 'Bearer')."
-             },
              expires_in: %Schema{
                type: :integer,
                description: "Token lifetime in seconds."
              }
            },
-           required: [:access_token, :token_type, :expires_in]
+           required: [:access_token, :expires_in]
          }},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
       forbidden: {"No projects linked to the repository", "application/json", Error}
@@ -111,7 +96,6 @@ defmodule TuistWeb.API.OIDCController do
       |> put_status(:ok)
       |> json(%{
         access_token: access_token,
-        token_type: "Bearer",
         expires_in: @token_ttl_seconds
       })
     else
@@ -120,25 +104,23 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:unauthorized)
         |> json(%{message: "Invalid OIDC token format"})
 
+      {:error, :unsupported_provider, issuer} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message:
+            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently only GitHub Actions is supported."
+        })
+
       {:error, :invalid_signature} ->
         conn
         |> put_status(:unauthorized)
         |> json(%{message: "OIDC token signature verification failed"})
 
-      {:error, :invalid_issuer} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{message: "OIDC token issuer not supported"})
-
       {:error, :token_expired} ->
         conn
         |> put_status(:unauthorized)
         |> json(%{message: "OIDC token has expired"})
-
-      {:error, :missing_repository_claim} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{message: "OIDC token missing repository claim"})
 
       {:error, :jwks_fetch_failed} ->
         conn
@@ -148,7 +130,9 @@ defmodule TuistWeb.API.OIDCController do
       {:error, :no_projects} ->
         conn
         |> put_status(:forbidden)
-        |> json(%{message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."})
+        |> json(%{
+          message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
+        })
 
       {:error, reason} ->
         conn
@@ -157,8 +141,27 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp verify_token(token) do
-    GitHubActions.verify(token)
+  defp verify_token(token) when is_binary(token) do
+    with {:ok, issuer} <- peek_issuer(token),
+         {:ok, provider} <- get_provider(issuer) do
+      OIDC.verify(token, provider.jwks_uri, provider.repository_claim)
+    end
+  end
+
+  defp verify_token(_), do: {:error, :invalid_token}
+
+  defp peek_issuer(token) do
+    %JOSE.JWT{fields: %{"iss" => issuer}} = JOSE.JWT.peek_payload(token)
+    {:ok, issuer}
+  rescue
+    _ -> {:error, :invalid_token}
+  end
+
+  defp get_provider(issuer) do
+    case Map.get(@providers, issuer) do
+      nil -> {:error, :unsupported_provider, issuer}
+      provider -> {:ok, provider}
+    end
   end
 
   defp find_projects_by_repository(repository) do

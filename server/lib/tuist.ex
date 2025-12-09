@@ -52,7 +52,7 @@ defmodule Tuist do
       Authentication,
       Authorization,
       Guardian,
-      OIDC.GitHubActions,
+      OIDC,
       Authorization.Checks,
       Billing,
       Billing.Subscription,
