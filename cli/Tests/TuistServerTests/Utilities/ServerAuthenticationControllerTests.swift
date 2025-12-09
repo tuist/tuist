@@ -182,6 +182,70 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
+    @Test(.withMockedEnvironment(), .withMockedDependencies()) func non_expired_account_token() async throws {
+        let date = Date()
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "CI": "1",
+        ]
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "access", type: "account")
+
+            let authenticationToken: AuthenticationToken? = .account(try JWT.parse(accessToken.token))
+
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: ""
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(cachedValueStore).getValue(
+                key: .value("token_\(serverURL.absoluteString)"),
+                computeIfNeeded: .matching { closure in
+                    Task { try await closure() }
+                    return true
+                }
+            ).willReturn(authenticationToken)
+
+            // When
+            let got = try await subject.authenticationToken(serverURL: .test())
+
+            // Then
+            #expect(got == authenticationToken)
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies()) func expired_account_token_returns_expired() async throws {
+        let date = Date()
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "CI": "1",
+        ]
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: ""
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(cachedValueStore).getValue(key: .any, computeIfNeeded: .any).willReturn(nil as AuthenticationToken?)
+
+            // When
+            let got = try await subject.authenticationToken(serverURL: .test())
+
+            // Then
+            #expect(got == nil)
+        }
+    }
+
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()

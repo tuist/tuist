@@ -18,18 +18,21 @@ public struct JWT: Equatable {
         let email: String?
         // swiftlint:disable:next identifier_name
         let preferred_username: String?
+        let type: String?
     }
 
     public let token: String
     public let expiryDate: Date
     public let email: String?
     public let preferredUsername: String?
+    public let type: String?
 
     static func make(
         expiryDate: Date,
         typ: String = "JWT",
         email: String? = nil,
-        preferredUsername: String? = nil
+        preferredUsername: String? = nil,
+        type: String? = nil
     ) throws -> JWT {
         let header = [
             "alg": "none",
@@ -40,7 +43,8 @@ public struct JWT: Equatable {
         let payload = JWTPayload(
             exp: Int(expiryDate.timeIntervalSince1970),
             email: email,
-            preferred_username: preferredUsername
+            preferred_username: preferredUsername,
+            type: type
         )
 
         // Encode header and payload
@@ -57,7 +61,8 @@ public struct JWT: Equatable {
             token: "\(headerBase64URL).\(payloadBase64URL).",
             expiryDate: expiryDate,
             email: email,
-            preferredUsername: preferredUsername
+            preferredUsername: preferredUsername,
+            type: type
         )
     }
 
@@ -107,7 +112,8 @@ public struct JWT: Equatable {
             token: jwt,
             expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
             email: payload.email,
-            preferredUsername: payload.preferred_username
+            preferredUsername: payload.preferred_username,
+            type: payload.type
         )
     }
 }
@@ -118,13 +124,15 @@ public struct JWT: Equatable {
             token: String = "token",
             expiryDate: Date = Date(),
             email: String? = nil,
-            preferredUsername: String? = nil
+            preferredUsername: String? = nil,
+            type: String? = nil
         ) -> JWT {
             .init(
                 token: token,
                 expiryDate: expiryDate,
                 email: email,
-                preferredUsername: preferredUsername
+                preferredUsername: preferredUsername,
+                type: type
             )
         }
     }

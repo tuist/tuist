@@ -161,6 +161,15 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/auth/apple`.
     /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
     func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
+    /// Exchange a CI provider OIDC token for a Tuist access token.
+    ///
+    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// for a short-lived Tuist access token.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/oidc/token`.
+    /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)`.
+    func exchangeOIDCToken(_ input: Operations.exchangeOIDCToken.Input) async throws -> Operations.exchangeOIDCToken.Output
     /// It uploads a given cache action item.
     ///
     /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
@@ -769,6 +778,23 @@ extension APIProtocol {
         body: Operations.authenticateApple.Input.Body? = nil
     ) async throws -> Operations.authenticateApple.Output {
         try await authenticateApple(Operations.authenticateApple.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Exchange a CI provider OIDC token for a Tuist access token.
+    ///
+    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// for a short-lived Tuist access token.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/oidc/token`.
+    /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)`.
+    public func exchangeOIDCToken(
+        headers: Operations.exchangeOIDCToken.Input.Headers = .init(),
+        body: Operations.exchangeOIDCToken.Input.Body? = nil
+    ) async throws -> Operations.exchangeOIDCToken.Output {
+        try await exchangeOIDCToken(Operations.exchangeOIDCToken.Input(
             headers: headers,
             body: body
         ))
@@ -4726,6 +4752,33 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse`.
+        public struct OIDCTokenExchangeResponse: Codable, Hashable, Sendable {
+            /// The Tuist access token to use for API requests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse/access_token`.
+            public var access_token: Swift.String
+            /// Token lifetime in seconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse/expires_in`.
+            public var expires_in: Swift.Int
+            /// Creates a new `OIDCTokenExchangeResponse`.
+            ///
+            /// - Parameters:
+            ///   - access_token: The Tuist access token to use for API requests.
+            ///   - expires_in: Token lifetime in seconds.
+            public init(
+                access_token: Swift.String,
+                expires_in: Swift.Int
+            ) {
+                self.access_token = access_token
+                self.expires_in = expires_in
+            }
+            public enum CodingKeys: String, CodingKey {
+                case access_token
+                case expires_in
+            }
+        }
         /// List of available cache endpoints
         ///
         /// - Remark: Generated from `#/components/schemas/CacheEndpoints`.
@@ -5818,6 +5871,23 @@ public enum Components {
                 case targets
                 case _type = "type"
                 case xcode_version
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest`.
+        public struct OIDCTokenExchangeRequest: Codable, Hashable, Sendable {
+            /// The OIDC JWT token from the CI provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/token`.
+            public var token: Swift.String
+            /// Creates a new `OIDCTokenExchangeRequest`.
+            ///
+            /// - Parameters:
+            ///   - token: The OIDC JWT token from the CI provider.
+            public init(token: Swift.String) {
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case token
             }
         }
         /// Represents a single test run.
@@ -14079,6 +14149,277 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Exchange a CI provider OIDC token for a Tuist access token.
+    ///
+    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// for a short-lived Tuist access token.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/oidc/token`.
+    /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)`.
+    public enum exchangeOIDCToken {
+        public static let id: Swift.String = "exchangeOIDCToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.exchangeOIDCToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.exchangeOIDCToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.exchangeOIDCToken.Input.Headers
+            /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The OIDC JWT token from the CI provider.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/token`.
+                    public var token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - token: The OIDC JWT token from the CI provider.
+                    public init(token: Swift.String) {
+                        self.token = token
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/content/application\/json`.
+                case json(Operations.exchangeOIDCToken.Input.Body.jsonPayload)
+            }
+            public var body: Operations.exchangeOIDCToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.exchangeOIDCToken.Input.Headers = .init(),
+                body: Operations.exchangeOIDCToken.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The Tuist access token to use for API requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/200/content/json/access_token`.
+                        public var access_token: Swift.String
+                        /// Token lifetime in seconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - access_token: The Tuist access token to use for API requests.
+                        ///   - expires_in: Token lifetime in seconds.
+                        public init(
+                            access_token: Swift.String,
+                            expires_in: Swift.Int
+                        ) {
+                            self.access_token = access_token
+                            self.expires_in = expires_in
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case access_token
+                            case expires_in
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/200/content/application\/json`.
+                    case json(Operations.exchangeOIDCToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.exchangeOIDCToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.exchangeOIDCToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.exchangeOIDCToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Token exchange successful
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.exchangeOIDCToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.exchangeOIDCToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.exchangeOIDCToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.exchangeOIDCToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid or expired OIDC token
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.exchangeOIDCToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.exchangeOIDCToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.exchangeOIDCToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.exchangeOIDCToken.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// No projects linked to the repository
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.exchangeOIDCToken.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.exchangeOIDCToken.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

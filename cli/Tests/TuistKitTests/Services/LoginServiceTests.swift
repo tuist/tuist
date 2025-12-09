@@ -16,6 +16,8 @@ final class LoginServiceTests: TuistUnitTestCase {
     private var authenticateService: MockAuthenticateServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var userInputReader: MockUserInputReading!
+    private var ciOIDCAuthenticator: MockCIOIDCAuthenticating!
+    private var exchangeOIDCTokenService: MockExchangeOIDCTokenServicing!
     private var subject: LoginService!
 
     override func setUp() {
@@ -26,6 +28,8 @@ final class LoginServiceTests: TuistUnitTestCase {
         authenticateService = .init()
         serverEnvironmentService = .init()
         userInputReader = .init()
+        ciOIDCAuthenticator = .init()
+        exchangeOIDCTokenService = .init()
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))
@@ -39,7 +43,9 @@ final class LoginServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             userInputReader: userInputReader,
-            authenticateService: authenticateService
+            authenticateService: authenticateService,
+            ciOIDCAuthenticator: ciOIDCAuthenticator,
+            exchangeOIDCTokenService: exchangeOIDCTokenService
         )
     }
 
@@ -50,6 +56,8 @@ final class LoginServiceTests: TuistUnitTestCase {
         authenticateService = nil
         serverEnvironmentService = nil
         userInputReader = nil
+        ciOIDCAuthenticator = nil
+        exchangeOIDCTokenService = nil
         subject = nil
         super.tearDown()
     }
