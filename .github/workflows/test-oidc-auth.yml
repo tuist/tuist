@@ -56,8 +56,7 @@ jobs:
       - name: Verify authentication by running a command
         run: |
           echo "Verifying authentication by running 'tuist bundle list'..."
-          TUIST_CONFIG_TOKEN="" TUIST_URL="https://staging.tuist.dev" ./tuist-built bundle list
-          echo ""
+          TUIST_CONFIG_TOKEN="" TUIST_URL="https://staging.tuist.dev" ./tuist-built bundle list --verbose
           echo "OIDC authentication test completed successfully!"
 
       - name: Save cache
