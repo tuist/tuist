@@ -38,7 +38,7 @@ jobs:
       - name: Exchange OIDC Token for Tuist Token
         id: exchange-token
         env:
-          TUIST_URL: ${{ inputs.tuist_url }}
+          TUIST_URL: https://staging.tuist.dev
           OIDC_TOKEN: ${{ steps.get-oidc-token.outputs.oidc_token }}
         run: |
           echo "Exchanging OIDC token at $TUIST_URL/api/oidc/token..."
@@ -78,7 +78,7 @@ jobs:
 
       - name: Verify Tuist Token Works
         env:
-          TUIST_URL: ${{ inputs.tuist_url }}
+          TUIST_URL: https://staging.tuist.dev
           TUIST_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
         run: |
           echo "Testing Tuist token by making an authenticated request..."
