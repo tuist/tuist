@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 env:
-  TUIST_URL: "https://staging.tuist.dev"
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 
 jobs:
@@ -52,12 +51,12 @@ jobs:
         run: |
           echo "Testing 'tuist auth login' with OIDC authentication..."
           echo "Server URL: $TUIST_URL"
-          ./tuist-built auth login
+          TUIST_URL="https://staging.tuist.dev" ./tuist-built auth login
 
       - name: Verify authentication by running a command
         run: |
           echo "Verifying authentication by running 'tuist bundle list'..."
-          ./tuist-built bundle list --project tuist/wikipedia
+          TUIST_URL="https://staging.tuist.dev" ./tuist-built bundle list --project tuist/wikipedia
           echo ""
           echo "OIDC authentication test completed successfully!"
 
