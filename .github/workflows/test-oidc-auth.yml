@@ -86,10 +86,10 @@ jobs:
           echo "tuist_token=$TUIST_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Test Tuist Token with bundle list
-        # env:
-        #   TUIST_CONFIG_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
+        env:
+          TUIST_CONFIG_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
         run: |
           echo "Testing Tuist token by running 'tuist bundle list'..."
-          tuist bundle list
+          tuist bundle list --project tuist/wikipedia
           echo ""
           echo "OIDC authentication test completed successfully!"
