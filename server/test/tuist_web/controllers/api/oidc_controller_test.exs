@@ -4,6 +4,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  setup :set_mimic_global
+
   setup do
     # Clear the JWKS cache before each test
     Cachex.clear(:tuist)

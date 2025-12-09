@@ -17,24 +17,19 @@ defmodule Tuist.OIDC do
   end
 
   defp peek_kid(token) do
-    case String.split(token, ".") do
-      [header_b64 | _] ->
-        with {:ok, header_json} <- Base.url_decode64(header_b64, padding: false),
-             {:ok, header} <- Jason.decode(header_json) do
-          {:ok, header["kid"]}
-        else
-          _ -> {:error, :invalid_token}
-        end
-
-      _ ->
-        {:error, :invalid_token}
+    with [header_b64 | _] <- String.split(token, "."),
+         {:ok, header_json} <- Base.url_decode64(header_b64, padding: false),
+         {:ok, header} <- Jason.decode(header_json) do
+      {:ok, header["kid"]}
+    else
+      _ -> {:error, :invalid_token}
     end
   end
 
   defp fetch_jwks(jwks_uri) do
     cache_key = ["oidc", "jwks", jwks_uri]
 
-    KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl, locking: false], fn ->
+    KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
       case Req.get(jwks_uri) do
         {:ok, %{status: 200, body: body}} -> {:ok, body}
         _ -> {:error, :jwks_fetch_failed}
@@ -43,26 +38,24 @@ defmodule Tuist.OIDC do
   end
 
   defp verify_signature(token, %{"keys" => keys}, kid) do
-    key =
-      if kid do
-        Enum.find(keys, fn k -> k["kid"] == kid end)
-      else
-        List.first(keys)
-      end
-
-    if key do
-      jwk = JOSE.JWK.from_map(key)
-
-      case JOSE.JWT.verify_strict(jwk, ["RS256"], token) do
-        {true, %JOSE.JWT{fields: fields}, _jws} -> {:ok, fields}
-        _ -> {:error, :invalid_signature}
-      end
+    with {:ok, key} <- find_key(keys, kid),
+         {true, %JOSE.JWT{fields: fields}, _jws} <-
+           JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), ["RS256"], token) do
+      {:ok, fields}
     else
-      {:error, :invalid_signature}
+      _ -> {:error, :invalid_signature}
     end
   end
 
   defp verify_signature(_, _, _), do: {:error, :invalid_signature}
+
+  defp find_key(keys, nil), do: {:ok, List.first(keys)}
+  defp find_key(keys, kid) do
+    case Enum.find(keys, &(&1["kid"] == kid)) do
+      nil -> {:error, :key_not_found}
+      key -> {:ok, key}
+    end
+  end
 
   defp validate_expiration(%{"exp" => exp}) when is_integer(exp) do
     if exp > DateTime.to_unix(DateTime.utc_now()) do

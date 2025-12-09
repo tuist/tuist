@@ -7,6 +7,8 @@ defmodule Tuist.OIDCTest do
   @jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
   @repository_claim "repository"
 
+  setup :set_mimic_global
+
   setup do
     Cachex.clear(:tuist)
     :ok
@@ -16,7 +18,7 @@ defmodule Tuist.OIDCTest do
     test "successfully verifies a valid OIDC token" do
       {token, jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn @jwks_uri ->
+      stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -32,7 +34,7 @@ defmodule Tuist.OIDCTest do
     test "returns error for expired token" do
       {token, jwks} = generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
 
-      stub(Req, :get, fn @jwks_uri ->
+      stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -42,7 +44,7 @@ defmodule Tuist.OIDCTest do
     test "returns error when JWKS fetch fails" do
       {token, _jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn @jwks_uri ->
+      stub(Req, :get, fn _url ->
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
@@ -65,7 +67,7 @@ defmodule Tuist.OIDCTest do
         ]
       }
 
-      stub(Req, :get, fn @jwks_uri ->
+      stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: different_jwks}}
       end)
 
@@ -75,7 +77,7 @@ defmodule Tuist.OIDCTest do
     test "extracts repository from custom claim name" do
       {token, jwks} = generate_test_token_and_jwks(repository_claim: "project_path", repository: "group/project")
 
-      stub(Req, :get, fn "https://gitlab.com/jwks" ->
+      stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
