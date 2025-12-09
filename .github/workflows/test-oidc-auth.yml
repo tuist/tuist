@@ -5,11 +5,6 @@ on:
     branches:
       - feat/oidc-tokens
   workflow_dispatch:
-    inputs:
-      tuist_url:
-        description: "Tuist server URL"
-        required: false
-        default: "https://staging.tuist.dev"
 
 permissions:
   id-token: write
@@ -20,74 +15,51 @@ env:
 
 jobs:
   test-oidc:
-    name: Test OIDC Token Exchange
+    name: Test OIDC Authentication
     runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+
       - uses: jdx/mise-action@v2
 
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
+
       - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
 
-      - name: Get GitHub OIDC Token
-        id: get-oidc-token
+      - name: Build Tuist CLI
+        run: swift build --configuration debug --product tuist
+
+      - name: Create tuist-built symlink
+        run: ln -s .build/debug/tuist ./tuist-built
+
+      - name: Test tuist auth login with OIDC
         run: |
-          echo "Requesting OIDC token from GitHub..."
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=tuist" | jq -r '.value')
+          echo "Testing 'tuist auth login' with OIDC authentication..."
+          echo "Server URL: $TUIST_URL"
+          ./tuist-built auth login
 
-          if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
-            echo "Failed to get OIDC token from GitHub"
-            exit 1
-          fi
-
-          echo "Successfully obtained OIDC token"
-          echo "oidc_token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
-
-      - name: Exchange OIDC Token for Tuist Token
-        id: exchange-token
-        env:
-          OIDC_TOKEN: ${{ steps.get-oidc-token.outputs.oidc_token }}
+      - name: Verify authentication by running a command
         run: |
-          echo "Exchanging OIDC token at $TUIST_URL/api/auth/oidc/token..."
-
-          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$TUIST_URL/api/auth/oidc/token" \
-            -H "Content-Type: application/json" \
-            -d "{\"token\": \"$OIDC_TOKEN\"}")
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-
-          echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $BODY"
-
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Token exchange failed with status $HTTP_CODE"
-            echo "$BODY" | jq -r '.message // "Unknown error"'
-            exit 1
-          fi
-
-          TUIST_TOKEN=$(echo "$BODY" | jq -r '.access_token')
-          EXPIRES_IN=$(echo "$BODY" | jq -r '.expires_in')
-
-          if [ -z "$TUIST_TOKEN" ] || [ "$TUIST_TOKEN" = "null" ]; then
-            echo "Failed to extract access_token from response"
-            exit 1
-          fi
-
-          echo "Successfully obtained Tuist token"
-          echo "Expires in: $EXPIRES_IN seconds"
-
-          # Mask the token in logs
-          echo "::add-mask::$TUIST_TOKEN"
-          echo "tuist_token=$TUIST_TOKEN" >> $GITHUB_OUTPUT
-
-      - name: Test Tuist Token with bundle list
-        env:
-          TUIST_CONFIG_TOKEN: ${{ steps.exchange-token.outputs.tuist_token }}
-        run: |
-          echo "Testing Tuist token by running 'tuist bundle list'..."
-          tuist bundle list --project tuist/wikipedia
+          echo "Verifying authentication by running 'tuist bundle list'..."
+          ./tuist-built bundle list --project tuist/wikipedia
           echo ""
           echo "OIDC authentication test completed successfully!"
+
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
