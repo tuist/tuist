@@ -15,18 +15,6 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
 
-  @providers %{
-    "https://token.actions.githubusercontent.com" => %{
-      jwks_uri: "https://token.actions.githubusercontent.com/.well-known/jwks",
-      repository_claim: "repository"
-    }
-    # Future providers:
-    # "https://gitlab.com" => %{
-    #   jwks_uri: "https://gitlab.com/oauth/discovery/keys",
-    #   repository_claim: "project_path"
-    # }
-  }
-
   plug(
     OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -89,7 +77,7 @@ defmodule TuistWeb.API.OIDCController do
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- verify_token(token),
+    with {:ok, claims} <- OIDC.claims(token),
          {:ok, projects} <- find_projects_by_repository(claims.repository),
          {:ok, access_token} <- generate_token(projects) do
       conn
@@ -138,29 +126,6 @@ defmodule TuistWeb.API.OIDCController do
         conn
         |> put_status(:unauthorized)
         |> json(%{message: "Token validation failed: #{inspect(reason)}"})
-    end
-  end
-
-  defp verify_token(token) when is_binary(token) do
-    with {:ok, issuer} <- peek_issuer(token),
-         {:ok, provider} <- get_provider(issuer) do
-      OIDC.verify(token, provider.jwks_uri, provider.repository_claim)
-    end
-  end
-
-  defp verify_token(_), do: {:error, :invalid_token}
-
-  defp peek_issuer(token) do
-    %JOSE.JWT{fields: %{"iss" => issuer}} = JOSE.JWT.peek_payload(token)
-    {:ok, issuer}
-  rescue
-    _ -> {:error, :invalid_token}
-  end
-
-  defp get_provider(issuer) do
-    case Map.get(@providers, issuer) do
-      nil -> {:error, :unsupported_provider, issuer}
-      provider -> {:ok, provider}
     end
   end
 

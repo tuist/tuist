@@ -7,7 +7,42 @@ defmodule Tuist.OIDC do
 
   @jwks_cache_ttl to_timeout(minute: 15)
 
-  def verify(token, jwks_uri, repository_claim) do
+  @providers %{
+    "https://token.actions.githubusercontent.com" => %{
+      jwks_uri: "https://token.actions.githubusercontent.com/.well-known/jwks",
+      repository_claim: "repository"
+    }
+    # Future providers:
+    # "https://gitlab.com" => %{
+    #   jwks_uri: "https://gitlab.com/oauth/discovery/keys",
+    #   repository_claim: "project_path"
+    # }
+  }
+
+  def claims(token) when is_binary(token) do
+    with {:ok, issuer} <- peek_issuer(token),
+         {:ok, provider} <- get_provider(issuer) do
+      verify(token, provider.jwks_uri, provider.repository_claim)
+    end
+  end
+
+  def claims(_), do: {:error, :invalid_token}
+
+  defp peek_issuer(token) do
+    %JOSE.JWT{fields: %{"iss" => issuer}} = JOSE.JWT.peek_payload(token)
+    {:ok, issuer}
+  rescue
+    _ -> {:error, :invalid_token}
+  end
+
+  defp get_provider(issuer) do
+    case Map.get(@providers, issuer) do
+      nil -> {:error, :unsupported_provider, issuer}
+      provider -> {:ok, provider}
+    end
+  end
+
+  defp verify(token, jwks_uri, repository_claim) do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
          {:ok, claims} <- verify_signature(token, jwks, kid),
@@ -50,6 +85,7 @@ defmodule Tuist.OIDC do
   defp verify_signature(_, _, _), do: {:error, :invalid_signature}
 
   defp find_key(keys, nil), do: {:ok, List.first(keys)}
+
   defp find_key(keys, kid) do
     case Enum.find(keys, &(&1["kid"] == kid)) do
       nil -> {:error, :key_not_found}

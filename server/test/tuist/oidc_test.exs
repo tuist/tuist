@@ -4,9 +4,6 @@ defmodule Tuist.OIDCTest do
 
   alias Tuist.OIDC
 
-  @jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
-  @repository_claim "repository"
-
   setup :set_mimic_global
 
   setup do
@@ -14,31 +11,32 @@ defmodule Tuist.OIDCTest do
     :ok
   end
 
-  describe "verify/3" do
-    test "successfully verifies a valid OIDC token" do
+  describe "claims/1" do
+    test "successfully verifies a valid GitHub Actions OIDC token" do
       {token, jwks} = generate_test_token_and_jwks()
 
       stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
-      assert {:ok, claims} = OIDC.verify(token, @jwks_uri, @repository_claim)
+      assert {:ok, claims} = OIDC.claims(token)
       assert claims.repository == "tuist/tuist"
     end
 
     test "returns error for invalid token format" do
-      assert {:error, :invalid_token} = OIDC.verify("not-a-valid-jwt", @jwks_uri, @repository_claim)
-      assert {:error, :invalid_token} = OIDC.verify("", @jwks_uri, @repository_claim)
+      assert {:error, :invalid_token} = OIDC.claims("not-a-valid-jwt")
+      assert {:error, :invalid_token} = OIDC.claims("")
     end
 
     test "returns error for expired token" do
-      {token, jwks} = generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
+      {token, jwks} =
+        generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
 
       stub(Req, :get, fn _url ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
-      assert {:error, :token_expired} = OIDC.verify(token, @jwks_uri, @repository_claim)
+      assert {:error, :token_expired} = OIDC.claims(token)
     end
 
     test "returns error when JWKS fetch fails" do
@@ -48,7 +46,7 @@ defmodule Tuist.OIDCTest do
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
-      assert {:error, :jwks_fetch_failed} = OIDC.verify(token, @jwks_uri, @repository_claim)
+      assert {:error, :jwks_fetch_failed} = OIDC.claims(token)
     end
 
     test "returns error for invalid signature" do
@@ -71,29 +69,23 @@ defmodule Tuist.OIDCTest do
         {:ok, %{status: 200, body: different_jwks}}
       end)
 
-      assert {:error, :invalid_signature} = OIDC.verify(token, @jwks_uri, @repository_claim)
+      assert {:error, :invalid_signature} = OIDC.claims(token)
     end
 
-    test "extracts repository from custom claim name" do
-      {token, jwks} = generate_test_token_and_jwks(repository_claim: "project_path", repository: "group/project")
+    test "returns error for unsupported CI provider" do
+      {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com")
 
-      stub(Req, :get, fn _url ->
-        {:ok, %{status: 200, body: jwks}}
-      end)
-
-      assert {:ok, claims} = OIDC.verify(token, "https://gitlab.com/jwks", "project_path")
-      assert claims.repository == "group/project"
+      assert {:error, :unsupported_provider, "https://gitlab.com"} = OIDC.claims(token)
     end
   end
 
   defp generate_test_token_and_jwks(opts \\ []) do
     jwk = JOSE.JWK.generate_key({:rsa, 2048})
-    repository_claim = Keyword.get(opts, :repository_claim, "repository")
 
     claims = %{
-      "iss" => "https://token.actions.githubusercontent.com",
+      "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
       "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
-      repository_claim => Keyword.get(opts, :repository, "tuist/tuist")
+      "repository" => Keyword.get(opts, :repository, "tuist/tuist")
     }
 
     jws = %{"alg" => "RS256", "kid" => "test-key-1"}
