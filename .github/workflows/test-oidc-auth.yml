@@ -1,6 +1,9 @@
 name: Test OIDC Authentication
 
 on:
+  push:
+    branches:
+      - feat/account-tokens
   workflow_dispatch:
     inputs:
       tuist_url:
