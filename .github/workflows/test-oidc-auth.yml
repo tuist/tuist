@@ -12,6 +12,7 @@ permissions:
 
 env:
   TUIST_URL: "https://staging.tuist.dev"
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 
 jobs:
   test-oidc:
@@ -38,8 +39,6 @@ jobs:
         run: tuist install
 
       - name: Build Tuist CLI
-        env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
         run: |
           tuist generate tuist ProjectDescription
           DERIVED_DATA_PATH="$PWD/DerivedData"
