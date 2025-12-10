@@ -2336,6 +2336,8 @@ public enum Components {
                     case project_colon_tests_colon_write = "project:tests:write"
                     case project_colon_builds_colon_read = "project:builds:read"
                     case project_colon_builds_colon_write = "project:builds:write"
+                    case project_colon_runs_colon_read = "project:runs:read"
+                    case project_colon_runs_colon_write = "project:runs:write"
                 }
                 /// Token scopes.
                 ///
@@ -6075,6 +6077,8 @@ public enum Components {
                 case project_colon_tests_colon_write = "project:tests:write"
                 case project_colon_builds_colon_read = "project:builds:read"
                 case project_colon_builds_colon_write = "project:builds:write"
+                case project_colon_runs_colon_read = "project:runs:read"
+                case project_colon_runs_colon_write = "project:runs:write"
             }
             /// The scopes for the new account token.
             ///
@@ -17058,6 +17062,8 @@ public enum Operations {
                                 case project_colon_tests_colon_write = "project:tests:write"
                                 case project_colon_builds_colon_read = "project:builds:read"
                                 case project_colon_builds_colon_write = "project:builds:write"
+                                case project_colon_runs_colon_read = "project:runs:read"
+                                case project_colon_runs_colon_write = "project:runs:write"
                             }
                             /// Token scopes.
                             ///
@@ -17431,6 +17437,8 @@ public enum Operations {
                         case project_colon_tests_colon_write = "project:tests:write"
                         case project_colon_builds_colon_read = "project:builds:read"
                         case project_colon_builds_colon_write = "project:builds:write"
+                        case project_colon_runs_colon_read = "project:runs:read"
+                        case project_colon_runs_colon_write = "project:runs:write"
                     }
                     /// The scopes for the new account token.
                     ///
