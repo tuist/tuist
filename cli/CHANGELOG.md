@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.111.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.113.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.113.0
+
+## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,7 +19,7 @@ All notable changes to this project will be documented in this file.
 
 * respect explicit cache profile none with target focus by [@hiltonc](https://github.com/hiltonc) in [#8830](https://github.com/tuist/tuist/pull/8830)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.111.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.112.0
 
 ## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
 
