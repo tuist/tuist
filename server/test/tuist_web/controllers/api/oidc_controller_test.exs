@@ -1,11 +1,9 @@
 defmodule TuistWeb.API.OIDCControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   alias Tuist.OIDC
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-
-  setup :set_mimic_global
 
   describe "POST /api/auth/oidc/token" do
     test "returns access token when OIDC token is valid and project has VCS connection", %{conn: conn} do
