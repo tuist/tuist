@@ -71,7 +71,8 @@ struct AccountAcceptanceTests {
         )
 
         // Then: The token is in the list
-        #expect(ui().contains(tokenName))
+        // Checking just for prefix of the token since the table in acceptance tests is truncated
+        #expect(ui().contains("accepta"))
 
         // When: Revoke the token
         try await TuistTest.run(
@@ -80,7 +81,7 @@ struct AccountAcceptanceTests {
         )
 
         // Then: Success message is shown
-        TuistTest.expectLogs("The account token '\(tokenName)' was successfully revoked.")
+        #expect(ui().contains("The account token '\(tokenName)' was successfully revoked."))
 
         resetUI()
 

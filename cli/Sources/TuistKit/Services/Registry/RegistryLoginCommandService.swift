@@ -146,7 +146,7 @@ struct RegistryLoginCommandService {
                     registryURL: registryURL
                 )
             }
-        case .user, .none:
+        case .user, .account, .none:
             throw RegistryLoginCommandServiceError.missingProjectToken
         }
     }

@@ -340,7 +340,7 @@ defmodule TuistWeb.API.AccountTokensController do
   end
 
   defp generate_token_name do
-    random_suffix = :rand.bytes(4) |> Base.encode16(case: :lower)
+    random_suffix = 4 |> :rand.bytes() |> Base.encode16(case: :lower)
     "token-#{random_suffix}"
   end
 

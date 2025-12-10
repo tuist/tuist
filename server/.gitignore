@@ -49,6 +49,10 @@ priv/secrets/*.key
 # ClickHouse
 .clickhouse.pid
 metadata
+store
+data
+metadata_dropped
+status
 preprocessed_configs
 uuid
 
