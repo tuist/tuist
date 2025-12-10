@@ -39,7 +39,7 @@ defmodule Tuist.Guardian do
          account: account,
          scopes: claims["scopes"],
          all_projects: false,
-         project_ids: claims["project_ids"]
+         project_ids: extract_project_ids(claims)
        }}
     else
       {:error, :resource_not_found}
@@ -50,6 +50,10 @@ defmodule Tuist.Guardian do
     resource = Accounts.get_user_by_id(id)
     {:ok, resource}
   end
+
+  defp extract_project_ids(%{"project_ids" => project_ids}) when is_list(project_ids), do: project_ids
+  defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]
+  defp extract_project_ids(_), do: nil
 
   def after_encode_and_sign(resource, claims, token, _options) do
     with {:ok, _} <-
