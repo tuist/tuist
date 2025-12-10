@@ -48,8 +48,6 @@ We view languages as powerful tools for fostering deeper connections with the co
 
 People come and go. We are grateful for the contributions of our alumni:
 
-- [Pedro Piñera Buendía](https://github.com/pepicrft) (Core Team)
-- [Marek Fořt](https://github.com/fortmarek) (Core Team)
 - [Kas](https://github.com/kwridan) (Core Team)
 - [Daniele Formichelli](https://github.com/danyf90) (Core Team)
 - [Mike Simons](https://github.com/waltflanagan) (Core Team)
