@@ -1,5 +1,5 @@
 {
-  "originHash" : "979c6cab742acd7f538aad2f8bfce1100f8ad6ebc48686c66a8932254c513180",
+  "originHash" : "899e80d83e27db7a0a82616b5d2c74bd7eb62033092e2eb8cc774a6729b4dad0",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -415,7 +415,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MobileNativeFoundation/XCLogParser.git",
       "state" : {
-        "revision" : "a296ffd984faf74101252ec74e8764ae775ad93e"
+        "revision" : "042d9a04964d65b09f0333fe866cbf07a8df971c"
       }
     },
     {

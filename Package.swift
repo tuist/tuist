@@ -711,7 +711,7 @@ let package = Package(
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(
             url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
-            revision: "a296ffd984faf74101252ec74e8764ae775ad93e"
+            revision: "042d9a04964d65b09f0333fe866cbf07a8df971c"
         ),
         .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
         .package(
