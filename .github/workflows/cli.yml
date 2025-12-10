@@ -152,7 +152,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install Tuist dependencies
-        # if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Run tests
         run: mise x -- tuist test TuistUnitTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
