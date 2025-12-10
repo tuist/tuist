@@ -651,6 +651,24 @@
       align-items: center;
       gap: var(--noora-spacing-5);
 
+      & > [data-part="icon"] {
+        & > svg {
+          padding: var(--noora-spacing-2);
+          width: 20px;
+          height: 20px;
+          color: var(--noora-button-secondary-label);
+
+          &:hover {
+            box-shadow:
+              0 1px 1px 0 rgba(14, 14, 14, 0.05),
+              0 0 0 1px rgba(46, 51, 56, 0.08),
+              0 1px 1px 0 rgba(46, 51, 56, 0.1);
+            border-radius: var(--noora-radius-small);
+            background-color: var(--noora-neutral-light-50);
+          }
+        }
+      }
+
       & > [data-part="menu"] {
         position: relative;
 
