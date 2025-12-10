@@ -523,5 +523,60 @@ resources_items = [
         <h3 data-part="title">GitHub</h3>
       </.link>
     </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-languages">
+      <div data-part="action">
+        <div data-part="title-with-icon">
+          <.language />
+          <h3 data-part="title">{dgettext("marketing", "Language")}</h3>
+        </div>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown" data-dropdown="languages">
+        <.link
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "en"
+            )
+          }
+          data-part="language-item"
+        >
+          English
+        </.link>
+        <.link
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "ko"
+            )
+          }
+          data-part="language-item"
+        >
+          한국어 <span>(Korean)</span>
+        </.link>
+        <.link
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "ru"
+            )
+          }
+          data-part="language-item"
+        >
+          Русский <span>(Russian)</span>
+        </.link>
+        <.link
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "zh_Hans"
+            )
+          }
+          data-part="language-item"
+        >
+          中文 <span>(Chinese)</span>
+        </.link>
+      </div>
+    </div>
   </nav>
 </header>
