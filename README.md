@@ -258,7 +258,9 @@ Some companies support our community and open source efforts with contributions 
 
 You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-started) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
-## Core Team
+## Core Alumni
+
+The following people were once core contributors helping steer the project in the right direction and ensuring we have a reliable foundation we can build new features upon:
 
 <table>
   <tr>
@@ -268,19 +270,14 @@ You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-s
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
     <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
   </tr>
-</table>
-
-## Core Alumni
-
-The following people were once core contributors helping steer the project in the right direction and ensuring we have a reliable foundation we can build new features upon:
-
-<table>
   <tr>
     <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/andreacipriani"><img src="https://avatars3.githubusercontent.com/u/536929?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Cipriani</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/ollieatkinson"><img src="https://avatars1.githubusercontent.com/u/1382565?v=4" width="100px;" alt=""/><br /><sub><b>Oliver Atkinson</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
+  </tr>
+  <tr>
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
     <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
   </tr>
