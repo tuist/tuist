@@ -2,7 +2,9 @@ defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts.Oauth2Identity
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
@@ -197,6 +199,91 @@ defmodule TuistWeb.AuthControllerTest do
       # Then
       assert redirected_to(conn) == "/"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
+    end
+  end
+
+  describe "callback/2 with OAuth" do
+    test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
+      # Given: A user already exists with a specific email
+      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
+
+      # Simulate OAuth callback with the same email but new OAuth identity
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-123",
+        info: %Info{email: "existing@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> assign(:ueberauth_auth, auth)
+        |> TuistWeb.AuthController.callback(%{})
+
+      # Then: User should be logged in (redirected to their dashboard, not choose-username)
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+
+      # And: OAuth identity should be linked to the existing user
+      {:ok, oauth_identity} = Tuist.Accounts.get_oauth2_identity(:google, "google-uid-123")
+      assert oauth_identity.user.id == existing_user.id
+    end
+
+    test "redirects to choose-username for new OAuth user without existing email", %{conn: conn} do
+      # Simulate OAuth callback with a new email
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-456",
+        info: %Info{email: "newuser@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> assign(:ueberauth_auth, auth)
+        |> TuistWeb.AuthController.callback(%{})
+
+      # Then: Should redirect to choose-username
+      assert redirected_to(conn) == "/users/choose-username"
+
+      # And: Session should have pending OAuth signup data
+      assert get_session(conn, :pending_oauth_signup)
+    end
+
+    test "logs in existing OAuth user directly", %{conn: conn} do
+      # Given: A user with an existing OAuth identity
+      user = AccountsFixtures.user_fixture(email: "oauth-user@example.com")
+
+      # Create OAuth identity for the user
+      {:ok, _oauth_identity} =
+        Tuist.Repo.insert(
+          Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+            provider: :google,
+            id_in_provider: "google-uid-existing",
+            user_id: user.id
+          })
+        )
+
+      # Simulate OAuth callback with the same OAuth identity
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-existing",
+        info: %Info{email: "oauth-user@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> assign(:ueberauth_auth, auth)
+        |> TuistWeb.AuthController.callback(%{})
+
+      # Then: User should be logged in directly
+      assert redirected_to(conn) =~ "/#{user.account.name}"
     end
   end
 

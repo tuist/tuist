@@ -99,8 +99,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       assert redirect_path =~ "/auth/complete-signup?token="
 
       # Verify user was created
-      user = Accounts.get_user_by_email(oauth_data["email"])
-      assert user
+      {:ok, user} = Accounts.get_user_by_email(oauth_data["email"])
       assert user.account.name == username
     end
 

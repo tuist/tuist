@@ -1008,13 +1008,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_user_by_email/1" do
-    test "does not return the user if the email does not exist" do
-      refute Accounts.get_user_by_email("unknown@example.com")
+    test "returns {:error, :not_found} if the email does not exist" do
+      assert {:error, :not_found} = Accounts.get_user_by_email("unknown@example.com")
     end
 
-    test "returns the user if the email exists doing a case-insensitive search" do
+    test "returns {:ok, user} if the email exists doing a case-insensitive search" do
       %{id: id} = user = user_fixture()
-      assert %User{id: ^id} = Accounts.get_user_by_email(String.upcase(user.email))
+      assert {:ok, %User{id: ^id}} = Accounts.get_user_by_email(String.upcase(user.email))
     end
   end
 
@@ -3405,6 +3405,91 @@ defmodule Tuist.AccountsTest do
 
       # When/Then
       assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, uid)
+    end
+  end
+
+  describe "link_oauth_identity_to_user/2" do
+    test "links OAuth identity to an existing user" do
+      # Given
+      user = user_fixture(email: "existing-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert oauth_identity.user_id == user.id
+      assert oauth_identity.provider == :google
+      assert oauth_identity.id_in_provider == to_string(attrs.id_in_provider)
+    end
+
+    test "the linked OAuth identity can be retrieved" do
+      # Given
+      user = user_fixture(email: "link-test@example.com")
+      uid = "google-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      {:ok, retrieved} = Accounts.get_oauth2_identity(:google, uid)
+      assert retrieved.user.id == user.id
+    end
+
+    test "assigns user to SSO organization when provider_organization_id matches" do
+      # Given
+      organization =
+        organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "link-sso-test.io"
+        )
+
+      user = user_fixture(email: "link-sso-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "link-sso-test.io"
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "returns error when OAuth identity already exists for that provider and uid" do
+      # Given
+      user1 = user_fixture(email: "user1@example.com")
+      user2 = user_fixture(email: "user2@example.com")
+      uid = "shared-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :github,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # First link succeeds
+      {:ok, _} = Accounts.link_oauth_identity_to_user(user1, attrs)
+
+      # When - second link to same OAuth identity fails
+      {:error, changeset} = Accounts.link_oauth_identity_to_user(user2, attrs)
+
+      # Then
+      assert changeset.errors != []
     end
   end
 

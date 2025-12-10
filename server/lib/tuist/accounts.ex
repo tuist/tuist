@@ -211,9 +211,16 @@ defmodule Tuist.Accounts do
 
   # Parameters
     - `email` - The email address of the user.
+
+  # Returns
+    - `{:ok, user}` - If the user is found.
+    - `{:error, :not_found}` - If the user is not found.
   """
   def get_user_by_email(email) do
-    Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
+    case Repo.one(from(u in User, where: u.email == ^email, preload: [:account])) do
+      nil -> {:error, :not_found}
+      user -> {:ok, user}
+    end
   end
 
   def get_user_by_id(id) do
@@ -452,6 +459,28 @@ defmodule Tuist.Accounts do
       assign_sso_user_to_organization(user, provider, provider_organization_id)
 
       user
+    end
+  end
+
+  @doc """
+  Links an OAuth identity to an existing user.
+  Used when a user signs in with OAuth using an email that already exists.
+  """
+  def link_oauth_identity_to_user(%User{id: user_id} = user, attrs) do
+    case Repo.insert(
+           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+             provider: attrs.provider,
+             id_in_provider: to_string(attrs.id_in_provider),
+             user_id: user_id,
+             provider_organization_id: attrs[:provider_organization_id]
+           })
+         ) do
+      {:ok, oauth_identity} ->
+        assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+        {:ok, oauth_identity}
+
+      error ->
+        error
     end
   end
 
@@ -707,23 +736,23 @@ defmodule Tuist.Accounts do
          email: email,
          provider_organization_id: provider_organization_id
        }) do
-    user = get_user_by_email(email)
+    case get_user_by_email(email) do
+      {:ok, user} ->
+        {:ok, oauth2_identity} =
+          Repo.insert(
+            Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+              provider: provider,
+              id_in_provider: to_string(id_in_provider),
+              user_id: user.id,
+              provider_organization_id: provider_organization_id
+            })
+          )
 
-    if user do
-      {:ok, oauth2_identity} =
-        Repo.insert(
-          Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
-            provider: provider,
-            id_in_provider: to_string(id_in_provider),
-            user_id: user.id,
-            provider_organization_id: provider_organization_id
-          })
-        )
+        oauth2_identity
 
-      oauth2_identity
-    else
-      user = create_oauth2_user(email, provider, id_in_provider, provider_organization_id)
-      find_oauth2_identity(%{user: user, provider: provider})
+      {:error, :not_found} ->
+        user = create_oauth2_user(email, provider, id_in_provider, provider_organization_id)
+        find_oauth2_identity(%{user: user, provider: provider})
     end
   end
 
@@ -1583,7 +1612,7 @@ defmodule Tuist.Accounts do
   end
 
   def okta_organization_for_user_email(email) do
-    with user when not is_nil(user) <- get_user_by_email(email),
+    with {:ok, user} <- get_user_by_email(email),
          organization when not is_nil(organization) <- user_okta_organization(user) do
       {:ok, organization}
     else
