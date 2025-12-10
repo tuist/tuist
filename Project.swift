@@ -25,9 +25,9 @@ func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect test",
         scriptText: """
-        # eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-        # tuist inspect test
+        tuist inspect test
         """,
         target: target
     )
