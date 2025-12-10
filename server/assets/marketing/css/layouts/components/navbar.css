@@ -1296,24 +1296,22 @@
     animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
   }
 
-  & > [data-part="menu-simple"]:nth-child(1) {
+  /* nth-child counts all siblings, not just menu-simple elements.
+     With 3 menu elements before them, menu-simple items are children 4-7 */
+  & > [data-part="menu-simple"]:nth-child(4) {
     animation-delay: 0.2s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(2) {
+  & > [data-part="menu-simple"]:nth-child(5) {
     animation-delay: 0.25s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(3) {
+  & > [data-part="menu-simple"]:nth-child(6) {
     animation-delay: 0.3s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(4) {
+  & > [data-part="menu-simple"]:nth-child(7) {
     animation-delay: 0.35s;
-  }
-
-  & > [data-part="menu-simple"]:nth-child(5) {
-    animation-delay: 0.4s;
   }
 }
 
