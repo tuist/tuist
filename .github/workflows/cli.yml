@@ -36,10 +36,10 @@ on:
       - "Package.resolved"
 
 permissions:
+  id-token: write
   contents: read
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,6 +64,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -93,6 +95,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -122,6 +126,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -151,6 +157,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -180,6 +188,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -215,6 +225,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -257,6 +269,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -292,6 +306,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
