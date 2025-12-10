@@ -37,17 +37,22 @@ defmodule Cache.S3UploadWorker do
   end
 
   defp upload_to_s3(key, local_path) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    if File.exists?(local_path) do
+      bucket = Application.get_env(:cache, :s3)[:bucket]
 
-    case local_path
-         |> ExAws.S3.Upload.stream_file()
-         |> ExAws.S3.upload(bucket, key)
-         |> ExAws.request() do
-      {:ok, _response} ->
-        :ok
+      case local_path
+           |> ExAws.S3.Upload.stream_file()
+           |> ExAws.S3.upload(bucket, key)
+           |> ExAws.request() do
+        {:ok, _response} ->
+          :ok
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      Logger.error("Local file not found for S3 upload: #{local_path}")
+      :ok
     end
   end
 end
