@@ -22,31 +22,33 @@ password = "tuistrocks"
 FunWithFlags.enable(:qa)
 
 _account =
-  if is_nil(Accounts.get_user_by_email(email)) do
-    {:ok, account} =
-      Accounts.create_user(email,
-        password: password,
-        confirmed_at: NaiveDateTime.utc_now(),
-        setup_billing: false,
-        customer_id: "cus_RFlTyvSVonyndv"
-      )
+  case Accounts.get_user_by_email(email) do
+    {:error, :not_found} ->
+      {:ok, account} =
+        Accounts.create_user(email,
+          password: password,
+          confirmed_at: NaiveDateTime.utc_now(),
+          setup_billing: false,
+          customer_id: "cus_RFlTyvSVonyndv"
+        )
 
-    %Subscription{}
-    |> Subscription.create_changeset(%{
-      plan: :pro,
-      subscription_id: "sub_1QNEs2LWue9IBlPSsKtuPQ5L",
-      status: "active",
-      account_id: account.id,
-      default_payment_method: "pmc_1QNBBVLWue9IBlPSH2tnx4hH"
-    })
-    |> Repo.insert!()
+      %Subscription{}
+      |> Subscription.create_changeset(%{
+        plan: :pro,
+        subscription_id: "sub_1QNEs2LWue9IBlPSsKtuPQ5L",
+        status: "active",
+        account_id: account.id,
+        default_payment_method: "pmc_1QNBBVLWue9IBlPSH2tnx4hH"
+      })
+      |> Repo.insert!()
 
-    account
-  else
-    Accounts.get_user_by_email(email)
+      account
+
+    {:ok, user} ->
+      user
   end
 
-user = Accounts.get_user_by_email(email)
+{:ok, user} = Accounts.get_user_by_email(email)
 
 organization =
   if Accounts.get_organization_by_handle("tuist") do
@@ -62,20 +64,22 @@ organization =
 member_email = "member@tuist.dev"
 
 _member_user =
-  if is_nil(Accounts.get_user_by_email(member_email)) do
-    {:ok, member} =
-      Accounts.create_user(member_email,
-        password: password,
-        confirmed_at: NaiveDateTime.utc_now(),
-        setup_billing: false
-      )
+  case Accounts.get_user_by_email(member_email) do
+    {:error, :not_found} ->
+      {:ok, member} =
+        Accounts.create_user(member_email,
+          password: password,
+          confirmed_at: NaiveDateTime.utc_now(),
+          setup_billing: false
+        )
 
-    # Add member to the organization
-    :ok = Accounts.add_user_to_organization(member, organization)
+      # Add member to the organization
+      :ok = Accounts.add_user_to_organization(member, organization)
 
-    member
-  else
-    Accounts.get_user_by_email(member_email)
+      member
+
+    {:ok, member} ->
+      member
   end
 
 Accounts.update_okta_configuration(organization.id, %{

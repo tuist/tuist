@@ -15,8 +15,7 @@ defmodule TuistWeb.Plugs.LegacyAccountTokenScopesPlug do
   def call(%{body_params: %{"scopes" => scopes}} = conn, _opts) when is_list(scopes) do
     normalized_scopes = Enum.map(scopes, &normalize_scope/1)
 
-    conn
-    |> Map.put(:body_params, Map.put(conn.body_params, "scopes", normalized_scopes))
+    Map.put(conn, :body_params, Map.put(conn.body_params, "scopes", normalized_scopes))
   end
 
   def call(conn, _opts), do: conn

@@ -2170,6 +2170,25 @@ components:
       type: integer
       x-struct:
       x-validate:
+    OIDCTokenExchangeResponse:
+      properties:
+        access_token:
+          description: The Tuist access token to use for API requests.
+          type: string
+          x-struct:
+          x-validate:
+        expires_in:
+          description: Token lifetime in seconds.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - access_token
+        - expires_in
+      title: OIDCTokenExchangeResponse
+      type: object
+      x-struct:
+      x-validate:
     CacheEndpoints:
       description: List of available cache endpoints
       properties:
@@ -2953,6 +2972,19 @@ components:
         - duration
         - is_ci
       title: BuildRun
+      type: object
+      x-struct:
+      x-validate:
+    OIDCTokenExchangeRequest:
+      properties:
+        token:
+          description: The OIDC JWT token from the CI provider.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+      title: OIDCTokenExchangeRequest
       type: object
       x-struct:
       x-validate:
@@ -5246,6 +5278,71 @@ paths:
       summary: Authenticate with Apple identity token.
       tags:
         - Authentication
+  /api/auth/oidc/token:
+    post:
+      callbacks: {}
+      description: |
+        Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+        for a short-lived Tuist access token.
+      operationId: exchangeOIDCToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                token:
+                  description: The OIDC JWT token from the CI provider.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - token
+              title: OIDCTokenExchangeRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: OIDC token exchange request
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  access_token:
+                    description: The Tuist access token to use for API requests.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Token lifetime in seconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - access_token
+                  - expires_in
+                title: OIDCTokenExchangeResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: Token exchange successful
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid or expired OIDC token
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No projects linked to the repository
+      summary: Exchange a CI provider OIDC token for a Tuist access token.
+      tags:
+        - OIDC Authentication
   /api/projects/{account_handle}/{project_handle}/cache/ac:
     post:
       callbacks: {}

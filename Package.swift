@@ -92,6 +92,7 @@ let targets: [Target] = [
             xcodeGraphDependency,
             mockableDependency,
             "TuistServer",
+            "TuistOIDC",
             "TuistSimulator",
             fileSystemDependency,
             "TuistCache",
@@ -388,6 +389,18 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistOIDC",
+        dependencies: [
+            "TuistSupport",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistOIDC",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistHasher",
         dependencies: [
             "TuistCore",
@@ -644,6 +657,10 @@ let package = Package(
         .library(
             name: "TuistServer",
             targets: ["TuistServer"]
+        ),
+        .library(
+            name: "TuistOIDC",
+            targets: ["TuistOIDC"]
         ),
         .library(
             name: "TuistHasher",

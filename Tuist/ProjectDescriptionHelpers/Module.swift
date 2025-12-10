@@ -22,6 +22,7 @@ public enum Module: String, CaseIterable {
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
     case server = "TuistServer"
+    case oidc = "TuistOIDC"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
     case simulator = "TuistSimulator"
@@ -339,7 +340,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:project-loading")
         case .dependencies:
             moduleTags.append("domain:dependencies")
-        case .server:
+        case .server, .oidc:
             moduleTags.append("domain:server")
         case .analytics:
             moduleTags.append("domain:analytics")
@@ -485,6 +486,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.launchctl.targetName),
+                    .target(name: Module.oidc.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -717,6 +719,10 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "Command"),
                 ]
+            case .oidc:
+                [
+                    .target(name: Module.support.targetName),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -776,6 +782,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
+                    .target(name: Module.oidc.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
@@ -987,6 +994,11 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                     .external(name: "Command"),
+                ]
+            case .oidc:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
                 ]
             }
         dependencies =
