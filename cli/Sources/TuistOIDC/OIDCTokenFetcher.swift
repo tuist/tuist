@@ -47,11 +47,11 @@ struct OIDCTokenFetcher: OIDCTokenFetching {
             throw OIDCTokenFetcherError.tokenRequestFailed(statusCode: statusCode, body: body)
         }
 
-        struct OIDCTokenResponse: Decodable {
-            let value: String
-        }
-
         let tokenResponse = try JSONDecoder().decode(OIDCTokenResponse.self, from: data)
         return tokenResponse.value
     }
+}
+
+struct OIDCTokenResponse: Decodable {
+    let value: String
 }
