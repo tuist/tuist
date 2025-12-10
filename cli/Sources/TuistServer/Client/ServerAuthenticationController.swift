@@ -588,7 +588,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             } else {
                 return .user(
                     accessToken: accessToken,
-                    refreshToken: try JWT.parse($0.refreshToken)
+                    refreshToken: try JWT.parse($0.refreshToken!)
                 )
             }
         }

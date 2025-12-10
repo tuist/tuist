@@ -111,10 +111,7 @@ final class LoginService: LoginServicing {
         )
 
         try await ServerCredentialsStore.current.store(
-            credentials: ServerCredentials(
-                accessToken: accessToken,
-                refreshToken: ""
-            ),
+            credentials: ServerCredentials(accessToken: accessToken),
             serverURL: serverURL
         )
     }
