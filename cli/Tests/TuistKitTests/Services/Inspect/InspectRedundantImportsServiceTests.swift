@@ -452,4 +452,85 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         try await subject.run(path: path.pathString)
     }
+
+    func test_run_throwsAnError_when_crossProjectDependencyIsRedundant() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/project")
+        let libraryPath = try AbsolutePath(validating: "/library")
+        let config = Tuist.test()
+
+        // Library project with a UI component
+        let uiComponent = Target.test(name: "UIComponent", product: .framework)
+        let libraryProject = Project.test(path: libraryPath, targets: [uiComponent])
+
+        // Main project with a feature that depends on the UI component but doesn't import it
+        let feature = Target.test(
+            name: "Feature",
+            product: .framework,
+            dependencies: [TargetDependency.project(target: "UIComponent", path: libraryPath)]
+        )
+        let mainProject = Project.test(path: projectPath, targets: [feature])
+
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: mainProject, libraryPath: libraryProject],
+            dependencies: [
+                .target(name: feature.name, path: projectPath): [
+                    .target(name: uiComponent.name, path: libraryPath),
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
+        // Feature doesn't import UIComponent
+        given(targetScanner).imports(for: .value(feature)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))
+
+        let expectedIssue = InspectImportsIssue(target: feature.productName, dependencies: [uiComponent.productName])
+        let expectedError = InspectImportsServiceError.redundantImportsFound([expectedIssue])
+
+        // When / Then
+        await XCTAssertThrowsSpecific(try await subject.run(path: projectPath.pathString), expectedError)
+    }
+
+    func test_run_doesntThrowAnyErrors_when_crossProjectDependencyIsImported() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/project")
+        let libraryPath = try AbsolutePath(validating: "/library")
+        let config = Tuist.test()
+
+        // Library project with a UI component
+        let uiComponent = Target.test(name: "UIComponent", product: .framework)
+        let libraryProject = Project.test(path: libraryPath, targets: [uiComponent])
+
+        // Main project with a feature that depends on and imports the UI component
+        let feature = Target.test(
+            name: "Feature",
+            product: .framework,
+            dependencies: [TargetDependency.project(target: "UIComponent", path: libraryPath)]
+        )
+        let mainProject = Project.test(path: projectPath, targets: [feature])
+
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: mainProject, libraryPath: libraryProject],
+            dependencies: [
+                .target(name: feature.name, path: projectPath): [
+                    .target(name: uiComponent.name, path: libraryPath),
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
+        // Feature imports UIComponent
+        given(targetScanner).imports(for: .value(feature)).willReturn(Set(["UIComponent"]))
+        given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))
+
+        // When / Then - Should not throw
+        try await subject.run(path: projectPath.pathString)
+    }
 }
