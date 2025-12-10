@@ -676,6 +676,10 @@
       & > [data-part="menu"] {
         position: relative;
 
+        @media (max-width: 768px) {
+          display: none;
+        }
+
         & > [data-part="action"] {
           display: flex;
           flex-direction: row;
