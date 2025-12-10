@@ -143,16 +143,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
+      # - name: Restore cache
+      #   id: cache-restore
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     path: .build
+      #     key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+      #     restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install Tuist dependencies
-        # if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Run tests
         run: mise x -- tuist test TuistUnitTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
