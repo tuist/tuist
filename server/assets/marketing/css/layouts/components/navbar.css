@@ -652,6 +652,10 @@
       gap: var(--noora-spacing-5);
 
       & > [data-part="icon"] {
+        @media (max-width: 768px) {
+          display: none;
+        }
+
         & > svg {
           padding: var(--noora-spacing-2);
           width: 20px;
@@ -1022,7 +1026,16 @@
         padding: var(--noora-spacing-5) var(--noora-spacing-6);
 
         & > [data-part="link"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-4);
           text-decoration: none;
+
+          & > svg {
+            width: 20px;
+            height: 20px;
+            color: var(--noora-button-secondary-label);
+          }
 
           & > [data-part="title"] {
             margin: 0;
