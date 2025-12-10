@@ -28,7 +28,8 @@ defmodule TuistWeb.API.OIDCController do
     "project:previews:write",
     "project:bundles:write",
     "project:tests:write",
-    "project:builds:write"
+    "project:builds:write",
+    "project:runs:write"
   ]
 
   @token_ttl_seconds 3600
