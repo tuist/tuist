@@ -152,7 +152,7 @@ let targets: [Target] = [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
             .product(name: "FileLogging", package: "crspybits.swift-log-file"),
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCLogParser", package: "XCLogParser"),
             .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
         ],
         path: "cli/Sources/TuistSupport",
@@ -440,7 +440,7 @@ let targets: [Target] = [
             "TuistCASAnalytics",
             "TuistGit",
             fileSystemDependency,
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCLogParser", package: "XCLogParser"),
             swiftToolsSupportDependency,
             pathDependency,
         ],
@@ -710,8 +710,8 @@ let package = Package(
         ),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(
-            id: "MobileNativeFoundation.XCLogParser",
-            .upToNextMajor(from: "0.2.43")
+            url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
+            revision: "a296ffd984faf74101252ec74e8764ae775ad93e"
         ),
         .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
         .package(
