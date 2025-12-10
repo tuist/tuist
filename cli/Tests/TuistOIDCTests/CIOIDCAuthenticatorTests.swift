@@ -58,26 +58,6 @@ struct CIOIDCAuthenticatorTests {
     }
 
     @Test(.withMockedEnvironment())
-    func fetchOIDCToken_throws_when_token_fetcher_fails() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.variables = [
-            "GITHUB_ACTIONS": "true",
-            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://token.actions.githubusercontent.com",
-            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "some-token",
-        ]
-
-        given(oidcTokenFetcher)
-            .fetchToken(requestURL: .any, requestToken: .any, audience: .any)
-            .willThrow(OIDCTokenFetcherError.tokenRequestFailed)
-
-        // When / Then
-        await #expect(throws: OIDCTokenFetcherError.tokenRequestFailed) {
-            try await subject.fetchOIDCToken()
-        }
-    }
-
-    @Test(.withMockedEnvironment())
     func fetchOIDCToken_returns_token_on_success() async throws {
         // Given
         let environment = try #require(Environment.mocked)

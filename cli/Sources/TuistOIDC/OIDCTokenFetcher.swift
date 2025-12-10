@@ -7,15 +7,15 @@ protocol OIDCTokenFetching {
 }
 
 enum OIDCTokenFetcherError: LocalizedError, Equatable {
-    case invalidTokenRequestURL
-    case tokenRequestFailed
+    case invalidTokenRequestURL(String)
+    case tokenRequestFailed(statusCode: Int, body: String)
 
     var errorDescription: String? {
         switch self {
-        case .invalidTokenRequestURL:
-            "Invalid OIDC token request URL."
-        case .tokenRequestFailed:
-            "Failed to fetch OIDC token."
+        case let .invalidTokenRequestURL(url):
+            "Invalid OIDC token request URL: \(url)"
+        case let .tokenRequestFailed(statusCode, body):
+            "Failed to fetch OIDC token. Status code: \(statusCode). Response: \(body)"
         }
     }
 }
@@ -23,7 +23,7 @@ enum OIDCTokenFetcherError: LocalizedError, Equatable {
 struct OIDCTokenFetcher: OIDCTokenFetching {
     func fetchToken(requestURL: String, requestToken: String, audience: String) async throws -> String {
         guard var urlComponents = URLComponents(string: requestURL) else {
-            throw OIDCTokenFetcherError.invalidTokenRequestURL
+            throw OIDCTokenFetcherError.invalidTokenRequestURL(requestURL)
         }
 
         var queryItems = urlComponents.queryItems ?? []
@@ -31,7 +31,7 @@ struct OIDCTokenFetcher: OIDCTokenFetching {
         urlComponents.queryItems = queryItems
 
         guard let url = urlComponents.url else {
-            throw OIDCTokenFetcherError.invalidTokenRequestURL
+            throw OIDCTokenFetcherError.invalidTokenRequestURL(requestURL)
         }
 
         var request = URLRequest(url: url)
@@ -42,7 +42,9 @@ struct OIDCTokenFetcher: OIDCTokenFetching {
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200
         else {
-            throw OIDCTokenFetcherError.tokenRequestFailed
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw OIDCTokenFetcherError.tokenRequestFailed(statusCode: statusCode, body: body)
         }
 
         struct OIDCTokenResponse: Decodable {

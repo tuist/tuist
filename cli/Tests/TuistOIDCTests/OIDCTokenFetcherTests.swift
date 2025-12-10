@@ -11,7 +11,7 @@ struct OIDCTokenFetcherTests {
 
         // When / Then
         // A URL with spaces that cannot be parsed by URLComponents
-        await #expect(throws: OIDCTokenFetcherError.invalidTokenRequestURL) {
+        await #expect(throws: OIDCTokenFetcherError.invalidTokenRequestURL("http://[invalid")) {
             try await subject.fetchToken(
                 requestURL: "http://[invalid",
                 requestToken: "token",
