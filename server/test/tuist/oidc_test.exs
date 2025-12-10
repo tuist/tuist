@@ -1,13 +1,12 @@
 defmodule Tuist.OIDCTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.KeyValueStore
   alias Tuist.OIDC
 
-  setup :set_mimic_global
-
   setup do
-    Cachex.clear(:tuist)
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     :ok
   end
 
