@@ -248,8 +248,7 @@ struct LoginServiceTests {
             .store(
                 credentials: .value(
                     ServerCredentials(
-                        accessToken: "tuist-access-token",
-                        refreshToken: ""
+                        accessToken: "tuist-access-token"
                     )
                 ),
                 serverURL: .any
