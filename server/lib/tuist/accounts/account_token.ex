@@ -40,7 +40,9 @@ defmodule Tuist.Accounts.AccountToken do
     "project:tests:read",
     "project:tests:write",
     "project:builds:read",
-    "project:builds:write"
+    "project:builds:write",
+    "project:runs:read",
+    "project:runs:write"
   ]
 
   @derive {

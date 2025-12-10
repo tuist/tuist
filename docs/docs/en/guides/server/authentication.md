@@ -63,6 +63,7 @@ OIDC tokens have access to the following scopes for all projects connected to th
 - `project:bundles:write`
 - `project:tests:write`
 - `project:builds:write`
+- `project:runs:write`
 
 ::: tip SECURITY BENEFITS
 <!-- -->
@@ -115,6 +116,8 @@ The command accepts the following options:
 | `project:tests:write` | Upload test results |
 | `project:builds:read` | Read build analytics |
 | `project:builds:write` | Upload build analytics |
+| `project:runs:read` | Read command runs |
+| `project:runs:write` | Create and update command runs |
 
 ### Managing account tokens {#managing-account-tokens}
 

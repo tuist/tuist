@@ -17,6 +17,9 @@ defmodule Tuist.Authorization do
       )
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:runs:write scope to create runs.")
+      allow([:authenticated_as_account, scopes_permit: "project:runs:write"])
     end
 
     action :read do
@@ -35,6 +38,10 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any run.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:runs:read or project:runs:write scope to read runs.")
+      allow([:authenticated_as_account, scopes_permit: "project:runs:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:runs:write"])
     end
 
     action :update do
@@ -47,6 +54,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to update the run if it matches the project whose run is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:runs:write scope to update runs.")
+      allow([:authenticated_as_account, scopes_permit: "project:runs:write"])
     end
   end
 
