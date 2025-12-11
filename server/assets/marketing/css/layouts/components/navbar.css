@@ -651,8 +651,34 @@
       align-items: center;
       gap: var(--noora-spacing-5);
 
+      & > [data-part="icon"] {
+        @media (max-width: 768px) {
+          display: none;
+        }
+
+        & > svg {
+          padding: var(--noora-spacing-2);
+          width: 20px;
+          height: 20px;
+          color: var(--noora-button-secondary-label);
+
+          &:hover {
+            box-shadow:
+              0 1px 1px 0 rgba(14, 14, 14, 0.05),
+              0 0 0 1px rgba(46, 51, 56, 0.08),
+              0 1px 1px 0 rgba(46, 51, 56, 0.1);
+            border-radius: var(--noora-radius-small);
+            background-color: var(--noora-neutral-light-50);
+          }
+        }
+      }
+
       & > [data-part="menu"] {
         position: relative;
+
+        @media (max-width: 768px) {
+          display: none;
+        }
 
         & > [data-part="action"] {
           display: flex;
@@ -823,6 +849,25 @@
             font: var(--noora-font-weight-medium) var(--noora-font-body-large);
           }
 
+          & > [data-part="title-with-icon"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+
+            & > svg {
+              width: 20px;
+              height: 20px;
+              color: var(--noora-button-secondary-label);
+            }
+
+            & > [data-part="title"] {
+              margin: 0;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+            }
+          }
+
           & > [data-part="chevron"] {
             display: inline-flex;
             transition: transform 0.2s ease;
@@ -899,6 +944,27 @@
                 color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-small);
               }
+            }
+          }
+
+          & > [data-part="language-item"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            border-radius: var(--noora-radius-small);
+            padding: var(--noora-spacing-1) var(--noora-spacing-2);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            text-decoration: none;
+
+            &:active,
+            &:hover {
+              background: var(--noora-surface-background-secondary);
+            }
+
+            & > span {
+              margin-left: var(--noora-spacing-2);
+              color: var(--noora-surface-label-secondary);
             }
           }
 
@@ -1004,7 +1070,16 @@
         padding: var(--noora-spacing-5) var(--noora-spacing-6);
 
         & > [data-part="link"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-4);
           text-decoration: none;
+
+          & > svg {
+            width: 20px;
+            height: 20px;
+            color: var(--noora-button-secondary-label);
+          }
 
           & > [data-part="title"] {
             margin: 0;
@@ -1256,6 +1331,27 @@
         & > [data-part="changelog"] {
           animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.15s backwards;
         }
+
+        /* Language items animation */
+        & > [data-part="language-item"] {
+          animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+        }
+
+        & > [data-part="language-item"]:nth-child(1) {
+          animation-delay: 0.05s;
+        }
+
+        & > [data-part="language-item"]:nth-child(2) {
+          animation-delay: 0.08s;
+        }
+
+        & > [data-part="language-item"]:nth-child(3) {
+          animation-delay: 0.11s;
+        }
+
+        & > [data-part="language-item"]:nth-child(4) {
+          animation-delay: 0.14s;
+        }
       }
     }
   }
@@ -1265,23 +1361,27 @@
     animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
   }
 
-  & > [data-part="menu-simple"]:nth-child(1) {
+  /* nth-child counts all siblings, not just menu-simple elements.
+     With 3 menu elements before them, menu-simple items are children 4-7 */
+  & > [data-part="menu-simple"]:nth-child(4) {
     animation-delay: 0.2s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(2) {
+  & > [data-part="menu-simple"]:nth-child(5) {
     animation-delay: 0.25s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(3) {
+  & > [data-part="menu-simple"]:nth-child(6) {
     animation-delay: 0.3s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(4) {
+  & > [data-part="menu-simple"]:nth-child(7) {
     animation-delay: 0.35s;
   }
 
-  & > [data-part="menu-simple"]:nth-child(5) {
+  /* Language menu is the 4th menu element (8th child overall) */
+  & > [data-part="menu"]:nth-child(8) {
+    animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
     animation-delay: 0.4s;
   }
 }
