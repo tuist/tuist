@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import Logging
 import OpenAPIRuntime
+import TuistHTTP
 
 #if canImport(TuistSupport)
     import TuistSupport

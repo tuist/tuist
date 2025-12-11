@@ -1,6 +1,8 @@
 import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
+import TuistServer
 import TuistSupport
 
 extension Client {
@@ -8,11 +10,11 @@ extension Client {
     /// - Parameters:
     ///   - cacheURL: The cache service URL
     ///   - authenticationURL: The main server URL for authentication (token refresh, validation)
-    ///   - authenticationProvider: Provider for authentication tokens
+    ///   - serverAuthenticationController: Controller for server authentication
     public static func authenticated(
         cacheURL: URL,
         authenticationURL: URL,
-        authenticationProvider: CacheAuthenticationProviding
+        serverAuthenticationController: ServerAuthenticationControlling
     ) -> Client {
         .init(
             serverURL: cacheURL,
@@ -21,7 +23,7 @@ extension Client {
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
-                    authenticationProvider: authenticationProvider
+                    serverAuthenticationController: serverAuthenticationController
                 ),
                 VerboseLoggingMiddleware(serviceName: "Tuist Cache"),
                 OutputWarningsMiddleware(),

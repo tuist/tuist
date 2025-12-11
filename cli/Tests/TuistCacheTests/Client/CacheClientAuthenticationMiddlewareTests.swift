@@ -3,25 +3,26 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Testing
-import TuistSupport
+import TuistHTTP
+import TuistServer
 
 @testable import TuistCache
 
 struct CacheClientAuthenticationMiddlewareTests {
     private var subject: CacheClientAuthenticationMiddleware!
-    private var mockAuthProvider: MockCacheAuthenticationProviding!
+    private var mockServerAuthenticationController: MockServerAuthenticationControlling!
 
     init() {
-        mockAuthProvider = .init()
+        mockServerAuthenticationController = .init()
         subject = CacheClientAuthenticationMiddleware(
             authenticationURL: URL(string: "https://auth.tuist.dev")!,
-            authenticationProvider: mockAuthProvider
+            serverAuthenticationController: mockServerAuthenticationController
         )
     }
 
     @Test func intercept_throws_notAuthenticated_when_no_token() async throws {
         // Given
-        given(mockAuthProvider)
+        given(mockServerAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(nil)
 
@@ -42,8 +43,8 @@ struct CacheClientAuthenticationMiddlewareTests {
 
     @Test func intercept_adds_authorization_header_when_token_present() async throws {
         // Given
-        let token = "test-auth-token"
-        given(mockAuthProvider)
+        let token = AuthenticationToken.project("test-auth-token")
+        given(mockServerAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(token)
 
@@ -76,9 +77,9 @@ struct CacheClientAuthenticationMiddlewareTests {
         // Given
         let authenticationURL = URL(string: "https://auth.tuist.dev")!
         let baseURL = URL(string: "https://cache.tuist.dev")!
-        let token = "auth-token"
+        let token = AuthenticationToken.project("auth-token")
 
-        given(mockAuthProvider)
+        given(mockServerAuthenticationController)
             .authenticationToken(serverURL: .value(authenticationURL))
             .willReturn(token)
 
@@ -95,7 +96,7 @@ struct CacheClientAuthenticationMiddlewareTests {
         }
 
         // Then
-        verify(mockAuthProvider)
+        verify(mockServerAuthenticationController)
             .authenticationToken(serverURL: .value(authenticationURL))
             .called(1)
     }

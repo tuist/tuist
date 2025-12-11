@@ -3,6 +3,7 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Testing
+import TuistHTTP
 import TuistSupport
 import TuistTesting
 

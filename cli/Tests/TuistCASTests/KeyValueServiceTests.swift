@@ -4,6 +4,8 @@ import Mockable
 import OpenAPIRuntime
 import Testing
 import TuistCache
+import TuistHTTP
+import TuistServer
 import TuistSupport
 import TuistTesting
 @testable import TuistCAS
@@ -16,7 +18,7 @@ struct KeyValueServiceTests {
     private let getCacheValueService: MockGetCacheValueServicing
     private let nodeStore: MockCASNodeStoring
     private let metadataStore: MockKeyValueMetadataStoring
-    private let authenticationProvider: MockCacheAuthenticationProviding
+    private let serverAuthenticationController: MockServerAuthenticationControlling
     private let fullHandle = "tuist/tuist"
     private let serverURL = URL(string: "https://example.com")!
     private let cacheURL = URL(string: "https://cache.example.com")!
@@ -31,15 +33,15 @@ struct KeyValueServiceTests {
         getCacheValueService = MockGetCacheValueServicing()
         nodeStore = MockCASNodeStoring()
         metadataStore = MockKeyValueMetadataStoring()
-        authenticationProvider = MockCacheAuthenticationProviding()
+        serverAuthenticationController = MockServerAuthenticationControlling()
 
         given(cacheURLStore)
             .getCacheURL(for: .any)
             .willReturn(URL(string: "https://cache.example.com")!)
 
-        given(authenticationProvider)
+        given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
-            .willReturn("mock-token")
+            .willReturn(AuthenticationToken.project("mock-token"))
 
         subject = KeyValueService(
             fullHandle: fullHandle,
@@ -49,7 +51,7 @@ struct KeyValueServiceTests {
             getCacheValueService: getCacheValueService,
             nodeStore: nodeStore,
             metadataStore: metadataStore,
-            authenticationProvider: authenticationProvider
+            serverAuthenticationController: serverAuthenticationController
         )
     }
 
@@ -72,7 +74,7 @@ struct KeyValueServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 authenticationURL: .value(URL(string: "https://example.com")!),
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willReturn()
 
@@ -93,7 +95,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .called(1)
 
@@ -127,7 +129,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willThrow(expectedError)
 
@@ -162,7 +164,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willReturn(mockResponse)
 
@@ -202,7 +204,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, authenticationProvider: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
             .willReturn(nil)
 
         given(metadataStore)
@@ -235,7 +237,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, authenticationProvider: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
             .willThrow(expectedError)
 
         given(metadataStore)
@@ -281,7 +283,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willThrow(clientError)
 
@@ -305,7 +307,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, authenticationProvider: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
             .willThrow(genericError)
 
         given(metadataStore)
@@ -345,7 +347,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willReturn()
 
@@ -393,7 +395,7 @@ struct KeyValueServiceTests {
         )
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, authenticationProvider: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
             .willReturn(mockResponse)
 
         given(nodeStore)
@@ -441,7 +443,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willReturn()
 
@@ -492,7 +494,7 @@ struct KeyValueServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 authenticationURL: .any,
-                authenticationProvider: .any
+                serverAuthenticationController: .any
             )
             .willReturn()
 

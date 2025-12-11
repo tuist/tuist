@@ -1,26 +1,16 @@
 import Foundation
 import HTTPTypes
-import Mockable
 import OpenAPIRuntime
-import TuistSupport
-
-/// Protocol for providing authentication tokens to the cache client.
-/// This allows dependency injection of authentication without creating circular dependencies.
-@Mockable
-public protocol CacheAuthenticationProviding: Sendable {
-    /// Returns an authentication token for the given server URL.
-    /// - Parameter serverURL: The server URL to authenticate against.
-    /// - Returns: The authentication token value, or nil if not authenticated.
-    func authenticationToken(serverURL: URL) async throws -> String?
-}
+import TuistHTTP
+import TuistServer
 
 struct CacheClientAuthenticationMiddleware: ClientMiddleware {
     private let authenticationURL: URL
-    private let authenticationProvider: CacheAuthenticationProviding
+    private let serverAuthenticationController: ServerAuthenticationControlling
 
-    init(authenticationURL: URL, authenticationProvider: CacheAuthenticationProviding) {
+    init(authenticationURL: URL, serverAuthenticationController: ServerAuthenticationControlling) {
         self.authenticationURL = authenticationURL
-        self.authenticationProvider = authenticationProvider
+        self.serverAuthenticationController = serverAuthenticationController
     }
 
     func intercept(
@@ -32,13 +22,13 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
 
-        guard let token = try await authenticationProvider.authenticationToken(serverURL: authenticationURL) else {
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: authenticationURL) else {
             throw ClientAuthenticationError.notAuthenticated
         }
 
         request.headerFields.append(
             .init(
-                name: .authorization, value: "Bearer \(token)"
+                name: .authorization, value: "Bearer \(token.value)"
             )
         )
 

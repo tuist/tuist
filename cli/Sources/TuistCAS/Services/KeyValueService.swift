@@ -5,6 +5,7 @@ import Logging
 import Path
 import TuistCache
 import TuistCASAnalytics
+import TuistServer
 import TuistSupport
 
 public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
@@ -16,7 +17,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let fileSystem: FileSystem
     private let nodeStore: CASNodeStoring
     private let metadataStore: KeyValueMetadataStoring
-    private let authenticationProvider: CacheAuthenticationProviding
+    private let serverAuthenticationController: ServerAuthenticationControlling
 
     public init(
         fullHandle: String,
@@ -27,7 +28,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         fileSystem: FileSystem = FileSystem(),
         nodeStore: CASNodeStoring = CASNodeStore(),
         metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore(),
-        authenticationProvider: CacheAuthenticationProviding = ServerCacheAuthenticationAdapter()
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -37,7 +38,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         self.fileSystem = fileSystem
         self.nodeStore = nodeStore
         self.metadataStore = metadataStore
-        self.authenticationProvider = authenticationProvider
+        self.serverAuthenticationController = serverAuthenticationController
     }
 
     public func putValue(
@@ -70,7 +71,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
                 authenticationURL: serverURL,
-                authenticationProvider: authenticationProvider
+                serverAuthenticationController: serverAuthenticationController
             )
 
             Task {
@@ -128,7 +129,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 fullHandle: fullHandle,
                 serverURL: cacheURL,
                 authenticationURL: serverURL,
-                authenticationProvider: authenticationProvider
+                serverAuthenticationController: serverAuthenticationController
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
 

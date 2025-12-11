@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistServer
 import TuistSupport
 
 @Mockable
@@ -12,7 +13,7 @@ public protocol SaveCacheCASServicing: Sendable {
         fullHandle: String,
         serverURL: URL,
         authenticationURL: URL,
-        authenticationProvider: CacheAuthenticationProviding
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws
 }
 
@@ -63,12 +64,12 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
         fullHandle: String,
         serverURL: URL,
         authenticationURL: URL,
-        authenticationProvider: CacheAuthenticationProviding
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            authenticationProvider: authenticationProvider
+            serverAuthenticationController: serverAuthenticationController
         )
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.saveCASArtifact(

@@ -1,6 +1,7 @@
 import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
 import TuistSupport
 
 extension Client {

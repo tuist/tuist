@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistServer
 import TuistSupport
 
 /// Type alias for the generated KeyValueResponse schema
@@ -17,7 +18,7 @@ public protocol GetCacheValueServicing: Sendable {
         fullHandle: String,
         serverURL: URL,
         authenticationURL: URL,
-        authenticationProvider: CacheAuthenticationProviding
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws -> KeyValueResponse?
 }
 
@@ -56,12 +57,12 @@ public final class GetCacheValueService: GetCacheValueServicing {
         fullHandle: String,
         serverURL: URL,
         authenticationURL: URL,
-        authenticationProvider: CacheAuthenticationProviding
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws -> KeyValueResponse? {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            authenticationProvider: authenticationProvider
+            serverAuthenticationController: serverAuthenticationController
         )
         let handles = try fullHandleService.parse(fullHandle)
 

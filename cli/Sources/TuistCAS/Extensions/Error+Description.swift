@@ -1,5 +1,6 @@
 import Foundation
 import OpenAPIRuntime
+import TuistHTTP
 import TuistSupport
 
 extension Error {

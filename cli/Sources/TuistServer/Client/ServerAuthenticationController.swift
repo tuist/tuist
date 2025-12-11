@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+import TuistHTTP
 
 #if canImport(TuistProcess)
     import TuistProcess

@@ -8,6 +8,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistSupport", path: "../"),
         .project(target: "TuistCore", path: "../"),
         .project(target: "TuistServer", path: "../"),
+        .project(target: "TuistHTTP", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
         .project(target: "TuistSimulator", path: "../"),
         .external(name: "XcodeGraph"),
@@ -193,6 +194,7 @@ let project = Project(
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistHTTP", path: "../"),
                 .external(name: "OpenAPIRuntime"),
             ]
         ),
