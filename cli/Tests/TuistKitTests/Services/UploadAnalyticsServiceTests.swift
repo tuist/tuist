@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistHTTP
 import TuistServer
 import TuistSupport
 

@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistHTTP
 import TuistServer
 import TuistSupport
 
