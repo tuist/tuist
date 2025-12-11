@@ -2,7 +2,7 @@ import Foundation
 import Path
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
-public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
+public struct CommandEvent: Codable, Equatable {
     public let runId: String
     public let name: String
     public let subcommand: String?
@@ -29,13 +29,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public enum Status: Codable, Equatable {
         case success, failure(String)
     }
-
-    public let id = UUID()
-    public var date: Date {
-        ranAt
-    }
-
-    public let dispatcherId = "TuistAnalytics"
 
     private enum CodingKeys: String, CodingKey {
         case runId

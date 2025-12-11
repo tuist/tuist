@@ -3,7 +3,6 @@ import Foundation
 import Noora
 import OpenAPIRuntime
 import Path
-import TuistAnalytics
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -74,6 +73,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Other",
                     subcommands: [
                         VersionCommand.self,
+                        AnalyticsUploadCommand.self,
                     ]
                 ),
             ]
@@ -106,24 +106,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
             let config = try await ConfigLoader().loadConfig(path: path)
-            let url = try ServerEnvironmentService().url(configServerURL: config.url)
-            let backend: TuistAnalyticsServerBackend?
-            if let fullHandle = config.fullHandle, processedArguments.prefix(2) != ["inspect", "build"],
-               processedArguments.prefix(2) != [
-                   "auth",
-                   "refresh-token",
-               ]
-            {
-                let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
-                    fullHandle: fullHandle,
-                    url: url
-                )
-                let dispatcher = TuistAnalyticsDispatcher(backend: tuistAnalyticsServerBackend)
-                try TuistAnalytics.bootstrap(dispatcher: dispatcher)
-                backend = tuistAnalyticsServerBackend
-            } else {
-                backend = nil
-            }
+            let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
             let command = try parseAsRoot(processedArguments)
 
             if command is RecentPathRememberableCommand {
@@ -139,18 +122,25 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
+                let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
+                    && processedArguments.prefix(2) != ["auth", "refresh-token"]
+                    && processedArguments.first != "analytics-upload"
                 if let nooraReadyCommand = command as? NooraReadyCommand {
                     let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                     try await withLoggerForNoora(logFilePath: logFilePath) {
                         try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
                             try await trackableCommand.run(
-                                backend: backend
+                                fullHandle: config.fullHandle,
+                                serverURL: serverURL,
+                                shouldTrackAnalytics: shouldTrackAnalytics
                             )
                         }
                     }
                 } else {
                     try await trackableCommand.run(
-                        backend: backend
+                        fullHandle: config.fullHandle,
+                        serverURL: serverURL,
+                        shouldTrackAnalytics: shouldTrackAnalytics
                     )
                 }
             }

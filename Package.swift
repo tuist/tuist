@@ -21,7 +21,6 @@ let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation",
 let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "stencilproject.Stencil")
 let stencilSwiftKitDependency: Target.Dependency = .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit")
 let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
-let queuerDependency: Target.Dependency = .product(name: "Queuer", package: "fabrizioBrancati.Queuer")
 let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
 let keychainAccessDependency: Target.Dependency = .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess")
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
@@ -86,8 +85,6 @@ let targets: [Target] = [
             "TuistDependencies",
             graphVizDependency,
             "TuistMigration",
-            "TuistAsyncQueue",
-            "TuistAnalytics",
             "TuistPlugin",
             xcodeGraphDependency,
             mockableDependency,
@@ -282,23 +279,6 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistAsyncQueue",
-        dependencies: [
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistSupport",
-            xcodeProjDependency,
-            mockableDependency,
-            pathDependency,
-            queuerDependency,
-            fileSystemDependency,
-        ],
-        path: "cli/Sources/TuistAsyncQueue",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
         name: "TuistLoader",
         dependencies: [
             xcodeProjDependency,
@@ -323,24 +303,6 @@ let targets: [Target] = [
             mockableDependency
         ],
         path: "cli/Sources/TuistProcess",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistAnalytics",
-        dependencies: [
-            anyCodableDependency,
-            "TuistAsyncQueue",
-            "TuistServer",
-            "TuistCore",
-            xcodeGraphDependency,
-            "TuistLoader",
-            "TuistSupport",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistAnalytics",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -639,10 +601,6 @@ let package = Package(
             targets: ["TuistLoader"]
         ),
         .library(
-            name: "TuistAnalytics",
-            targets: ["TuistAnalytics"]
-        ),
-        .library(
             name: "TuistAutomation",
             targets: ["TuistAutomation"]
         ),
@@ -690,7 +648,6 @@ let package = Package(
         .package(id: "apple.swift-argument-parser", from: "1.5.0"),
         .package(id: "apple.swift-log", from: "1.5.3"),
         .package(id: "swiftlang.swift-tools-support-core", from: "0.6.1"),
-        .package(id: "fabrizioBrancati.Queuer", from: "2.1.1"),
         .package(id: "flight-school.AnyCodable", from: "0.6.7"),
         .package(id: "tuist.ZIPFoundation", from: "0.9.19"),
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),

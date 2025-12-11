@@ -1,5 +1,5 @@
 {
-  "originHash" : "5324727418cdb5646870f93237ae60e8a7c9e050ca16e8f7ae86b96d88dda30d",
+  "originHash" : "768bb670bde491d7f780f5a7e4a63cd6c35fb3c6d7b6356b0bcc448ff75faafc",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -223,14 +223,6 @@
       "location" : "",
       "state" : {
         "version" : "7.1.5"
-      }
-    },
-    {
-      "identity" : "fabrizioBrancati.Queuer",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "2.1.1"
       }
     },
     {
