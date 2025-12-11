@@ -20,11 +20,8 @@ defmodule Tuist.OIDC do
     with {:ok, issuer} <- peek_issuer(token),
          {:ok, jwks_uri} <- get_jwks_uri(issuer),
          {:ok, claims} <- verify(token, jwks_uri),
-         repository when not is_nil(repository) <- extract_repository(claims, issuer) do
+         {:ok, repository} <- get_repository_from_claims(claims, issuer) do
       {:ok, %{repository: repository}}
-    else
-      nil -> {:error, :missing_repository_claim}
-      error -> error
     end
   end
 
@@ -51,28 +48,38 @@ defmodule Tuist.OIDC do
 
   defp get_jwks_uri(issuer), do: {:error, :unsupported_provider, issuer}
 
-  defp extract_repository(claims, @github_actions_issuer) do
-    claims["repository"]
+  defp get_repository_from_claims(claims, @github_actions_issuer) do
+    case claims["repository"] do
+      nil -> {:error, :missing_repository_claim}
+      repository -> {:ok, repository}
+    end
   end
 
-  defp extract_repository(claims, @bitrise_issuer) do
+  defp get_repository_from_claims(claims, @bitrise_issuer) do
     owner = claims["repository_owner"]
     slug = claims["repository_slug"]
     repo_url = claims["repository_url"] || ""
 
-    if owner && slug && String.contains?(repo_url, "github.com") do
-      "#{owner}/#{slug}"
+    if owner && slug && github_repository_url?(repo_url) do
+      {:ok, "#{owner}/#{slug}"}
+    else
+      {:error, :missing_repository_claim}
     end
   end
 
-  defp extract_repository(claims, @circleci_issuer_prefix <> _org_id) do
+  defp get_repository_from_claims(claims, @circleci_issuer_prefix <> _org_id) do
     case claims["oidc.circleci.com/vcs-origin"] do
-      "github.com/" <> repo -> repo
-      _ -> nil
+      "github.com/" <> repo -> {:ok, repo}
+      _ -> {:error, :missing_repository_claim}
     end
   end
 
-  defp extract_repository(_, _), do: nil
+  defp get_repository_from_claims(_, _), do: {:error, :missing_repository_claim}
+
+  defp github_repository_url?(url) do
+    String.starts_with?(url, "https://github.com/") or
+      String.starts_with?(url, "git@github.com:")
+  end
 
   defp verify(token, jwks_uri) do
     with {:ok, kid} <- peek_kid(token),
