@@ -49,12 +49,17 @@
     overflow-x: auto;
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
 
+    & shiki-highlight {
+      display: block;
+    }
+
     & code {
       display: block;
 
       & .line {
         display: block;
         white-space: pre;
+        min-height: 1lh;
       }
     }
   }
