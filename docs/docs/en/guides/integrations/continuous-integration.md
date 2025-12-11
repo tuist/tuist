@@ -236,9 +236,9 @@ workflows:
           title: Install Tuist
           inputs:
             - content: mise install
-      - get-oidc-identity-token@1:
+      - get-identity-token@0:
           inputs:
-            - audience: https://tuist.dev
+          - audience: tuist
       - script@1:
           title: Authenticate
           inputs:
