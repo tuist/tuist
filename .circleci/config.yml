@@ -6,6 +6,9 @@ jobs:
       - image: cimg/base:current
     steps:
       - run:
+          name: Print token length
+          command: echo "OIDC token length: ${#CIRCLE_OIDC_TOKEN_V2}"
+      - run:
           name: Exchange OIDC token
           command: |
             curl -X POST https://staging.tuist.dev/api/auth/oidc/token \
