@@ -79,6 +79,8 @@ defmodule TuistWeb.UserForgotPasswordLive do
   end
 
   def handle_event("send_email", %{"user" => %{"email" => email}}, socket) do
+    email = String.trim(email)
+
     case Accounts.get_user_by_email(email) do
       {:ok, user} ->
         Accounts.deliver_user_reset_password_instructions(%{

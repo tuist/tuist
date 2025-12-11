@@ -298,6 +298,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def newsletter_signup(conn, %{"email" => email}) do
+    email = String.trim(email)
+
     # Create a verification token (simple base64 encoded email)
     verification_token = Base.encode64(email)
     verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")

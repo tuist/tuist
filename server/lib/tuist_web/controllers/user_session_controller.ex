@@ -44,6 +44,8 @@ defmodule TuistWeb.UserSessionController do
         }
       end
 
+    email = String.trim(email)
+
     case Accounts.get_user_by_email_and_password(email, password) do
       {:ok, user} ->
         conn
