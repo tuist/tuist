@@ -101,4 +101,8 @@ defmodule Tuist.Analytics do
   def subject_parameters(%Tuist.Accounts.User{id: id}) do
     %{user_id: id}
   end
+
+  def subject_parameters(%Tuist.Accounts.AuthenticatedAccount{account: %{id: id}}) do
+    %{account_id: id}
+  end
 end
