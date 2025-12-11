@@ -393,7 +393,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - name: Update version
         working-directory: app
         run: |
