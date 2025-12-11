@@ -235,9 +235,18 @@ jobs:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -270,6 +279,13 @@ jobs:
       - name: Update mise.toml
         run: |
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
+
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Upload CLI artifacts
         id: upload
@@ -399,7 +415,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - name: Update version
         working-directory: app
         run: |

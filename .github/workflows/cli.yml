@@ -62,7 +62,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -93,7 +92,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -124,7 +122,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -155,7 +152,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -186,7 +182,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -223,7 +218,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -267,7 +261,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -304,7 +297,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login

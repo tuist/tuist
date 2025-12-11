@@ -92,7 +92,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -140,7 +139,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
@@ -180,7 +178,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login

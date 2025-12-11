@@ -33,7 +33,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
                "project:previews:write",
                "project:bundles:write",
                "project:tests:write",
-               "project:builds:write"
+               "project:builds:write",
+               "project:runs:write"
              ]
 
       assert project.id in claims["project_ids"]
