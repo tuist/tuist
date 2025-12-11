@@ -111,10 +111,7 @@ defmodule Tuist.Authorization.Checks do
 
   defp expand_scope_groups(scopes) do
     Enum.flat_map(scopes, fn scope ->
-      case Map.get(@scope_groups, scope) do
-        nil -> [scope]
-        group_scopes -> group_scopes
-      end
+      Map.get(@scope_groups, scope, [scope])
     end)
   end
 
