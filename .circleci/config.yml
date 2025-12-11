@@ -7,7 +7,7 @@ jobs:
     steps:
       - run:
           name: Print token length
-          command: echo "OIDC token length: ${#CIRCLE_OIDC_TOKEN_V2}"
+          command: 'echo "OIDC token length: ${#CIRCLE_OIDC_TOKEN_V2}"'
       - run:
           name: Exchange OIDC token
           command: |
