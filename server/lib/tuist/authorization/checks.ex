@@ -8,6 +8,17 @@ defmodule Tuist.Authorization.Checks do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
+  @scope_groups %{
+    "ci" => [
+      "project:cache:write",
+      "project:previews:write",
+      "project:bundles:write",
+      "project:tests:write",
+      "project:builds:write",
+      "project:runs:write"
+    ]
+  }
+
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
       id: project.account_id
@@ -78,20 +89,30 @@ defmodule Tuist.Authorization.Checks do
   Scopes are expected to be strings in the format "entity:object:action"
   (e.g., "project:cache:read", "account:registry:read").
 
+  Scope groups (e.g., "ci") are automatically expanded to their component scopes.
+
   When the object is a Project, this also verifies the token has access to that
   specific project (either via `all_projects: true` or the project being in `project_ids`).
   """
   def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
       when is_binary(scope) do
-    Enum.member?(scopes, scope) and project_access_permitted(auth_account, project)
+    expanded_scopes = expand_scope_groups(scopes)
+    Enum.member?(expanded_scopes, scope) and project_access_permitted(auth_account, project)
   end
 
   def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
-    Enum.member?(scopes, scope)
+    expanded_scopes = expand_scope_groups(scopes)
+    Enum.member?(expanded_scopes, scope)
   end
 
   def scopes_permit(_, _, _) do
     false
+  end
+
+  defp expand_scope_groups(scopes) do
+    Enum.flat_map(scopes, fn scope ->
+      Map.get(@scope_groups, scope, [scope])
+    end)
   end
 
   @doc """

@@ -369,6 +369,109 @@ defmodule Tuist.Authorization.ChecksTest do
                "project:bundles:read"
              ) == false
     end
+
+    test "expands 'ci' scope to grant project:cache:write permission", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               project,
+               "project:cache:write"
+             ) == true
+    end
+
+    test "expands 'ci' scope to grant project:runs:write permission", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               project,
+               "project:runs:write"
+             ) == true
+    end
+
+    test "expands 'ci' scope to grant project:bundles:write permission", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               project,
+               "project:bundles:write"
+             ) == true
+    end
+
+    test "expands 'ci' scope to grant project:previews:write permission", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               project,
+               "project:previews:write"
+             ) == true
+    end
+
+    test "'ci' scope does not grant permissions outside its group", %{user: user} do
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{account: user.account, scopes: ["ci"]},
+               user.account,
+               "account:registry:read"
+             ) == false
+    end
+
+    test "'ci' scope respects project_ids restriction", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      other_project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      # When/Then - should have access to project in project_ids
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: false,
+                 project_ids: [project.id]
+               },
+               project,
+               "project:cache:write"
+             ) == true
+
+      # When/Then - should not have access to project not in project_ids
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: false,
+                 project_ids: [other_project.id]
+               },
+               project,
+               "project:cache:write"
+             ) == false
+    end
   end
 
   describe "ops_access/2" do

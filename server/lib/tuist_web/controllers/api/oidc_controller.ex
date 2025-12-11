@@ -23,15 +23,6 @@ defmodule TuistWeb.API.OIDCController do
 
   tags(["OIDC Authentication"])
 
-  @default_ci_scopes [
-    "project:cache:write",
-    "project:previews:write",
-    "project:bundles:write",
-    "project:tests:write",
-    "project:builds:write",
-    "project:runs:write"
-  ]
-
   @token_ttl_seconds 3600
 
   operation(:exchange_token,
@@ -143,7 +134,7 @@ defmodule TuistWeb.API.OIDCController do
 
     claims = %{
       "type" => "account",
-      "scopes" => @default_ci_scopes,
+      "scopes" => ["ci"],
       "project_ids" => project_ids
     }
 

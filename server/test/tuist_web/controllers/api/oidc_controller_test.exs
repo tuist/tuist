@@ -28,14 +28,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       assert claims["type"] == "account"
 
-      assert claims["scopes"] == [
-               "project:cache:write",
-               "project:previews:write",
-               "project:bundles:write",
-               "project:tests:write",
-               "project:builds:write",
-               "project:runs:write"
-             ]
+      assert claims["scopes"] == ["ci"]
 
       assert project.id in claims["project_ids"]
     end

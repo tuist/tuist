@@ -25,6 +25,7 @@ defmodule Tuist.Accounts.AccountToken do
   alias Tuist.Accounts.AccountTokenProject
 
   @valid_scopes [
+    "ci",
     "account:members:read",
     "account:members:write",
     "account:registry:read",

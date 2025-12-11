@@ -2320,6 +2320,7 @@ public enum Components {
                 public var project_handles: [Swift.String]?
                 /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/scopesPayload`.
                 @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ci = "ci"
                     case account_colon_members_colon_read = "account:members:read"
                     case account_colon_members_colon_write = "account:members:write"
                     case account_colon_registry_colon_read = "account:registry:read"
@@ -6061,6 +6062,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case ci = "ci"
                 case account_colon_members_colon_read = "account:members:read"
                 case account_colon_members_colon_write = "account:members:write"
                 case account_colon_registry_colon_read = "account:registry:read"
@@ -8877,28 +8879,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -16593,6 +16595,10 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
+                /// The ID of the bundle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
+                public var bundle_id: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
@@ -16601,24 +16607,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
                 public var project_handle: Swift.String
-                /// The ID of the bundle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
-                public var bundle_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
+                ///   - bundle_id: The ID of the bundle.
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
-                ///   - bundle_id: The ID of the bundle.
                 public init(
+                    bundle_id: Swift.String,
                     account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    bundle_id: Swift.String
+                    project_handle: Swift.String
                 ) {
+                    self.bundle_id = bundle_id
                     self.account_handle = account_handle
                     self.project_handle = project_handle
-                    self.bundle_id = bundle_id
                 }
             }
             public var path: Operations.getBundle.Input.Path
@@ -17046,6 +17048,7 @@ public enum Operations {
                             public var project_handles: [Swift.String]?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/scopesPayload`.
                             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case ci = "ci"
                                 case account_colon_members_colon_read = "account:members:read"
                                 case account_colon_members_colon_write = "account:members:write"
                                 case account_colon_registry_colon_read = "account:registry:read"
@@ -17421,6 +17424,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case ci = "ci"
                         case account_colon_members_colon_read = "account:members:read"
                         case account_colon_members_colon_write = "account:members:write"
                         case account_colon_registry_colon_read = "account:registry:read"
