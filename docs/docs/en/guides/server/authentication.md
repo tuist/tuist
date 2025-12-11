@@ -28,31 +28,16 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 ### Supported CI providers {#supported-ci-providers}
 
 - GitHub Actions
+- CircleCI
+- Bitrise
 
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
 
-#### GitHub Actions {#github-actions-oidc}
-
 1. **Connect your repository to Tuist**: Follow the <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration guide</LocalizedLink> to connect your GitHub repository to your Tuist project.
 
-2. **Configure workflow permissions**: Add the `id-token: write` permission to your workflow:
+2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login` before any commands that require authentication. The CLI will automatically detect the CI environment and authenticate using OIDC.
 
-```yaml
-permissions:
-  id-token: write
-  contents: read
-```
-
-3. **Run `tuist auth login`**: In your workflow, run `tuist auth login` before any commands that require authentication:
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-  - uses: jdx/mise-action@v2
-  - run: tuist auth login
-```
-
-The CLI will automatically detect the GitHub Actions environment and authenticate using OIDC. No secrets or tokens need to be configured.
+See the <LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for provider-specific configuration examples.
 
 ### OIDC token scopes {#oidc-token-scopes}
 

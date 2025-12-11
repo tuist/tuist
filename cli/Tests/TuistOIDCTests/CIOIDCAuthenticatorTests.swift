@@ -78,4 +78,85 @@ struct CIOIDCAuthenticatorTests {
         // Then
         #expect(token == expectedToken)
     }
+
+    // MARK: - CircleCI
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_throws_missingCircleCIOIDCToken_when_token_missing() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+        ]
+
+        // When / Then
+        await #expect(throws: CIOIDCAuthenticatorError.missingCircleCIOIDCToken) {
+            try await subject.fetchOIDCToken()
+        }
+    }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_returns_circle_oidc_token_v2() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_OIDC_TOKEN_V2": "circle-oidc-token-v2",
+            "CIRCLE_OIDC_TOKEN": "circle-oidc-token",
+        ]
+
+        // When
+        let token = try await subject.fetchOIDCToken()
+
+        // Then
+        #expect(token == "circle-oidc-token-v2")
+    }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_returns_circle_oidc_token_when_v2_missing() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_OIDC_TOKEN": "circle-oidc-token",
+        ]
+
+        // When
+        let token = try await subject.fetchOIDCToken()
+
+        // Then
+        #expect(token == "circle-oidc-token")
+    }
+
+    // MARK: - Bitrise
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_throws_missingBitriseOIDCToken_when_token_missing() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "BITRISE_IO": "true",
+        ]
+
+        // When / Then
+        await #expect(throws: CIOIDCAuthenticatorError.missingBitriseOIDCToken) {
+            try await subject.fetchOIDCToken()
+        }
+    }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_returns_bitrise_oidc_token() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "BITRISE_IO": "true",
+            "BITRISE_OIDC_ID_TOKEN": "bitrise-oidc-token",
+        ]
+
+        // When
+        let token = try await subject.fetchOIDCToken()
+
+        // Then
+        #expect(token == "bitrise-oidc-token")
+    }
 }

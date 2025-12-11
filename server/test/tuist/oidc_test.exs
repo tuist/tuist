@@ -45,7 +45,7 @@ defmodule Tuist.OIDCTest do
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
-      assert {:error, :jwks_fetch_failed} = OIDC.claims(token)
+      assert {:error, :jwks_fetch_failed, _jwks_uri} = OIDC.claims(token)
     end
 
     test "returns error for invalid signature" do
@@ -76,16 +76,87 @@ defmodule Tuist.OIDCTest do
 
       assert {:error, :unsupported_provider, "https://gitlab.com"} = OIDC.claims(token)
     end
+
+    test "successfully verifies a valid CircleCI OIDC token" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: "https://oidc.circleci.com/org/abc-123",
+          claims: %{"oidc.circleci.com/vcs-origin" => "github.com/tuist/tuist"}
+        )
+
+      stub(Req, :get, fn url ->
+        assert url == "https://oidc.circleci.com/org/abc-123/.well-known/jwks-pub.json"
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok, claims} = OIDC.claims(token)
+      assert claims.repository == "tuist/tuist"
+    end
+
+    test "returns error for CircleCI token with non-GitHub repository" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: "https://oidc.circleci.com/org/abc-123",
+          claims: %{"oidc.circleci.com/vcs-origin" => "bitbucket.org/tuist/tuist"}
+        )
+
+      stub(Req, :get, fn _url ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:error, :missing_repository_claim} = OIDC.claims(token)
+    end
+
+    test "successfully verifies a valid Bitrise OIDC token" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: "https://token.builds.bitrise.io",
+          claims: %{
+            "repository_owner" => "tuist",
+            "repository_slug" => "tuist",
+            "repository_url" => "https://github.com/tuist/tuist"
+          }
+        )
+
+      stub(Req, :get, fn url ->
+        assert url == "https://token.builds.bitrise.io/.well-known/jwks"
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok, claims} = OIDC.claims(token)
+      assert claims.repository == "tuist/tuist"
+    end
+
+    test "returns error for Bitrise token with non-GitHub repository" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: "https://token.builds.bitrise.io",
+          claims: %{
+            "repository_owner" => "tuist",
+            "repository_slug" => "tuist",
+            "repository_url" => "https://gitlab.com/tuist/tuist"
+          }
+        )
+
+      stub(Req, :get, fn _url ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:error, :missing_repository_claim} = OIDC.claims(token)
+    end
   end
 
   defp generate_test_token_and_jwks(opts \\ []) do
     jwk = JOSE.JWK.generate_key({:rsa, 2048})
 
-    claims = %{
+    base_claims = %{
       "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
       "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
       "repository" => Keyword.get(opts, :repository, "tuist/tuist")
     }
+
+    additional_claims = Keyword.get(opts, :claims, %{})
+    claims = Map.merge(base_claims, additional_claims)
 
     jws = %{"alg" => "RS256", "kid" => "test-key-1"}
     jwt = JOSE.JWT.from_map(claims)
