@@ -5,7 +5,6 @@ import Foundation
 import Mockable
 import Path
 import Testing
-import TuistAnalytics
 import TuistCore
 import TuistGit
 import TuistSupport

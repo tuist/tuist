@@ -2,10 +2,9 @@ import ArgumentParser
 import Foundation
 import OpenAPIRuntime
 import Path
-import TuistAnalytics
-import TuistAsyncQueue
 import TuistCache
 import TuistCore
+import TuistProcess
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -36,27 +35,28 @@ public class TrackableCommand {
     private let clock: Clock
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
-    private let asyncQueue: AsyncQueuing
     private let fileHandler: FileHandling
+    private let backgroundProcessRunner: BackgroundProcessRunning
 
     public init(
         command: ParsableCommand,
         commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
-        asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
         fileHandler: FileHandling = FileHandler.shared,
+        backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
     ) {
         self.command = command
         self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
-        self.asyncQueue = asyncQueue
         self.fileHandler = fileHandler
+        self.backgroundProcessRunner = backgroundProcessRunner
     }
 
     public func run(
-        backend: TuistAnalyticsServerBackend?
+        fullHandle: String?,
+        serverURL: URL?
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
@@ -75,26 +75,28 @@ public class TrackableCommand {
                 } else {
                     try command.run()
                 }
-                if let backend {
-                    try await dispatchCommandEvent(
+                if let fullHandle, let serverURL {
+                    try await uploadCommandEvent(
                         timer: timer,
                         status: .success,
                         runId: runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
                         ranAt: ranAt
                     )
                 }
             } catch {
-                if let backend {
-                    try await dispatchCommandEvent(
+                if let fullHandle, let serverURL {
+                    try await uploadCommandEvent(
                         timer: timer,
                         status: .failure("\(error)"),
                         runId: await runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
                         ranAt: ranAt
                     )
                 }
@@ -103,13 +105,14 @@ public class TrackableCommand {
         }
     }
 
-    private func dispatchCommandEvent(
+    private func uploadCommandEvent(
         timer: any ClockTimer,
         status: CommandEvent.Status,
         runId: String,
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
-        backend: TuistAnalyticsServerBackend,
+        fullHandle: String,
+        serverURL: URL,
         ranAt _: Date
     ) async throws {
         let durationInSeconds = timer.stop()
@@ -141,7 +144,11 @@ public class TrackableCommand {
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
-                let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
+                let serverCommandEvent = try await UploadAnalyticsService().upload(
+                    commandEvent: commandEvent,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
                 if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
                         .info(
@@ -160,7 +167,20 @@ public class TrackableCommand {
                 Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
             }
         } else {
-            try asyncQueue.dispatch(event: commandEvent)
+            let tempDirectory = try fileHandler.temporaryDirectory()
+            let tempFilePath = tempDirectory.appending(component: "analytics-\(UUID().uuidString).json")
+            let eventData = try JSONEncoder().encode(commandEvent)
+            let eventString = String(decoding: eventData, as: UTF8.self)
+            try fileHandler.write(eventString, path: tempFilePath, atomically: true)
+            try backgroundProcessRunner.runInBackground(
+                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
+                    "analytics-upload",
+                    tempFilePath.pathString,
+                    fullHandle,
+                    serverURL.absoluteString,
+                ],
+                environment: ProcessInfo.processInfo.environment
+            )
         }
     }
 

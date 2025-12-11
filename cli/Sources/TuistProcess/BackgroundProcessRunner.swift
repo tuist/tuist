@@ -21,6 +21,8 @@ public struct BackgroundProcessRunner: BackgroundProcessRunning {
         process.environment = environment
         process.launchPath = arguments.first
         process.arguments = Array(arguments.dropFirst())
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
         process.unbind(.isIndeterminate)
         try process.run()
     }

@@ -15,9 +15,7 @@ public enum Module: String, CaseIterable {
     case generator = "TuistGenerator"
     case scaffold = "TuistScaffold"
     case loader = "TuistLoader"
-    case asyncQueue = "TuistAsyncQueue"
     case plugin = "TuistPlugin"
-    case analytics = "TuistAnalytics"
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
@@ -112,7 +110,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
-                    .target(name: Module.analytics.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
@@ -241,7 +238,7 @@ public enum Module: String, CaseIterable {
 
     public var unitTestsTargetName: String? {
         switch self {
-        case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
             .projectDescription,
             .acceptanceTesting, .simulator, .testing, .process:
             return nil
@@ -342,8 +339,6 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:dependencies")
         case .server, .oidc:
             moduleTags.append("domain:server")
-        case .analytics:
-            moduleTags.append("domain:analytics")
         case .kit:
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
@@ -356,7 +351,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:migration")
         case .plugin:
             moduleTags.append("domain:plugins")
-        case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
+        case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
              .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator:
             moduleTags.append("domain:infrastructure")
         }
@@ -472,8 +467,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.dependencies.targetName),
                     .target(name: Module.migration.targetName),
-                    .target(name: Module.asyncQueue.targetName),
-                    .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.simulator.targetName),
@@ -555,15 +548,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "_NIOFileSystem"),
                 ]
-            case .asyncQueue:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "Queuer"),
-                    .external(name: "XcodeProj"),
-                ]
             case .plugin:
                 [
                     .target(name: Module.core.targetName),
@@ -573,16 +557,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.git.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
-                ]
-            case .analytics:
-                [
-                    .target(name: Module.asyncQueue.targetName),
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.loader.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.server.targetName),
-                    .external(name: "AnyCodable"),
-                    .external(name: "XcodeGraph"),
                 ]
             case .migration:
                 [
@@ -763,7 +737,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.scaffold.targetName),
-                    .target(name: Module.analytics.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.generator.targetName),
@@ -771,7 +744,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
                     .target(name: Module.migration.targetName),
-                    .target(name: Module.asyncQueue.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
@@ -850,13 +822,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "_NIOFileSystem"),
                 ]
-            case .asyncQueue:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.testing.targetName),
-                    .external(name: "Queuer"),
-                ]
             case .plugin:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -868,10 +833,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.git.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
-                ]
-            case .analytics:
-                [
-                    .target(name: Module.testing.targetName)
                 ]
             case .migration:
                 [

@@ -1,4 +1,3 @@
-import TuistAnalytics
 import TuistCore
 import TuistSupport
 import TuistTesting

@@ -1,8 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TuistAnalytics
-import TuistAsyncQueue
 import TuistCore
 import TuistGit
 import TuistSupport
