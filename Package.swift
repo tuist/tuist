@@ -163,6 +163,7 @@ let targets: [Target] = [
         dependencies: [
             "TuistSupport",
             "TuistServer",
+            "TuistHTTP",
             xcodeGraphDependency,
             pathDependency,
             differenceDependency,
@@ -315,6 +316,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistScaffold",
+            "TuistHTTP",
             mockableDependency,
             fileSystemDependency,
             pathDependency,
@@ -329,7 +331,7 @@ let targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
-            "TuistCache",
+            "TuistHTTP",
             "TuistXCActivityLog",
             "TuistXCResultService",
             fileSystemDependency,
@@ -379,17 +381,36 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistHTTP",
+        dependencies: [
+            "TuistSupport",
+            pathDependency,
+            mockableDependency,
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+        ],
+        path: "cli/Sources/TuistHTTP",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistCache",
         dependencies: [
             "TuistCore",
             "TuistSupport",
+            "TuistHTTP",
+            "TuistServer",
             fileSystemDependency,
             mockableDependency,
             pathDependency,
             xcodeGraphDependency,
             "TuistHasher",
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
         ],
         path: "cli/Sources/TuistCache",
+        exclude: ["OpenAPI/cache.yml"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -494,6 +515,7 @@ let targets: [Target] = [
         name: "TuistCAS",
         dependencies: [
             "TuistServer",
+            "TuistHTTP",
             "TuistRootDirectoryLocator",
             "TuistCASAnalytics",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
