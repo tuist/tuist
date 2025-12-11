@@ -5,6 +5,17 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
+enum AnalyticsUploadCommandServiceError: LocalizedError, Equatable {
+    case invalidServerURL(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidServerURL(url):
+            return "Invalid server URL: \(url)"
+        }
+    }
+}
+
 struct AnalyticsUploadCommandService {
     private let fileSystem: FileSysteming
     private let uploadAnalyticsService: UploadAnalyticsServicing
@@ -24,11 +35,13 @@ struct AnalyticsUploadCommandService {
         let eventPath = try AbsolutePath(validating: eventFilePath)
 
         defer {
-            try? FileManager.default.removeItem(atPath: eventPath.pathString)
+            Task {
+                try await fileSystem.remove(eventPath)
+            }
         }
 
         guard let url = URL(string: serverURL) else {
-            return
+            throw AnalyticsUploadCommandServiceError.invalidServerURL(serverURL)
         }
 
         let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)

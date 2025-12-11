@@ -86,6 +86,8 @@ struct AnalyticsUploadCommandServiceTests {
         )
 
         // Then
+        // File deletion happens in a deferred Task, so we need a small delay to allow it to complete
+        try await Task.sleep(nanoseconds: 100_000_000)
         let exists = try await fileSystem.exists(eventFilePath)
         #expect(exists == false)
     }
@@ -118,11 +120,13 @@ struct AnalyticsUploadCommandServiceTests {
         }
 
         // Then
+        // File deletion happens in a deferred Task, so we need a small delay to allow it to complete
+        try await Task.sleep(nanoseconds: 100_000_000)
         let exists = try await fileSystem.exists(eventFilePath)
         #expect(exists == false)
     }
 
-    @Test(.inTemporaryDirectory) func run_returns_early_for_invalid_server_url() async throws {
+    @Test(.inTemporaryDirectory) func run_throws_error_for_invalid_server_url() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let eventFilePath = temporaryDirectory.appending(component: "event.json")
@@ -133,21 +137,14 @@ struct AnalyticsUploadCommandServiceTests {
 
         let invalidServerURL = ""
 
-        // When
-        try await subject.run(
-            eventFilePath: eventFilePath.pathString,
-            fullHandle: fullHandle,
-            serverURL: invalidServerURL
-        )
-
-        // Then
-        verify(uploadAnalyticsService)
-            .upload(
-                commandEvent: .any,
-                fullHandle: .any,
-                serverURL: .any
+        // When / Then
+        await #expect(throws: AnalyticsUploadCommandServiceError.invalidServerURL(invalidServerURL)) {
+            try await subject.run(
+                eventFilePath: eventFilePath.pathString,
+                fullHandle: fullHandle,
+                serverURL: invalidServerURL
             )
-            .called(0)
+        }
     }
 }
 
