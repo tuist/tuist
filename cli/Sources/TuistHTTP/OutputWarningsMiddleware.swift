@@ -2,6 +2,10 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
+#if os(macOS)
+    import TuistSupport
+#endif
+
 public enum OutputWarningsMiddlewareError: LocalizedError {
     case couldntConvertToData
     case invalidSchema
@@ -47,7 +51,9 @@ public struct OutputWarningsMiddleware: ClientMiddleware {
             throw OutputWarningsMiddlewareError.invalidSchema
         }
 
-        json.forEach { AlertController.current.warning(.alert("\($0)")) }
+        #if os(macOS)
+            json.forEach { AlertController.current.warning(.alert("\($0)")) }
+        #endif
 
         return (response, body)
     }

@@ -86,7 +86,7 @@ public enum Module: String, CaseIterable {
                         .debug(
                             name: "Debug",
                             settings: [
-                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
                             ],
                             xcconfig: nil
                         ),
@@ -218,7 +218,7 @@ public enum Module: String, CaseIterable {
                 product: product,
                 dependencies: dependencies + (isStaticProduct ? [.external(name: "Mockable")] : []),
                 isTestingTarget: isTestingTarget
-            )
+            ),
         ]
     }
 
@@ -241,8 +241,8 @@ public enum Module: String, CaseIterable {
     public var unitTestsTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-            .projectDescription,
-            .acceptanceTesting, .simulator, .testing, .process, .http:
+             .projectDescription,
+             .acceptanceTesting, .simulator, .testing, .process, .http:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -385,6 +385,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "XcodeProj"),
                     .external(name: "Difference"),
@@ -442,7 +443,6 @@ public enum Module: String, CaseIterable {
             case .support:
                 [
                     .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.http.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
@@ -456,8 +456,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
-                    .external(name: "OpenAPIRuntime"),
-                    .external(name: "HTTPTypes"),
                 ]
             case .kit:
                 [
@@ -562,6 +560,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.git.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                 ]
@@ -641,7 +640,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .simulator:
                 [
-                    .external(name: "XcodeGraph")
+                    .external(name: "XcodeGraph"),
                 ]
             case .xcActivityLog:
                 [
@@ -713,8 +712,10 @@ public enum Module: String, CaseIterable {
                 ]
             case .http:
                 [
+                    .target(name: Module.support.targetName, condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
+                    .external(name: "FileSystem"),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {
@@ -730,7 +731,7 @@ public enum Module: String, CaseIterable {
                 []
             case .tuistFixtureGenerator:
                 [
-                    .target(name: Module.projectDescription.targetName)
+                    .target(name: Module.projectDescription.targetName),
                 ]
             case .support:
                 [
@@ -853,6 +854,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                 ]
+
             case .migration:
                 [
                     .target(name: Module.testing.targetName),
@@ -1026,7 +1028,7 @@ public enum Module: String, CaseIterable {
         isTestingTarget: Bool
     ) -> Target {
         var debugSettings: ProjectDescription.SettingsDictionary = [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
         var releaseSettings: ProjectDescription.SettingsDictionary = [:]
         if isTestingTarget {
@@ -1098,7 +1100,7 @@ public enum Module: String, CaseIterable {
         case .tuist:
             return .settings(
                 base: [
-                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)"
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
