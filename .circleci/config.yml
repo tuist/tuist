@@ -1,0 +1,18 @@
+version: 2.1
+
+jobs:
+  test-oidc:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - run:
+          name: Exchange OIDC token
+          command: |
+            curl -X POST https://staging.tuist.dev/api/auth/oidc/token \
+              -H "Content-Type: application/json" \
+              -d "{\"token\": \"$CIRCLE_OIDC_TOKEN_V2\"}"
+
+workflows:
+  test-oidc-auth:
+    jobs:
+      - test-oidc

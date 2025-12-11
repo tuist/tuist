@@ -1,0 +1,16 @@
+format_version: "13"
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+workflows:
+  test-oidc:
+    steps:
+      - get-oidc-identity-token@1:
+          inputs:
+            - audience: https://tuist.dev
+      - script@1:
+          title: Exchange OIDC token
+          inputs:
+            - content: |
+                curl -X POST https://staging.tuist.dev/api/auth/oidc/token \
+                  -H "Content-Type: application/json" \
+                  -d "{\"token\": \"$BITRISE_IDENTITY_TOKEN\"}"
