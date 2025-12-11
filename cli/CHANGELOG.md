@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+### 🐛 Bug Fixes
+
+* parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.113.0
 
