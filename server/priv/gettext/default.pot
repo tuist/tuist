@@ -998,8 +998,8 @@ msgstr ""
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:80
-#: lib/tuist_web/live/user_okta_login_live.ex:84
+#: lib/tuist_web/live/sso_login_live.ex:82
+#: lib/tuist_web/live/user_okta_login_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr ""
@@ -1321,10 +1321,10 @@ msgid "Email"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:326
-#: lib/tuist_web/live/sso_login_live.ex:63
+#: lib/tuist_web/live/sso_login_live.ex:65
 #: lib/tuist_web/live/user_forgot_password_live.ex:47
 #: lib/tuist_web/live/user_login_live.ex:129
-#: lib/tuist_web/live/user_okta_login_live.ex:66
+#: lib/tuist_web/live/user_okta_login_live.ex:68
 #: lib/tuist_web/live/user_registration_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -1834,8 +1834,8 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:75
-#: lib/tuist_web/live/user_okta_login_live.ex:78
+#: lib/tuist_web/live/sso_login_live.ex:77
+#: lib/tuist_web/live/user_okta_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr ""
@@ -2017,24 +2017,24 @@ msgstr ""
 msgid "Localizations"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:71
+#: lib/tuist_web/live/sso_login_live.ex:73
 #: lib/tuist_web/live/user_login_live.ex:15
 #: lib/tuist_web/live/user_login_live.ex:163
-#: lib/tuist_web/live/user_okta_login_live.ex:74
+#: lib/tuist_web/live/user_okta_login_live.ex:76
 #: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:48
 #: lib/tuist_web/live/user_login_live.ex:41
-#: lib/tuist_web/live/user_okta_login_live.ex:49
+#: lib/tuist_web/live/user_okta_login_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:48
-#: lib/tuist_web/live/user_okta_login_live.ex:51
+#: lib/tuist_web/live/sso_login_live.ex:50
+#: lib/tuist_web/live/user_okta_login_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via Okta"
 msgstr ""
@@ -2044,7 +2044,7 @@ msgstr ""
 msgid "Log out"
 msgstr ""
 
-#: lib/tuist_web/live/user_okta_login_live.ex:32
+#: lib/tuist_web/live/user_okta_login_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Logging in via Okta failed"
 msgstr ""
@@ -3561,11 +3561,11 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:24
 #: lib/tuist_web/live/create_project_live.ex:48
 #: lib/tuist_web/live/device_codes_success_live.ex:24
-#: lib/tuist_web/live/sso_login_live.ex:40
+#: lib/tuist_web/live/sso_login_live.ex:42
 #: lib/tuist_web/live/user_confirmation_live.ex:14
 #: lib/tuist_web/live/user_forgot_password_live.ex:19
 #: lib/tuist_web/live/user_login_live.ex:35
-#: lib/tuist_web/live/user_okta_login_live.ex:43
+#: lib/tuist_web/live/user_okta_login_live.ex:45
 #: lib/tuist_web/live/user_registration_live.ex:57
 #: lib/tuist_web/live/user_registration_live.ex:188
 #: lib/tuist_web/live/user_reset_password_live.ex:20
@@ -4312,7 +4312,7 @@ msgstr ""
 msgid "Key"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:30
+#: lib/tuist_web/live/sso_login_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "No SSO organization found for this email"
 msgstr ""
@@ -5267,7 +5267,7 @@ msgstr ""
 msgid "Choose a username for your personal account"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:105
+#: lib/tuist_web/live/choose_username_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
 msgstr ""
