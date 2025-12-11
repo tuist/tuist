@@ -70,7 +70,8 @@ final class TrackableCommandTests: TuistTestCase {
         await XCTAssertThrowsSpecific(
             try await subject.run(
                 fullHandle: "tuist/tuist",
-                serverURL: .test()
+                serverURL: .test(),
+                shouldTrackAnalytics: true
             ),
             TestCommand.TestError.commandFailed
         )
@@ -91,7 +92,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test())
+        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
         verify(backgroundProcessRunner)
@@ -107,7 +108,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(fullHandle: nil, serverURL: .test())
+        try await subject.run(fullHandle: nil, serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
         verify(backgroundProcessRunner)
@@ -123,7 +124,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm"])
 
         // When
-        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test())
+        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
         verify(backgroundProcessRunner)

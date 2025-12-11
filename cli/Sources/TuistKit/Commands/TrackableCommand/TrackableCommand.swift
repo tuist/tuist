@@ -63,7 +63,8 @@ public class TrackableCommand {
 
     public func run(
         fullHandle: String?,
-        serverURL: URL?
+        serverURL: URL?,
+        shouldTrackAnalytics: Bool
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
@@ -82,7 +83,7 @@ public class TrackableCommand {
                 } else {
                     try command.run()
                 }
-                if let fullHandle, let serverURL {
+                if let fullHandle, let serverURL, shouldTrackAnalytics {
                     try await uploadCommandEvent(
                         timer: timer,
                         status: .success,
@@ -90,12 +91,11 @@ public class TrackableCommand {
                         path: path,
                         runMetadataStorage: runMetadataStorage,
                         fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        ranAt: ranAt
+                        serverURL: serverURL
                     )
                 }
             } catch {
-                if let fullHandle, let serverURL {
+                if let fullHandle, let serverURL, shouldTrackAnalytics {
                     try await uploadCommandEvent(
                         timer: timer,
                         status: .failure("\(error)"),
@@ -103,8 +103,7 @@ public class TrackableCommand {
                         path: path,
                         runMetadataStorage: runMetadataStorage,
                         fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        ranAt: ranAt
+                        serverURL: serverURL
                     )
                 }
                 throw error
@@ -119,8 +118,7 @@ public class TrackableCommand {
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
         fullHandle: String,
-        serverURL: URL,
-        ranAt _: Date
+        serverURL: URL
     ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
