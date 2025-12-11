@@ -57,7 +57,7 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     // MARK: - GitHub Actions
 
     private var isGitHubActionsEnvironment: Bool {
-        Environment.current.variables["GITHUB_ACTIONS"] == "true"
+        Environment.current.isVariableTruthy("GITHUB_ACTIONS")
     }
 
     private func fetchGitHubActionsOIDCToken() async throws -> String {
@@ -77,7 +77,7 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     // MARK: - CircleCI
 
     private var isCircleCIEnvironment: Bool {
-        Environment.current.variables["CIRCLECI"] == "true"
+        Environment.current.isVariableTruthy("CIRCLECI")
     }
 
     private func circleCIOIDCToken() throws -> String {
@@ -93,7 +93,7 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     // MARK: - Bitrise
 
     private var isBitriseEnvironment: Bool {
-        Environment.current.variables["BITRISE_IO"] == "true"
+        Environment.current.isVariableTruthy("BITRISE_IO")
     }
 
     private func bitriseOIDCToken() throws -> String {
