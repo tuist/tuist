@@ -2,8 +2,8 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
 import TuistServer
-import TuistSupport
 
 @Mockable
 public protocol LoadCacheCASServicing: Sendable {

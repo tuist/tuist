@@ -242,7 +242,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting, .simulator, .testing, .process, .http:
+             .acceptanceTesting, .simulator, .testing, .process:
             return nil
         default:
             return "\(rawValue)Tests"

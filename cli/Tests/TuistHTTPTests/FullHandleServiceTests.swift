@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import TuistSupport
+@testable import TuistHTTP
 
 struct FullHandleServiceTests {
     private let subject: FullHandleServicing

@@ -2,8 +2,8 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
 import TuistServer
-import TuistSupport
 
 /// Type alias for the generated KeyValueResponse schema
 public typealias KeyValueResponse = Components.Schemas.KeyValueResponse

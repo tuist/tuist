@@ -1,4 +1,4 @@
-import TuistSupport
+import TuistHTTP
 #if canImport(Rosalind)
     import Foundation
     import Mockable

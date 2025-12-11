@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistSupport
+import TuistHTTP
 
 @Mockable
 public protocol UploadCacheActionItemServicing {

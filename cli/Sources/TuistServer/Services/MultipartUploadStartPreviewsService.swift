@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
+import TuistHTTP
 import TuistSimulator
-import TuistSupport
 
 @Mockable
 public protocol MultipartUploadStartPreviewsServicing {

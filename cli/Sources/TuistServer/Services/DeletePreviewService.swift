@@ -1,6 +1,6 @@
 import Foundation
 import OpenAPIURLSession
-import TuistSupport
+import TuistHTTP
 
 public protocol DeletePreviewServicing: Sendable {
     func deletePreview(
