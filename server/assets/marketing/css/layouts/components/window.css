@@ -58,8 +58,8 @@
 
       & .line {
         display: block;
-        white-space: pre;
         min-height: 1lh;
+        white-space: pre;
       }
     }
   }
