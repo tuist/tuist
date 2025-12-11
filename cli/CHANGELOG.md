@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.113.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.115.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* upload command run analytics in the background by [@fortmarek](https://github.com/fortmarek) in [#8883](https://github.com/tuist/tuist/pull/8883)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.114.0...4.115.0
+
+## What's Changed in 4.114.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,7 +19,7 @@ All notable changes to this project will be documented in this file.
 
 * parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.113.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.114.0
 
 ## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
 
