@@ -37,6 +37,7 @@ public class TrackableCommand {
     private let commandEventFactory: CommandEventFactory
     private let fileHandler: FileHandling
     private let backgroundProcessRunner: BackgroundProcessRunning
+    private let uploadAnalyticsService: UploadAnalyticsServicing
 
     public init(
         command: ParsableCommand,
@@ -44,7 +45,8 @@ public class TrackableCommand {
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         fileHandler: FileHandling = FileHandler.shared,
-        backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
+        backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService()
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -52,6 +54,7 @@ public class TrackableCommand {
         self.commandEventFactory = commandEventFactory
         self.fileHandler = fileHandler
         self.backgroundProcessRunner = backgroundProcessRunner
+        self.uploadAnalyticsService = uploadAnalyticsService
     }
 
     public func run(
@@ -144,7 +147,7 @@ public class TrackableCommand {
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
-                let serverCommandEvent = try await UploadAnalyticsService().upload(
+                let serverCommandEvent = try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
                     serverURL: serverURL
