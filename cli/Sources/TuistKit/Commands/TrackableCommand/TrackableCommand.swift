@@ -1,4 +1,5 @@
 import ArgumentParser
+import FileSystem
 import Foundation
 import OpenAPIRuntime
 import Path
@@ -38,6 +39,7 @@ public class TrackableCommand {
     private let fileHandler: FileHandling
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
+    private let fileSystem: FileSysteming
 
     public init(
         command: ParsableCommand,
@@ -46,7 +48,8 @@ public class TrackableCommand {
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         fileHandler: FileHandling = FileHandler.shared,
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService()
+        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -55,6 +58,7 @@ public class TrackableCommand {
         self.fileHandler = fileHandler
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
+        self.fileSystem = fileSystem
     }
 
     public func run(
@@ -170,15 +174,13 @@ public class TrackableCommand {
                 Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
             }
         } else {
-            let tempDirectory = try fileHandler.temporaryDirectory()
-            let tempFilePath = tempDirectory.appending(component: "analytics-\(UUID().uuidString).json")
-            let eventData = try JSONEncoder().encode(commandEvent)
-            let eventString = String(decoding: eventData, as: UTF8.self)
-            try fileHandler.write(eventString, path: tempFilePath, atomically: true)
+            let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
+            let commandEventPath = tempDirectory.appending(component: "command-event.json")
+            try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
             try backgroundProcessRunner.runInBackground(
                 [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
                     "analytics-upload",
-                    tempFilePath.pathString,
+                    commandEventPath.pathString,
                     fullHandle,
                     serverURL.absoluteString,
                 ],

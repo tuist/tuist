@@ -31,10 +31,9 @@ struct AnalyticsUploadCommandService {
             return
         }
 
-        let eventData = try await fileSystem.readFile(at: eventPath)
-        let commandEvent = try JSONDecoder().decode(CommandEvent.self, from: eventData)
+        let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
 
-        try await retryProvider.runWithRetries {
+        _ = try await retryProvider.runWithRetries {
             try await uploadAnalyticsService.upload(
                 commandEvent: commandEvent,
                 fullHandle: fullHandle,
