@@ -2,7 +2,6 @@ import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
 import TuistHTTP
-import TuistSupport
 
 extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
