@@ -103,7 +103,10 @@ defmodule TuistWeb.API.OIDCController do
       {:error, :missing_repository_claim} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{message: "OIDC token does not contain required repository information"})
+        |> json(%{
+          message:
+            "OIDC token does not contain required repository information used to verify it with the GitHub project connection."
+        })
 
       {:error, :invalid_signature} ->
         conn
