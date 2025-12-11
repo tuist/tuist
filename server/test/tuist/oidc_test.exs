@@ -45,7 +45,7 @@ defmodule Tuist.OIDCTest do
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
-      assert {:error, :jwks_fetch_failed} = OIDC.claims(token)
+      assert {:error, :jwks_fetch_failed, _jwks_uri} = OIDC.claims(token)
     end
 
     test "returns error for invalid signature" do
@@ -85,7 +85,7 @@ defmodule Tuist.OIDCTest do
         )
 
       stub(Req, :get, fn url ->
-        assert url == "https://oidc.circleci.com/org/abc-123/.well-known/jwks"
+        assert url == "https://oidc.circleci.com/org/abc-123/.well-known/jwks-pub.json"
         {:ok, %{status: 200, body: jwks}}
       end)
 

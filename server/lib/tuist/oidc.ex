@@ -46,7 +46,7 @@ defmodule Tuist.OIDC do
   end
 
   defp get_jwks_uri(@circleci_issuer_prefix <> _org_id = issuer) do
-    {:ok, "#{issuer}/.well-known/jwks"}
+    {:ok, "#{issuer}/.well-known/jwks-pub.json"}
   end
 
   defp get_jwks_uri(issuer), do: {:error, :unsupported_provider, issuer}
@@ -99,7 +99,7 @@ defmodule Tuist.OIDC do
     KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
       case Req.get(jwks_uri) do
         {:ok, %{status: 200, body: body}} -> {:ok, body}
-        _ -> {:error, :jwks_fetch_failed}
+        _ -> {:error, :jwks_fetch_failed, jwks_uri}
       end
     end)
   end

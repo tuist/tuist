@@ -115,10 +115,10 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:unauthorized)
         |> json(%{message: "OIDC token has expired"})
 
-      {:error, :jwks_fetch_failed} ->
+      {:error, :jwks_fetch_failed, jwks_uri} ->
         conn
         |> put_status(:internal_server_error)
-        |> json(%{message: "Failed to fetch JWKS from identity provider"})
+        |> json(%{message: "Failed to fetch JWKS from identity provider: #{jwks_uri}"})
 
       {:error, :no_projects} ->
         conn
