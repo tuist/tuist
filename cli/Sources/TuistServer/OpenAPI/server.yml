@@ -658,6 +658,7 @@ components:
                 description: Token scopes.
                 items:
                   enum:
+                    - ci
                     - account:members:read
                     - account:members:write
                     - account:registry:read
@@ -3123,6 +3124,7 @@ components:
           items:
             description: A scope string in format entity:object:access_level.
             enum:
+              - ci
               - account:members:read
               - account:members:write
               - account:registry:read
@@ -4141,20 +4143,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -5736,6 +5738,15 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -5749,15 +5760,6 @@ paths:
           name: project_handle
           required: true
           schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The ID of the bundle.
-          in: path
-          name: bundle_id
-          required: true
-          schema:
-            format: uuid
             type: string
             x-struct:
             x-validate:
@@ -5878,6 +5880,7 @@ paths:
                           description: Token scopes.
                           items:
                             enum:
+                              - ci
                               - account:members:read
                               - account:members:write
                               - account:registry:read
@@ -5989,6 +5992,7 @@ paths:
                   items:
                     description: A scope string in format entity:object:access_level.
                     enum:
+                      - ci
                       - account:members:read
                       - account:members:write
                       - account:registry:read
