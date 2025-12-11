@@ -6,6 +6,7 @@ on:
       - main
 
 permissions:
+  id-token: write
   contents: write
   pull-requests: read
   statuses: write
@@ -16,7 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   PNPM_HOME: ~/.pnpm
 
@@ -242,6 +242,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -321,6 +323,8 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
 
       - name: Get release notes
         id: release-notes
@@ -403,6 +407,8 @@ jobs:
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4

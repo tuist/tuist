@@ -16,6 +16,7 @@ on:
         required: false
 
 permissions:
+  id-token: write
   contents: read
 
 concurrency:
@@ -25,7 +26,6 @@ concurrency:
 env:
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
@@ -83,6 +83,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
