@@ -27,6 +27,21 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
+    test "trims whitespace from email and username before registration", %{conn: conn} do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      lv
+      |> form("#login_form", user: %{email: "  trimtest@example.com  ", password: "StrongP@ssword!2024", username: "  trimuser  "})
+      |> render_submit()
+
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("trimtest@example.com")
+      assert user.email == "trimtest@example.com"
+      assert user.account.name == "trimuser"
+    end
+
     test "user is auto-confirmed when skip_email_confirmation is enabled" do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)

@@ -47,7 +47,7 @@ msgstr ""
 msgid "9+"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:552
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:554
 #, elixir-autogen, elixir-format
 msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr ""
@@ -146,7 +146,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:193
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:282
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:511
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:534
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:536
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
@@ -371,7 +371,7 @@ msgstr ""
 msgid "Developers"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:595
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:597
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr ""
@@ -381,7 +381,7 @@ msgstr ""
 msgid "Do you offer annual billing discounts?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:570
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:572
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:674
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
@@ -564,7 +564,7 @@ msgstr ""
 msgid "How can I estimate the cost for my project?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:560
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:562
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost of my project?"
 msgstr ""
@@ -602,7 +602,7 @@ msgstr ""
 msgid "Instantly share your app using a URL"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:367
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:369
 #, elixir-autogen, elixir-format
 msgid "Invalid verification link. Please try signing up again."
 msgstr ""
@@ -612,7 +612,7 @@ msgstr ""
 msgid "Is there a free trial for paid plans?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:565
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:567
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial on paid plans?"
 msgstr ""
@@ -736,8 +736,8 @@ msgstr ""
 msgid "Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:359
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:376
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:361
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:378
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
 msgstr ""
@@ -804,7 +804,7 @@ msgstr ""
 msgid "People"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:311
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:313
 #, elixir-autogen, elixir-format
 msgid "Please check your email to confirm your subscription."
 msgstr ""
@@ -835,7 +835,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:187
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:275
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:506
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:590
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:592
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr ""
@@ -1006,7 +1006,7 @@ msgstr ""
 msgid "Socials"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:320
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:322
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -1093,7 +1093,7 @@ msgstr ""
 msgid "Subscribe"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:331
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:333
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Successfully Subscribed!"
@@ -1153,12 +1153,12 @@ msgstr ""
 msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:409
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:411
 #, elixir-autogen, elixir-format
 msgid "The newsletter issue %{issue_number} was not found."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:401
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:403
 #, elixir-autogen, elixir-format
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
@@ -1202,9 +1202,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:239
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:261
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:283
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:533
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:589
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:623
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:535
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:591
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:625
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -1345,12 +1345,12 @@ msgstr ""
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:351
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:353
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try signing up again."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:384
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:386
 #, elixir-autogen, elixir-format
 msgid "Verification link expired or invalid. Please try signing up again."
 msgstr ""
@@ -1391,7 +1391,7 @@ msgstr ""
 msgid "We embrace standards for long-term success while respecting freedom of choice."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:566
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:568
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
@@ -1447,7 +1447,7 @@ msgstr ""
 msgid "What we believe in"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:548
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:550
 #, elixir-autogen, elixir-format
 msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
 msgstr ""
@@ -1477,7 +1477,7 @@ msgstr ""
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:571
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:573
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
 msgstr ""
@@ -1497,7 +1497,7 @@ msgstr ""
 msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:561
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:563
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr ""
@@ -1547,7 +1547,7 @@ msgstr ""
 msgid "pinpoint the exact moment of the issue during testing"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:558
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:560
 #, elixir-autogen, elixir-format
 msgid "read more"
 msgstr ""
