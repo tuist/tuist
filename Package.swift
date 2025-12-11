@@ -514,6 +514,7 @@ let targets: [Target] = [
     .target(
         name: "TuistCAS",
         dependencies: [
+            "TuistCache",
             "TuistServer",
             "TuistHTTP",
             "TuistRootDirectoryLocator",
