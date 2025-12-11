@@ -206,9 +206,33 @@ We recommend using `mise use --pin` in your Tuist projects to pin the version of
 
 ### CircleCI {#circleci}
 
-In [CircleCI](https://circleci.com), you can install Tuist and authenticate using a project token:
+On [CircleCI](https://circleci.com) you can use <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> for secure, secretless authentication:
 
-```yaml
+::: code-group
+```yaml [OIDC (Mise)]
+version: 2.1
+jobs:
+  build:
+    macos:
+      xcode: "15.0.1"
+    steps:
+      - checkout
+      - run:
+          name: Install Mise
+          command: |
+            curl https://mise.jdx.dev/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install Tuist
+          command: mise install
+      - run:
+          name: Authenticate
+          command: mise exec -- tuist auth login
+      - run:
+          name: Build
+          command: mise exec -- tuist setup cache
+```
+```yaml [Project token (Mise)]
 version: 2.1
 jobs:
   build:
@@ -230,18 +254,48 @@ jobs:
           name: Build
           command: mise exec -- tuist setup cache
 ```
+<!-- -->
+:::
 
 ::: info AUTHENTICATION
 <!-- -->
-Create a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as an environment variable named `TUIST_TOKEN` in your project settings.
+Before using OIDC authentication, you need to <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
 ### Bitrise {#bitrise}
 
-In [Bitrise](https://bitrise.io), you can add steps to install and use Tuist:
+On [Bitrise](https://bitrise.io) you can use <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> for secure, secretless authentication:
 
-```yaml
+::: code-group
+```yaml [OIDC (Mise)]
+workflows:
+  build:
+    steps:
+      - git-clone@8: {}
+      - script@1:
+          title: Install Mise
+          inputs:
+            - content: |
+                curl https://mise.jdx.dev/install.sh | sh
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+      - script@1:
+          title: Install Tuist
+          inputs:
+            - content: mise install
+      - get-oidc-identity-token@1:
+          inputs:
+            - audience: https://tuist.dev
+      - script@1:
+          title: Authenticate
+          inputs:
+            - content: mise exec -- tuist auth login
+      - script@1:
+          title: Build
+          inputs:
+            - content: mise exec -- tuist setup cache
+```
+```yaml [Project token (Mise)]
 workflows:
   build:
     steps:
@@ -261,9 +315,11 @@ workflows:
           inputs:
             - content: mise exec -- tuist setup cache
 ```
+<!-- -->
+:::
 
 ::: info AUTHENTICATION
 <!-- -->
-Create a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named `TUIST_TOKEN`.
+Before using OIDC authentication, you need to <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::

@@ -1,28 +1,30 @@
 defmodule Tuist.OIDC do
   @moduledoc """
   Generic OIDC token validation for CI providers.
+
+  Supported providers:
+  - GitHub Actions
+  - CircleCI
+  - Bitrise
   """
 
   alias Tuist.KeyValueStore
 
   @jwks_cache_ttl to_timeout(minute: 15)
 
-  @providers %{
-    "https://token.actions.githubusercontent.com" => %{
-      jwks_uri: "https://token.actions.githubusercontent.com/.well-known/jwks",
-      repository_claim: "repository"
-    }
-    # Future providers:
-    # "https://gitlab.com" => %{
-    #   jwks_uri: "https://gitlab.com/oauth/discovery/keys",
-    #   repository_claim: "project_path"
-    # }
-  }
+  @github_actions_issuer "https://token.actions.githubusercontent.com"
+  @bitrise_issuer "https://token.builds.bitrise.io"
+  @circleci_issuer_prefix "https://oidc.circleci.com/org/"
 
   def claims(token) when is_binary(token) do
     with {:ok, issuer} <- peek_issuer(token),
-         {:ok, provider} <- get_provider(issuer) do
-      verify(token, provider.jwks_uri, provider.repository_claim)
+         {:ok, jwks_uri} <- get_jwks_uri(issuer),
+         {:ok, claims} <- verify(token, jwks_uri),
+         repository when not is_nil(repository) <- extract_repository(claims, issuer) do
+      {:ok, %{repository: repository}}
+    else
+      nil -> {:error, :missing_repository_claim}
+      error -> error
     end
   end
 
@@ -35,19 +37,49 @@ defmodule Tuist.OIDC do
     _ -> {:error, :invalid_token}
   end
 
-  defp get_provider(issuer) do
-    case Map.get(@providers, issuer) do
-      nil -> {:error, :unsupported_provider, issuer}
-      provider -> {:ok, provider}
+  defp get_jwks_uri(@github_actions_issuer) do
+    {:ok, "https://token.actions.githubusercontent.com/.well-known/jwks"}
+  end
+
+  defp get_jwks_uri(@bitrise_issuer) do
+    {:ok, "https://token.builds.bitrise.io/.well-known/jwks"}
+  end
+
+  defp get_jwks_uri(@circleci_issuer_prefix <> _org_id = issuer) do
+    {:ok, "#{issuer}/.well-known/jwks"}
+  end
+
+  defp get_jwks_uri(issuer), do: {:error, :unsupported_provider, issuer}
+
+  defp extract_repository(claims, @github_actions_issuer) do
+    claims["repository"]
+  end
+
+  defp extract_repository(claims, @bitrise_issuer) do
+    owner = claims["repository_owner"]
+    slug = claims["repository_slug"]
+    repo_url = claims["repository_url"] || ""
+
+    if owner && slug && String.contains?(repo_url, "github.com") do
+      "#{owner}/#{slug}"
     end
   end
 
-  defp verify(token, jwks_uri, repository_claim) do
+  defp extract_repository(claims, @circleci_issuer_prefix <> _org_id) do
+    case claims["oidc.circleci.com/vcs-origin"] do
+      "github.com/" <> repo -> repo
+      _ -> nil
+    end
+  end
+
+  defp extract_repository(_, _), do: nil
+
+  defp verify(token, jwks_uri) do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
          {:ok, claims} <- verify_signature(token, jwks, kid),
          :ok <- validate_expiration(claims) do
-      {:ok, %{repository: claims[repository_claim]}}
+      {:ok, claims}
     end
   end
 

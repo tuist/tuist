@@ -3,7 +3,7 @@ defmodule TuistWeb.API.OIDCController do
   Controller for OIDC token exchange.
 
   This controller handles the exchange of CI provider OIDC tokens for
-  short-lived Tuist access tokens. Currently supports GitHub Actions.
+  short-lived Tuist access tokens. Supports GitHub Actions, CircleCI, and Bitrise.
   """
 
   use OpenApiSpex.ControllerSpecs
@@ -36,7 +36,7 @@ defmodule TuistWeb.API.OIDCController do
   operation(:exchange_token,
     summary: "Exchange a CI provider OIDC token for a Tuist access token.",
     description: """
-    Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     for a short-lived Tuist access token.
     """,
     operation_id: "exchangeOIDCToken",
@@ -97,8 +97,13 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently only GitHub Actions is supported."
+            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently supported: GitHub Actions, CircleCI, and Bitrise."
         })
+
+      {:error, :missing_repository_claim} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "OIDC token does not contain required repository information"})
 
       {:error, :invalid_signature} ->
         conn
