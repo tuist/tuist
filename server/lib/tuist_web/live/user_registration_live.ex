@@ -253,7 +253,7 @@ defmodule TuistWeb.UserRegistrationLive do
     case Accounts.create_user(
            user_params |> Map.get("email", "") |> String.trim(),
            password: Map.get(user_params, "password"),
-           handle: Map.get(user_params, "username")
+           handle: user_params |> Map.get("username", "") |> String.trim()
          ) do
       {:ok, user} ->
         if Environment.skip_email_confirmation?() do
