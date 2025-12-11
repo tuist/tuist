@@ -130,7 +130,13 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(loadCacheCASService)
-            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .loadCacheCAS(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(expectedError)
 
         // When
@@ -274,7 +280,13 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(loadCacheCASService)
-            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .loadCacheCAS(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(clientError)
 
         // When

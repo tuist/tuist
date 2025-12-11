@@ -204,7 +204,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn(nil)
 
         given(metadataStore)
@@ -237,7 +243,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(expectedError)
 
         given(metadataStore)
@@ -307,7 +319,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(genericError)
 
         given(metadataStore)
@@ -395,7 +413,13 @@ struct KeyValueServiceTests {
         )
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any, serverAuthenticationController: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn(mockResponse)
 
         given(nodeStore)
