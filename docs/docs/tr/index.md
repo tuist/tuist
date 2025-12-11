@@ -68,16 +68,16 @@ bir deneyime dönüştürür.
 
 ## Geçiş yapan binlerce yazılımcının arasına katılın
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
+**[Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
 [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
-Spoons](https://bendingspoons.com/), and 100+ other companies** have already
-transformed their Apple platform development with Tuist. Here's what they're
-experiencing:
+Spoons](https://bendingspoons.com/) ve 100’den fazla diğer şirketteki ekipler**
+Apple platformu geliştirmelerini Tuist ile çoktan dönüştürdü. İşte
+deneyimledikleri şeyler:
 
-- **65% faster builds** with intelligent caching
-- **Zero merge conflicts** in Xcode projects
-- **Minutes to seconds** package resolution
-- **Happy developers** who can focus on building features
+- Akıllı önbellekleme ile **%65 daha hızlı derleme**
+- Xcode projelerinde **sıfır merge conflict**
+- Paketlerin çözümlenmesinde**dakikalardan saniyelere**
+- Özelliklerin inşasına odaklanabilen **mutlu geliştiriciler**
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
