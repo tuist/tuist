@@ -81,6 +81,13 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    @Flag(
+        name: .long,
+        help: "Output the graph to standard output instead of a file. Only supported for dot, json, and toon formats.",
+        envKey: .graphStdout
+    )
+    var stdout: Bool = false
+
     public func run() async throws {
         try await GraphCommandService().run(
             format: format,
@@ -93,7 +100,8 @@ public struct GraphCommand: AsyncParsableCommand {
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+                .currentPath,
+            stdout: stdout
         )
     }
 }
