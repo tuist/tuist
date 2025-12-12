@@ -150,7 +150,7 @@
         "server": {
             "items": {
                 "introduction": {
-                    "text": "Introduction",
+                    "text": "소개",
                     "items": {
                         "why-server": {
                             "text": "왜 서버인가?"
@@ -159,7 +159,7 @@
                             "text": "계정 및 프로젝트"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "인증"
                         },
                         "integrations": {
                             "text": "통합"
@@ -203,7 +203,7 @@
                     "text": "빠른 시작",
                     "items": {
                         "install-tuist": {
-                            "text": "Install Tuist"
+                            "text": "설치하기"
                         },
                         "get-started": {
                             "text": "시작하기"
@@ -259,7 +259,7 @@
                                     "text": "매니페스트"
                                 },
                                 "directory-structure": {
-                                    "text": "Directory structure"
+                                    "text": "디렉토리 구조"
                                 },
                                 "editing": {
                                     "text": "편집"
@@ -280,7 +280,7 @@
                                     "text": "양식"
                                 },
                                 "plugins": {
-                                    "text": "Plugins"
+                                    "text": "플러그인인"
                                 },
                                 "hashing": {
                                     "text": "해시"
@@ -308,7 +308,7 @@
                             }
                         },
                         "cache": {
-                            "text": "Cache",
+                            "text": "캐시시",
                             "items": {
                                 "generated-project": {
                                     "text": ""
