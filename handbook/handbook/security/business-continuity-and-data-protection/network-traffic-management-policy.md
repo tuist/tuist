@@ -16,13 +16,13 @@ To establish comprehensive rules and procedures for monitoring, controlling, man
 
 ## Scope
 
-This policy applies to all network traffic related to Tuist GmbH applications and services, while recognizing the shared responsibility model with our infrastructure provider Fly.io as documented in our [Shared Responsibility Model](/security/shared-responsibility-model).
+This policy applies to all network traffic related to Tuist GmbH applications and services, while recognizing the shared responsibility model with our infrastructure provider Render as documented in our [Shared Responsibility Model](/security/shared-responsibility-model).
 
 ## Shared Responsibility Model for Network Traffic Management
 
-Tuist GmbH operates its infrastructure on Fly.io, which creates a shared responsibility model for network traffic management:
+Tuist GmbH operates its infrastructure on Render, which creates a shared responsibility model for network traffic management:
 
-### Fly.io Responsibilities:
+### Render Responsibilities:
 - Physical network infrastructure security
 - Network perimeter security including DDoS protection
 - Core network monitoring and management

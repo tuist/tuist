@@ -18,7 +18,7 @@ This policy establishes the requirements for regular penetration testing of Tuis
 
 This policy applies to all systems, applications, and infrastructure owned, operated, or maintained by Tuist GmbH that are business-critical and/or process, store, or transmit Confidential data. It applies to all employees, contractors, and third parties involved in planning, conducting, or responding to penetration testing activities.
 
-This policy operates within Tuist's [shared responsibility model](/security/shared-responsibility-model), recognizing that infrastructure providers (Fly.io, Supabase, Tigris, and Cloudflare) are responsible for penetration testing of their underlying infrastructure layers.
+This policy operates within Tuist's [shared responsibility model](/security/shared-responsibility-model), recognizing that infrastructure providers (Render, Supabase, Tigris, and Cloudflare) are responsible for penetration testing of their underlying infrastructure layers.
 
 ## Policy Statement
 
@@ -59,8 +59,8 @@ In accordance with our [shared responsibility model](/security/shared-responsibi
 - Business logic vulnerabilities
 
 **Infrastructure Provider Responsibility (covered by provider testing):**
-- Physical data center security (Fly.io, Supabase, Tigris)
-- Network infrastructure and DDoS protection (Fly.io, Cloudflare)
+- Physical data center security (Render, Supabase, Tigris)
+- Network infrastructure and DDoS protection (Render, Cloudflare)
 - Platform-level vulnerabilities and patches (all providers)
 - Database engine security (Supabase, Tigris)
 - CDN and edge security (Cloudflare)
