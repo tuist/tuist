@@ -33,19 +33,25 @@ final class InspectDependenciesService {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
+        var implicitIssues: [InspectImportsIssue] = []
+        var redundantIssues: [InspectImportsIssue] = []
         var checksRun: [String] = []
 
         if inspectionTypes.contains(.implicit) {
-            try await runImplicitCheck(graphTraverser: graphTraverser)
+            implicitIssues = try await collectImplicitIssues(graphTraverser: graphTraverser)
             checksRun.append("implicit")
         }
 
         if inspectionTypes.contains(.redundant) {
-            try await runRedundantCheck(
+            redundantIssues = try await collectRedundantIssues(
                 graphTraverser: graphTraverser,
                 ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
             )
             checksRun.append("redundant")
+        }
+
+        if !implicitIssues.isEmpty || !redundantIssues.isEmpty {
+            throw InspectImportsServiceError.issuesFound(implicit: implicitIssues, redundant: redundantIssues)
         }
 
         Logger.current.log(
@@ -54,29 +60,23 @@ final class InspectDependenciesService {
         )
     }
 
-    private func runImplicitCheck(graphTraverser: GraphTraverser) async throws {
-        let issues = try await graphImportsLinter.lint(
+    private func collectImplicitIssues(graphTraverser: GraphTraverser) async throws -> [InspectImportsIssue] {
+        try await graphImportsLinter.lint(
             graphTraverser: graphTraverser,
             inspectType: .implicit,
             ignoreTagsMatching: []
         )
-        if !issues.isEmpty {
-            throw InspectImportsServiceError.implicitImportsFound(issues)
-        }
     }
 
-    private func runRedundantCheck(
+    private func collectRedundantIssues(
         graphTraverser: GraphTraverser,
         ignoreTagsMatching: Set<String>
-    ) async throws {
-        let issues = try await graphImportsLinter.lint(
+    ) async throws -> [InspectImportsIssue] {
+        try await graphImportsLinter.lint(
             graphTraverser: graphTraverser,
             inspectType: .redundant,
             ignoreTagsMatching: ignoreTagsMatching
         )
-        if !issues.isEmpty {
-            throw InspectImportsServiceError.redundantImportsFound(issues)
-        }
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

@@ -8,27 +8,35 @@ struct InspectImportsIssue: Equatable {
 }
 
 enum InspectImportsServiceError: InspectImportsFatalError, Equatable {
-    case implicitImportsFound([InspectImportsIssue])
-    case redundantImportsFound([InspectImportsIssue])
+    case issuesFound(implicit: [InspectImportsIssue] = [], redundant: [InspectImportsIssue] = [])
 
     var description: String {
         switch self {
-        case let .implicitImportsFound(issues):
-            """
-            The following implicit dependencies were found:
-            \(
-                issues.map { " - \($0.target) implicitly depends on: \($0.dependencies.joined(separator: ", "))" }
-                    .joined(separator: "\n")
-            )
-            """
-        case let .redundantImportsFound(issues):
-            """
-            The following redundant dependencies were found:
-            \(
-                issues.map { " - \($0.target) redundantly depends on: \($0.dependencies.joined(separator: ", "))" }
-                    .joined(separator: "\n")
-            )
-            """
+        case let .issuesFound(implicit, redundant):
+            var messages: [String] = []
+            if !implicit.isEmpty {
+                messages.append(
+                    """
+                    The following implicit dependencies were found:
+                    \(
+                        implicit.map { " - \($0.target) implicitly depends on: \($0.dependencies.joined(separator: ", "))" }
+                            .joined(separator: "\n")
+                    )
+                    """
+                )
+            }
+            if !redundant.isEmpty {
+                messages.append(
+                    """
+                    The following redundant dependencies were found:
+                    \(
+                        redundant.map { " - \($0.target) redundantly depends on: \($0.dependencies.joined(separator: ", "))" }
+                            .joined(separator: "\n")
+                    )
+                    """
+                )
+            }
+            return messages.joined(separator: "\n\n")
         }
     }
 
