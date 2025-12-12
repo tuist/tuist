@@ -2,8 +2,8 @@
   <.empty_state
     command="tuist share"
     id="previews-empty-state"
-    title={gettext("Share app previews in one click")}
-    subtitle={gettext("Run the following command to share app preview.")}
+    title={dgettext("dashboard_previews", "Share app previews in one click")}
+    subtitle={dgettext("dashboard_previews", "Run the following command to share app preview.")}
     learn_more_href="https://docs.tuist.dev/en/guides/features/previews"
   >
     <:light_background>
@@ -15,9 +15,9 @@
   </.empty_state>
 <% else %>
   <div id="previews">
-    <.card title={gettext("Previews")} icon="devices" data-part="latest-previews">
+    <.card title={dgettext("dashboard_previews", "Previews")} icon="devices" data-part="latest-previews">
       <.card_section data-part="latest-app-previews">
-        <span data-part="title">{gettext("Latest app previews")}</span>
+        <span data-part="title">{dgettext("dashboard_previews", "Latest app previews")}</span>
         <div data-part="apps">
           <%= for preview <- @latest_app_previews do %>
             <.app_preview preview={preview} user_agent={@user_agent} />
@@ -25,7 +25,7 @@
         </div>
       </.card_section>
     </.card>
-    <.card title={gettext("Previews")} icon="screen_share" data-part="previews">
+    <.card title={dgettext("dashboard_previews", "Previews")} icon="screen_share" data-part="previews">
       <.card_section data-part="previews-table-section">
         <.table
           id="previews-table"
@@ -38,26 +38,26 @@
             end
           }
         >
-          <:col :let={preview} label={gettext("Name")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Name")}>
             <.text_and_description_cell label={preview.display_name} />
           </:col>
-          <:col :let={preview} label={gettext("Platforms")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Platforms")}>
             <div data-part="platforms">
               <%= for platform <- Enum.sort(preview.supported_platforms) do %>
                 <.platform_cell platform={platform} />
               <% end %>
             </div>
           </:col>
-          <:col :let={preview} label={gettext("Branch")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Branch")}>
             <.text_cell icon="git_branch" label={preview.git_branch || "None"} />
           </:col>
-          <:col :let={preview} label={gettext("Commit SHA")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(preview.git_commit_sha)} />
           </:col>
-          <:col :let={preview} label={gettext("Ran by")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Ran by")}>
             <.preview_ran_by_badge_cell preview={preview} />
           </:col>
-          <:col :let={preview} label={gettext("Built at")}>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Built at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(preview.inserted_at)} />
           </:col>
           <:col :let={preview}>

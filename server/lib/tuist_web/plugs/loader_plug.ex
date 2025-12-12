@@ -48,7 +48,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     case account do
       nil ->
         raise NotFoundError,
-              gettext("The account %{account_handle} was not found.", %{
+              dgettext("dashboard", "The account %{account_handle} was not found.", %{
                 account_handle: account_handle
               })
 
@@ -86,7 +86,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
       {:error, :not_found} ->
         raise NotFoundError,
-              gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
+              dgettext("dashboard", "The run with ID %{run_id} was not found.", %{run_id: run_id})
     end
   end
 
@@ -104,11 +104,11 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
       {:error, :not_found} ->
         raise NotFoundError,
-              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
+              dgettext("dashboard", "The project %{project_slug} was not found.", %{project_slug: project_slug})
 
       {:error, :invalid} ->
         raise BadRequestError,
-              gettext(
+              dgettext("dashboard", 
                 "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
                 %{
                   project_slug: project_slug

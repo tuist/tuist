@@ -1,6 +1,6 @@
 <div id="build-run">
   <.button
-    label={gettext("Build Runs")}
+    label={dgettext("dashboard_builds", "Build Runs")}
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -23,14 +23,14 @@
             <.alert_circle />
           </div>
         </div>
-        <h1 data-part="label">{@run.scheme || gettext("Unknown scheme")}</h1>
+        <h1 data-part="label">{@run.scheme || dgettext("dashboard_builds", "Unknown scheme")}</h1>
       </div>
       <.link_button
         :if={@test_run}
         navigate={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@test_run.id}"
         }
-        label={gettext("Test: %{scheme}", scheme: @test_run.scheme || gettext("Unknown"))}
+        label={dgettext("dashboard_builds", "Test: %{scheme}", scheme: @test_run.scheme || dgettext("dashboard_builds", "Unknown"))}
         size="large"
         underline
       >
@@ -43,7 +43,7 @@
         href={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
         }
-        label={gettext("Download result")}
+        label={dgettext("dashboard_builds", "Download result")}
         variant="secondary"
         size="medium"
       >
@@ -52,7 +52,7 @@
       <.button
         :if={Tuist.Runs.build_ci_run_url(@run)}
         href={Tuist.Runs.build_ci_run_url(@run)}
-        label={gettext("CI Run")}
+        label={dgettext("dashboard_builds", "CI Run")}
         variant="secondary"
         size="medium"
         target="_blank"
@@ -63,34 +63,34 @@
   </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={gettext("Overview")}
+      label={dgettext("dashboard_builds", "Overview")}
       selected={@selected_tab == "overview"}
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
       :if={@run.cacheable_tasks_count > 0}
-      label={gettext("Xcode Cache")}
+      label={dgettext("dashboard_builds", "Xcode Cache")}
       selected={@selected_tab == "xcode-cache"}
       patch={"?#{Query.put(@uri.query, "tab", "xcode-cache")}"}
     />
     <.tab_menu_horizontal_item
-      label={gettext("Warnings")}
+      label={dgettext("dashboard_builds", "Warnings")}
       selected={@selected_tab == "warnings"}
       patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
     />
     <.tab_menu_horizontal_item
-      label={gettext("Errors")}
+      label={dgettext("dashboard_builds", "Errors")}
       selected={@selected_tab == "errors"}
       patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
-    <.card title={gettext("Build Details")} icon="chart_arcs" data-part="build-details">
+    <.card title={dgettext("dashboard_builds", "Build Details")} icon="chart_arcs" data-part="build-details">
       <.card_section data-part="build-details-section">
         <div data-part="metadata-grid">
           <div :if={not is_nil(@command_event)} data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Command")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
               <span data-part="command-label">
                 {"tuist " <> @command_event.command_arguments}
               </span>
@@ -98,41 +98,41 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Mac device")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Mac device")}</div>
               <span data-part="label">
                 <.device_laptop />
                 {Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Configuration")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Configuration")}</div>
               <span data-part="label">
-                {@run.configuration || gettext("Unknown")}
+                {@run.configuration || dgettext("dashboard_builds", "Unknown")}
               </span>
             </div>
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Status")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
               <%= if @run.status == :success do %>
-                <.badge label={gettext("Passed")} color="success" style="fill" />
+                <.badge label={dgettext("dashboard_builds", "Passed")} color="success" style="fill" />
               <% else %>
-                <.badge label={gettext("Failed")} color="destructive" style="fill" />
+                <.badge label={dgettext("dashboard_builds", "Failed")} color="destructive" style="fill" />
               <% end %>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Built by")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
               <.build_ran_by_badge_cell build={@run} />
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Build duration")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration)}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Built at")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
               <span data-part="label">
                 {Tuist.Utilities.DateFormatter.format_with_timezone(
                   @run.inserted_at,
@@ -143,31 +143,31 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Category")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Category")}</div>
               <.badge
                 label={
                   if is_nil(@run.category),
-                    do: gettext("Unknown"),
+                    do: dgettext("dashboard_builds", "Unknown"),
                     else: @run.category |> Atom.to_string() |> String.capitalize()
                 }
                 style="fill"
               />
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Source")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
               <span data-part="label">
                 <.git_branch />
-                {@run.git_branch || gettext("None")}
+                {@run.git_branch || dgettext("dashboard_builds", "None")}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Xcode version")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Xcode version")}</div>
               <span data-part="label">
                 {@run.xcode_version}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("macOS version")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "macOS version")}</div>
               <span data-part="label">
                 <.device_laptop />
                 {@run.macos_version}
@@ -179,7 +179,7 @@
     </.card>
     <.card
       :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
-      title={gettext("Errors and Warnings")}
+      title={dgettext("dashboard_builds", "Errors and Warnings")}
       icon="alert_triangle"
       data-part="errors-and-warnings-card"
     >
@@ -189,10 +189,10 @@
       >
         <div data-part="header">
           <span data-part="title">
-            {gettext("Errors")}
+            {dgettext("dashboard_builds", "Errors")}
           </span>
           <span data-part="dot">
-            {gettext("•")}
+            {dgettext("dashboard_builds", "•")}
           </span>
           <span data-part="count">
             {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
@@ -214,17 +214,17 @@
       >
         <div data-part="header">
           <span data-part="title">
-            {gettext("Warnings")}
+            {dgettext("dashboard_builds", "Warnings")}
           </span>
           <span data-part="dot">
-            {gettext("•")}
+            {dgettext("dashboard_builds", "•")}
           </span>
           <span data-part="count">
             {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
           </span>
           <.button
             variant="secondary"
-            label={gettext("View more")}
+            label={dgettext("dashboard_builds", "View more")}
             size="small"
             patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
           />
@@ -242,19 +242,19 @@
     </.card>
     <.tab_menu_horizontal>
       <.tab_menu_horizontal_item
-        label={gettext("Module Breakdown")}
+        label={dgettext("dashboard_builds", "Module Breakdown")}
         selected={@selected_breakdown_tab == "module"}
         patch={"?#{Query.put(@uri.query, "breakdown-tab", "module")}"}
       />
       <.tab_menu_horizontal_item
-        label={gettext("File Breakdown")}
+        label={dgettext("dashboard_builds", "File Breakdown")}
         selected={@selected_breakdown_tab == "file"}
         patch={"?#{Query.put(@uri.query, "breakdown-tab", "file")}"}
       />
     </.tab_menu_horizontal>
     <.card
       :if={@selected_breakdown_tab == "module"}
-      title={gettext("Module Breakdown")}
+      title={dgettext("dashboard_builds", "Module Breakdown")}
       icon="apps"
       data-part="module-breakdown-card"
     >
@@ -265,7 +265,7 @@
               type="search"
               id="search-module-breakdown"
               name="search"
-              placeholder={gettext("Search...")}
+              placeholder={dgettext("dashboard_builds", "Search...")}
               show_suffix={false}
               data-part="search"
               value={@module_breakdown_search}
@@ -275,16 +275,16 @@
             id="module-breakdown-sort-by"
             label={
               case @module_breakdown_sort_by do
-                "name" -> gettext("Module")
-                "build-duration" -> gettext("Build duration")
-                _ -> gettext("Compilation duration")
+                "name" -> dgettext("dashboard_builds", "Module")
+                "build-duration" -> dgettext("dashboard_builds", "Build duration")
+                _ -> dgettext("dashboard_builds", "Compilation duration")
               end
             }
-            secondary_text={gettext("Sort by:")}
+            secondary_text={dgettext("dashboard_builds", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={gettext("Module")}
+              label={dgettext("dashboard_builds", "Module")}
               patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
               data-selected={@module_breakdown_sort_by == "name"}
             >
@@ -292,7 +292,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="build-duration"
-              label={gettext("Build duration")}
+              label={dgettext("dashboard_builds", "Build duration")}
               patch={module_breakdown_dropdown_item_patch_sort("build-duration", @uri)}
               data-selected={@module_breakdown_sort_by == "build-duration"}
             >
@@ -300,7 +300,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="compilation-duration"
-              label={gettext("Compilation duration")}
+              label={dgettext("dashboard_builds", "Compilation duration")}
               patch={module_breakdown_dropdown_item_patch_sort("compilation-duration", @uri)}
               data-selected={@module_breakdown_sort_by == "compilation-duration"}
             >
@@ -309,7 +309,7 @@
           </.dropdown>
           <.filter_dropdown
             id="filter-dropdown"
-            label={gettext("Filter")}
+            label={dgettext("dashboard_builds", "Filter")}
             available_filters={@module_breakdown_available_filters}
             active_filters={@module_breakdown_active_filters}
           />
@@ -320,7 +320,7 @@
         <.table id="module-breakdown-table" rows={@module_breakdown_modules}>
           <:col
             :let={module}
-            label={gettext("Module")}
+            label={dgettext("dashboard_builds", "Module")}
             patch={
               @module_breakdown_sort_by == "name" &&
                 module_breakdown_column_patch_sort(assigns, "name")
@@ -334,7 +334,7 @@
           </:col>
           <:col
             :let={module}
-            label={gettext("Build duration")}
+            label={dgettext("dashboard_builds", "Build duration")}
             patch={
               @module_breakdown_sort_by == "build-duration" &&
                 module_breakdown_column_patch_sort(assigns, "build-duration")
@@ -355,7 +355,7 @@
           </:col>
           <:col
             :let={module}
-            label={gettext("Compilation duration")}
+            label={dgettext("dashboard_builds", "Compilation duration")}
             patch={
               @module_breakdown_sort_by == "compilation-duration" &&
                 module_breakdown_column_patch_sort(assigns, "compilation-duration")
@@ -376,16 +376,16 @@
           </:col>
           <:col :let={module} label="Status">
             <%= if module.status == "success" do %>
-              <.status_badge_cell label={gettext("Passed")} status="success" />
+              <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
             <% else %>
-              <.status_badge_cell label={gettext("Failed")} status="error" />
+              <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
             <% end %>
           </:col>
           <:empty_state>
             <.table_empty_state
               icon="apps"
-              title={gettext("No modules found")}
-              subtitle={gettext("Try updating your search")}
+              title={dgettext("dashboard_builds", "No modules found")}
+              subtitle={dgettext("dashboard_builds", "Try updating your search")}
             />
           </:empty_state>
         </.table>
@@ -403,7 +403,7 @@
     </.card>
     <.card
       :if={@selected_breakdown_tab == "file"}
-      title={gettext("File Breakdown")}
+      title={dgettext("dashboard_builds", "File Breakdown")}
       icon="folders"
       data-part="file-breakdown-card"
     >
@@ -414,7 +414,7 @@
               type="search"
               id="search-file-breakdown"
               name="search"
-              placeholder={gettext("Search...")}
+              placeholder={dgettext("dashboard_builds", "Search...")}
               show_suffix={false}
               data-part="search"
               value={@file_breakdown_search}
@@ -424,15 +424,15 @@
             id="file-breakdown-sort-by"
             label={
               case @file_breakdown_sort_by do
-                "file" -> gettext("File")
-                _ -> gettext("Compilation duration")
+                "file" -> dgettext("dashboard_builds", "File")
+                _ -> dgettext("dashboard_builds", "Compilation duration")
               end
             }
-            secondary_text={gettext("Sort by:")}
+            secondary_text={dgettext("dashboard_builds", "Sort by:")}
           >
             <.dropdown_item
               value="compilation-duration"
-              label={gettext("Compilation duration")}
+              label={dgettext("dashboard_builds", "Compilation duration")}
               patch={file_breakdown_dropdown_item_patch_sort("compilation-duration", @uri)}
               data-selected={@file_breakdown_sort_by == "compilation-duration"}
             >
@@ -440,7 +440,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="file"
-              label={gettext("File")}
+              label={dgettext("dashboard_builds", "File")}
               patch={file_breakdown_dropdown_item_patch_sort("file", @uri)}
               data-selected={@file_breakdown_sort_by == "file"}
             >
@@ -449,7 +449,7 @@
           </.dropdown>
           <.filter_dropdown
             id="filter-dropdown"
-            label={gettext("Filter")}
+            label={dgettext("dashboard_builds", "Filter")}
             available_filters={@file_breakdown_available_filters}
             active_filters={@file_breakdown_active_filters}
           />
@@ -460,7 +460,7 @@
         <.table id="file-breakdown-table" rows={@file_breakdown_files}>
           <:col
             :let={file}
-            label={gettext("File")}
+            label={dgettext("dashboard_builds", "File")}
             patch={
               @file_breakdown_sort_by == "file" &&
                 file_breakdown_column_patch_sort(assigns, "file")
@@ -472,7 +472,7 @@
           >
             <.text_and_description_cell label={file.path} />
           </:col>
-          <:col :let={file} label={gettext("Type")}>
+          <:col :let={file} label={dgettext("dashboard_builds", "Type")}>
             <.badge_cell
               :if={file.type == "swift"}
               label="Swift"
@@ -486,15 +486,15 @@
               style="light-fill"
             />
           </:col>
-          <:col :let={file} label={gettext("Target")}>
+          <:col :let={file} label={dgettext("dashboard_builds", "Target")}>
             <.text_cell label={file.target} />
           </:col>
-          <:col :let={file} label={gettext("Project")}>
+          <:col :let={file} label={dgettext("dashboard_builds", "Project")}>
             <.text_cell label={file.project} />
           </:col>
           <:col
             :let={file}
-            label={gettext("Compilation duration")}
+            label={dgettext("dashboard_builds", "Compilation duration")}
             patch={
               @file_breakdown_sort_by == "compilation-duration" &&
                 file_breakdown_column_patch_sort(assigns, "compilation-duration")
@@ -516,8 +516,8 @@
           <:empty_state>
             <.table_empty_state
               icon="folders"
-              title={gettext("No files found")}
-              subtitle={gettext("Try updating your search")}
+              title={dgettext("dashboard_builds", "No files found")}
+              subtitle={dgettext("dashboard_builds", "Try updating your search")}
             />
           </:empty_state>
         </.table>
@@ -535,14 +535,14 @@
     </.card>
   <% end %>
   <%= if @selected_tab == "warnings" do %>
-    <.card title={gettext("Warnings")} icon="alert_hexagon" data-part="warnings-card">
+    <.card title={dgettext("dashboard_builds", "Warnings")} icon="alert_hexagon" data-part="warnings-card">
       <.card_section data-part="warnings-card-section">
         <div data-part="header">
           <span data-part="title">
-            {gettext("Warnings")}
+            {dgettext("dashboard_builds", "Warnings")}
           </span>
           <span data-part="dot">
-            {gettext("•")}
+            {dgettext("dashboard_builds", "•")}
           </span>
           <span data-part="count">
             {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
@@ -559,21 +559,21 @@
             <img src="/images/empty_warnings_light.png" data-theme="light" />
             <img src="/images/empty_warnings_dark.png" data-theme="dark" />
           </div>
-          <span data-part="title">{gettext("No warnings detected")}</span>
-          <span data-part="subtitle">{gettext("Looks like you're having a great day!")}</span>
+          <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
+          <span data-part="subtitle">{dgettext("dashboard_builds", "Looks like you're having a great day!")}</span>
         </div>
       </.card_section>
     </.card>
   <% end %>
   <%= if @selected_tab == "errors" do %>
-    <.card title={gettext("Errors")} icon="alert_circle" data-part="errors-card">
+    <.card title={dgettext("dashboard_builds", "Errors")} icon="alert_circle" data-part="errors-card">
       <.card_section data-part="errors-card-section">
         <div data-part="header">
           <span data-part="title">
-            {gettext("Errors")}
+            {dgettext("dashboard_builds", "Errors")}
           </span>
           <span data-part="dot">
-            {gettext("•")}
+            {dgettext("dashboard_builds", "•")}
           </span>
           <span data-part="count">
             {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
@@ -592,8 +592,8 @@
             <img src="/images/empty_errors_light.png" data-theme="light" />
             <img src="/images/empty_errors_dark.png" data-theme="dark" />
           </div>
-          <span data-part="title">{gettext("No errors detected")}</span>
-          <span data-part="subtitle">{gettext("Looks like you're having a great day!")}</span>
+          <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
+          <span data-part="subtitle">{dgettext("dashboard_builds", "Looks like you're having a great day!")}</span>
         </div>
       </.card_section>
     </.card>
@@ -601,22 +601,22 @@
   <%= if @selected_tab == "xcode-cache" do %>
     <div data-part="cache">
       <.card
-        title={gettext("Cache Summary")}
+        title={dgettext("dashboard_builds", "Cache Summary")}
         icon="chart_arcs"
         data-part="cache-summary-card"
       >
         <.card_section data-part="widgets-card-section">
           <.widget
-            title={gettext("Task hits")}
+            title={dgettext("dashboard_builds", "Task hits")}
             description={
-              gettext("Cacheable tasks that were retrieved from cache (local + remote).")
+              dgettext("dashboard_builds", "Cacheable tasks that were retrieved from cache (local + remote).")
             }
             value={@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count}
             id="widget-task-hits"
           />
           <.widget
-            title={gettext("Task misses")}
-            description={gettext("Cacheable tasks that were not found in cache.")}
+            title={dgettext("dashboard_builds", "Task misses")}
+            description={dgettext("dashboard_builds", "Cacheable tasks that were not found in cache.")}
             value={
               @run.cacheable_tasks_count - @run.cacheable_task_local_hits_count -
                 @run.cacheable_task_remote_hits_count
@@ -624,9 +624,9 @@
             id="widget-task-misses"
           />
           <.widget
-            title={gettext("Hit rate")}
+            title={dgettext("dashboard_builds", "Hit rate")}
             description={
-              gettext("The percentage of cacheable tasks that were cache hits (local + remote).")
+              dgettext("dashboard_builds", "The percentage of cacheable tasks that were cache hits (local + remote).")
             }
             value={
               if @run.cacheable_tasks_count > 0 do
@@ -635,7 +635,7 @@
                      @run.cacheable_tasks_count * 100)
                   |> Float.round(1)
 
-                gettext("%{hit_rate}%", hit_rate: hit_rate)
+                dgettext("dashboard_builds", "%{hit_rate}%", hit_rate: hit_rate)
               else
                 "0%"
               end
@@ -644,14 +644,14 @@
             empty={@run.cacheable_tasks_count == 0}
           />
           <.widget
-            title={gettext("Cache downloads")}
-            description={gettext("Total size of cache artifacts downloaded.")}
+            title={dgettext("dashboard_builds", "Cache downloads")}
+            description={dgettext("dashboard_builds", "Total size of cache artifacts downloaded.")}
             value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.download_bytes)}
             id="widget-binary-cache-pulls"
           />
           <.widget
-            title={gettext("Cache uploads")}
-            description={gettext("Total size of cache artifacts uploaded.")}
+            title={dgettext("dashboard_builds", "Cache uploads")}
+            description={dgettext("dashboard_builds", "Total size of cache artifacts uploaded.")}
             value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.upload_bytes)}
             id="widget-binary-cache-uploads"
           />
@@ -659,19 +659,19 @@
       </.card>
       <.tab_menu_horizontal>
         <.tab_menu_horizontal_item
-          label={gettext("Cacheable Tasks")}
+          label={dgettext("dashboard_builds", "Cacheable Tasks")}
           selected={@selected_cache_tab == "cacheable-tasks"}
           patch={"?#{Query.put(@uri.query, "cache-tab", "cacheable-tasks")}"}
         />
         <.tab_menu_horizontal_item
-          label={gettext("CAS Outputs")}
+          label={dgettext("dashboard_builds", "CAS Outputs")}
           selected={@selected_cache_tab == "cas-outputs"}
           patch={"?#{Query.put(@uri.query, "cache-tab", "cas-outputs")}"}
         />
       </.tab_menu_horizontal>
       <.card
         data-part="xcode-cache-card"
-        title={gettext("Xcode Cache")}
+        title={dgettext("dashboard_builds", "Xcode Cache")}
         icon="database"
       >
         <.card_section data-part="xcode-cache-card-section">
@@ -682,7 +682,7 @@
             >
               <div data-part="title">
                 <span data-part="label">
-                  {gettext("Cacheable tasks:")}
+                  {dgettext("dashboard_builds", "Cacheable tasks:")}
                 </span>
                 <span data-part="value">
                   {@run.cacheable_tasks_count}
@@ -730,7 +730,7 @@
                     },
                     yAxis: %{
                       type: "category",
-                      data: [gettext("Cacheable tasks")],
+                      data: [dgettext("dashboard_builds", "Cacheable tasks")],
                       axisLabel: %{
                         show: false
                       }
@@ -747,7 +747,7 @@
 
                   [
                     %{
-                      name: gettext("Local"),
+                      name: dgettext("dashboard_builds", "Local"),
                       type: "bar",
                       stack: "total",
                       emphasis: %{
@@ -761,7 +761,7 @@
                       }
                     },
                     %{
-                      name: gettext("Remote"),
+                      name: dgettext("dashboard_builds", "Remote"),
                       type: "bar",
                       stack: "total",
                       emphasis: %{
@@ -775,7 +775,7 @@
                       }
                     },
                     %{
-                      name: gettext("Missed"),
+                      name: dgettext("dashboard_builds", "Missed"),
                       type: "bar",
                       stack: "total",
                       emphasis: %{
@@ -799,14 +799,14 @@
                 id="widget-avg-read-latency"
                 title={
                   case @selected_read_latency_type do
-                    "avg" -> gettext("Avg. latency reading cache keys")
-                    "p99" -> gettext("p99 latency reading cache keys")
-                    "p90" -> gettext("p90 latency reading cache keys")
-                    "p50" -> gettext("p50 latency reading cache keys")
+                    "avg" -> dgettext("dashboard_builds", "Avg. latency reading cache keys")
+                    "p99" -> dgettext("dashboard_builds", "p99 latency reading cache keys")
+                    "p90" -> dgettext("dashboard_builds", "p90 latency reading cache keys")
+                    "p50" -> dgettext("dashboard_builds", "p50 latency reading cache keys")
                   end
                 }
                 description={
-                  gettext(
+                  dgettext("dashboard_builds", 
                     "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
                   )
                 }
@@ -848,20 +848,20 @@
                     @cacheable_task_latency_metrics.p90_read_duration == 0 and
                     @cacheable_task_latency_metrics.p50_read_duration == 0
                 }
-                empty_label={gettext("No data")}
+                empty_label={dgettext("dashboard_builds", "No data")}
               />
               <.percentile_dropdown_widget
                 id="widget-avg-write-latency"
                 title={
                   case @selected_write_latency_type do
-                    "avg" -> gettext("Avg. latency writing cache keys")
-                    "p99" -> gettext("p99 latency writing cache keys")
-                    "p90" -> gettext("p90 latency writing cache keys")
-                    "p50" -> gettext("p50 latency writing cache keys")
+                    "avg" -> dgettext("dashboard_builds", "Avg. latency writing cache keys")
+                    "p99" -> dgettext("dashboard_builds", "p99 latency writing cache keys")
+                    "p90" -> dgettext("dashboard_builds", "p90 latency writing cache keys")
+                    "p50" -> dgettext("dashboard_builds", "p50 latency writing cache keys")
                   end
                 }
                 description={
-                  gettext(
+                  dgettext("dashboard_builds", 
                     "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
                   )
                 }
@@ -903,7 +903,7 @@
                     @cacheable_task_latency_metrics.p90_write_duration == 0 and
                     @cacheable_task_latency_metrics.p50_write_duration == 0
                 }
-                empty_label={gettext("No data")}
+                empty_label={dgettext("dashboard_builds", "No data")}
               />
             </div>
             <div data-part="filters">
@@ -912,7 +912,7 @@
                   type="search"
                   id="search-cacheable-tasks"
                   name="search"
-                  placeholder={gettext("Search...")}
+                  placeholder={dgettext("dashboard_builds", "Search...")}
                   show_suffix={false}
                   data-part="search"
                   value={@cacheable_tasks_search}
@@ -920,7 +920,7 @@
               </.form>
               <.filter_dropdown
                 id="cacheable-tasks-filter-dropdown"
-                label={gettext("Filter")}
+                label={dgettext("dashboard_builds", "Filter")}
                 available_filters={@cacheable_tasks_available_filters}
                 active_filters={@cacheable_tasks_active_filters}
               />
@@ -945,7 +945,7 @@
             >
               <:col
                 :let={task}
-                label={gettext("Task")}
+                label={dgettext("dashboard_builds", "Task")}
                 patch={
                   @cacheable_tasks_sort_by == "description" &&
                     cacheable_tasks_column_patch_sort(assigns, "description")
@@ -955,24 +955,24 @@
                     sort_icon(@cacheable_tasks_sort_order)
                 }
               >
-                <.text_cell label={task.description || gettext("Unknown")} />
+                <.text_cell label={task.description || dgettext("dashboard_builds", "Unknown")} />
               </:col>
-              <:col :let={task} label={gettext("Hit")}>
+              <:col :let={task} label={dgettext("dashboard_builds", "Hit")}>
                 <%= case task.status do %>
                   <% "hit_local" -> %>
-                    <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                    <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
                   <% "hit_remote" -> %>
-                    <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                    <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
                   <% "miss" -> %>
-                    <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+                    <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
                 <% end %>
               </:col>
-              <:col :let={task} label={gettext("Type")}>
+              <:col :let={task} label={dgettext("dashboard_builds", "Type")}>
                 <.text_cell label={task.type |> String.capitalize()} />
               </:col>
               <:col
                 :let={task}
-                label={gettext("Cache key")}
+                label={dgettext("dashboard_builds", "Cache key")}
                 patch={
                   @cacheable_tasks_sort_by == "key" &&
                     cacheable_tasks_column_patch_sort(assigns, "key")
@@ -1007,7 +1007,7 @@
                     <div data-part="cas-output-item">
                       <span data-part="cas-output-text">
                         <span data-part="cas-output-label">
-                          {gettext("CAS output")} {cas_output.type}:
+                          {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
                         </span>
                         <.popover
                           id={"cas-output-popover-#{cas_output.node_id}"}
@@ -1025,7 +1025,7 @@
                               id={"cas-output-copy-#{cas_output.node_id}"}
                               variant="secondary"
                               size="small"
-                              label={gettext("Copy")}
+                              label={dgettext("dashboard_builds", "Copy")}
                               phx-hook="Clipboard"
                               tabindex="-1"
                               data-clipboard-value={cas_output.node_id}
@@ -1044,8 +1044,8 @@
               <:empty_state>
                 <.table_empty_state
                   icon="chart_arcs"
-                  title={gettext("No cacheable tasks found")}
-                  subtitle={gettext("Cacheable tasks will appear here when using Tuist cache")}
+                  title={dgettext("dashboard_builds", "No cacheable tasks found")}
+                  subtitle={dgettext("dashboard_builds", "Cacheable tasks will appear here when using Tuist cache")}
                 />
               </:empty_state>
             </.table>
@@ -1067,7 +1067,7 @@
             >
               <div data-part="title">
                 <span data-part="label">
-                  {gettext("CAS outputs:")}
+                  {dgettext("dashboard_builds", "CAS outputs:")}
                 </span>
                 <span data-part="value">
                   {@cas_metrics.download_count + @cas_metrics.upload_count}
@@ -1115,7 +1115,7 @@
                     },
                     yAxis: %{
                       type: "category",
-                      data: [gettext("CAS outputs")],
+                      data: [dgettext("dashboard_builds", "CAS outputs")],
                       axisLabel: %{
                         show: false
                       }
@@ -1128,7 +1128,7 @@
 
                   [
                     %{
-                      name: gettext("Download"),
+                      name: dgettext("dashboard_builds", "Download"),
                       type: "bar",
                       stack: "total",
                       emphasis: %{
@@ -1145,7 +1145,7 @@
                       }
                     },
                     %{
-                      name: gettext("Upload"),
+                      name: dgettext("dashboard_builds", "Upload"),
                       type: "bar",
                       stack: "total",
                       emphasis: %{
@@ -1169,9 +1169,9 @@
             </.card_section>
             <div data-part="throughput-widgets">
               <.widget
-                title={gettext("Download throughput")}
+                title={dgettext("dashboard_builds", "Download throughput")}
                 description={
-                  gettext("Time-weighted average download throughput in megabits per second.")
+                  dgettext("dashboard_builds", "Time-weighted average download throughput in megabits per second.")
                 }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
@@ -1180,12 +1180,12 @@
                 }
                 id="widget-download-throughput"
                 empty={@cas_metrics.time_weighted_avg_download_throughput == 0}
-                empty_label={gettext("No data")}
+                empty_label={dgettext("dashboard_builds", "No data")}
               />
               <.widget
-                title={gettext("Upload throughput")}
+                title={dgettext("dashboard_builds", "Upload throughput")}
                 description={
-                  gettext("Time-weighted average upload throughput in megabits per second.")
+                  dgettext("dashboard_builds", "Time-weighted average upload throughput in megabits per second.")
                 }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
@@ -1194,7 +1194,7 @@
                 }
                 id="widget-upload-throughput"
                 empty={@cas_metrics.time_weighted_avg_upload_throughput == 0}
-                empty_label={gettext("No data")}
+                empty_label={dgettext("dashboard_builds", "No data")}
               />
             </div>
             <div data-part="filters">
@@ -1203,7 +1203,7 @@
                   type="search"
                   id="search-cas-outputs"
                   name="search"
-                  placeholder={gettext("Search...")}
+                  placeholder={dgettext("dashboard_builds", "Search...")}
                   show_suffix={false}
                   data-part="search"
                   value={@cas_outputs_search}
@@ -1213,20 +1213,20 @@
                 id="cas-outputs-sort-by"
                 label={
                   case @cas_outputs_sort_by do
-                    "node-id" -> gettext("Key")
-                    "size" -> gettext("Size")
-                    "compressed-size" -> gettext("Compressed Size")
-                    _ -> gettext("Compressed Size")
+                    "node-id" -> dgettext("dashboard_builds", "Key")
+                    "size" -> dgettext("dashboard_builds", "Size")
+                    "compressed-size" -> dgettext("dashboard_builds", "Compressed Size")
+                    _ -> dgettext("dashboard_builds", "Compressed Size")
                   end
                 }
-                secondary_text={gettext("Sort by:")}
+                secondary_text={dgettext("dashboard_builds", "Sort by:")}
               >
                 <.dropdown_item
                   value="node-id"
                   patch={cas_outputs_dropdown_item_patch_sort("node-id", @uri)}
                   data-selected={@cas_outputs_sort_by == "node-id"}
                 >
-                  {gettext("Key")}
+                  {dgettext("dashboard_builds", "Key")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
                 <.dropdown_item
@@ -1234,7 +1234,7 @@
                   patch={cas_outputs_dropdown_item_patch_sort("size", @uri)}
                   data-selected={@cas_outputs_sort_by == "size"}
                 >
-                  {gettext("Size")}
+                  {dgettext("dashboard_builds", "Size")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
                 <.dropdown_item
@@ -1242,13 +1242,13 @@
                   patch={cas_outputs_dropdown_item_patch_sort("compressed-size", @uri)}
                   data-selected={@cas_outputs_sort_by == "compressed-size"}
                 >
-                  {gettext("Compressed Size")}
+                  {dgettext("dashboard_builds", "Compressed Size")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
               </.dropdown>
               <.filter_dropdown
                 id="cas-outputs-filter-dropdown"
-                label={gettext("Filter")}
+                label={dgettext("dashboard_builds", "Filter")}
                 available_filters={@cas_outputs_available_filters}
                 active_filters={@cas_outputs_active_filters}
               />
@@ -1263,7 +1263,7 @@
             >
               <:col
                 :let={output}
-                label={gettext("Key")}
+                label={dgettext("dashboard_builds", "Key")}
                 patch={
                   @cas_outputs_sort_by == "node-id" &&
                     cas_outputs_column_patch_sort(assigns, "node-id")
@@ -1275,20 +1275,20 @@
               >
                 <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
               </:col>
-              <:col :let={output} label={gettext("Status")}>
+              <:col :let={output} label={dgettext("dashboard_builds", "Status")}>
                 <%= case output.operation do %>
                   <% "download" -> %>
-                    <.badge_cell label={gettext("Download")} color="focus" style="light-fill" />
+                    <.badge_cell label={dgettext("dashboard_builds", "Download")} color="focus" style="light-fill" />
                   <% "upload" -> %>
-                    <.badge_cell label={gettext("Upload")} color="secondary" style="light-fill" />
+                    <.badge_cell label={dgettext("dashboard_builds", "Upload")} color="secondary" style="light-fill" />
                 <% end %>
               </:col>
-              <:col :let={output} label={gettext("Type")}>
+              <:col :let={output} label={dgettext("dashboard_builds", "Type")}>
                 <.text_cell label={output.type} />
               </:col>
               <:col
                 :let={output}
-                label={gettext("Size")}
+                label={dgettext("dashboard_builds", "Size")}
                 patch={
                   @cas_outputs_sort_by == "size" &&
                     cas_outputs_column_patch_sort(assigns, "size")
@@ -1302,7 +1302,7 @@
               </:col>
               <:col
                 :let={output}
-                label={gettext("Compressed Size")}
+                label={dgettext("dashboard_builds", "Compressed Size")}
                 patch={
                   @cas_outputs_sort_by == "compressed-size" &&
                     cas_outputs_column_patch_sort(assigns, "compressed-size")
@@ -1335,8 +1335,8 @@
               <:empty_state>
                 <.table_empty_state
                   icon="package"
-                  title={gettext("No CAS outputs found")}
-                  subtitle={gettext("CAS outputs will appear here when using Tuist cache")}
+                  title={dgettext("dashboard_builds", "No CAS outputs found")}
+                  subtitle={dgettext("dashboard_builds", "CAS outputs will appear here when using Tuist cache")}
                 />
               </:empty_state>
             </.table>

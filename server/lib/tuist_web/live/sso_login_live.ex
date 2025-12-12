@@ -29,7 +29,7 @@ defmodule TuistWeb.SSOLoginLive do
         {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
-        socket = put_flash(socket, :error, gettext("No SSO organization found for this email"))
+        socket = put_flash(socket, :error, dgettext("dashboard_auth", "No SSO organization found for this email"))
         {:noreply, socket}
     end
   end
@@ -39,15 +39,15 @@ defmodule TuistWeb.SSOLoginLive do
     <div id="sso-login">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
           </div>
           <div data-part="header">
-            <h1 data-part="title">{gettext("Log in to Tuist")}</h1>
+            <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
             <span data-part="subtitle">
-              {gettext("Log in to your enterprise account via Okta")}
+              {dgettext("dashboard_auth", "Log in to your enterprise account via Okta")}
             </span>
           </div>
           <.form data-part="form" for={@form} id="sso_login_form" phx-submit="submit">
@@ -62,7 +62,7 @@ defmodule TuistWeb.SSOLoginLive do
             <.text_input
               field={@form[:email]}
               id="email"
-              label={gettext("Email address")}
+              label={dgettext("dashboard_auth", "Email address")}
               type="email"
               placeholder="hello@tuist.dev"
               show_prefix={false}
@@ -70,16 +70,16 @@ defmodule TuistWeb.SSOLoginLive do
               show_error_message={false}
               required
             />
-            <.button variant="primary" size="large" label={gettext("Log in")} />
+            <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Log in")} />
           </.form>
         </div>
         <div data-part="bottom-link">
-          <span>{gettext("Interested in SSO?")}</span>
+          <span>{dgettext("dashboard_auth", "Interested in SSO?")}</span>
           <.link_button
             href="mailto:contact@tuist.dev"
             variant="primary"
             size="large"
-            label={gettext("Contact us")}
+            label={dgettext("dashboard_auth", "Contact us")}
           />
         </div>
       </div>

@@ -23,12 +23,12 @@ defmodule TuistWeb.TestCaseLive do
     test_case_detail =
       case Runs.get_test_case_by_id(test_case_id) do
         {:ok, test_case} -> test_case
-        {:error, :not_found} -> raise NotFoundError, gettext("Test case not found.")
+        {:error, :not_found} -> raise NotFoundError, dgettext("dashboard_tests", "Test case not found.")
       end
 
     # Verify project ownership
     if test_case_detail.project_id != project.id do
-      raise NotFoundError, gettext("Test case not found.")
+      raise NotFoundError, dgettext("dashboard_tests", "Test case not found.")
     end
 
     slug = "#{account.name}/#{project.name}"
@@ -55,13 +55,13 @@ defmodule TuistWeb.TestCaseLive do
       %Filter.Filter{
         id: "status",
         field: "status",
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed"),
-          "skipped" => gettext("Skipped")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -69,12 +69,12 @@ defmodule TuistWeb.TestCaseLive do
       %Filter.Filter{
         id: "ran_by",
         field: :ran_by,
-        display_name: gettext("Ran by"),
+        display_name: dgettext("dashboard_tests", "Ran by"),
         type: :option,
         options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
         options_display_names:
           Map.merge(
-            %{ci: gettext("CI")},
+            %{ci: dgettext("dashboard_tests", "CI")},
             Map.new(users, fn user -> {user.account.id, user.account.name} end)
           ),
         operator: :==,
@@ -83,7 +83,7 @@ defmodule TuistWeb.TestCaseLive do
       %Filter.Filter{
         id: "duration",
         field: "duration",
-        display_name: gettext("Duration"),
+        display_name: dgettext("dashboard_tests", "Duration"),
         type: :number,
         operator: :>,
         value: ""

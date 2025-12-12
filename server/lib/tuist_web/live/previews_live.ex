@@ -24,7 +24,7 @@ defmodule TuistWeb.PreviewsLive do
      |> assign(:uri, uri)
      |> assign(
        :head_title,
-       "#{gettext("Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+       "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
      |> assign(
        :previews,

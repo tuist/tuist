@@ -14,7 +14,7 @@ defmodule TuistWeb.AccountSettingsLive do
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
 
     rename_account_form = to_form(Account.update_changeset(selected_account, %{}))
@@ -29,7 +29,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
       |> assign(region_form: region_form)
-      |> assign(:head_title, "#{gettext("Settings")} · #{selected_account.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
   end
@@ -134,27 +134,27 @@ defmodule TuistWeb.AccountSettingsLive do
     <.card_section data-part="region-card-section">
       <div data-part="header">
         <span data-part="title">
-          {gettext("Storage region")}
+          {dgettext("dashboard_account", "Storage region")}
         </span>
         <span data-part="subtitle">
-          {gettext(
+          {dgettext("dashboard_account", 
             "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
           )}
         </span>
       </div>
       <div data-part="content">
         <label data-part="select-label">
-          {gettext("Select region")}
+          {dgettext("dashboard_account", "Select region")}
         </label>
         <.select
           id="region-selection"
           field={@region_form[:region]}
-          label={gettext("Region")}
+          label={dgettext("dashboard_account", "Region")}
           on_value_change="select_region"
         >
-          <:item value="all" label={gettext("All regions")} icon="world" />
-          <:item value="europe" label={gettext("Europe")} icon="world" />
-          <:item value="usa" label={gettext("United States")} icon="world" />
+          <:item value="all" label={dgettext("dashboard_account", "All regions")} icon="world" />
+          <:item value="europe" label={dgettext("dashboard_account", "Europe")} icon="world" />
+          <:item value="usa" label={dgettext("dashboard_account", "United States")} icon="world" />
         </.select>
       </div>
     </.card_section>

@@ -1,7 +1,7 @@
 <div id="ops-qa-logs">
   <div data-part="header">
     <div data-part="breadcrumb">
-      <.link_button label={gettext("Back")} navigate={~p"/ops/qa"} variant="secondary">
+      <.link_button label={dgettext("dashboard_qa", "Back")} navigate={~p"/ops/qa"} variant="secondary">
         <:icon_left>
           <.arrow_left />
         </:icon_left>
@@ -24,7 +24,7 @@
     <.live_component
       module={TuistWeb.Components.Logs}
       logs={@formatted_logs}
-      empty_message={gettext("No logs found for this QA run")}
+      empty_message={dgettext("dashboard_qa", "No logs found for this QA run")}
       id="ops-qa-logs-logs"
     />
   </div>

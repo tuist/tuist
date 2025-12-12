@@ -11,7 +11,7 @@
       </:icon_left>
     </.button>
     <.button
-      label={gettext("Delete bundle")}
+      label={dgettext("dashboard_cache", "Delete bundle")}
       data-part="delete-button"
       variant="secondary"
       size="medium"
@@ -28,7 +28,7 @@
         <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">
-              {gettext("Install size deviation")}
+              {dgettext("dashboard_cache", "Install size deviation")}
             </div>
             <div data-part="trend">
               <span data-part="label">
@@ -40,7 +40,7 @@
                 navigate={
                   ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles/#{@last_bundle.id}"
                 }
-                label={gettext("compared to last bundle")}
+                label={dgettext("dashboard_cache", "compared to last bundle")}
                 variant="secondary"
                 size="medium"
                 target="_blank"
@@ -49,7 +49,7 @@
             </div>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Type")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Type")}</div>
             <span data-part="label">
               {format_bundle_type(@bundle.type)}
             </span>
@@ -57,29 +57,29 @@
         </div>
         <div data-part="metadata-row">
           <div data-part="metadata">
-            <div data-part="title">{gettext("Name")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Name")}</div>
             <span data-part="label">
               {@bundle.name}
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Bundle ID")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Bundle ID")}</div>
             <span data-part="label">
               {@bundle.app_bundle_id}
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Platform")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Platform")}</div>
             <.platform_label platform={@bundle.supported_platforms |> hd()} />
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Branch")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Branch")}</div>
             <span data-part="label">
-              {@bundle.git_branch || gettext("Unknown")}
+              {@bundle.git_branch || dgettext("dashboard_cache", "Unknown")}
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Created at")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Created at")}</div>
             <span data-part="label">
               {Tuist.Utilities.DateFormatter.format_with_timezone(
                 @bundle.inserted_at,
@@ -90,19 +90,19 @@
         </div>
         <div data-part="metadata-row">
           <div data-part="metadata">
-            <div data-part="title">{gettext("Version")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Version")}</div>
             <span data-part="label">
               {@bundle.version}
             </span>
           </div>
           <div data-part="metadata">
             <div data-part="title-with-tooltip">
-              <span data-part="title">{gettext("Download size")}</span>
+              <span data-part="title">{dgettext("dashboard_cache", "Download size")}</span>
               <.tooltip
                 id="bundle-download-size-tooltip"
-                title={gettext("Download size")}
+                title={dgettext("dashboard_cache", "Download size")}
                 description={
-                  gettext(
+                  dgettext("dashboard_cache", 
                     "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
                   )
                 }
@@ -117,18 +117,18 @@
             </div>
             <span data-part="label">
               {if is_nil(@bundle.download_size),
-                do: gettext("Not available"),
+                do: dgettext("dashboard_cache", "Not available"),
                 else: format_bytes(@bundle.download_size)}
             </span>
           </div>
           <div data-part="metadata">
             <div data-part="title-with-tooltip">
-              <span data-part="title">{gettext("Install size")}</span>
+              <span data-part="title">{dgettext("dashboard_cache", "Install size")}</span>
               <.tooltip
                 id="bundle-install-size-tooltip"
-                title={gettext("Install size")}
+                title={dgettext("dashboard_cache", "Install size")}
                 description={
-                  gettext(
+                  dgettext("dashboard_cache", 
                     "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
                   )
                 }
@@ -146,14 +146,14 @@
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Uploaded by")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Uploaded by")}</div>
             <.bundle_uploaded_by_badge_cell bundle={@bundle} />
           </div>
           <div data-part="metadata">
-            <div data-part="title">{gettext("Commit SHA")}</div>
+            <div data-part="title">{dgettext("dashboard_cache", "Commit SHA")}</div>
             <span data-part="label">
               {if is_nil(@bundle.git_commit_sha),
-                do: gettext("Unknown"),
+                do: dgettext("dashboard_cache", "Unknown"),
                 else: @bundle.git_commit_sha |> String.slice(0, 9)}
             </span>
           </div>
@@ -163,19 +163,19 @@
   </.card>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={gettext("Overview")}
+      label={dgettext("dashboard_cache", "Overview")}
       selected={@selected_tab == "overview"}
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
-      label={gettext("File Breakdown")}
+      label={dgettext("dashboard_cache", "File Breakdown")}
       selected={@selected_tab == "file-breakdown"}
       patch={"?#{Query.put(@uri.query, "tab", "file-breakdown")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
-      label={gettext("Module Breakdown")}
+      label={dgettext("dashboard_cache", "Module Breakdown")}
       selected={@selected_tab == "module-breakdown"}
       patch={"?#{Query.put(@uri.query, "tab", "module-breakdown")}"}
       replace={true}
@@ -185,42 +185,42 @@
     :if={@selected_tab == "overview"}
     data-part="bundle-size-analysis-card"
     icon="chart_donut_4"
-    title={gettext("Bundle Size Analysis")}
+    title={dgettext("dashboard_cache", "Bundle Size Analysis")}
   >
     <.card_section data-part="bundle-size-analysis-card-section">
       <div data-part="header">
         <div data-part="legend">
           <div data-part="item">
             <div data-part="indicator" data-type="directory"></div>
-            <span data-part="label">{gettext("Directory")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Directory")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="binaries"></div>
-            <span data-part="label">{gettext("Binaries")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Binaries")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="localizations"></div>
-            <span data-part="label">{gettext("Localizations")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Localizations")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="fonts"></div>
-            <span data-part="label">{gettext("Fonts")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Fonts")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="assets"></div>
-            <span data-part="label">{gettext("Assets")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Assets")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="duplicates"></div>
-            <span data-part="label">{gettext("Duplicates")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Duplicates")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="file"></div>
-            <span data-part="label">{gettext("File")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "File")}</span>
           </div>
           <div data-part="item">
             <div data-part="indicator" data-type="unknown"></div>
-            <span data-part="label">{gettext("Unknown")}</span>
+            <span data-part="label">{dgettext("dashboard_cache", "Unknown")}</span>
           </div>
         </div>
       </div>
@@ -331,7 +331,7 @@
   <.card :if={@selected_tab == "overview"} icon="bulb" title="Insights" data-part="insights-card">
     <.empty_card_section
       :if={Enum.empty?(@duplicates)}
-      title={gettext("No insights yet")}
+      title={dgettext("dashboard_cache", "No insights yet")}
       data-part="empty-insights-card-section"
     >
       <:image>
@@ -350,8 +350,8 @@
         <div data-part="root">
           <div data-part="trigger" data-state="closed">
             <div data-part="header">
-              <h2 data-part="title">{gettext("Remove duplicate files")}</h2>
-              <span data-part="savings-label">{gettext("Potential savings")}</span>
+              <h2 data-part="title">{dgettext("dashboard_cache", "Remove duplicate files")}</h2>
+              <span data-part="savings-label">{dgettext("dashboard_cache", "Potential savings")}</span>
               <span data-part="savings-value">
                 {format_bytes(
                   Enum.flat_map(@duplicates, & &1.artifacts)
@@ -360,7 +360,7 @@
               </span>
               <.badge
                 label={
-                  gettext("%{savings} %",
+                  dgettext("dashboard_cache", "%{savings} %",
                     savings:
                       Decimal.from_float(
                         (@duplicates
@@ -414,7 +414,7 @@
                       />
                       <.badge
                         label={
-                          gettext("%{duplicates_count} duplicates",
+                          dgettext("dashboard_cache", "%{duplicates_count} duplicates",
                             duplicates_count: Enum.count(duplicate.artifacts)
                           )
                         }
@@ -461,7 +461,7 @@
   </.card>
   <.card
     :if={@selected_tab == "file-breakdown"}
-    title={gettext("File Breakdown")}
+    title={dgettext("dashboard_cache", "File Breakdown")}
     icon="folders"
     data-part="file-breakdown-card"
   >
@@ -472,7 +472,7 @@
             type="search"
             id="search-file-breakdown"
             name="search"
-            placeholder={gettext("Search...")}
+            placeholder={dgettext("dashboard_cache", "Search...")}
             show_suffix={false}
             data-part="search"
             value={@file_breakdown_filter}
@@ -482,15 +482,15 @@
           id="file-breakdown-sort-by"
           label={
             case @file_breakdown_sort_by do
-              "size" -> gettext("Size")
-              _ -> gettext("Path")
+              "size" -> dgettext("dashboard_cache", "Size")
+              _ -> dgettext("dashboard_cache", "Path")
             end
           }
-          secondary_text={gettext("Sort by:")}
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
         >
           <.dropdown_item
             value="path"
-            label={gettext("Path")}
+            label={dgettext("dashboard_cache", "Path")}
             patch={file_breakdown_dropdown_item_patch_sort("path", @uri)}
             data-selected={@file_breakdown_sort_by == "path"}
           >
@@ -498,7 +498,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="size"
-            label={gettext("Size")}
+            label={dgettext("dashboard_cache", "Size")}
             patch={file_breakdown_dropdown_item_patch_sort("size", @uri)}
             data-selected={@file_breakdown_sort_by == "size"}
           >
@@ -509,7 +509,7 @@
       <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
         <:col
           :let={artifact}
-          label={gettext("Path")}
+          label={dgettext("dashboard_cache", "Path")}
           patch={
             @file_breakdown_sort_by == "path" &&
               file_breakdown_column_patch_sort(assigns, "path")
@@ -523,17 +523,17 @@
             artifact.path |> String.split("/") |> Enum.drop(1) |> Enum.join("/")
           } />
         </:col>
-        <:col :let={artifact} label={gettext("Type")}>
+        <:col :let={artifact} label={dgettext("dashboard_cache", "Type")}>
           <.tag_cell
             label={
               case artifact.artifact_type do
-                :binary -> gettext("Binary")
-                :localization -> gettext("Localization")
-                :asset -> gettext("Asset")
-                :font -> gettext("Font")
-                :file -> gettext("File")
-                :directory -> gettext("Directory")
-                :unknown -> gettext("Other")
+                :binary -> dgettext("dashboard_cache", "Binary")
+                :localization -> dgettext("dashboard_cache", "Localization")
+                :asset -> dgettext("dashboard_cache", "Asset")
+                :font -> dgettext("dashboard_cache", "Font")
+                :file -> dgettext("dashboard_cache", "File")
+                :directory -> dgettext("dashboard_cache", "Directory")
+                :unknown -> dgettext("dashboard_cache", "Other")
               end
             }
             icon={
@@ -551,7 +551,7 @@
         </:col>
         <:col
           :let={artifact}
-          label={gettext("Size")}
+          label={dgettext("dashboard_cache", "Size")}
           patch={
             @file_breakdown_sort_by == "size" &&
               file_breakdown_column_patch_sort(assigns, "size")
@@ -563,14 +563,14 @@
         >
           <.text_cell label={format_bytes(artifact.size)} />
         </:col>
-        <:col :let={artifact} label={gettext("Space usage")}>
+        <:col :let={artifact} label={dgettext("dashboard_cache", "Space usage")}>
           <.text_cell label={space_usage(artifact, @bundle)} />
         </:col>
         <:empty_state>
           <.table_empty_state
             icon="folders"
-            title={gettext("No files found")}
-            subtitle={gettext("Try changing your search term")}
+            title={dgettext("dashboard_cache", "No files found")}
+            subtitle={dgettext("dashboard_cache", "Try changing your search term")}
           />
         </:empty_state>
       </.table>
@@ -588,7 +588,7 @@
   </.card>
   <.card
     :if={@selected_tab == "module-breakdown"}
-    title={gettext("Module Breakdown")}
+    title={dgettext("dashboard_cache", "Module Breakdown")}
     icon="file_zip"
     data-part="module-breakdown-card"
   >
@@ -599,7 +599,7 @@
             type="search"
             id="search-module-breakdown"
             name="search"
-            placeholder={gettext("Search...")}
+            placeholder={dgettext("dashboard_cache", "Search...")}
             show_suffix={false}
             data-part="search"
             value={@module_breakdown_filter}
@@ -609,15 +609,15 @@
           id="module-breakdown-sort-by"
           label={
             case @module_breakdown_sort_by do
-              "size" -> gettext("Size")
-              _ -> gettext("Name")
+              "size" -> dgettext("dashboard_cache", "Size")
+              _ -> dgettext("dashboard_cache", "Name")
             end
           }
-          secondary_text={gettext("Sort by:")}
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
         >
           <.dropdown_item
             value="name"
-            label={gettext("Name")}
+            label={dgettext("dashboard_cache", "Name")}
             patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
             data-selected={@module_breakdown_sort_by == "name"}
           >
@@ -625,7 +625,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="size"
-            label={gettext("Size")}
+            label={dgettext("dashboard_cache", "Size")}
             patch={module_breakdown_dropdown_item_patch_sort("size", @uri)}
             data-selected={@module_breakdown_sort_by == "size"}
           >
@@ -636,7 +636,7 @@
       <.table id="module-breakdown-table" rows={@module_breakdown_current_page_artifacts}>
         <:col
           :let={module}
-          label={gettext("Name")}
+          label={dgettext("dashboard_cache", "Name")}
           patch={
             @module_breakdown_sort_by == "name" &&
               module_breakdown_column_patch_sort(assigns, "name")
@@ -650,7 +650,7 @@
         </:col>
         <:col
           :let={module}
-          label={gettext("Size")}
+          label={dgettext("dashboard_cache", "Size")}
           patch={
             @module_breakdown_sort_by == "size" &&
               module_breakdown_column_patch_sort(assigns, "size")
@@ -662,14 +662,14 @@
         >
           <.text_cell label={format_bytes(module.size)} />
         </:col>
-        <:col :let={module} label={gettext("Space usage")}>
+        <:col :let={module} label={dgettext("dashboard_cache", "Space usage")}>
           <.text_cell label={space_usage(module, @bundle)} />
         </:col>
         <:empty_state>
           <.table_empty_state
             icon="folders"
-            title={gettext("No modules found")}
-            subtitle={gettext("Try changing your search term")}
+            title={dgettext("dashboard_cache", "No modules found")}
+            subtitle={dgettext("dashboard_cache", "Try changing your search term")}
           />
         </:empty_state>
       </.table>

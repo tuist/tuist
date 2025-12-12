@@ -1,14 +1,14 @@
 <div id="module-cache">
-  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics-card">
+  <.card title={dgettext("dashboard_cache", "Analytics")} icon="chart_arcs" data-part="analytics-card">
     <:actions>
       <.dropdown
         id="module-cache-analytics-environment-dropdown"
         label={environment_label(@analytics_environment)}
-        secondary_text={gettext("Environment:")}
+        secondary_text={dgettext("dashboard_cache", "Environment:")}
       >
         <.dropdown_item
           value="any"
-          label={gettext("Any")}
+          label={dgettext("dashboard_cache", "Any")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
           data-selected={@analytics_environment == "any"}
         >
@@ -16,7 +16,7 @@
         </.dropdown_item>
         <.dropdown_item
           value="local"
-          label={gettext("Local")}
+          label={dgettext("dashboard_cache", "Local")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
           data-selected={@analytics_environment == "local"}
         >
@@ -24,7 +24,7 @@
         </.dropdown_item>
         <.dropdown_item
           value="ci"
-          label={gettext("CI")}
+          label={dgettext("dashboard_cache", "CI")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
         >
@@ -34,17 +34,17 @@
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={gettext("7 days")}
+          label={dgettext("dashboard_cache", "7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={gettext("30 days")}
+          label={dgettext("dashboard_cache", "30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={gettext("12 months")}
+          label={dgettext("dashboard_cache", "12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
       </.button_group>
@@ -54,11 +54,11 @@
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@runs)} do
-            {"avg", false} -> gettext("Avg. hit rate")
-            {"p99", false} -> gettext("p99 hit rate")
-            {"p90", false} -> gettext("p90 hit rate")
-            {"p50", false} -> gettext("p50 hit rate")
-            _ -> gettext("Cache hit rate")
+            {"avg", false} -> dgettext("dashboard_cache", "Avg. hit rate")
+            {"p99", false} -> dgettext("dashboard_cache", "p99 hit rate")
+            {"p90", false} -> dgettext("dashboard_cache", "p90 hit rate")
+            {"p50", false} -> dgettext("dashboard_cache", "p50 hit rate")
+            _ -> dgettext("dashboard_cache", "Cache hit rate")
           end
         }
         legend_color={
@@ -70,12 +70,12 @@
           end
         }
         description={
-          gettext(
+          dgettext("dashboard_cache", 
             "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
           )
         }
         value={
-          gettext("%{hit_rate}%",
+          dgettext("dashboard_cache", "%{hit_rate}%",
             hit_rate:
               case @selected_hit_rate_type do
                 "p99" -> @hit_rate_p99.avg_hit_rate
@@ -90,28 +90,28 @@
         metrics={
           %{
             avg:
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   @hit_rate_analytics.avg_hit_rate
                   |> Decimal.from_float()
                   |> Decimal.round(1)
               ),
             p99:
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   @hit_rate_p99.avg_hit_rate
                   |> Decimal.from_float()
                   |> Decimal.round(1)
               ),
             p90:
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   @hit_rate_p90.avg_hit_rate
                   |> Decimal.from_float()
                   |> Decimal.round(1)
               ),
             p50:
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   @hit_rate_p50.avg_hit_rate
                   |> Decimal.from_float()
@@ -136,10 +136,10 @@
         empty={@hit_rate_analytics.avg_hit_rate == 0}
       />
       <.widget
-        title={gettext("Hits")}
+        title={dgettext("dashboard_cache", "Hits")}
         legend_color="secondary"
         description={
-          gettext(
+          dgettext("dashboard_cache", 
             "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
           )
         }
@@ -154,10 +154,10 @@
         empty={@hits_analytics.total_count == 0}
       />
       <.widget
-        title={gettext("Misses")}
+        title={dgettext("dashboard_cache", "Misses")}
         legend_color="destructive"
         description={
-          gettext(
+          dgettext("dashboard_cache", 
             "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
           )
         }
@@ -305,7 +305,7 @@
                   @hit_rate_analytics.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("Average"),
+              name: dgettext("dashboard_cache", "Average"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -318,7 +318,7 @@
                   @hit_rate_p99.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p99"),
+              name: dgettext("dashboard_cache", "p99"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -331,7 +331,7 @@
                   @hit_rate_p90.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p90"),
+              name: dgettext("dashboard_cache", "p90"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -344,7 +344,7 @@
                   @hit_rate_p50.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p50"),
+              name: dgettext("dashboard_cache", "p50"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -360,7 +360,7 @@
         @hit_rate_analytics.avg_hit_rate == 0 and @hits_analytics.total_count == 0 and
           @misses_analytics.total_count == 0
       }
-      title={gettext("No data yet")}
+      title={dgettext("dashboard_cache", "No data yet")}
     >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -368,14 +368,14 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("Recent Runs")} icon="schema" data-part="recent-runs">
+  <.card title={dgettext("dashboard_cache", "Recent Runs")} icon="schema" data-part="recent-runs">
     <.card_section :if={not Enum.empty?(@runs)} data-part="recent-runs-section">
       <div data-part="runs-section">
         <div data-part="runs-chart">
           <.legend
-            title={gettext("Cache hit rate")}
+            title={dgettext("dashboard_cache", "Cache hit rate")}
             value={
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   @avg_recent_hit_rate
                   |> Decimal.from_float()
@@ -444,12 +444,12 @@
             end
           }
         >
-          <:col :let={run} label={gettext("Command")}>
+          <:col :let={run} label={dgettext("dashboard_cache", "Command")}>
             <.text_and_description_cell label={run.name || "None"} />
           </:col>
-          <:col :let={run} label={gettext("Hit Rate")}>
+          <:col :let={run} label={dgettext("dashboard_cache", "Hit Rate")}>
             <.text_cell label={
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   cache_hit_rate(run)
                   |> Decimal.from_float()
@@ -457,16 +457,16 @@
               )
             } />
           </:col>
-          <:col :let={run} label={gettext("Ran by")}>
+          <:col :let={run} label={dgettext("dashboard_cache", "Ran by")}>
             <.run_ran_by_badge_cell
               run={run}
               ran_by_name={run.user_account_name}
             />
           </:col>
-          <:col :let={run} label={gettext("Duration")}>
+          <:col :let={run} label={dgettext("dashboard_cache", "Duration")}>
             <.text_cell
               label={
-                gettext("%{duration}s",
+                dgettext("dashboard_cache", "%{duration}s",
                   duration:
                     (run.duration / 1000)
                     |> Decimal.from_float()
@@ -476,7 +476,7 @@
               icon="history"
             />
           </:col>
-          <:col :let={run} label={gettext("Ran at")}>
+          <:col :let={run} label={dgettext("dashboard_cache", "Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
           </:col>
         </.table>
@@ -484,7 +484,7 @@
     </.card_section>
     <div :if={Enum.empty?(@runs)} data-part="empty-runs">
       <.empty_card_section
-        title={gettext("No data yet")}
+        title={dgettext("dashboard_cache", "No data yet")}
         get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
         data-part="empty-runs-table-card-section"
       >

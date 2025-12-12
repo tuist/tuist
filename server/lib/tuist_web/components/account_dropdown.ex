@@ -57,7 +57,7 @@ defmodule TuistWeb.AccountDropdown do
             <div data-part="actions">
               <.button
                 navigate={~p"/#{@current_user.account.name}/settings"}
-                label={gettext("Account settings")}
+                label={dgettext("dashboard", "Account settings")}
                 variant="secondary"
               >
                 <:icon_left><.settings /></:icon_left>
@@ -65,14 +65,14 @@ defmodule TuistWeb.AccountDropdown do
               <.button
                 :if={Authorization.authorize(:ops_read, @current_user)}
                 navigate={~p"/ops/qa"}
-                label={gettext("Operations")}
+                label={dgettext("dashboard", "Operations")}
                 variant="secondary"
               >
                 <:icon_left><.dashboard /></:icon_left>
               </.button>
               <.button
                 :if={latest_app_release = @latest_app_release.ok? && @latest_app_release.result}
-                label={gettext("Download macOS app")}
+                label={dgettext("dashboard", "Download macOS app")}
                 variant="secondary"
                 href={latest_app_release}
               >
@@ -80,7 +80,7 @@ defmodule TuistWeb.AccountDropdown do
               </.button>
             </div>
             <div data-part="theme-switcher-section">
-              <p data-part="theme-switcher-title">{gettext("Switch to your preferred theme")}</p>
+              <p data-part="theme-switcher-title">{dgettext("dashboard", "Switch to your preferred theme")}</p>
               <div data-part="theme-switcher">
                 <.theme_light name={@id} id={"#{@id}-theme-switcher-light"} />
                 <.theme_dark name={@id} id={"#{@id}-theme-switcher-dark"} />
@@ -88,7 +88,7 @@ defmodule TuistWeb.AccountDropdown do
               </div>
             </div>
             <.link href={~p"/users/log_out"} method="delete">
-              <.button label={gettext("Log out")} size="large" variant="destructive">
+              <.button label={dgettext("dashboard", "Log out")} size="large" variant="destructive">
                 <:icon_left><.logout /></:icon_left>
               </.button>
             </.link>

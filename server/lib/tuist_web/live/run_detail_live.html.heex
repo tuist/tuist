@@ -1,7 +1,7 @@
 <div id="run-detail">
   <.button
     :if={@run.name == "test"}
-    label={gettext("Test Runs")}
+    label={dgettext("dashboard_builds", "Test Runs")}
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -13,7 +13,7 @@
   </.button>
   <.button
     :if={@run.name == "cache"}
-    label={gettext("Cache Runs")}
+    label={dgettext("dashboard_builds", "Cache Runs")}
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -27,7 +27,7 @@
   </.button>
   <.button
     :if={@run.name == "generate"}
-    label={gettext("Generate Runs")}
+    label={dgettext("dashboard_builds", "Generate Runs")}
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -60,7 +60,7 @@
       href={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.id}/download"
       }
-      label={gettext("Download result")}
+      label={dgettext("dashboard_builds", "Download result")}
       variant="secondary"
       size="medium"
     >
@@ -69,33 +69,33 @@
   </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={gettext("Overview")}
+      label={dgettext("dashboard_builds", "Overview")}
       selected={@selected_tab == "overview"}
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
       :if={@has_selective_testing_data}
-      label={gettext("Test Optimizations")}
+      label={dgettext("dashboard_builds", "Test Optimizations")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
       :if={@has_binary_cache_data}
-      label={gettext("Module Cache")}
+      label={dgettext("dashboard_builds", "Module Cache")}
       selected={@selected_tab == "compilation-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
       replace={true}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
-    <.card title={gettext("Test Details")} icon="chart_arcs" data-part="test-details">
+    <.card title={dgettext("dashboard_builds", "Test Details")} icon="chart_arcs" data-part="test-details">
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Command")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
               <span data-part="command">
                 {if @run.command_arguments,
                   do: ("tuist " <> @run.command_arguments) |> String.split(" ") |> Enum.join(" "),
@@ -105,19 +105,19 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Status")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
               <%= if @run.status == :success do %>
-                <.badge label={gettext("Passed")} color="success" style="fill" size="large" />
+                <.badge label={dgettext("dashboard_builds", "Passed")} color="success" style="fill" size="large" />
               <% else %>
-                <.badge label={gettext("Failed")} color="destructive" style="fill" size="large" />
+                <.badge label={dgettext("dashboard_builds", "Failed")} color="destructive" style="fill" size="large" />
               <% end %>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Ran by")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Ran by")}</div>
               <.run_ran_by_badge_cell run={@run} ran_by_name={@user && @user.account.name} />
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Ran at")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Ran at")}</div>
               <span data-part="label">
                 {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
               </span>
@@ -125,23 +125,23 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Source")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
               <span data-part="label">
                 <.git_branch />
-                {@run.git_branch || gettext("None")}
+                {@run.git_branch || dgettext("dashboard_builds", "None")}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Commit SHA")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Commit SHA")}</div>
               <span data-part="label">
-                {@run.git_commit_sha || gettext("None")}
+                {@run.git_commit_sha || dgettext("dashboard_builds", "None")}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Run duration")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Run duration")}</div>
               <span data-part="label">
                 <.history />
-                {gettext("%{run_duration}s",
+                {dgettext("dashboard_builds", "%{run_duration}s",
                   run_duration: (@run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
                 )}
               </span>
@@ -149,21 +149,21 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Tuist version")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Tuist version")}</div>
               <span data-part="label">
                 <.brand_tuist />
                 {@run.tuist_version}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Swift version")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "Swift version")}</div>
               <span data-part="label">
                 <.brand_swift />
                 {@run.swift_version}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("macOS version")}</div>
+              <div data-part="title">{dgettext("dashboard_builds", "macOS version")}</div>
               <span data-part="label">
                 <.device_laptop />
                 {@run.macos_version}
@@ -176,21 +176,21 @@
   <% end %>
   <%= if @selected_tab == "test-optimizations" do %>
     <.card
-      title={gettext("Optimization Summary")}
+      title={dgettext("dashboard_builds", "Optimization Summary")}
       icon="chart_arcs"
       data-part="optimization-summary"
     >
       <.card_section data-part="optimization-summary-section">
         <.widget
-          title={gettext("Total modules")}
-          description={gettext("Total modules represents the total number of testable modules.")}
+          title={dgettext("dashboard_builds", "Total modules")}
+          description={dgettext("dashboard_builds", "Total modules represents the total number of testable modules.")}
           value={@selective_testing_analytics.total_modules_count}
           id="widget-optimization-summary-total-modules"
         />
         <.widget
-          title={gettext("Selective test hits")}
+          title={dgettext("dashboard_builds", "Selective test hits")}
           description={
-            gettext(
+            dgettext("dashboard_builds", 
               "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
             )
           }
@@ -201,9 +201,9 @@
           id="widget-optimization-summary-selective-test-hits"
         />
         <.widget
-          title={gettext("Selective test misses")}
+          title={dgettext("dashboard_builds", "Selective test misses")}
           description={
-            gettext(
+            dgettext("dashboard_builds", 
               "Selective test misses represents the number of test modules that were run as they were not successfully run before."
             )
           }
@@ -213,7 +213,7 @@
       </.card_section>
     </.card>
     <.card
-      title={gettext("Selective Testing")}
+      title={dgettext("dashboard_builds", "Selective Testing")}
       icon="history_toggle"
       data-part="selective-testing"
     >
@@ -223,7 +223,7 @@
             type="search"
             id="search-selective-testing"
             name="search"
-            placeholder={gettext("Search...")}
+            placeholder={dgettext("dashboard_builds", "Search...")}
             show_suffix={false}
             data-part="search"
             value={@selective_testing_filter}
@@ -232,7 +232,7 @@
         <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
           <:col
             :let={test_module}
-            label={gettext("Module")}
+            label={dgettext("dashboard_builds", "Module")}
             patch={
               "?#{@uri.query
               |> Query.put("selective-testing-sort-by", "name")
@@ -246,24 +246,24 @@
           >
             <.text_and_description_cell label={test_module.name} />
           </:col>
-          <:col :let={test_module} label={gettext("Hit")}>
+          <:col :let={test_module} label={dgettext("dashboard_builds", "Hit")}>
             <%= case test_module.selective_testing_hit do %>
               <% :remote -> %>
-                <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
               <% :local -> %>
-                <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
               <% :miss -> %>
-                <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
             <% end %>
           </:col>
-          <:col :let={test_module} label={gettext("Hash")}>
-            <.text_cell label={test_module.selective_testing_hash || gettext("Unknown")} />
+          <:col :let={test_module} label={dgettext("dashboard_builds", "Hash")}>
+            <.text_cell label={test_module.selective_testing_hash || dgettext("dashboard_builds", "Unknown")} />
           </:col>
           <:empty_state>
             <.table_empty_state
               icon="history_toggle"
-              title={gettext("No modules found")}
-              subtitle={gettext("Try changing your search term")}
+              title={dgettext("dashboard_builds", "No modules found")}
+              subtitle={dgettext("dashboard_builds", "Try changing your search term")}
             />
           </:empty_state>
         </.table>
@@ -282,15 +282,15 @@
   <% end %>
   <%= if @selected_tab == "compilation-optimizations" do %>
     <.card
-      title={gettext("Summary")}
+      title={dgettext("dashboard_builds", "Summary")}
       icon="chart_arcs"
       data-part="optimization-summary"
     >
       <.card_section data-part="optimization-summary-section">
         <.widget
-          title={gettext("Cache hits")}
+          title={dgettext("dashboard_builds", "Cache hits")}
           description={
-            gettext("Total number of modules taken from either the local or the remote cache.")
+            dgettext("dashboard_builds", "Total number of modules taken from either the local or the remote cache.")
           }
           value={
             @binary_cache_analytics.binary_cache_local_hits_count +
@@ -299,9 +299,9 @@
           id="widget-optimization-summary-binary-cache-hits"
         />
         <.widget
-          title={gettext("Cache misses")}
+          title={dgettext("dashboard_builds", "Cache misses")}
           description={
-            gettext(
+            dgettext("dashboard_builds", 
               "Total number of modules that could have been taken from the cache if it was fully populated."
             )
           }
@@ -309,21 +309,21 @@
           id="widget-optimization-summary-binary-cache-misses"
         />
         <.widget
-          title={gettext("Cache hit rate")}
+          title={dgettext("dashboard_builds", "Cache hit rate")}
           description={
-            gettext("Percentage of modules that were successfully retrieved from the cache.")
+            dgettext("dashboard_builds", "Percentage of modules that were successfully retrieved from the cache.")
           }
           value={"#{@binary_cache_analytics.cache_hit_rate}%"}
           id="widget-optimization-summary-cache-hit-rate"
         />
       </.card_section>
     </.card>
-    <.card title={gettext("Module Cache")} icon="database" data-part="binary-cache">
+    <.card title={dgettext("dashboard_builds", "Module Cache")} icon="database" data-part="binary-cache">
       <:actions>
         <.button
           id="copy-binary-cache-json"
           variant="secondary"
-          label={gettext("Copy as JSON")}
+          label={dgettext("dashboard_builds", "Copy as JSON")}
           size="medium"
           phx-hook="Clipboard"
           data-clipboard-value={@binary_cache_json}
@@ -343,7 +343,7 @@
         >
           <div data-part="title">
             <span data-part="label">
-              {gettext("Cacheable targets:")}
+              {dgettext("dashboard_builds", "Cacheable targets:")}
             </span>
             <span data-part="value">
               {@binary_cache_analytics.binary_cache_local_hits_count +
@@ -393,7 +393,7 @@
                 },
                 yAxis: %{
                   type: "category",
-                  data: [gettext("Cacheable targets")],
+                  data: [dgettext("dashboard_builds", "Cacheable targets")],
                   axisLabel: %{
                     show: false
                   }
@@ -407,7 +407,7 @@
 
               [
                 %{
-                  name: gettext("Local"),
+                  name: dgettext("dashboard_builds", "Local"),
                   type: "bar",
                   stack: "total",
                   emphasis: %{
@@ -421,7 +421,7 @@
                   }
                 },
                 %{
-                  name: gettext("Remote"),
+                  name: dgettext("dashboard_builds", "Remote"),
                   type: "bar",
                   stack: "total",
                   emphasis: %{
@@ -435,7 +435,7 @@
                   }
                 },
                 %{
-                  name: gettext("Missed"),
+                  name: dgettext("dashboard_builds", "Missed"),
                   type: "bar",
                   stack: "total",
                   emphasis: %{
@@ -464,7 +464,7 @@
               type="search"
               id="search-binary-cache"
               name="search"
-              placeholder={gettext("Search...")}
+              placeholder={dgettext("dashboard_builds", "Search...")}
               show_suffix={false}
               data-part="search"
               value={@binary_cache_filter}
@@ -472,7 +472,7 @@
           </.form>
           <.filter_dropdown
             id="binary-cache-filter-dropdown"
-            label={gettext("Filter")}
+            label={dgettext("dashboard_builds", "Filter")}
             available_filters={@available_filters}
             active_filters={@binary_cache_active_filters}
           />
@@ -489,7 +489,7 @@
         >
           <:col
             :let={binary_cache_module}
-            label={gettext("Module")}
+            label={dgettext("dashboard_builds", "Module")}
             patch={
               "?#{@uri.query
               |> Query.put("binary-cache-sort-by", "name")
@@ -503,35 +503,35 @@
           >
             <.text_and_description_cell label={binary_cache_module.name} />
           </:col>
-          <:col :let={binary_cache_module} label={gettext("Hit")}>
+          <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hit")}>
             <%= case binary_cache_module.binary_cache_hit do %>
               <% :remote -> %>
-                <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
               <% :local -> %>
-                <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
               <% :miss -> %>
-                <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+                <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
             <% end %>
           </:col>
-          <:col :let={binary_cache_module} label={gettext("Hash")}>
-            <.text_cell label={binary_cache_module.binary_cache_hash || gettext("Unknown")} />
+          <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hash")}>
+            <.text_cell label={binary_cache_module.binary_cache_hash || dgettext("dashboard_builds", "Unknown")} />
           </:col>
           <:expanded_content :let={target}>
             <div data-part="subhashes-list">
               <div :if={target.product != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Product")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Product")}:</span>
                 <span data-part="subhash-value">{target.product}</span>
               </div>
               <div :if={target.product_name != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Product name")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Product name")}:</span>
                 <span data-part="subhash-value">{target.product_name}</span>
               </div>
               <div :if={target.bundle_id != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Bundle ID")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Bundle ID")}:</span>
                 <span data-part="subhash-value">{target.bundle_id}</span>
               </div>
               <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Destinations")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Destinations")}:</span>
                 <span data-part="subhash-value">
                   {target.destinations
                   |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
@@ -539,67 +539,67 @@
                 </span>
               </div>
               <div :if={target.external_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("External")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "External")}:</span>
                 <span data-part="subhash-value">{target.external_hash}</span>
               </div>
               <div :if={target.sources_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Sources")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Sources")}:</span>
                 <span data-part="subhash-value">{target.sources_hash}</span>
               </div>
               <div :if={target.resources_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Resources")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Resources")}:</span>
                 <span data-part="subhash-value">{target.resources_hash}</span>
               </div>
               <div :if={target.copy_files_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Copy files")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Copy files")}:</span>
                 <span data-part="subhash-value">{target.copy_files_hash}</span>
               </div>
               <div :if={target.core_data_models_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Core data models")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Core data models")}:</span>
                 <span data-part="subhash-value">{target.core_data_models_hash}</span>
               </div>
               <div :if={target.target_scripts_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Target scripts")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Target scripts")}:</span>
                 <span data-part="subhash-value">{target.target_scripts_hash}</span>
               </div>
               <div :if={target.environment_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Environment")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Environment")}:</span>
                 <span data-part="subhash-value">{target.environment_hash}</span>
               </div>
               <div :if={target.headers_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Headers")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Headers")}:</span>
                 <span data-part="subhash-value">{target.headers_hash}</span>
               </div>
               <div :if={target.deployment_target_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Deployment target")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Deployment target")}:</span>
                 <span data-part="subhash-value">{target.deployment_target_hash}</span>
               </div>
               <div :if={target.info_plist_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Info.plist")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Info.plist")}:</span>
                 <span data-part="subhash-value">{target.info_plist_hash}</span>
               </div>
               <div :if={target.entitlements_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Entitlements")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Entitlements")}:</span>
                 <span data-part="subhash-value">{target.entitlements_hash}</span>
               </div>
               <div :if={target.dependencies_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Dependencies")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Dependencies")}:</span>
                 <span data-part="subhash-value">{target.dependencies_hash}</span>
               </div>
               <div :if={target.project_settings_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Project settings")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Project settings")}:</span>
                 <span data-part="subhash-value">{target.project_settings_hash}</span>
               </div>
               <div :if={target.target_settings_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Target settings")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Target settings")}:</span>
                 <span data-part="subhash-value">{target.target_settings_hash}</span>
               </div>
               <div :if={target.buildable_folders_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Buildable folders")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Buildable folders")}:</span>
                 <span data-part="subhash-value">{target.buildable_folders_hash}</span>
               </div>
               <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
-                <span data-part="subhash-label">{gettext("Additional strings")}:</span>
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Additional strings")}:</span>
                 <span data-part="subhash-value">
                   {Enum.join(target.additional_strings, ", ")}
                 </span>
@@ -609,8 +609,8 @@
           <:empty_state>
             <.table_empty_state
               icon="database"
-              title={gettext("No modules found")}
-              subtitle={gettext("Try changing your search term")}
+              title={dgettext("dashboard_builds", "No modules found")}
+              subtitle={dgettext("dashboard_builds", "Try changing your search term")}
             />
           </:empty_state>
         </.table>

@@ -18,14 +18,14 @@ defmodule TuistWeb.AppLayoutComponents do
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
       <.sidebar_item
-        label={gettext("Overview")}
+        label={dgettext("dashboard", "Overview")}
         icon="smart_home"
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
       <.sidebar_group
         id="sidebar-builds"
-        label={gettext("Builds")}
+        label={dgettext("dashboard", "Builds")}
         icon="versions"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
@@ -42,7 +42,7 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          label={gettext("Build Runs")}
+          label={dgettext("dashboard", "Build Runs")}
           icon="chart_column"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
           selected={
@@ -55,7 +55,7 @@ defmodule TuistWeb.AppLayoutComponents do
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-tests"
-        label={gettext("Tests")}
+        label={dgettext("dashboard", "Tests")}
         icon="subtask"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
@@ -72,7 +72,7 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          label={gettext("Test Runs")}
+          label={dgettext("dashboard", "Test Runs")}
           icon="dashboard"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
           selected={
@@ -83,7 +83,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          label={gettext("Test Cases")}
+          label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
           selected={
@@ -96,7 +96,7 @@ defmodule TuistWeb.AppLayoutComponents do
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-module-cache"
-        label={gettext("Module Cache")}
+        label={dgettext("dashboard", "Module Cache")}
         icon="database"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
@@ -119,7 +119,7 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          label={gettext("Cache Runs")}
+          label={dgettext("dashboard", "Cache Runs")}
           icon="schema"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"}
           selected={
@@ -131,7 +131,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          label={gettext("Generate Runs")}
+          label={dgettext("dashboard", "Generate Runs")}
           icon="filters"
           navigate={
             ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
@@ -146,7 +146,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
-        label={gettext("Xcode Cache")}
+        label={dgettext("dashboard", "Xcode Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
         selected={
@@ -154,7 +154,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label={gettext("Previews")}
+        label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
         selected={
@@ -166,7 +166,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
-        label={gettext("QA")}
+        label={dgettext("dashboard", "QA")}
         icon="checkup_list"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
         selected={
@@ -177,7 +177,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label={gettext("Bundles")}
+        label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
         selected={
@@ -189,7 +189,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
-        label={gettext("Settings")}
+        label={dgettext("dashboard", "Settings")}
         icon="settings"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
         selected={
@@ -214,7 +214,7 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
-          <img src="/images/tuist_dashboard.png" alt={gettext("Tuist Icon")} class="headerbar__logo" />
+          <img src="/images/tuist_dashboard.png" alt={dgettext("dashboard", "Tuist Icon")} class="headerbar__logo" />
         </.link>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
       </div>
@@ -239,7 +239,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
             <img
               src="/images/tuist_dashboard.png"
-              alt={gettext("Tuist Icon")}
+              alt={dgettext("dashboard", "Tuist Icon")}
               class="headerbar__logo"
             />
           </.link>

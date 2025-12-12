@@ -461,7 +461,7 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp format_bundle_download_size(nil), do: gettext("Unknown")
+  defp format_bundle_download_size(nil), do: dgettext("dashboard_account", "Unknown")
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
   defp get_issue_id_from_git_ref(git_ref) do

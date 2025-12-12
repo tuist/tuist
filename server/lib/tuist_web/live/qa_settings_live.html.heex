@@ -5,32 +5,32 @@
 
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={gettext("General")}
+      label={dgettext("dashboard_qa", "General")}
       selected={false}
       navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
-      label={gettext("QA")}
+      label={dgettext("dashboard_qa", "QA")}
       selected={true}
       navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
     />
   </.tab_menu_horizontal>
   <h2 data-part="subtitle">
-    {gettext("QA")}
+    {dgettext("dashboard_qa", "QA")}
   </h2>
 
   <.card_section data-part="app-description-card-section">
     <div data-part="explanation">
       <h3 data-part="title">
-        {gettext("App description")}
+        {dgettext("dashboard_qa", "App description")}
       </h3>
       <span data-part="subtitle">
-        {gettext("Edit or update the app description to ensure the agent can run tests smoothly:")}
+        {dgettext("dashboard_qa", "Edit or update the app description to ensure the agent can run tests smoothly:")}
       </span>
       <ul data-part="list">
-        <li>{gettext("Share your naming conventions with the LLM")}</li>
-        <li>{gettext("Provide clear instructions for testing")}</li>
-        <li>{gettext("Include expected outcomes")}</li>
+        <li>{dgettext("dashboard_qa", "Share your naming conventions with the LLM")}</li>
+        <li>{dgettext("dashboard_qa", "Provide clear instructions for testing")}</li>
+        <li>{dgettext("dashboard_qa", "Include expected outcomes")}</li>
       </ul>
     </div>
     <.form
@@ -43,13 +43,13 @@
     >
       <.text_area
         field={@qa_app_description_form[:qa_app_description]}
-        placeholder={gettext("Enter your app description...")}
+        placeholder={dgettext("dashboard_qa", "Enter your app description...")}
         rows={10}
         max_length={2000}
       />
       <.button
         type="submit"
-        label={gettext("Save")}
+        label={dgettext("dashboard_qa", "Save")}
         variant="primary"
         size="medium"
         disabled={@qa_app_description_unchanged}
@@ -60,10 +60,10 @@
   <.card_section data-part="credentials-card-section">
     <div data-part="explanation">
       <h3 data-part="title">
-        {gettext("Credentials")}
+        {dgettext("dashboard_qa", "Credentials")}
       </h3>
       <span data-part="subtitle">
-        {gettext(
+        {dgettext("dashboard_qa", 
           "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
         )}
       </span>
@@ -77,20 +77,20 @@
     >
       <.text_input
         field={@qa_credentials_form[:qa_email]}
-        label={gettext("Email")}
-        placeholder={gettext("test@example.com")}
+        label={dgettext("dashboard_qa", "Email")}
+        placeholder={dgettext("dashboard_qa", "test@example.com")}
         type="email"
       />
       <.text_input
         field={@qa_credentials_form[:qa_password]}
-        label={gettext("Password")}
-        placeholder={gettext("Password for test account")}
+        label={dgettext("dashboard_qa", "Password")}
+        placeholder={dgettext("dashboard_qa", "Password for test account")}
         type="password"
         show_suffix={false}
       />
       <.button
         type="submit"
-        label={gettext("Save")}
+        label={dgettext("dashboard_qa", "Save")}
         variant="primary"
         size="medium"
         disabled={@qa_credentials_unchanged}
@@ -101,17 +101,17 @@
   <.card
     data-part="launch-argument-groups-card"
     icon="password_mobile_phone"
-    title={gettext("Launch argument groups")}
+    title={dgettext("dashboard_qa", "Launch argument groups")}
   >
     <:actions>
       <.modal
         id="add-launch-argument-modal"
-        title={gettext("Add launch argument group")}
+        title={dgettext("dashboard_qa", "Add launch argument group")}
         header_size="large"
         on_dismiss="close_add_launch_argument_modal"
       >
         <:trigger :let={attrs}>
-          <.button label={gettext("Add arguments")} size="medium" variant="secondary" {attrs} />
+          <.button label={dgettext("dashboard_qa", "Add arguments")} size="medium" variant="secondary" {attrs} />
         </:trigger>
         <.form
           for={@add_launch_argument_form}
@@ -122,20 +122,20 @@
           <.line_divider />
           <.text_input
             field={@add_launch_argument_form[:name]}
-            label={gettext("Name")}
-            placeholder={gettext("argument-group-name")}
+            label={dgettext("dashboard_qa", "Name")}
+            placeholder={dgettext("dashboard_qa", "argument-group-name")}
             type="basic"
           />
           <.text_area
             field={@add_launch_argument_form[:description]}
-            label={gettext("Description")}
-            placeholder={gettext("Launch argument group description")}
+            label={dgettext("dashboard_qa", "Description")}
+            placeholder={dgettext("dashboard_qa", "Launch argument group description")}
             show_character_count={false}
           />
           <.text_area
             field={@add_launch_argument_form[:value]}
-            label={gettext("Arguments")}
-            placeholder={gettext("--my-launch-argument value")}
+            label={dgettext("dashboard_qa", "Arguments")}
+            placeholder={dgettext("dashboard_qa", "--my-launch-argument value")}
             show_character_count={false}
           />
         </.form>
@@ -145,7 +145,7 @@
             <:action>
               <.button
                 type="reset"
-                label={gettext("Cancel")}
+                label={dgettext("dashboard_qa", "Cancel")}
                 variant="secondary"
                 phx-click="close_add_launch_argument_modal"
               />
@@ -154,7 +154,7 @@
               <.button
                 type="submit"
                 form="add-launch-argument-form"
-                label={gettext("Add")}
+                label={dgettext("dashboard_qa", "Add")}
                 variant="primary"
               />
             </:action>
@@ -164,20 +164,20 @@
     </:actions>
     <.card_section data-part="launch-argument-groups-card-section">
       <.table id="launch-argument-groups-table" rows={@selected_project.qa_launch_argument_groups}>
-        <:col :let={item} label={gettext("Name")}>
+        <:col :let={item} label={dgettext("dashboard_qa", "Name")}>
           <.text_cell label={item.name} />
         </:col>
-        <:col :let={item} label={gettext("Description")}>
+        <:col :let={item} label={dgettext("dashboard_qa", "Description")}>
           <.text_cell label={item.description} />
         </:col>
-        <:col :let={item} label={gettext("Arguments")}>
+        <:col :let={item} label={dgettext("dashboard_qa", "Arguments")}>
           <.text_cell label={item.value} />
         </:col>
         <:col :let={item}>
           <div data-part="actions-cell">
             <.modal
               id={"edit-launch-argument-modal-#{item.id}"}
-              title={gettext("Edit launch argument group")}
+              title={dgettext("dashboard_qa", "Edit launch argument group")}
               header_size="large"
               on_dismiss="close_edit_launch_argument_modal"
             >
@@ -200,8 +200,8 @@
                       :name
                     ]
                   }
-                  label={gettext("Name")}
-                  placeholder={gettext("argument-group-name")}
+                  label={dgettext("dashboard_qa", "Name")}
+                  placeholder={dgettext("dashboard_qa", "argument-group-name")}
                   type="basic"
                 />
                 <.text_area
@@ -210,8 +210,8 @@
                       :description
                     ]
                   }
-                  label={gettext("Description")}
-                  placeholder={gettext("Launch argument group description")}
+                  label={dgettext("dashboard_qa", "Description")}
+                  placeholder={dgettext("dashboard_qa", "Launch argument group description")}
                   show_character_count={false}
                 />
                 <.text_area
@@ -220,7 +220,7 @@
                       :value
                     ]
                   }
-                  label={gettext("Arguments")}
+                  label={dgettext("dashboard_qa", "Arguments")}
                   placeholder="--my-launch-argument value"
                   show_character_count={false}
                 />
@@ -231,7 +231,7 @@
                   <:action>
                     <.button
                       type="reset"
-                      label={gettext("Cancel")}
+                      label={dgettext("dashboard_qa", "Cancel")}
                       variant="secondary"
                       phx-click="close_edit_launch_argument_modal"
                       phx-value-id={item.id}
@@ -241,7 +241,7 @@
                     <.button
                       type="submit"
                       form={"edit-launch-argument-form-#{item.id}"}
-                      label={gettext("Update")}
+                      label={dgettext("dashboard_qa", "Update")}
                       variant="primary"
                     />
                   </:action>

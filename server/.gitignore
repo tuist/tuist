@@ -63,7 +63,3 @@ minio/
 
 burrito_out
 
-# Gettext translations
-# Only require marketing domain translations
-priv/gettext/*/LC_MESSAGES/default.po
-priv/gettext/default.pot

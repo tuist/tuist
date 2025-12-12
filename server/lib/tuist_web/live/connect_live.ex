@@ -9,7 +9,7 @@ defmodule TuistWeb.ConnectLive do
       assign(socket,
         sidebar_enabled?: false,
         connected?: false,
-        head_title: "#{gettext("Connect")} · Tuist"
+        head_title: "#{dgettext("dashboard_auth", "Connect")} · Tuist"
       )
 
     if connected?(socket) do
@@ -25,53 +25,53 @@ defmodule TuistWeb.ConnectLive do
     <div id="connect">
       <div data-part="header">
         <div :if={!@connected?} data-part="subtitle">
-          <.connection_svg /><span>{gettext("Waiting for connection")}</span>
+          <.connection_svg /><span>{dgettext("dashboard_auth", "Waiting for connection")}</span>
         </div>
         <div :if={@connected?} data-part="subtitle">
-          <.connection_success_svg /><span>{gettext("Connection successful")}</span>
+          <.connection_success_svg /><span>{dgettext("dashboard_auth", "Connection successful")}</span>
         </div>
         <div data-part="title">
-          <span>{gettext("Connect your project to the dashboard")}</span><span>{gettext("using CLI")}</span>
+          <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{dgettext("dashboard_auth", "using CLI")}</span>
         </div>
         <div data-part="timeline">
           <div data-part="step">
-            <span data-part="title">{gettext("Install Tuist CLI")}</span>
+            <span data-part="title">{dgettext("dashboard_auth", "Install Tuist CLI")}</span>
             <span data-part="description">
-              {gettext("Run the following command to install Tuist CLI.")}
+              {dgettext("dashboard_auth", "Run the following command to install Tuist CLI.")}
             </span>
             <.terminal id="install">
-              <:tab id="mise" label={gettext("mise")} command="mise install tuist" />
-              <:tab id="homebrew" label={gettext("homebrew")} command="brew install tuist" />
+              <:tab id="mise" label={dgettext("dashboard_auth", "mise")} command="mise install tuist" />
+              <:tab id="homebrew" label={dgettext("dashboard_auth", "homebrew")} command="brew install tuist" />
             </.terminal>
           </div>
           <div data-part="step">
-            <span data-part="title">{gettext("Connect your project")}</span>
+            <span data-part="title">{dgettext("dashboard_auth", "Connect your project")}</span>
             <span data-part="description">
-              {gettext("Run this command to link your project to the dashboard.")}
+              {dgettext("dashboard_auth", "Run this command to link your project to the dashboard.")}
             </span>
             <.terminal id="init">
               <:tab
                 id="mise"
-                label={gettext("mise")}
+                label={dgettext("dashboard_auth", "mise")}
                 command={"mise x tuist@latest -- tuist init #{@selected_account.name}/#{@selected_project.name}"}
               />
               <:tab
                 id="homebrew"
-                label={gettext("homebrew")}
+                label={dgettext("dashboard_auth", "homebrew")}
                 command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
               />
             </.terminal>
           </div>
           <div data-part="step">
-            <span data-part="title">{gettext("Next steps")}</span>
+            <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
             <span data-part="description">
-              {gettext(
+              {dgettext("dashboard_auth", 
                 "Explore Tuist features like binary caching and selective testing to speed up your development."
               )}
             </span>
             <.button
               variant="primary"
-              label={gettext("Tuist documentation")}
+              label={dgettext("dashboard_auth", "Tuist documentation")}
               href="https://docs.tuist.dev/"
               target="_blank"
             >
@@ -80,15 +80,15 @@ defmodule TuistWeb.ConnectLive do
               </:icon_right>
             </.button>
           </div>
-          <.line_divider text={gettext("OR")} />
+          <.line_divider text={dgettext("dashboard_auth", "OR")} />
           <div data-part="step">
-            <span data-part="title">{gettext("Project Ready? Proceed to dashboard")}</span>
+            <span data-part="title">{dgettext("dashboard_auth", "Project Ready? Proceed to dashboard")}</span>
             <span data-part="description">
-              {gettext("Already set up your Tuist project? Skip setup and go to the dashboard.")}
+              {dgettext("dashboard_auth", "Already set up your Tuist project? Skip setup and go to the dashboard.")}
             </span>
             <.button
               variant="secondary"
-              label={gettext("Tuist dashboard")}
+              label={dgettext("dashboard_auth", "Tuist dashboard")}
               navigate={~p"/#{@selected_account.name}/#{@selected_project.name}"}
             >
               <:icon_right>

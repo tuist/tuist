@@ -16,7 +16,7 @@ defmodule TuistWeb.BuildsLive do
       socket
       |> assign(
         :head_title,
-        "#{gettext("Builds")} · #{account.name}/#{project.name} · Tuist"
+        "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()
@@ -290,22 +290,22 @@ defmodule TuistWeb.BuildsLive do
   defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp trend_label("last-7-days"), do: gettext("since last week")
-  defp trend_label("last-12-months"), do: gettext("since last year")
-  defp trend_label(_), do: gettext("since last month")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_builds", "since last year")
+  defp trend_label(_), do: dgettext("dashboard_builds", "since last month")
 
-  defp environment_label("any"), do: gettext("Any")
-  defp environment_label("local"), do: gettext("Local")
-  defp environment_label("ci"), do: gettext("CI")
+  defp environment_label("any"), do: dgettext("dashboard_builds", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_builds", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_builds", "CI")
 
-  defp configuration_insights_label("xcode-version"), do: gettext("Xcode version")
-  defp configuration_insights_label("macos-version"), do: gettext("macOS version")
-  defp configuration_insights_label("device"), do: gettext("Device")
+  defp configuration_insights_label("xcode-version"), do: dgettext("dashboard_builds", "Xcode version")
+  defp configuration_insights_label("macos-version"), do: dgettext("dashboard_builds", "macOS version")
+  defp configuration_insights_label("device"), do: dgettext("dashboard_builds", "Device")
 
-  defp build_scheme_label("any"), do: gettext("Any")
+  defp build_scheme_label("any"), do: dgettext("dashboard_builds", "Any")
   defp build_scheme_label(scheme), do: scheme
 
-  defp build_configuration_label("any"), do: gettext("Any")
+  defp build_configuration_label("any"), do: dgettext("dashboard_builds", "Any")
   defp build_configuration_label(configuration), do: configuration
 
   defp type_labels(type, configuration_insights_analytics) do
@@ -313,7 +313,7 @@ defmodule TuistWeb.BuildsLive do
 
     labels =
       case type do
-        "device" -> Enum.map(labels, &(Tuist.Apple.devices()[&1] || gettext("Unknown")))
+        "device" -> Enum.map(labels, &(Tuist.Apple.devices()[&1] || dgettext("dashboard_builds", "Unknown")))
         _ -> labels
       end
 

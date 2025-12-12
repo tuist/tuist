@@ -1,10 +1,10 @@
 <div id="test-cases">
-  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
     <:actions>
       <.dropdown
         id="test-cases-analytics-environment-dropdown"
         label={@analytics_environment_label}
-        secondary_text={gettext("Environment:")}
+        secondary_text={dgettext("dashboard_tests", "Environment:")}
       >
         <.dropdown_item
           value="any"
@@ -34,26 +34,26 @@
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={gettext("7 days")}
+          label={dgettext("dashboard_tests", "7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={gettext("30 days")}
+          label={dgettext("dashboard_tests", "30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={gettext("12 months")}
+          label={dgettext("dashboard_tests", "12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
       </.button_group>
     </:actions>
     <div data-part="widgets">
       <.widget
-        title={gettext("Test case runs")}
+        title={dgettext("dashboard_tests", "Test case runs")}
         description={
-          gettext(
+          dgettext("dashboard_tests", 
             "Test case runs represents the total number of individual test case executions during a given period."
           )
         }
@@ -68,9 +68,9 @@
         empty={@test_case_runs_analytics.count == 0}
       />
       <.widget
-        title={gettext("Failed test case runs")}
+        title={dgettext("dashboard_tests", "Failed test case runs")}
         description={
-          gettext(
+          dgettext("dashboard_tests", 
             "Failed test case runs represents the number of individual test case executions that failed during a given period."
           )
         }
@@ -90,10 +90,10 @@
         id="widget-test-case-run-duration"
         title={
           case @selected_duration_type do
-            "avg" -> gettext("Avg. test case run duration")
-            "p99" -> gettext("p99 test case run duration")
-            "p90" -> gettext("p90 test case run duration")
-            "p50" -> gettext("p50 test case run duration")
+            "avg" -> dgettext("dashboard_tests", "Avg. test case run duration")
+            "p99" -> dgettext("dashboard_tests", "p99 test case run duration")
+            "p90" -> dgettext("dashboard_tests", "p90 test case run duration")
+            "p50" -> dgettext("dashboard_tests", "p50 test case run duration")
           end
         }
         legend_color={
@@ -105,7 +105,7 @@
           end
         }
         description={
-          gettext("Average duration of individual test case executions during a given period.")
+          dgettext("dashboard_tests", "Average duration of individual test case executions during a given period.")
         }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -146,7 +146,7 @@
         phx_value_widget="test_case_run_duration"
         selected={@analytics_selected_widget == "test_case_run_duration"}
         empty={@test_case_runs_analytics.count == 0}
-        empty_label={gettext("No data")}
+        empty_label={dgettext("dashboard_tests", "No data")}
       />
     </div>
     <.card_section :if={@test_case_runs_analytics.count != 0}>
@@ -280,7 +280,7 @@
                   @test_case_runs_duration_analytics.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("Average"),
+              name: dgettext("dashboard_tests", "Average"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -293,7 +293,7 @@
                   @test_case_runs_duration_analytics.p99_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p99"),
+              name: dgettext("dashboard_tests", "p99"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -306,7 +306,7 @@
                   @test_case_runs_duration_analytics.p90_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p90"),
+              name: dgettext("dashboard_tests", "p90"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -319,7 +319,7 @@
                   @test_case_runs_duration_analytics.p50_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p50"),
+              name: dgettext("dashboard_tests", "p50"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -329,14 +329,14 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_case_runs_analytics.count == 0} title={gettext("No data yet")}>
+    <.empty_card_section :if={@test_case_runs_analytics.count == 0} title={dgettext("dashboard_tests", "No data yet")}>
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("Test Cases")} icon="exchange" data-part="test-cases">
+  <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
@@ -344,7 +344,7 @@
             type="search"
             id="search-test-cases"
             name="search"
-            placeholder={gettext("Search...")}
+            placeholder={dgettext("dashboard_tests", "Search...")}
             show_suffix={false}
             data-part="search"
             value={@test_cases_filter}
@@ -354,16 +354,16 @@
           id="test-cases-sort-by"
           label={
             case @test_cases_sort_by do
-              "name" -> gettext("Test Case")
-              "avg_duration" -> gettext("Avg. duration")
-              _ -> gettext("Last ran at")
+              "name" -> dgettext("dashboard_tests", "Test Case")
+              "avg_duration" -> dgettext("dashboard_tests", "Avg. duration")
+              _ -> dgettext("dashboard_tests", "Last ran at")
             end
           }
-          secondary_text={gettext("Sort by:")}
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
         >
           <.dropdown_item
             value="last_ran_at"
-            label={gettext("Last ran at")}
+            label={dgettext("dashboard_tests", "Last ran at")}
             patch={sort_by_patch(@uri, "last_ran_at")}
             data-selected={@test_cases_sort_by == "last_ran_at"}
           >
@@ -371,7 +371,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="name"
-            label={gettext("Test Case")}
+            label={dgettext("dashboard_tests", "Test Case")}
             patch={sort_by_patch(@uri, "name")}
             data-selected={@test_cases_sort_by == "name"}
           >
@@ -379,7 +379,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="avg_duration"
-            label={gettext("Avg. duration")}
+            label={dgettext("dashboard_tests", "Avg. duration")}
             patch={sort_by_patch(@uri, "avg_duration")}
             data-selected={@test_cases_sort_by == "avg_duration"}
           >
@@ -388,7 +388,7 @@
         </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
-          label={gettext("Filter")}
+          label={dgettext("dashboard_tests", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
@@ -411,7 +411,7 @@
         >
           <:col
             :let={test_case}
-            label={gettext("Test Case")}
+            label={dgettext("dashboard_tests", "Test Case")}
             patch={
               @test_cases_sort_by == "name" &&
                 column_sort_patch(assigns, "name")
@@ -439,7 +439,7 @@
           </:col>
           <:col
             :let={test_case}
-            label={gettext("Avg. duration")}
+            label={dgettext("dashboard_tests", "Avg. duration")}
             patch={
               @test_cases_sort_by == "avg_duration" &&
                 column_sort_patch(assigns, "avg_duration")
@@ -458,19 +458,19 @@
               icon="history"
             />
           </:col>
-          <:col :let={test_case} label={gettext("Last status")}>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
             <%= case test_case.last_status do %>
               <% "success" -> %>
-                <.status_badge_cell label={gettext("Passed")} status="success" />
+                <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
               <% "failure" -> %>
-                <.status_badge_cell label={gettext("Failed")} status="error" />
+                <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
               <% "skipped" -> %>
-                <.status_badge_cell label={gettext("Skipped")} status="warning" />
+                <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
             <% end %>
           </:col>
           <:col
             :let={test_case}
-            label={gettext("Last ran at")}
+            label={dgettext("dashboard_tests", "Last ran at")}
             patch={
               @test_cases_sort_by == "last_ran_at" &&
                 column_sort_patch(assigns, "last_ran_at")
@@ -497,7 +497,7 @@
 
       <div :if={Enum.empty?(@test_cases)} data-part="empty-test-cases">
         <.empty_card_section
-          title={gettext("No data yet")}
+          title={dgettext("dashboard_tests", "No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
           data-part="empty-test-cases-table-card-section"
         >

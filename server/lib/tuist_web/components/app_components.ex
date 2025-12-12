@@ -48,7 +48,7 @@ defmodule TuistWeb.AppComponents do
     <div class="tuist-pagination">
       <.button
         variant="secondary"
-        label={gettext("Prev")}
+        label={dgettext("dashboard", "Prev")}
         disabled={not @has_previous_page}
         patch={"?#{@uri.query |> Query.drop("after") |> Query.put("before", @start_cursor)}"}
       >
@@ -57,7 +57,7 @@ defmodule TuistWeb.AppComponents do
       <.button
         variant="secondary"
         disabled={not @has_next_page}
-        label={gettext("Next")}
+        label={dgettext("dashboard", "Next")}
         patch={"?#{@uri.query |> Query.drop("before") |> Query.put("after", @end_cursor)}"}
       >
         <:icon_right><.chevron_right /></:icon_right>

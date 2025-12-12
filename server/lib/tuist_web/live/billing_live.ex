@@ -10,7 +10,7 @@ defmodule TuistWeb.BillingLive do
   def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
     if Tuist.Authorization.authorize(:billing_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
 
     subscription = Billing.get_current_active_subscription(selected_account)
@@ -31,9 +31,9 @@ defmodule TuistWeb.BillingLive do
 
     next_charge_date =
       if is_nil(subscription) do
-        gettext("charged /per month")
+        dgettext("dashboard_account", "charged /per month")
       else
-        gettext("charged on %{next_charge_date}",
+        dgettext("dashboard_account", "charged on %{next_charge_date}",
           next_charge_date:
             subscription.subscription_id
             |> Billing.get_subscription_current_period_end()
@@ -68,7 +68,7 @@ defmodule TuistWeb.BillingLive do
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
       |> assign(:current_month_remote_cache_hits_count, current_month_remote_cache_hits_count)
-      |> assign(:head_title, "#{gettext("Billing")} · #{selected_account.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
 
     {:ok, socket}
@@ -146,7 +146,7 @@ defmodule TuistWeb.BillingLive do
     <div class="tuist-pricing-card" data-most-popular={@most_popular}>
       <div :if={@most_popular} data-part="most-popular">
         <span data-part="label">
-          {gettext("Most Popular")}
+          {dgettext("dashboard_account", "Most Popular")}
         </span>
         <div data-part="bezel">
           <.notch_svg id={@id <> "-bezel"} />
@@ -184,20 +184,20 @@ defmodule TuistWeb.BillingLive do
     ~H"""
     <.pricing_card
       id={@id <> "-air"}
-      name={gettext("Air")}
-      description={gettext("Get started with no credit card required")}
-      price={gettext("Free")}
+      name={dgettext("dashboard_account", "Air")}
+      description={dgettext("dashboard_account", "Get started with no credit card required")}
+      price={dgettext("dashboard_account", "Free")}
       features={[
-        gettext("Free under tier limits"),
-        gettext("All features, no credit card required"),
-        gettext("Community support via forum")
+        dgettext("dashboard_account", "Free under tier limits"),
+        dgettext("dashboard_account", "All features, no credit card required"),
+        dgettext("dashboard_account", "Community support via forum")
       ]}
     >
       <:action_button>
-        <.button :if={@plan == :air} label={gettext("Current plan")} variant="secondary" disabled />
+        <.button :if={@plan == :air} label={dgettext("dashboard_account", "Current plan")} variant="secondary" disabled />
         <.button
           :if={@plan == :pro}
-          label={gettext("Downgrade")}
+          label={dgettext("dashboard_account", "Downgrade")}
           variant="secondary"
           phx-click="change_plan"
           phx-value-plan={:air}
@@ -207,21 +207,21 @@ defmodule TuistWeb.BillingLive do
     <.pricing_card
       most_popular
       id={@id <> "-pro"}
-      name={gettext("Pro")}
-      description={gettext("Usage-based pricing after free tier")}
-      price={gettext("$0")}
-      price_subtitle={gettext("and up")}
+      name={dgettext("dashboard_account", "Pro")}
+      description={dgettext("dashboard_account", "Usage-based pricing after free tier")}
+      price={dgettext("dashboard_account", "$0")}
+      price_subtitle={dgettext("dashboard_account", "and up")}
       features={[
-        gettext("Pay nothing if below free tier limits"),
-        gettext("Pay only for what you use per feature"),
-        gettext("Standard support via Slack and email")
+        dgettext("dashboard_account", "Pay nothing if below free tier limits"),
+        dgettext("dashboard_account", "Pay only for what you use per feature"),
+        dgettext("dashboard_account", "Standard support via Slack and email")
       ]}
     >
       <:action_button>
-        <.button :if={@plan == :pro} label={gettext("Current plan")} variant="primary" disabled />
+        <.button :if={@plan == :pro} label={dgettext("dashboard_account", "Current plan")} variant="primary" disabled />
         <.button
           :if={@plan == :air}
-          label={gettext("Upgrade")}
+          label={dgettext("dashboard_account", "Upgrade")}
           variant="primary"
           phx-click="change_plan"
           phx-value-plan={:pro}
@@ -230,17 +230,17 @@ defmodule TuistWeb.BillingLive do
     </.pricing_card>
     <.pricing_card
       id={@id <> "-enterprise"}
-      name={gettext("Enterprise")}
-      description={gettext("Create your plan or self-host your instance")}
-      price={gettext("Custom")}
+      name={dgettext("dashboard_account", "Enterprise")}
+      description={dgettext("dashboard_account", "Create your plan or self-host your instance")}
+      price={dgettext("dashboard_account", "Custom")}
       features={[
-        gettext("Custom terms"),
-        gettext("On-premise"),
-        gettext("Priority support via shared Slack channel")
+        dgettext("dashboard_account", "Custom terms"),
+        dgettext("dashboard_account", "On-premise"),
+        dgettext("dashboard_account", "Priority support via shared Slack channel")
       ]}
     >
       <:action_button>
-        <.button label={gettext("Contact sales")} variant="secondary" href="mailto:contact@tuist.dev" />
+        <.button label={dgettext("dashboard_account", "Contact sales")} variant="secondary" href="mailto:contact@tuist.dev" />
       </:action_button>
     </.pricing_card>
     """

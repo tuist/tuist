@@ -21,7 +21,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -30,21 +30,21 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
               <h1 data-part="title">
                 <%= case @type do %>
                   <% "app" -> %>
-                    {gettext("Tuist app is connected!")}
+                    {dgettext("dashboard_auth", "Tuist app is connected!")}
                   <% "cli" -> %>
-                    {gettext("Tuist CLI is connected!")}
+                    {dgettext("dashboard_auth", "Tuist CLI is connected!")}
                   <% _ -> %>
-                    {gettext("Tuist is connected!")}
+                    {dgettext("dashboard_auth", "Tuist is connected!")}
                 <% end %>
               </h1>
               <span data-part="subtitle">
                 <%= case @type do %>
                   <% "app" -> %>
-                    {gettext("You can close the tab and continue in the app")}
+                    {dgettext("dashboard_auth", "You can close the tab and continue in the app")}
                   <% "cli" -> %>
-                    {gettext("You can close the tab and continue in the terminal")}
+                    {dgettext("dashboard_auth", "You can close the tab and continue in the terminal")}
                   <% _ -> %>
-                    {gettext("You can close the tab and continue")}
+                    {dgettext("dashboard_auth", "You can close the tab and continue")}
                 <% end %>
               </span>
             </div>
@@ -52,7 +52,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
               data-part="dashboard-button"
               variant="primary"
               size="large"
-              label={gettext("Dashboard")}
+              label={dgettext("dashboard_auth", "Dashboard")}
               href={
                 TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))
               }

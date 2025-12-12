@@ -98,6 +98,88 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
+  gettext_dashboard:
+    name: Gettext (Dashboard)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check dashboard gettext templates are up-to-date
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          # Extract only (without --merge) to check if any .pot changes
+          # DO NOT use --merge here as it would modify .po translation files
+          mix gettext.extract > /dev/null 2>&1 || true
+
+          # Check each domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit 1
+          else
+            echo "✅ All dashboard gettext templates are up-to-date"
+          fi
+      - name: Check dashboard translations templates exist
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          MISSING_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ ! -f "priv/gettext/${domain}.pot" ]; then
+              MISSING_DOMAINS="$MISSING_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$MISSING_DOMAINS" ]; then
+            echo "::error title=Missing dashboard translations::The following .pot files are missing:$MISSING_DOMAINS. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          echo "✅ All dashboard translation templates present"
   translation_protection:
     name: Translation Protection
     runs-on: namespace-profile-default

@@ -16,15 +16,15 @@ defmodule TuistWeb.UserForgotPasswordLive do
     <div id="forgot-password">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
           </div>
           <div data-part="header">
-            <h1 data-part="title">{gettext("Forgot your password?")}</h1>
+            <h1 data-part="title">{dgettext("dashboard_auth", "Forgot your password?")}</h1>
             <span data-part="subtitle">
-              {gettext("We'll send a password reset link to your inbox")}
+              {dgettext("dashboard_auth", "We'll send a password reset link to your inbox")}
             </span>
           </div>
           <%= if @success do %>
@@ -33,9 +33,9 @@ defmodule TuistWeb.UserForgotPasswordLive do
               type="secondary"
               status="information"
               size="large"
-              title={gettext("Check your email")}
+              title={dgettext("dashboard_auth", "Check your email")}
               description={
-                gettext(
+                dgettext("dashboard_auth", 
                   "If your email exists in our records, you'll receive reset instructions shortly."
                 )
               }
@@ -44,13 +44,13 @@ defmodule TuistWeb.UserForgotPasswordLive do
             <.form data-part="form" for={@form} id="login_form" phx-submit="send_email">
               <.text_input
                 field={@form[:email]}
-                label={gettext("Email address")}
+                label={dgettext("dashboard_auth", "Email address")}
                 type="email"
                 placeholder="hello@tuist.dev"
                 show_prefix={false}
                 required
               />
-              <.button variant="primary" size="large" label={gettext("Reset password")} />
+              <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Reset password")} />
             </.form>
           <% end %>
         </div>
@@ -60,7 +60,7 @@ defmodule TuistWeb.UserForgotPasswordLive do
             navigate={~p"/users/log_in"}
             variant="primary"
             size="large"
-            label={gettext("Back to log in")}
+            label={dgettext("dashboard_auth", "Back to log in")}
           />
         </div>
       </div>

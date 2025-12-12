@@ -1,7 +1,7 @@
 <div id="qa-run">
   <div data-part="action-buttons">
     <.button
-      label={gettext("QA")}
+      label={dgettext("dashboard_qa", "QA")}
       data-part="back-button"
       variant="secondary"
       size="medium"
@@ -31,7 +31,7 @@
         }
         phx-hook="ImageFallback"
         alt={
-          gettext("%{app_name} icon",
+          dgettext("dashboard_qa", "%{app_name} icon",
             app_name: @qa_run.app_build.preview.display_name
           )
         }
@@ -44,7 +44,7 @@
         <.brand_apple />
       </div>
       <span data-part="label">
-        {gettext("V %{version}", version: @qa_run.app_build.preview.version)}
+        {dgettext("dashboard_qa", "V %{version}", version: @qa_run.app_build.preview.version)}
       </span>
     </div>
     <div data-part="preview-link">
@@ -71,14 +71,14 @@
 
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={gettext("Overview")}
+      label={dgettext("dashboard_qa", "Overview")}
       selected={@live_action == :overview}
       navigate={
         ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}"
       }
     />
     <.tab_menu_horizontal_item
-      label={gettext("Logs")}
+      label={dgettext("dashboard_qa", "Logs")}
       selected={@live_action == :logs}
       navigate={
         ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
@@ -92,25 +92,25 @@
       <img src="/images/qa_running_state_dark.png" data-theme="dark" />
       <div data-part="labels">
         <span data-part="title">
-          {gettext("The agent is currently running tests")}
+          {dgettext("dashboard_qa", "The agent is currently running tests")}
         </span>
         <span data-part="subtitle">
-          {gettext("Check the live ")}<.link_button
+          {dgettext("dashboard_qa", "Check the live ")}<.link_button
             navigate={
               ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
             }
-            label={gettext("logs")}
+            label={dgettext("dashboard_qa", "logs")}
             underline
-          />{gettext(" or sit back and relax...")}
+          />{dgettext("dashboard_qa", " or sit back and relax...")}
         </span>
       </div>
     </div>
-    <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
+    <.card data-part="details-card" icon="chart_arcs" title={dgettext("dashboard_qa", "Details")}>
       <.card_section data-part="details-card-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Platform")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "Platform")}</div>
               <.platform_tag platform={
                 @qa_run.app_build.preview.supported_platforms
                 |> Preview.map_simulators_to_devices()
@@ -120,17 +120,17 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("QA duration")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "QA duration")}</div>
               <span data-part="label">
                 <%= if @qa_run.status in ["running", "pending"] do %>
-                  {gettext("Running tests...")}
+                  {dgettext("dashboard_qa", "Running tests...")}
                 <% else %>
                   {Tuist.Utilities.DateFormatter.format_duration_from_seconds(@duration)}
                 <% end %>
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Created at")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "Created at")}</div>
               <span data-part="label">
                 {DateFormatter.format_full(@qa_run.inserted_at)}
               </span>
@@ -138,14 +138,14 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Branch")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "Branch")}</div>
               <span data-part="label">
                 <.git_branch />
-                {@qa_run.app_build.preview.git_branch || gettext("None")}
+                {@qa_run.app_build.preview.git_branch || dgettext("dashboard_qa", "None")}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Commit SHA")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "Commit SHA")}</div>
               <span data-part="label">
                 {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
               </span>
@@ -153,7 +153,7 @@
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("PR Comment")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "PR Comment")}</div>
               <span data-part="label">
                 <%= if @pr_comment_url do %>
                   <.link href={@pr_comment_url} target="_blank">
@@ -161,14 +161,14 @@
                     <.external_link />
                   </.link>
                 <% else %>
-                  {gettext("None")}
+                  {dgettext("dashboard_qa", "None")}
                 <% end %>
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{gettext("Bundle identifier")}</div>
+              <div data-part="title">{dgettext("dashboard_qa", "Bundle identifier")}</div>
               <span data-part="label">
-                {@qa_run.app_build.preview.bundle_identifier || gettext("Unknown")}
+                {@qa_run.app_build.preview.bundle_identifier || dgettext("dashboard_qa", "Unknown")}
               </span>
             </div>
           </div>
@@ -176,10 +176,10 @@
       </.card_section>
     </.card>
 
-    <.card icon="file_alert" title={gettext("Issues identified")} data-part="issues-card">
+    <.card icon="file_alert" title={dgettext("dashboard_qa", "Issues identified")} data-part="issues-card">
       <.empty_card_section
         :if={Enum.empty?(@issues)}
-        title={gettext("No issues identified")}
+        title={dgettext("dashboard_qa", "No issues identified")}
         data-part="empty-issues-card-section"
       >
         <:image>
@@ -199,7 +199,7 @@
                 <div data-part="issue-icon">
                   <.icon name="alert_hexagon" />
                 </div>
-                <div data-part="issue-title">{gettext("Temporary visual inconsistency")}</div>
+                <div data-part="issue-title">{dgettext("dashboard_qa", "Temporary visual inconsistency")}</div>
                 <div data-part="issue-toggle">
                   <.neutral_button
                     data-part="closed-collapsible-button"
@@ -287,7 +287,7 @@
     <.card
       :if={@qa_run.recording}
       icon="file_spreadsheet"
-      title={gettext("Steps")}
+      title={dgettext("dashboard_qa", "Steps")}
       data-part="steps-card"
     >
       <.card_section
@@ -307,7 +307,7 @@
             <div data-part="step-details-container">
               <div data-part="step-detail-item">
                 <span data-part="title">
-                  {gettext("Action")}
+                  {dgettext("dashboard_qa", "Action")}
                 </span>
                 <span data-part="value">
                   {@current_step.action}
@@ -321,7 +321,7 @@
                     </:icon>
                   </.badge>
                   <span data-part="title">
-                    {gettext("Issues")}
+                    {dgettext("dashboard_qa", "Issues")}
                   </span>
                 </div>
                 <%= for issue <- @current_step.issues do %>
@@ -333,7 +333,7 @@
 
               <div data-part="step-detail-item">
                 <span data-part="title">
-                  {gettext("Timestamp")}
+                  {dgettext("dashboard_qa", "Timestamp")}
                 </span>
                 <span
                   data-part="value"
@@ -347,14 +347,14 @@
               <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
                 <div data-part="header">
                   <span data-part="title">
-                    {gettext("Result")}
+                    {dgettext("dashboard_qa", "Result")}
                   </span>
                   <.badge
                     :if={
                       @current_time >= @current_step.started_time and
                         @current_time <= @current_step.time
                     }
-                    label={gettext("In progress")}
+                    label={dgettext("dashboard_qa", "In progress")}
                     color="primary"
                     style="light-fill"
                     size="large"
@@ -374,11 +374,11 @@
                 <div data-part="header">
                   <.chevron_left />
                   <span data-part="title">
-                    {gettext("Previous step")}
+                    {dgettext("dashboard_qa", "Previous step")}
                   </span>
                 </div>
                 <span data-part="step-number">
-                  {gettext("Step %{step_number}", step_number: @current_step.index)}
+                  {dgettext("dashboard_qa", "Step %{step_number}", step_number: @current_step.index)}
                 </span>
                 <span data-part="step-action">
                   {Enum.at(@steps, @current_step.index - 1).action}
@@ -392,12 +392,12 @@
               >
                 <div data-part="header">
                   <span data-part="title">
-                    {gettext("Next step")}
+                    {dgettext("dashboard_qa", "Next step")}
                   </span>
                   <.chevron_right />
                 </div>
                 <span data-part="step-number">
-                  {gettext("Step %{step_number}", step_number: @current_step.index + 2)}
+                  {dgettext("dashboard_qa", "Step %{step_number}", step_number: @current_step.index + 2)}
                 </span>
                 <span data-part="step-action">
                   {Enum.at(@steps, @current_step.index + 1).action}
@@ -499,7 +499,7 @@
                 </.dropdown_item>
               </.inline_dropdown>
               <span data-part="steps-counter" id="steps-counter">
-                {gettext("%{current_step}/%{total_steps} steps",
+                {dgettext("dashboard_qa", "%{current_step}/%{total_steps} steps",
                   current_step: (@current_step && @current_step.index + 1) || 0,
                   total_steps: length(@steps)
                 )}
@@ -594,7 +594,7 @@
                     />
                   </div>
                   <span data-part="step-label">
-                    {gettext("Step %{step_index}", step_index: index + 1)}
+                    {dgettext("dashboard_qa", "Step %{step_index}", step_index: index + 1)}
                   </span>
                 </div>
               </div>
@@ -627,17 +627,17 @@
       }
       data-part="app-context-card"
       icon="file_text"
-      title={gettext("App context")}
+      title={dgettext("dashboard_qa", "App context")}
     >
       <.card_section data-part="app-context-card-section">
         <div :if={@qa_run.email != "" and @qa_run.password != ""} data-part="credentials">
           <div data-part="email">
-            <.text_input name="email" label={gettext("Email")} value={@qa_run.email} disabled />
+            <.text_input name="email" label={dgettext("dashboard_qa", "Email")} value={@qa_run.email} disabled />
           </div>
           <div data-part="password">
             <.text_input
               name="password"
-              label={gettext("Password")}
+              label={dgettext("dashboard_qa", "Password")}
               value={@qa_run.password}
               show_prefix={false}
               show_suffix={false}
@@ -647,23 +647,23 @@
         </div>
         <div :if={@qa_run.launch_argument_groups != []} data-part="launch-arguments">
           <h3 data-part="title">
-            {gettext("Launch arguments")}
+            {dgettext("dashboard_qa", "Launch arguments")}
           </h3>
           <.table id="launch-arguments-table" rows={@qa_run.launch_argument_groups}>
-            <:col :let={group} label={gettext("Name")}>
+            <:col :let={group} label={dgettext("dashboard_qa", "Name")}>
               <.text_and_description_cell label={group["name"]} data-part="name-cell" />
             </:col>
-            <:col :let={group} label={gettext("Description")}>
+            <:col :let={group} label={dgettext("dashboard_qa", "Description")}>
               <.text_cell label={group["description"] || ""} />
             </:col>
-            <:col :let={group} label={gettext("Arguments")}>
+            <:col :let={group} label={dgettext("dashboard_qa", "Arguments")}>
               <.text_cell label={group["value"]} />
             </:col>
           </.table>
         </div>
         <div :if={@qa_run.app_description != ""} data-part="app-description">
           <h3 data-part="title">
-            {gettext("App description")}
+            {dgettext("dashboard_qa", "App description")}
           </h3>
 
           <span data-part="description">
@@ -680,8 +680,8 @@
       logs={@formatted_logs || []}
       empty_message={
         if @qa_run.status in ["running", "pending"],
-          do: gettext("Preparing the agent environment..."),
-          else: gettext("No logs found")
+          do: dgettext("dashboard_qa", "Preparing the agent environment..."),
+          else: dgettext("dashboard_qa", "No logs found")
       }
       id="qa-run-logs"
     />

@@ -1,20 +1,20 @@
 <div id="build-runs">
-  <.card title={gettext("Build Runs")} icon="chart_column" data-part="build-runs-card">
+  <.card title={dgettext("dashboard_builds", "Build Runs")} icon="chart_column" data-part="build-runs-card">
     <.card_section data-part="build-runs-card-section">
       <div data-part="filters">
         <.dropdown
           id="build-runs-sort-by"
           label={
             case @build_runs_sort_by do
-              "duration" -> gettext("Duration")
-              _ -> gettext("Ran at")
+              "duration" -> dgettext("dashboard_builds", "Duration")
+              _ -> dgettext("dashboard_builds", "Ran at")
             end
           }
-          secondary_text={gettext("Sort by:")}
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
         >
           <.dropdown_item
             value="duration"
-            label={gettext("Duration")}
+            label={dgettext("dashboard_builds", "Duration")}
             patch={column_patch_sort(assigns, "duration")}
             data-selected={@build_runs_sort_by == "duration"}
           >
@@ -22,7 +22,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="ran-at"
-            label={gettext("Ran at")}
+            label={dgettext("dashboard_builds", "Ran at")}
             patch={column_patch_sort(assigns, "ran-at")}
             data-selected={@build_runs_sort_by == "ran-at"}
           >
@@ -31,7 +31,7 @@
         </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
-          label={gettext("Filter")}
+          label={dgettext("dashboard_builds", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
@@ -51,31 +51,31 @@
             end
           }
         >
-          <:col :let={build_run} label={gettext("Scheme")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
             <.text_cell label={build_run.scheme || "None"} />
           </:col>
-          <:col :let={build_run} label={gettext("Configuration")}>
-            <.text_cell label={build_run.configuration || gettext("Unknown")} />
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
+            <.text_cell label={build_run.configuration || dgettext("dashboard_builds", "Unknown")} />
           </:col>
           <:col :let={build_run} label="Status">
             <%= if build_run.status == :success do %>
-              <.status_badge_cell label={gettext("Passed")} status="success" />
+              <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
             <% else %>
-              <.status_badge_cell label={gettext("Failed")} status="error" />
+              <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
             <% end %>
           </:col>
-          <:col :let={build_run} label={gettext("Branch")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
             <.text_cell icon="git_branch" label={build_run.git_branch || "None"} />
           </:col>
-          <:col :let={build_run} label={gettext("Commit SHA")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(build_run.git_commit_sha)} />
           </:col>
-          <:col :let={build_run} label={gettext("Ran by")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Ran by")}>
             <.build_ran_by_badge_cell build={build_run} />
           </:col>
           <:col
             :let={build_run}
-            label={gettext("Duration")}
+            label={dgettext("dashboard_builds", "Duration")}
             patch={@build_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
             icon={
               @build_runs_sort_by == "duration" &&
@@ -91,18 +91,18 @@
               icon="history"
             />
           </:col>
-          <:col :let={build_run} label={gettext("Category")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Category")}>
             <.badge_cell
               label={
                 (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
-                  gettext("Unknown")
+                  dgettext("dashboard_builds", "Unknown")
               }
               style="light-fill"
             />
           </:col>
           <:col
             :let={build_run}
-            label={gettext("Ran at")}
+            label={dgettext("dashboard_builds", "Ran at")}
             patch={@build_runs_sort_by == "ran-at" && column_patch_sort(assigns, "ran-at")}
             icon={
               @build_runs_sort_by == "ran-at" &&
@@ -111,16 +111,16 @@
           >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build_run.inserted_at)} />
           </:col>
-          <:col :let={build_run} label={gettext("Xcode version")}>
-            <.text_cell label={build_run.xcode_version || gettext("Unknown")} />
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Xcode version")}>
+            <.text_cell label={build_run.xcode_version || dgettext("dashboard_builds", "Unknown")} />
           </:col>
-          <:col :let={build_run} label={gettext("macOS version")}>
-            <.text_cell label={build_run.macos_version || gettext("Unknown")} />
+          <:col :let={build_run} label={dgettext("dashboard_builds", "macOS version")}>
+            <.text_cell label={build_run.macos_version || dgettext("dashboard_builds", "Unknown")} />
           </:col>
-          <:col :let={build_run} label={gettext("Device")}>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Device")}>
             <.text_cell label={
               (build_run.model_identifier && Tuist.Apple.devices()[build_run.model_identifier]) ||
-                gettext("Unknown")
+                dgettext("dashboard_builds", "Unknown")
             } />
           </:col>
         </.table>
@@ -135,7 +135,7 @@
 
       <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
         <.empty_card_section
-          title={gettext("No data yet")}
+          title={dgettext("dashboard_builds", "No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
           data-part="empty-build-runs-table-card-section"
         >
