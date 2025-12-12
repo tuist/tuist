@@ -64,6 +64,7 @@ public enum EnvKey: String, CaseIterable {
     case graphTargets = "TUIST_GRAPH_TARGETS"
     case graphPath = "TUIST_GRAPH_PATH"
     case graphOutputPath = "TUIST_GRAPH_OUTPUT_PATH"
+    case graphStdout = "TUIST_GRAPH_STDOUT"
 
     // INIT
 
