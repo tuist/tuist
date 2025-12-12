@@ -27,6 +27,7 @@ config :cache, CacheWeb.Endpoint,
 config :cache, Oban,
   repo: Cache.Repo,
   engine: Oban.Engines.Lite,
+  notifier: Oban.Notifiers.PG,
   queues: [
     s3_uploads: 10,
     s3_downloads: 10,

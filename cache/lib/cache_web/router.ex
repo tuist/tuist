@@ -1,6 +1,8 @@
 defmodule CacheWeb.Router do
   use CacheWeb, :router
 
+  import Oban.Web.Router
+
   pipeline :api_json do
     plug :accepts, ["json"]
   end
@@ -13,8 +15,26 @@ defmodule CacheWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: CacheWeb.API.Spec
   end
 
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :put_root_layout, html: {ObanWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
+  pipeline :oban_auth do
+    plug CacheWeb.Plugs.ObanAuth
+  end
+
   scope "/" do
     forward "/metrics", PromEx.Plug, prom_ex_module: Cache.PromEx
+  end
+
+  scope "/" do
+    pipe_through [:browser, :oban_auth]
+
+    oban_dashboard("/oban")
   end
 
   scope "/", CacheWeb do
