@@ -1,6 +1,6 @@
 defmodule Cache.Disk do
   @moduledoc """
-  Local disk storage backend for CAS (Content Addressable Storage).
+  Local disk storage backend for CAS and module cache artifacts.
 
   Stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.
@@ -157,6 +157,82 @@ defmodule Cache.Disk do
     |> Path.join("**/*")
     |> Path.wildcard(match_dot: true)
     |> Enum.filter(&File.regular?/1)
+  end
+
+  # Module Cache Functions
+
+  @doc """
+  Constructs a sharded module cache key from account handle, project handle, category, hash, and name.
+
+  Uses a two-level directory sharding based on the first 4 characters of the hash
+  to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
+
+  ## Examples
+
+      iex> Cache.Disk.module_key("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
+      "account/project/module/builds/AB/CD/ABCD1234/MyModule.xcframework.zip"
+  """
+  def module_key(account_handle, project_handle, category, hash, name) do
+    {shard1, shard2} = shards_for_id(hash)
+    "#{account_handle}/#{project_handle}/module/#{category}/#{shard1}/#{shard2}/#{hash}/#{name}"
+  end
+
+  @doc """
+  Checks if a module artifact exists on disk.
+  """
+  def module_exists?(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.exists?()
+  end
+
+  @doc """
+  Writes module artifact data to disk.
+
+  Accepts either binary data or a file path tuple.
+  """
+  def module_put(account_handle, project_handle, category, hash, name, {:file, tmp_path}) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- move_file(tmp_path, path) do
+      :ok
+    else
+      {:error, _} = error ->
+        File.rm(tmp_path)
+        error
+    end
+  end
+
+  def module_put(account_handle, project_handle, category, hash, name, data) when is_binary(data) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write module artifact to #{path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  @doc """
+  Returns file stat information for a module artifact.
+  """
+  def module_stat(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
+  Build the internal X-Accel-Redirect path for a module artifact.
+  """
+  def module_local_accel_path(account_handle, project_handle, category, hash, name) do
+    "/internal/local/" <> module_key(account_handle, project_handle, category, hash, name)
   end
 
   @doc """
