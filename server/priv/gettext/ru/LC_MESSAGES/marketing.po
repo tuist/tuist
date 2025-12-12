@@ -934,6 +934,9 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
+msgid "Read story"
+msgstr ""
+
 #~ msgid "%{count} minute"
 #~ msgid_plural "%{count} minutes"
 #~ msgstr[0] "%{count} минута"

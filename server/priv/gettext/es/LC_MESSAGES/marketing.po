@@ -931,6 +931,9 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
+msgid "Read story"
+msgstr ""
+
 #~ msgid "$0"
 #~ msgstr "$0"
 

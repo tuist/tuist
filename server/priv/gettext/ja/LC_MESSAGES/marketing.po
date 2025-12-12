@@ -924,3 +924,6 @@ msgstr ""
 
 msgid "Language"
 msgstr ""
+
+msgid "Read story"
+msgstr ""

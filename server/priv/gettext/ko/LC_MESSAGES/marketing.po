@@ -926,3 +926,6 @@ msgstr "현황판에서 실시간으로"
 
 msgid "Language"
 msgstr ""
+
+msgid "Read story"
+msgstr ""
