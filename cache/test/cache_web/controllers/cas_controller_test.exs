@@ -5,7 +5,7 @@ defmodule CacheWeb.CASControllerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Authentication
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.S3Transfers
 
@@ -238,7 +238,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
@@ -270,7 +270,7 @@ defmodule CacheWeb.CASControllerTest do
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
@@ -308,7 +308,7 @@ defmodule CacheWeb.CASControllerTest do
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)

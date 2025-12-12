@@ -65,7 +65,7 @@ defmodule Cache.S3Test do
         }
       end)
 
-      expect(ExAws, :request, fn _head_object -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{status_code: 200}} end)
 
       assert S3.exists?(key) == true
     end
@@ -80,7 +80,7 @@ defmodule Cache.S3Test do
         }
       end)
 
-      expect(ExAws, :request, fn _head_object -> {:error, {:http_error, 404, "Not Found"}} end)
+      expect(ExAws, :request, fn _head_object, _opts -> {:error, {:http_error, 404, "Not Found"}} end)
 
       assert S3.exists?(key) == false
     end
@@ -95,7 +95,7 @@ defmodule Cache.S3Test do
         }
       end)
 
-      expect(ExAws, :request, fn _head_object -> {:error, :timeout} end)
+      expect(ExAws, :request, fn _head_object, _opts -> {:error, :timeout} end)
 
       assert S3.exists?(key) == false
     end

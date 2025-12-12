@@ -53,5 +53,9 @@ defmodule CacheWeb.Router do
     put "/keyvalue", KeyValueController, :put_value
     get "/cas/:id", CASController, :download
     post "/cas/:id", CASController, :save
+
+    get "/module", ModuleCacheController, :download
+    post "/module", ModuleCacheController, :upload
+    get "/module/exists", ModuleCacheController, :exists
   end
 end

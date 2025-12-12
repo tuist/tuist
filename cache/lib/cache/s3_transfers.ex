@@ -32,6 +32,32 @@ defmodule Cache.S3Transfers do
   end
 
   @doc """
+  Enqueues a module cache artifact for upload to S3.
+
+  The module cache identifiers (category, hash, name) are encoded into the artifact_id
+  field using the format "module::category::hash::name".
+  """
+  def enqueue_module_upload(account_handle, project_handle, category, hash, name) do
+    artifact_id = encode_module_artifact_id(category, hash, name)
+    enqueue(:upload, account_handle, project_handle, artifact_id)
+  end
+
+  @doc """
+  Enqueues a module cache artifact for download from S3 to local disk.
+
+  The module cache identifiers (category, hash, name) are encoded into the artifact_id
+  field using the format "module::category::hash::name".
+  """
+  def enqueue_module_download(account_handle, project_handle, category, hash, name) do
+    artifact_id = encode_module_artifact_id(category, hash, name)
+    enqueue(:download, account_handle, project_handle, artifact_id)
+  end
+
+  defp encode_module_artifact_id(category, hash, name) do
+    "module::#{category}::#{hash}::#{name}"
+  end
+
+  @doc """
   Returns a list of pending transfers for the given type, ordered by insertion time (FIFO).
   """
   def pending(type, limit) when type in [:upload, :download] do

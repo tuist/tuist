@@ -70,6 +70,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.cas.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
