@@ -1,3 +1,4 @@
+Mimic.copy(Appsignal)
 Mimic.copy(Cache.Authentication)
 Mimic.copy(Cache.Disk)
 Mimic.copy(Cache.CASArtifacts)
@@ -7,6 +8,7 @@ Mimic.copy(ExAws.S3)
 Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)
 Mimic.copy(Cache.S3)
+Mimic.copy(Cache.S3Transfers)
 Mimic.copy(Plug.Conn)
 Mimic.copy(Req)
 
