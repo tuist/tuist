@@ -19,7 +19,7 @@ struct InspectDependenciesCommand: AsyncParsableCommand {
 
     @Option(
         name: .long,
-        help: "Run only specified checks. Can be repeated. Options: implicit, redundant. Default: all checks.",
+        help: "Run only specified checks. Can be repeated. Default: \(DependencyInspectionType.implicit.defaultValueDescription).",
         envKey: .inspectDependenciesOnly
     )
     var only: [DependencyInspectionType] = []
