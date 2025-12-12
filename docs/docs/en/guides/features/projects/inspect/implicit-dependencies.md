@@ -17,12 +17,6 @@ tuist inspect dependencies --only implicit
 
 If the command detects any implicit imports, it exits with an exit code other than zero.
 
-::: info DEPRECATED COMMAND
-<!-- -->
-The `tuist inspect implicit-imports` command is deprecated. Use `tuist inspect dependencies --only implicit` instead. You can also check for redundant dependencies by using `--only redundant` or run both checks by omitting the `--only` flag.
-<!-- -->
-:::
-
 ::: tip VALIDATE IN CI
 <!-- -->
 We strongly recommend to run this command as part of your <LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> command every time new code is pushed upstream.
