@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2025-12-11 14:19+0000\n"
+"PO-Revision-Date: 2025-12-12 16:32+0000\n"
 "Last-Translator: Weblate Admin <admin@cloudron.local>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
 "Language: es\n"
@@ -929,6 +929,9 @@ msgid "live on our dashboard"
 msgstr ""
 
 msgid "Language"
+msgstr ""
+
+msgid "Read story"
 msgstr ""
 
 #~ msgid "$0"
