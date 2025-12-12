@@ -19,7 +19,6 @@ of Tuist is available only for organizations on the Enterprise plan. If you are
 interested in this version, please reach out to
 [contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
-:::
 
 ## Release cadence {#release-cadence}
 
@@ -83,7 +82,6 @@ deprecated** and will be dropped as a required dependency in the near future as
 we migrate all time-series functionality to ClickHouse. For now, ensure your
 PostgreSQL instance has TimescaleDB installed and enabled.
 <!-- -->
-:::
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
@@ -115,7 +113,6 @@ The Docker image's entrypoint automatically runs any pending schema migrations
 before starting the service. If migrations fail due to a missing TimescaleDB
 extension, you'll need to install it in your database first.
 <!-- -->
-:::
 
 ### ClickHouse database {#clickhouse-database}
 
@@ -130,7 +127,6 @@ service.
 The Docker image's entrypoint automatically runs any pending ClickHouse schema
 migrations before starting the service.
 <!-- -->
-:::
 
 ### Storage {#storage}
 
@@ -150,7 +146,6 @@ logs.
 The necessary variables are verified at startup. If any are missing, the launch
 will fail and the error message will detail the absent variables.
 <!-- -->
-:::
 
 ### License configuration {#license-configuration}
 
@@ -173,7 +168,6 @@ commands that interact with the server if the license expires in less than 30
 days. If you are interested in renewing your license, please reach out to
 [contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
-:::
 
 ### Base environment configuration {#base-environment-configuration}
 
@@ -266,7 +260,6 @@ and `GOOGLE_CLIENT_SECRET` respectively.
 You might need to create a consent screen. When you do so, make sure to add the
 `userinfo.email` and `openid` scopes and mark the app as internal.
 <!-- -->
-:::
 
 #### Okta {#okta}
 
@@ -323,7 +316,6 @@ identity token, you can set the environment variable
 `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
 Tuist will use that method using the conventional AWS environment variables.
 <!-- -->
-:::
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these
@@ -355,7 +347,6 @@ Generic SMTP support is not currently available. If you need SMTP support for
 your on-premise deployment, please reach out to
 [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 <!-- -->
-:::
 
 ::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
@@ -366,7 +357,6 @@ want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require
 email confirmation when email is configured, set
 `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 <!-- -->
-:::
 
 ### Git platform configuration {#git-platform-configuration}
 
@@ -409,7 +399,6 @@ A valid `TUIST_LICENSE` environment variable is legally required to run the
 Tuist server, including local development instances. If you need a license,
 please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
-:::
 
 **Quick Start:**
 
@@ -512,7 +501,6 @@ If your deployment pipeline needs to validate that the server is up and running,
 you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
 the response.
 <!-- -->
-:::
 
 #### Fly {#fly}
 
@@ -652,7 +640,6 @@ instance.
 Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
 variable can access the `/ops/` endpoints.
 <!-- -->
-:::
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the
   application. This is useful for debugging and understanding what went wrong
