@@ -66,6 +66,42 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_withBothChecks_failsOnRedundantIssues_afterImplicitPasses() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let extraFramework = Target.test(name: "ExtraFramework", product: .framework)
+        let project = Project.test(path: path, targets: [app, framework, extraFramework])
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .target(name: framework.name, path: path),
+                    .target(name: extraFramework.name, path: path),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
+
+        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [extraFramework.productName])
+        let expectedError = InspectImportsServiceError.redundantImportsFound([expectedIssue])
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
+            expectedError
+        )
+    }
+
     func test_run_withBothChecks_successWhenNoIssues() async throws {
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
