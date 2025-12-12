@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistHTTP
 
 #if canImport(TuistXCResultService)
     import TuistCI

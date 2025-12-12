@@ -1,5 +1,6 @@
 defmodule CacheWeb.CASController do
   use CacheWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   alias Cache.BodyReader
   alias Cache.CASArtifacts
@@ -7,10 +8,48 @@ defmodule CacheWeb.CASController do
   alias Cache.S3
   alias Cache.S3DownloadWorker
   alias Cache.S3UploadWorker
+  alias CacheWeb.API.Schemas.Error
 
   require Logger
 
-  def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
+  plug OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true
+
+  tags(["CAS"])
+
+  operation(:download,
+    summary: "Download a CAS artifact",
+    operation_id: "downloadCASArtifact",
+    parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ]
+    ],
+    responses: %{
+      ok: {"Artifact content", "application/octet-stream", nil},
+      not_found: {"Artifact not found", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
     key = Disk.cas_key(account_handle, project_handle, id)
     :ok = CASArtifacts.track_artifact_access(key)
@@ -55,7 +94,42 @@ defmodule CacheWeb.CASController do
     end
   end
 
-  def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
+  operation(:save,
+    summary: "Save a CAS artifact",
+    operation_id: "saveCASArtifact",
+    parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ]
+    ],
+    request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
+    responses: %{
+      no_content: {"Upload successful", nil, nil},
+      request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
+      request_timeout: {"Request body read timed out", "application/json", Error},
+      internal_server_error: {"Failed to persist artifact", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     if Disk.exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
@@ -92,7 +166,7 @@ defmodule CacheWeb.CASController do
 
       {:error, :too_large, conn_after} ->
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :too_large})
-        send_error(conn_after, :payload_too_large, "Request body exceeded allowed size")
+        send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
 
       {:error, :timeout, conn_after} ->
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :timeout})

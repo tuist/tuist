@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 import TuistSimulator
 
 public enum ListPreviewsDistinctField {

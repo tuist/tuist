@@ -1,6 +1,7 @@
 import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
 
 extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
@@ -11,11 +12,11 @@ extension Client {
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
-                ServerClientRequestIdMiddleware(),
+                RequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
-                ServerClientVerboseLoggingMiddleware(),
-                ServerClientOutputWarningsMiddleware(),
+                VerboseLoggingMiddleware(),
+                OutputWarningsMiddleware(),
             ] + additionalMiddlewares
         )
     }
@@ -26,9 +27,9 @@ extension Client {
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
-                ServerClientRequestIdMiddleware(),
-                ServerClientVerboseLoggingMiddleware(),
-                ServerClientOutputWarningsMiddleware(),
+                RequestIdMiddleware(),
+                VerboseLoggingMiddleware(),
+                OutputWarningsMiddleware(),
             ]
         )
     }

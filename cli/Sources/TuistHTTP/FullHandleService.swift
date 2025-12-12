@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
 
-enum FullHandleServiceError: LocalizedError, Equatable {
+public enum FullHandleServiceError: LocalizedError, Equatable {
     case invalidHandle(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .invalidHandle(fullHandle):
             return "The project full handle \(fullHandle) is not in the format of account-handle/project-handle."

@@ -2,6 +2,14 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
+import TuistServer
+
+/// Type alias for the generated KeyValueResponse schema
+public typealias KeyValueResponse = Components.Schemas.KeyValueResponse
+
+/// Type alias for a single key-value entry
+public typealias KeyValueEntry = Components.Schemas.KeyValueResponse.entriesPayloadPayload
 
 @Mockable
 public protocol GetCacheValueServicing: Sendable {
@@ -9,21 +17,21 @@ public protocol GetCacheValueServicing: Sendable {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
-    ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload?
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling
+    ) async throws -> KeyValueResponse?
 }
 
 public enum GetCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
-    case forbidden(String)
     case badRequest(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be retrieved due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .badRequest(message):
+        case let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -48,13 +56,18 @@ public final class GetCacheValueService: GetCacheValueServicing {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
-    ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload? {
-        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling
+    ) async throws -> KeyValueResponse? {
+        let client = Client.authenticated(
+            cacheURL: serverURL,
+            authenticationURL: authenticationURL,
+            serverAuthenticationController: serverAuthenticationController
+        )
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.getCacheValue(
-            Operations.getCacheValue.Input(
+        let response = try await client.getKeyValue(
+            Operations.getKeyValue.Input(
                 path: .init(
                     cas_id: casId
                 ),
@@ -68,13 +81,8 @@ public final class GetCacheValueService: GetCacheValueServicing {
         switch response {
         case let .ok(success):
             switch success.body {
-            case let .json(jsonPayload):
-                return jsonPayload
-            }
-        case let .forbidden(forbidden):
-            switch forbidden.body {
-            case let .json(error):
-                throw GetCacheValueServiceError.forbidden(error.message)
+            case let .json(keyValueResponse):
+                return keyValueResponse
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {

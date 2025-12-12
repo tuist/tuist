@@ -1,14 +1,15 @@
 import Foundation
 import OpenAPIRuntime
-import TuistServer
+import TuistHTTP
+import TuistSupport
 
 extension Error {
-    /// Returns a user-friendly error description, with special handling for ClientError and ServerClientAuthenticationError
+    /// Returns a user-friendly error description, with special handling for ClientError and ClientAuthenticationError
     func userFriendlyDescription() -> String {
         if let clientError = self as? ClientError,
-           let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+           let underlyingAuthError = clientError.underlyingError as? ClientAuthenticationError
         {
-            return underlyingServerClientError.errorDescription ?? "Unknown error"
+            return underlyingAuthError.errorDescription ?? "Unknown error"
         } else if let localizedError = self as? LocalizedError {
             return localizedError.errorDescription ?? localizedError.localizedDescription
         } else {

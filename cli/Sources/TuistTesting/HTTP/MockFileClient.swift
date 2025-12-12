@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistHTTP
 import TuistSupport
 
 // swiftlint:disable large_tuple

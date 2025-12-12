@@ -3,6 +3,7 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Testing
+import TuistHTTP
 import TuistSupport
 import TuistTesting
 
@@ -28,7 +29,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             .willReturn(nil)
 
         // When / Then
-        await #expect(throws: ServerClientAuthenticationError.notAuthenticated, performing: {
+        await #expect(throws: ClientAuthenticationError.notAuthenticated, performing: {
             try await subject.intercept(
                 request,
                 body: nil,

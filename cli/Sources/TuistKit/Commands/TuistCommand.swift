@@ -4,6 +4,7 @@ import Noora
 import OpenAPIRuntime
 import Path
 import TuistCore
+import TuistHTTP
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -187,10 +188,10 @@ public struct TuistCommand: AsyncParsableCommand {
             // Let argument parser handle the error
             exit(withError: error)
         } else if let clientError = error as? ClientError,
-                  let underlyingServerClientError = clientError.underlyingError
-                  as? ServerClientAuthenticationError
+                  let underlyingAuthError = clientError.underlyingError
+                  as? ClientAuthenticationError
         {
-            errorAlertMessage = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
+            errorAlertMessage = "\(underlyingAuthError.errorDescription ?? "Unknown error")"
         } else if let fatalError = error as? FatalError {
             let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
             if !fatalError.description.isEmpty, !isSilent {

@@ -2,6 +2,8 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistHTTP
+import TuistServer
 
 @Mockable
 public protocol SaveCacheCASServicing: Sendable {
@@ -10,7 +12,8 @@ public protocol SaveCacheCASServicing: Sendable {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws
 }
 
@@ -20,16 +23,22 @@ public enum SaveCacheCASServiceError: LocalizedError {
     case forbidden(String)
     case notFound(String)
     case badRequest(String)
-    case saveFailed
+    case requestTimeout(String)
+    case contentTooLarge(String)
+    case internalServerError(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
+        case let .unauthorized(message),
+             let .forbidden(message),
+             let .notFound(message),
+             let .badRequest(message),
+             let .requestTimeout(message),
+             let .contentTooLarge(message),
+             let .internalServerError(message):
             return message
-        case .saveFailed:
-            return "The CAS artifact save failed due to an unknown error."
         }
     }
 }
@@ -54,11 +63,16 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
         casId: String,
         fullHandle: String,
         serverURL: URL,
-        authenticationURL: URL
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling
     ) async throws {
-        let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
+        let client = Client.authenticated(
+            cacheURL: serverURL,
+            authenticationURL: authenticationURL,
+            serverAuthenticationController: serverAuthenticationController
+        )
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.saveCacheCAS(
+        let response = try await client.saveCASArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -71,20 +85,35 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
         switch response {
         case .noContent:
             return
-        case let .forbidden(forbidden):
-            switch forbidden.body {
-            case let .json(error):
-                throw SaveCacheCASServiceError.forbidden(error.message)
-            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.unauthorized(error.message)
             }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.forbidden(error.message)
+            }
         case let .badRequest(badRequest):
             switch badRequest.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.badRequest(error.message)
+            }
+        case let .requestTimeout(timeout):
+            switch timeout.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.requestTimeout(error.message)
+            }
+        case let .contentTooLarge(tooLarge):
+            switch tooLarge.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.contentTooLarge(error.message)
+            }
+        case let .internalServerError(serverError):
+            switch serverError.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.internalServerError(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)

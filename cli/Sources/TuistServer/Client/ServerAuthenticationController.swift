@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+import TuistHTTP
 
 #if canImport(TuistProcess)
     import TuistProcess
@@ -660,12 +661,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .notConnectedToInternet:
                 throw error
             default:
-                throw ServerClientAuthenticationError.notAuthenticated
+                throw ClientAuthenticationError.notAuthenticated
             }
         } catch let error as RefreshAuthTokenServiceError {
             throw error
         } catch {
-            throw ServerClientAuthenticationError.notAuthenticated
+            throw ClientAuthenticationError.notAuthenticated
         }
     }
 }
