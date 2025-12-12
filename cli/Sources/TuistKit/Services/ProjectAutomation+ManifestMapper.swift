@@ -290,6 +290,7 @@ enum GraphServiceError: LocalizedError {
     case jsonNotValidForVisualExport
     case toonNotValidForVisualExport
     case encodingError(String)
+    case stdoutNotSupportedForFormat(GraphFormat)
 
     var errorDescription: String? {
         switch self {
@@ -299,6 +300,8 @@ enum GraphServiceError: LocalizedError {
             return "The toon format is not valid for visual export."
         case let .encodingError(format):
             return "Failed to encode graph to \(format)."
+        case let .stdoutNotSupportedForFormat(format):
+            return "The --stdout option is not supported for the \(format.rawValue) format. Use dot, json, or toon instead."
         }
     }
 }
