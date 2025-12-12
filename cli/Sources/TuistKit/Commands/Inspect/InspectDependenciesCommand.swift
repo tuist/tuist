@@ -5,7 +5,7 @@ struct InspectDependenciesCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "dependencies",
-            abstract: "Find implicit and redundant dependencies in Tuist projects, failing when issues are found."
+            abstract: "Inspects implicit and redundant dependencies in Tuist projects, failing when issues are found."
         )
     }
 
