@@ -7,8 +7,8 @@ servers:
     options:
       network-alias: cache-app
 
-ssh:
-  user: github-actions
+# ssh:
+#   user: github-actions
 
 registry:
   server: ghcr.io
@@ -36,6 +36,8 @@ env:
     - TUIST_CACHE_API_KEY
     - RELEASE_COOKIE
     - GUARDIAN_SECRET_KEY
+    - OBAN_WEB_USERNAME
+    - OBAN_WEB_PASSWORD
 
 volumes:
   - /cas:/cas:rw

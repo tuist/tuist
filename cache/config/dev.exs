@@ -22,6 +22,8 @@ config :cache, :cas,
   storage_dir: "tmp/cas",
   api_key: System.get_env("TUIST_CACHE_API_KEY")
 
+config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
+
 config :logger, :console, format: "[$level] $message\n"
 
 config :phoenix, :plug_init_mode, :runtime
