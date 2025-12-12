@@ -1,7 +1,5 @@
 import TuistSupport
 
-protocol InspectImportsFatalError: FatalError {}
-
 struct InspectImportsIssue: Comparable {
     let target: String
     let dependencies: Set<String>
@@ -14,7 +12,7 @@ struct InspectImportsIssue: Comparable {
     }
 }
 
-enum InspectImportsServiceError: InspectImportsFatalError, Equatable {
+enum InspectImportsServiceError: FatalError, Equatable {
     case issuesFound(implicit: [InspectImportsIssue] = [], redundant: [InspectImportsIssue] = [])
 
     var description: String {
