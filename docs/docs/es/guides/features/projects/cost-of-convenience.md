@@ -44,7 +44,6 @@ projects and leverages explicitness to provide a better developer experience
 (e.g. validations, optimizations). Tools like [Bazel](https://bazel.build) take
 it further by bringing it down to the build system level.
 <!-- -->
-:::
 
 This is an issue that's barely discussed in the community, but it's a
 significant one. While working on Tuist, we've noticed many organizations and
@@ -82,7 +81,6 @@ Tuist provides a
 to detect implicit dependencies. You can use the command to validate in CI that
 all your dependencies are explicit.
 <!-- -->
-:::
 
 ### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
 
@@ -106,7 +104,6 @@ fail to compile on CI because the state is different.
 We recommend disabling this in your project schemes, and use like Tuist that
 eases the management of the dependency graph.
 <!-- -->
-:::
 
 ### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
 
