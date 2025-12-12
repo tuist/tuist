@@ -25,6 +25,7 @@ compilation results to speed up the parsing process. Therefore, you'll notice
 that the first time you run Tuist, it might take a bit longer to generate the
 project. Subsequent runs will be faster.
 <!-- -->
+:::
 
 ## Project.swift {#projectswift}
 
@@ -51,6 +52,7 @@ The only variable that should be at the root of the manifest is `let project =
 Project(...)`. If you need to reuse code across various parts of the manifest,
 you can use Swift functions.
 <!-- -->
+:::
 
 ## Workspace.swift {#workspaceswift}
 
@@ -80,6 +82,7 @@ Tuist will resolve the dependency graph and include the projects of the
 dependencies in the workspace. You don't need to include them manually. This is
 necessary for the build system to resolve the dependencies correctly.
 <!-- -->
+:::
 
 ### Multi or mono-project {#multi-or-monoproject}
 
