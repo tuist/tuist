@@ -313,6 +313,225 @@ paths:
       summary: Get a key-value entry
       tags:
         - KeyValue
+  /api/cache/module:
+    get:
+      callbacks: {}
+      operationId: downloadModuleCacheArtifact
+      parameters:
+        - description: Project ID (account_handle/project_handle)
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds, selective_tests)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+      summary: Download a module cache artifact
+      tags:
+        - ModuleCache
+    post:
+      callbacks: {}
+      operationId: uploadModuleCacheArtifact
+      parameters:
+        - description: Project ID (account_handle/project_handle)
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds, selective_tests)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The artifact data
+        required: true
+      responses:
+        '204':
+          description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '408':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body read timed out
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body exceeded allowed size
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Failed to persist artifact
+      summary: Upload a module cache artifact
+      tags:
+        - ModuleCache
+  /api/cache/module/exists:
+    get:
+      callbacks: {}
+      operationId: moduleCacheArtifactExists
+      parameters:
+        - description: Project ID (account_handle/project_handle)
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds, selective_tests)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: Artifact exists
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+      summary: Check if a module cache artifact exists
+      tags:
+        - ModuleCache
 security:
   - authorization: []
 servers:

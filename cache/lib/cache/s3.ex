@@ -40,7 +40,7 @@ defmodule Cache.S3 do
 
     case bucket
          |> ExAws.S3.head_object(key)
-         |> ExAws.request() do
+         |> ExAws.request(http_opts: [recv_timeout: 2_000]) do
       {:ok, _response} -> true
       {:error, {:http_error, 404, _}} -> false
       {:error, _reason} -> false
@@ -53,7 +53,32 @@ defmodule Cache.S3 do
   Returns :ok on success, {:error, :rate_limited} on 429 errors (should be retried),
   or {:error, reason} on other failures.
   If the local file does not exist, returns :ok (the file may have been evicted).
+
+  Supports both CAS artifacts and module cache artifacts. Module cache artifacts
+  are identified by an artifact_id starting with "module::".
   """
+  def upload(account_handle, project_handle, "module::" <> rest) do
+    [category, hash, name] = String.split(rest, "::", parts: 3)
+    key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
+    local_path = Cache.Disk.artifact_path(key)
+
+    Logger.info("Starting S3 upload for module artifact: #{key}")
+
+    case upload_file(key, local_path) do
+      :ok ->
+        Logger.info("Successfully uploaded module artifact to S3: #{key}")
+        :ok
+
+      {:error, :rate_limited} = error ->
+        Logger.warning("S3 upload rate limited for module artifact: #{key}")
+        error
+
+      {:error, reason} = error ->
+        Logger.error("S3 upload failed for module artifact #{key}: #{inspect(reason)}")
+        error
+    end
+  end
+
   def upload(account_handle, project_handle, artifact_id) do
     key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
     local_path = Cache.Disk.artifact_path(key)
@@ -104,7 +129,60 @@ defmodule Cache.S3 do
   Returns :ok on success, {:error, :rate_limited} on 429 errors (should be retried),
   or {:error, reason} on other failures.
   If the artifact does not exist in S3, returns :ok (nothing to download).
+
+  Supports both CAS artifacts and module cache artifacts. Module cache artifacts
+  are identified by an artifact_id starting with "module::".
   """
+  def download(account_handle, project_handle, "module::" <> rest) do
+    [category, hash, name] = String.split(rest, "::", parts: 3)
+    key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
+    Logger.info("Starting S3 download for module artifact: #{key}")
+
+    case check_exists(key) do
+      {:ok, true} ->
+        local_path = Cache.Disk.artifact_path(key)
+
+        case download_file(key, local_path) do
+          :ok ->
+            {:ok, %{size: size}} = Cache.Disk.module_stat(account_handle, project_handle, category, hash, name)
+
+            :telemetry.execute([:cache, :module, :download, :s3_hit], %{size: size}, %{
+              category: category,
+              hash: hash,
+              name: name,
+              account_handle: account_handle,
+              project_handle: project_handle
+            })
+
+            :ok
+
+          {:error, :rate_limited} = error ->
+            Logger.warning("S3 download rate limited for module artifact: #{key}")
+            error
+
+          {:error, reason} ->
+            Logger.error("S3 download failed for module artifact #{key}: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      {:ok, false} ->
+        :telemetry.execute([:cache, :module, :download, :s3_miss], %{}, %{
+          category: category,
+          hash: hash,
+          name: name,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
+
+        Logger.info("Module artifact not found in S3, skipping download: #{key}")
+        :ok
+
+      {:error, :rate_limited} = error ->
+        Logger.warning("S3 exists check rate limited for module artifact: #{key}")
+        error
+    end
+  end
+
   def download(account_handle, project_handle, artifact_id) do
     key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
     Logger.info("Starting S3 download for artifact: #{key}")
