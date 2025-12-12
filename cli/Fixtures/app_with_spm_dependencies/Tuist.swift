@@ -1,7 +1,9 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    generationOptions: .options(
-        enforceExplicitDependencies: true
+    project: .tuist(
+        generationOptions: .options(
+            enforceExplicitDependencies: true
+        )
     )
 )
