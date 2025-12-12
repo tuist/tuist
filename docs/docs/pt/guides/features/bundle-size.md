@@ -12,7 +12,6 @@
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
   project</LocalizedLink>
 <!-- -->
-:::
 
 As you add more features to your app, your app bundle size keeps growing. While
 some of the bundle size growth is inevitable as you ship more code and assets,
@@ -36,7 +35,6 @@ tuist inspect bundle App.xcarchive
 tuist inspect bundle App.app
 ```
 <!-- -->
-:::
 
 The `tuist inspect bundle` command analyzes the bundle and provides you with a
 link to see a detailed overview of the bundle including a scan of the contents
@@ -79,7 +77,6 @@ project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git
 platform</LocalizedLink>.
 <!-- -->
-:::
 
 Once your Tuist project is connected with your Git platform such as
 [GitHub](https://github.com), Tuist will post a comment directly in your
