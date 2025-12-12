@@ -12,10 +12,16 @@ To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
 The problem is that you can't prevent implicit dependencies from happening. Any developer can add an `import` statement to their Swift code, and the implicit dependency will be created. This is where Tuist comes in. Tuist provides a command to inspect the implicit dependencies by statically analyzing the code in your project. The following command will output the implicit dependencies of your project:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 If the command detects any implicit imports, it exits with an exit code other than zero.
+
+::: info DEPRECATED COMMAND
+<!-- -->
+The `tuist inspect implicit-imports` command is deprecated. Use `tuist inspect dependencies --only implicit` instead. You can also check for redundant dependencies by using `--only redundant` or run both checks by omitting the `--only` flag.
+<!-- -->
+:::
 
 ::: tip VALIDATE IN CI
 <!-- -->
