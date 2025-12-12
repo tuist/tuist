@@ -286,7 +286,7 @@ extension ProjectAutomation.BuildConfiguration.Variant {
     }
 }
 
-enum GraphServiceError: LocalizedError {
+enum GraphServiceError: LocalizedError, Equatable {
     case jsonNotValidForVisualExport
     case toonNotValidForVisualExport
     case encodingError(String)
