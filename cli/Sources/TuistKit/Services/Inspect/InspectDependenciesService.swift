@@ -5,7 +5,7 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-final class InspectImplicitImportsService {
+final class InspectDependenciesService {
     private let configLoader: ConfigLoading
     private let generatorFactory: GeneratorFactorying
     private let graphImportsLinter: GraphImportsLinting
@@ -20,7 +20,10 @@ final class InspectImplicitImportsService {
         self.graphImportsLinter = graphImportsLinter
     }
 
-    func run(path: String?) async throws {
+    func run(
+        path: String?,
+        inspectionTypes: Set<DependencyInspectionType>
+    ) async throws {
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
@@ -28,18 +31,52 @@ final class InspectImplicitImportsService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        var checksRun: [String] = []
+
+        if inspectionTypes.contains(.implicit) {
+            try await runImplicitCheck(graphTraverser: graphTraverser)
+            checksRun.append("implicit")
+        }
+
+        if inspectionTypes.contains(.redundant) {
+            try await runRedundantCheck(
+                graphTraverser: graphTraverser,
+                ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
+            )
+            checksRun.append("redundant")
+        }
+
+        Logger.current.log(
+            level: .info,
+            "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+        )
+    }
+
+    private func runImplicitCheck(graphTraverser: GraphTraverser) async throws {
         let issues = try await graphImportsLinter.lint(
-            graphTraverser: GraphTraverser(graph: graph),
+            graphTraverser: graphTraverser,
             inspectType: .implicit,
             ignoreTagsMatching: []
         )
         if !issues.isEmpty {
             throw InspectImportsServiceError.implicitImportsFound(issues)
         }
-        Logger.current.log(
-            level: .info,
-            "We did not find any implicit dependencies in your project."
+    }
+
+    private func runRedundantCheck(
+        graphTraverser: GraphTraverser,
+        ignoreTagsMatching: Set<String>
+    ) async throws {
+        let issues = try await graphImportsLinter.lint(
+            graphTraverser: graphTraverser,
+            inspectType: .redundant,
+            ignoreTagsMatching: ignoreTagsMatching
         )
+        if !issues.isEmpty {
+            throw InspectImportsServiceError.redundantImportsFound(issues)
+        }
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {
