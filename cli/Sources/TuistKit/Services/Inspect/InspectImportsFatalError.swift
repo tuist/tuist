@@ -2,9 +2,16 @@ import TuistSupport
 
 protocol InspectImportsFatalError: FatalError {}
 
-struct InspectImportsIssue: Equatable {
+struct InspectImportsIssue: Comparable {
     let target: String
     let dependencies: Set<String>
+
+    static func < (lhs: InspectImportsIssue, rhs: InspectImportsIssue) -> Bool {
+        if lhs.target != rhs.target {
+            return lhs.target < rhs.target
+        }
+        return lhs.dependencies.sorted().lexicographicallyPrecedes(rhs.dependencies.sorted())
+    }
 }
 
 enum InspectImportsServiceError: InspectImportsFatalError, Equatable {
@@ -19,7 +26,7 @@ enum InspectImportsServiceError: InspectImportsFatalError, Equatable {
                     """
                     The following implicit dependencies were found:
                     \(
-                        implicit.sorted { $0.target < $1.target }.map { " - \($0.target) implicitly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
+                        implicit.sorted().map { " - \($0.target) implicitly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
                             .joined(separator: "\n")
                     )
                     """
@@ -30,7 +37,7 @@ enum InspectImportsServiceError: InspectImportsFatalError, Equatable {
                     """
                     The following redundant dependencies were found:
                     \(
-                        redundant.sorted { $0.target < $1.target }.map { " - \($0.target) redundantly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
+                        redundant.sorted().map { " - \($0.target) redundantly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
                             .joined(separator: "\n")
                     )
                     """
