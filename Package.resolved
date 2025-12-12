@@ -555,6 +555,14 @@
       }
     },
     {
+      "identity" : "toon-format.toon-swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.0"
+      }
+    },
+    {
       "identity" : "tuist.Command",
       "kind" : "registry",
       "location" : "",

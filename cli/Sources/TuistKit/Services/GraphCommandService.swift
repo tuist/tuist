@@ -5,6 +5,7 @@ import GraphViz
 import Path
 import ProjectAutomation
 import Tools
+import ToonFormat
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -13,7 +14,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class GraphService {
+final class GraphCommandService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
     private let fileSystem: FileSystem
@@ -100,7 +101,9 @@ final class GraphService {
             let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
-            try await export(graph: graph, at: filePath)
+            try await jsonExport(graph: graph, at: filePath)
+        case .toon:
+            try await toonExport(graph: graph, at: filePath)
         case .legacyJSON:
             let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try outputGraph.export(to: filePath)
@@ -125,12 +128,14 @@ final class GraphService {
             try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .svg, open: open)
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
+        case .toon:
+            throw GraphServiceError.toonNotValidForVisualExport
         case .legacyJSON:
             throw GraphServiceError.jsonNotValidForVisualExport
         }
     }
 
-    private func export(
+    private func jsonExport(
         graph: XcodeGraph.Graph,
         at path: AbsolutePath
     ) async throws {
@@ -142,6 +147,19 @@ final class GraphService {
             throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
         }
 
+        try await fileSystem.writeText(jsonString, at: path)
+    }
+
+    private func toonExport(
+        graph: XcodeGraph.Graph,
+        at path: AbsolutePath
+    ) async throws {
+        let encoder = TOONEncoder()
+        let jsonData = try encoder.encode(graph)
+        let jsonString = String(data: jsonData, encoding: .utf8)
+        guard let jsonString else {
+            throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
+        }
         try await fileSystem.writeText(jsonString, at: path)
     }
 
