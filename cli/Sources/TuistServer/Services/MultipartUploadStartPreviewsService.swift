@@ -14,6 +14,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        binaryId: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> AppBuildUpload
@@ -59,6 +60,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        binaryId: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> AppBuildUpload {
@@ -80,6 +82,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                 ),
                 body: .json(
                     .init(
+                        binary_id: binaryId,
                         bundle_identifier: bundleIdentifier,
                         display_name: displayName,
                         git_branch: gitBranch,

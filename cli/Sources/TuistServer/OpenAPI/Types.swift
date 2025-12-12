@@ -163,7 +163,7 @@ public protocol APIProtocol: Sendable {
     func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -784,7 +784,7 @@ extension APIProtocol {
     }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -7575,6 +7575,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The Mach-O UUID of the binary (for update checking).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
+                    public var binary_id: Swift.String?
                     /// The bundle identifier of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/bundle_identifier`.
@@ -7617,6 +7621,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - binary_id: The Mach-O UUID of the binary (for update checking).
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
@@ -7626,6 +7631,7 @@ public enum Operations {
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     public init(
+                        binary_id: Swift.String? = nil,
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
@@ -7635,6 +7641,7 @@ public enum Operations {
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
+                        self.binary_id = binary_id
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
                         self.git_branch = git_branch
@@ -7645,6 +7652,7 @@ public enum Operations {
                         self.version = version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case binary_id
                         case bundle_identifier
                         case display_name
                         case git_branch
@@ -8879,28 +8887,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -14193,7 +14201,7 @@ public enum Operations {
     }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -16595,10 +16603,6 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The ID of the bundle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
-                public var bundle_id: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
@@ -16607,20 +16611,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The ID of the bundle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
+                public var bundle_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - bundle_id: The ID of the bundle.
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - bundle_id: The ID of the bundle.
                 public init(
-                    bundle_id: Swift.String,
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    bundle_id: Swift.String
                 ) {
-                    self.bundle_id = bundle_id
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.bundle_id = bundle_id
                 }
             }
             public var path: Operations.getBundle.Input.Path
@@ -20082,6 +20090,10 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
                 public var distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload?
+                /// The Mach-O UUID of the running binary. When provided, filters previews to the same bundle identifier and git branch as the build with this binary ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/binary_id`.
+                public var binary_id: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -20091,13 +20103,15 @@ public enum Operations {
                 ///   - page_size:
                 ///   - page:
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
+                ///   - binary_id: The Mach-O UUID of the running binary. When provided, filters previews to the same bundle identifier and git branch as the build with this binary ID.
                 public init(
                     display_name: Swift.String? = nil,
                     specifier: Swift.String? = nil,
                     supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
-                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
+                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil,
+                    binary_id: Swift.String? = nil
                 ) {
                     self.display_name = display_name
                     self.specifier = specifier
@@ -20105,6 +20119,7 @@ public enum Operations {
                     self.page_size = page_size
                     self.page = page
                     self.distinct_field = distinct_field
+                    self.binary_id = binary_id
                 }
             }
             public var query: Operations.listPreviews.Input.Query

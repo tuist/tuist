@@ -86,6 +86,10 @@ defmodule TuistWeb.API.PreviewsController do
            git_ref: %Schema{
              type: :string,
              description: "The git ref associated with the preview."
+           },
+           binary_id: %Schema{
+             type: :string,
+             description: "The Mach-O UUID of the binary (for update checking)."
            }
          }
        }},
@@ -165,7 +169,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_commit_sha: Map.get(body_params, :git_commit_sha),
         created_by_account_id: account.id,
-        supported_platforms: supported_platforms
+        supported_platforms: supported_platforms,
+        binary_id: Map.get(body_params, :binary_id)
       })
 
     upload_id =
@@ -574,6 +579,99 @@ defmodule TuistWeb.API.PreviewsController do
         total_pages: meta.total_pages
       }
     })
+  end
+
+  operation(:latest,
+    summary: "Get the latest preview for a binary.",
+    description:
+      "Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.",
+    operation_id: "getLatestPreview",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      binary_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The Mach-O UUID of the running binary."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"The latest preview on the same track, or null if not found.", "application/json",
+         %Schema{
+           title: "LatestPreviewResponse",
+           type: :object,
+           properties: %{
+             preview: %Schema{
+               description: "The latest preview, or null if the binary_id is not found.",
+               nullable: true,
+               oneOf: [Schemas.Preview, %Schema{type: :null}]
+             }
+           },
+           required: [:preview]
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+    }
+  )
+
+  def latest(
+        %{
+          assigns: %{selected_project: selected_project},
+          params: %{account_handle: account_handle, project_handle: project_handle, binary_id: binary_id}
+        } = conn,
+        _params
+      ) do
+    case AppBuilds.app_build_by_binary_id(binary_id, preload: [:preview]) do
+      {:ok, app_build} ->
+        preview = app_build.preview
+
+        filters =
+          [
+            %{field: :project_id, op: :==, value: selected_project.id},
+            %{field: :bundle_identifier, op: :not_empty, value: true},
+            if(preview.bundle_identifier,
+              do: %{field: :bundle_identifier, op: :==, value: preview.bundle_identifier},
+              else: nil
+            ),
+            if(preview.git_branch, do: %{field: :git_branch, op: :==, value: preview.git_branch}, else: nil)
+          ]
+          |> Enum.reject(&is_nil/1)
+
+        {previews, _meta} =
+          AppBuilds.list_previews(
+            %{
+              page: 1,
+              page_size: 1,
+              filters: filters,
+              order_by: [:inserted_at],
+              order_directions: [:desc]
+            },
+            preload: [:app_builds, :created_by_account]
+          )
+
+        case previews do
+          [latest_preview | _] ->
+            json(conn, %{preview: map_preview(latest_preview, account_handle, project_handle, selected_project.account)})
+
+          [] ->
+            json(conn, %{preview: nil})
+        end
+
+      {:error, :not_found} ->
+        json(conn, %{preview: nil})
+    end
   end
 
   defp get_filters(%Project{} = project, params) do

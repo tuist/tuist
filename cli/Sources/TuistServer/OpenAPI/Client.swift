@@ -908,15 +908,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page_size",
+                    value: input.query.page_size
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page_size",
-                    value: input.query.page_size
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
@@ -3215,7 +3215,7 @@ public struct Client: APIProtocol {
     }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -5713,6 +5713,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "distinct_field",
                     value: input.query.distinct_field
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "binary_id",
+                    value: input.query.binary_id
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

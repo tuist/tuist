@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistCore
 import TuistGit
 import TuistServer
 import TuistSupport
@@ -25,6 +26,7 @@ struct PreviewsUploadServiceTests {
     private let uploadPreviewIconService = MockUploadPreviewIconServicing()
     private let gitController = MockGitControlling()
     private let commandRunner = MockCommandRunning()
+    private let precompiledMetadataProvider = MockPrecompiledMetadataProvider()
 
     private let serverURL: URL = .test()
     private let shareURL: URL = .test()
@@ -42,7 +44,8 @@ struct PreviewsUploadServiceTests {
             multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
             uploadPreviewIconService: uploadPreviewIconService,
             gitController: gitController,
-            commandRunner: commandRunner
+            commandRunner: commandRunner,
+            precompiledMetadataProvider: precompiledMetadataProvider
         )
 
         given(fileArchiverFactory)
@@ -94,6 +97,7 @@ struct PreviewsUploadServiceTests {
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
+                binaryId: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -163,6 +167,7 @@ struct PreviewsUploadServiceTests {
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
+                    binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL)
                 )
@@ -207,6 +212,7 @@ struct PreviewsUploadServiceTests {
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
+                    binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any
                 )
@@ -242,6 +248,7 @@ struct PreviewsUploadServiceTests {
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
+                    binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any
                 )
@@ -373,6 +380,7 @@ struct PreviewsUploadServiceTests {
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),
                     gitRef: .value("git-ref"),
+                    binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL)
                 )
