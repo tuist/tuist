@@ -58,13 +58,10 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [framework.productName])
-        let expectedError = InspectImportsServiceError.issuesFound(implicit: [expectedIssue])
-
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            expectedError
+            InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
         )
     }
 
@@ -99,17 +96,13 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(sharedCore)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(unusedFramework)).willReturn(Set([]))
 
-        let implicitIssue = InspectImportsIssue(target: app.productName, dependencies: [sharedCore.productName])
-        let redundantIssue = InspectImportsIssue(target: app.productName, dependencies: [unusedFramework.productName])
-        let expectedError = InspectImportsServiceError.issuesFound(
-            implicit: [implicitIssue],
-            redundant: [redundantIssue]
-        )
-
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            expectedError
+            InspectImportsServiceError.issuesFound(
+                implicit: [.init(target: app.productName, dependencies: [sharedCore.productName])],
+                redundant: [.init(target: app.productName, dependencies: [unusedFramework.productName])]
+            )
         )
     }
 
@@ -139,13 +132,10 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
 
-        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [extraFramework.productName])
-        let expectedError = InspectImportsServiceError.issuesFound(redundant: [expectedIssue])
-
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            expectedError
+            InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
         )
     }
 
@@ -218,11 +208,11 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [framework.productName])
-        let expectedError = InspectImportsServiceError.issuesFound(implicit: [expectedIssue])
-
         // When / Then
-        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString, inspectionTypes: [.implicit]), expectedError)
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit]),
+            InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
+        )
     }
 
     func test_run_implicitOnly_when_transitiveLocalDependencyIsImplicitlyImported() async throws {
@@ -274,14 +264,7 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit]),
-            InspectImportsServiceError.issuesFound(
-                implicit: [
-                    InspectImportsIssue(
-                        target: "App",
-                        dependencies: ["TestTargetDependency"]
-                    ),
-                ]
-            )
+            InspectImportsServiceError.issuesFound(implicit: [.init(target: "App", dependencies: ["TestTargetDependency"])])
         )
     }
 
@@ -336,13 +319,10 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
 
-        let expectedIssue = InspectImportsIssue(target: app.productName, dependencies: [extraFramework.productName])
-        let expectedError = InspectImportsServiceError.issuesFound(redundant: [expectedIssue])
-
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(path: path.pathString, inspectionTypes: [.redundant]),
-            expectedError
+            InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
         )
     }
 
