@@ -19,7 +19,6 @@ Tuist's unique features like
 <LocalizedLink href="/guides/features/projects/code-sharing">project description
 helpers</LocalizedLink> to the packages world.
 <!-- -->
-:::
 
 ::: info ROOT DIRECTORY
 <!-- -->
@@ -28,7 +27,6 @@ Tuist commands expect a certain
 structure</LocalizedLink> whose root is identified by a `Tuist` or a `.git`
 directory.
 <!-- -->
-:::
 
 ## Using Tuist with a Swift Package {#using-tuist-with-a-swift-package}
 
