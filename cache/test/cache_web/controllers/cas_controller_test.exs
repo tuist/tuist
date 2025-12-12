@@ -239,7 +239,7 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
 
@@ -251,7 +251,7 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.status == 200
 
       assert get_resp_header(conn, "x-accel-redirect") == [
-               "/internal/local/#{account_handle}/#{project_handle}/cas/#{id}"
+               "/internal/local/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
              ]
 
       assert conn.resp_body == ""
@@ -271,14 +271,14 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
 
       # Stub presign to return a deterministic URL
       expect(Cache.S3, :presign_download_url, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 
       conn =
@@ -289,7 +289,7 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.status == 200
 
       assert get_resp_header(conn, "x-accel-redirect") == [
-               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
+               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"
              ]
 
       assert conn.resp_body == ""
@@ -309,13 +309,13 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       expect(CASArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
 
       expect(Cache.S3, :presign_download_url, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 
       capture_log(fn ->
@@ -327,7 +327,7 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.status == 200
 
         assert get_resp_header(conn, "x-accel-redirect") == [
-                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
+                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"
                ]
 
         assert conn.resp_body == ""

@@ -3,6 +3,7 @@ defmodule Cache.Disk do
   Local disk storage backend for CAS (Content Addressable Storage).
 
   Stores artifacts on the local filesystem with configurable storage directory.
+  Uses two-level directory sharding to prevent ext4 directory index overflow.
   """
 
   require Logger
@@ -15,7 +16,6 @@ defmodule Cache.Disk do
       iex> Cache.Disk.exists?("account", "project", "abc123")
       true
   """
-
   def exists?(account_handle, project_handle, id) do
     account_handle
     |> cas_key(project_handle, id)
@@ -39,7 +39,6 @@ defmodule Cache.Disk do
       iex> Cache.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-
   def put(account_handle, project_handle, id, {:file, tmp_path}) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
@@ -71,24 +70,31 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.artifact_path("account/project/cas/abc123")
-      "/var/tuist/cas/account/project/cas/abc123"
+      iex> Cache.Disk.artifact_path("account/project/cas/AB/CD/ABCD1234")
+      "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"
   """
-
   def artifact_path(key) do
     Path.join(storage_dir(), key)
   end
 
   @doc """
-  Constructs a CAS key from account handle, project handle, and artifact ID.
+  Constructs a sharded CAS key from account handle, project handle, and artifact ID.
+
+  Uses a two-level directory sharding based on the first 4 characters of the artifact ID
+  to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
 
   ## Examples
 
-      iex> Cache.Disk.cas_key("account", "project", "abc123")
-      "account/project/cas/abc123"
+      iex> Cache.Disk.cas_key("account", "project", "ABCD1234")
+      "account/project/cas/AB/CD/ABCD1234"
   """
   def cas_key(account_handle, project_handle, id) do
-    "#{account_handle}/#{project_handle}/cas/#{id}"
+    {shard1, shard2} = shards_for_id(id)
+    "#{account_handle}/#{project_handle}/cas/#{shard1}/#{shard2}/#{id}"
+  end
+
+  defp shards_for_id(<<shard1::binary-size(2), shard2::binary-size(2), _rest::binary>>) do
+    {shard1, shard2}
   end
 
   @doc """
@@ -106,7 +112,6 @@ defmodule Cache.Disk do
 
   Defaults to "tmp/cas" if not configured.
   """
-
   def storage_dir do
     Application.get_env(:cache, :cas)[:storage_dir]
   end
@@ -116,8 +121,8 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.get_local_path("account", "project", "abc123")
-      {:ok, "/var/tuist/cas/account/project/cas/abc123"}
+      iex> Cache.Disk.get_local_path("account", "project", "ABCD1234")
+      {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
   """
   def get_local_path(account_handle, project_handle, id) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
@@ -134,7 +139,7 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.stat("account", "project", "abc123")
+      iex> Cache.Disk.stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
   def stat(account_handle, project_handle, id) do
@@ -157,7 +162,6 @@ defmodule Cache.Disk do
   @doc """
   Returns disk usage stats for the filesystem that backs the provided path.
   """
-
   def usage(path) when is_binary(path) do
     expanded_path = Path.expand(path)
 
