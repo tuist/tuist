@@ -1,115 +1,115 @@
-2025-12-12 16:54:43 +0000 [MT] Initial pipeline context: <IDEDistributionProcessingPipelineContext: 0x9fc255500; archive(resolved)="<IDEArchive: 0x9fc11b1e0>", distributionTask(resolved)="2", distributionDestination(resolved)="1", distributionMethod(resolved)="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team(resolved)="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
+2025-12-12 17:37:58 +0000 [MT] Initial pipeline context: <IDEDistributionProcessingPipelineContext: 0xa02295e00; archive(resolved)="<IDEArchive: 0xa0211f1e0>", distributionTask(resolved)="2", distributionDestination(resolved)="1", distributionMethod(resolved)="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team(resolved)="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
 	Chain (14, self inclusive):
-	<IDEDistributionProcessingPipelineContext: 0x9fc255500; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionProcessingPipelineContext: 0x9fc255e00; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa4f2800; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b9900; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b9680; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b9400; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b9180; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b8f00; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b8c80; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="<IDEProvisioningBasicTeam: 0x9fa1694e0; teamID='U6LC622NKF', teamName='(null)'>">
-	<IDEDistributionContext: 0x9fa2b8a00; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="(null)">
-	<IDEDistributionContext: 0x9fa2b8780; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="(null)">
-	<IDEDistributionContext: 0x9fa2b8500; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="(null)">
-	<IDEDistributionContext: 0x10477b530; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0x9fc290230>", team="(null)">
-	<IDEDistributionContext: 0x10477a730; archive = "<IDEArchive: 0x9fc11b1e0>", distributionMethod="(null)", team="(null)">
-</IDEDistributionProcessingPipelineContext: 0x9fc255500>
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionCreateDestRootStep
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionCopyItemStep
-2025-12-12 16:54:43 +0000 [MT] Running /usr/bin/ditto '-V' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root/Payload/App.app'
-2025-12-12 16:54:43 +0000  >>> Copying /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app 
-2025-12-12 16:54:43 +0000  copying file ./_CodeSignature/CodeResources ... 
-2025-12-12 16:54:43 +0000  2111 bytes for ./_CodeSignature/CodeResources
-2025-12-12 16:54:43 +0000  copying file ./App ... 
-2025-12-12 16:54:43 +0000  149504 bytes for ./App
-2025-12-12 16:54:43 +0000  copying file ./embedded.mobileprovision ... 
-2025-12-12 16:54:43 +0000  16542 bytes for ./embedded.mobileprovision
-2025-12-12 16:54:43 +0000  copying file ./Info.plist ... 
-2025-12-12 16:54:43 +0000  1228 bytes for ./Info.plist
-2025-12-12 16:54:43 +0000  copying file ./PkgInfo ... 
-2025-12-12 16:54:43 +0000  8 bytes for ./PkgInfo
-2025-12-12 16:54:43 +0000 [MT] /usr/bin/ditto exited with 0
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionEmbedProfileStep
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionInfoPlistStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionInfoPlistStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionAppThinningPlistStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionAppThinningPlistStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionSymbolsStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionSymbolsStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionAppThinningStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionAppThinningStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionArchThinningStep
-2025-12-12 16:54:43 +0000 [MT] Archs to thin for item /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app are []
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionODRStep
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionStripXattrsStep
-2025-12-12 16:54:43 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionCodesignStep
-2025-12-12 16:54:43 +0000 [MT] Entitlements for <IDEDistributionItem: 0x9fa165b00; bundleID='tuist.dev.App', path='<DVTFilePath:0x9fa0d3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x9fa165b60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x9fa220480; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
+	<IDEDistributionProcessingPipelineContext: 0xa02295e00; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionProcessingPipelineContext: 0xa02295500; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00293700; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00291900; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00291680; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00291400; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00291180; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00290f00; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00290c80; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="<IDEProvisioningBasicTeam: 0xa00151460; teamID='U6LC622NKF', teamName='(null)'>">
+	<IDEDistributionContext: 0xa00290a00; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="(null)">
+	<IDEDistributionContext: 0xa00290780; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="(null)">
+	<IDEDistributionContext: 0xa00290500; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="(null)">
+	<IDEDistributionContext: 0x102fb7530; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="<IDEDistributionMethodiOSAdHoc: 0xa01346580>", team="(null)">
+	<IDEDistributionContext: 0x102fb6730; archive = "<IDEArchive: 0xa0211f1e0>", distributionMethod="(null)", team="(null)">
+</IDEDistributionProcessingPipelineContext: 0xa02295e00>
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionCreateDestRootStep
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionCopyItemStep
+2025-12-12 17:37:58 +0000 [MT] Running /usr/bin/ditto '-V' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root/Payload/App.app'
+2025-12-12 17:37:58 +0000  >>> Copying /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app 
+2025-12-12 17:37:58 +0000  copying file ./_CodeSignature/CodeResources ... 
+2025-12-12 17:37:58 +0000  2111 bytes for ./_CodeSignature/CodeResources
+2025-12-12 17:37:58 +0000  copying file ./App ... 
+2025-12-12 17:37:58 +0000  149504 bytes for ./App
+2025-12-12 17:37:58 +0000  copying file ./embedded.mobileprovision ... 
+2025-12-12 17:37:58 +0000  16542 bytes for ./embedded.mobileprovision
+2025-12-12 17:37:58 +0000  copying file ./Info.plist ... 
+2025-12-12 17:37:58 +0000  1228 bytes for ./Info.plist
+2025-12-12 17:37:58 +0000  copying file ./PkgInfo ... 
+2025-12-12 17:37:58 +0000  8 bytes for ./PkgInfo
+2025-12-12 17:37:58 +0000 [MT] /usr/bin/ditto exited with 0
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionEmbedProfileStep
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionInfoPlistStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionInfoPlistStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionAppThinningPlistStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionAppThinningPlistStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionSymbolsStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionSymbolsStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionAppThinningStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionAppThinningStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionArchThinningStep
+2025-12-12 17:37:58 +0000 [MT] Archs to thin for item /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app are []
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionODRStep
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionStripXattrsStep
+2025-12-12 17:37:58 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionCodesignStep
+2025-12-12 17:37:58 +0000 [MT] Entitlements for <IDEDistributionItem: 0xa0014db60; bundleID='tuist.dev.App', path='<DVTFilePath:0xa000c3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0xa0014dbc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0xa002080c0; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
     "1.2.840.113635.100.6.1.12",
     "1.2.840.113635.100.6.1.2"
 ), issueDate='2025-07-03 08:46:19 +0000''>', entitlements='{
     "application-identifier" = "U6LC622NKF.tuist.dev.App";
     "com.apple.developer.team-identifier" = U6LC622NKF;
     "get-task-allow" = 1;
-}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0x9fa165320:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'>: {
+}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0xa0014d140:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'>: {
     "application-identifier" = "U6LC622NKF.tuist.dev.App";
     "com.apple.developer.team-identifier" = U6LC622NKF;
     "get-task-allow" = 0;
 }
-2025-12-12 16:54:43 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
-2025-12-12 16:54:43 +0000 [MT] Entitlements for <IDEDistributionItem: 0x9fa165b00; bundleID='tuist.dev.App', path='<DVTFilePath:0x9fa0d3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x9fa165b60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x9fa220180; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
+2025-12-12 17:37:58 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2025-12-12 17:37:58 +0000 [MT] Entitlements for <IDEDistributionItem: 0xa0014db60; bundleID='tuist.dev.App', path='<DVTFilePath:0xa000c3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0xa0014dbc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0xa00208540; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
     "1.2.840.113635.100.6.1.12",
     "1.2.840.113635.100.6.1.2"
 ), issueDate='2025-07-03 08:46:19 +0000''>', entitlements='{
     "application-identifier" = "U6LC622NKF.tuist.dev.App";
     "com.apple.developer.team-identifier" = U6LC622NKF;
     "get-task-allow" = 1;
-}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0x9fa165320:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'> are: {
+}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0xa0014d140:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'> are: {
     "application-identifier" = "U6LC622NKF.tuist.dev.App";
     "com.apple.developer.team-identifier" = U6LC622NKF;
     "get-task-allow" = 0;
 }
-2025-12-12 16:54:43 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x9fa165b00; bundleID='tuist.dev.App', path='<DVTFilePath:0x9fa0d3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x9fa165b60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x9fa220180; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
+2025-12-12 17:37:58 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0xa0014db60; bundleID='tuist.dev.App', path='<DVTFilePath:0xa000c3cc0:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0xa0014dbc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0xa00208540; name='Apple Development: Marek Fort (K5Q5B5S4HJ)', hash='0A82660E9B4E4A4A6EEEB1D9AF0098D0242427C2', serialNumber='E929C81296AADCEB549ADECD7004E2', certificateKinds='(
     "1.2.840.113635.100.6.1.12",
     "1.2.840.113635.100.6.1.2"
 ), issueDate='2025-07-03 08:46:19 +0000''>', entitlements='{
     "application-identifier" = "U6LC622NKF.tuist.dev.App";
     "com.apple.developer.team-identifier" = U6LC622NKF;
     "get-task-allow" = 1;
-}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0x9fa165320:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.r8ECJSVF1h/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'> to: /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/entitlements~~~XWavZD
-2025-12-12 16:54:43 +0000 [MT] invoking codesign: <NSConcreteTask: 0x9fc80fca0; launchPath='/usr/bin/codesign', arguments='(
+}', teamID='U6LC622NKF', identifier='tuist.dev.App', executablePath='<DVTFilePath:0xa0014d140:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/tmp.n7BQOvx2Er/App.xcarchive/Products/Applications/App.app/App'>', hardenedRuntime='0'>'> to: /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/entitlements~~~IxjdX4
+2025-12-12 17:37:58 +0000 [MT] invoking codesign: <NSConcreteTask: 0xa0282f9d0; launchPath='/usr/bin/codesign', arguments='(
     "-f",
     "-s",
     E7717E306B357A9318F815DCD47AD383FC78A62A,
     "--entitlements",
-    "/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/entitlements~~~XWavZD",
+    "/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/entitlements~~~IxjdX4",
     "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
     "--generate-entitlement-der",
     "--strip-disallowed-xattrs",
     "-vvv",
-    "/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root/Payload/App.app"
+    "/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root/Payload/App.app"
 )'>
-2025-12-12 16:54:43 +0000 [MT] codesign output: /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root/Payload/App.app: replacing existing signature
-/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root/Payload/App.app: signed app bundle with Mach-O thin (arm64) [tuist.dev.App]
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionZipODRItemStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionCreateIPAStep
-2025-12-12 16:54:43 +0000 [MT] Running /usr/bin/ditto '-V' '-c' '-k' '--norsrc' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Packages/App.ipa'
-2025-12-12 16:54:43 +0000  >>> Copying /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root 
-2025-12-12 16:54:43 +0000  copying file ./Payload/App.app/_CodeSignature/CodeResources ... 
-2025-12-12 16:54:43 +0000  2111 bytes for ./Payload/App.app/_CodeSignature/CodeResources
-2025-12-12 16:54:43 +0000  copying file ./Payload/App.app/App ... 
-2025-12-12 16:54:43 +0000  149504 bytes for ./Payload/App.app/App
-2025-12-12 16:54:43 +0000  copying file ./Payload/App.app/embedded.mobileprovision ... 
-2025-12-12 16:54:43 +0000  14591 bytes for ./Payload/App.app/embedded.mobileprovision
-2025-12-12 16:54:43 +0000  copying file ./Payload/App.app/Info.plist ... 
-2025-12-12 16:54:43 +0000  1228 bytes for ./Payload/App.app/Info.plist
-2025-12-12 16:54:43 +0000  copying file ./Payload/App.app/PkgInfo ... 
-2025-12-12 16:54:43 +0000  8 bytes for ./Payload/App.app/PkgInfo
-2025-12-12 16:54:43 +0000 [MT] /usr/bin/ditto exited with 0
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionAppStoreInformationStep
-2025-12-12 16:54:43 +0000 [MT] Skipping step: IDEDistributionAppStoreInformationStep because it said so
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionGenerateProcessedDistributionItems
-2025-12-12 16:54:43 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x9fa3dc420:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~ZFH1qm/Root/Payload/App.app'>
-2025-12-12 16:54:43 +0000 [MT] Processing step: IDEDistributionCreateManifestStep
+2025-12-12 17:37:58 +0000 [MT] codesign output: /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root/Payload/App.app: replacing existing signature
+/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root/Payload/App.app: signed app bundle with Mach-O thin (arm64) [tuist.dev.App]
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionZipODRItemStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionCreateIPAStep
+2025-12-12 17:37:58 +0000 [MT] Running /usr/bin/ditto '-V' '-c' '-k' '--norsrc' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root' '/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Packages/App.ipa'
+2025-12-12 17:37:58 +0000  >>> Copying /var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root 
+2025-12-12 17:37:58 +0000  copying file ./Payload/App.app/_CodeSignature/CodeResources ... 
+2025-12-12 17:37:58 +0000  2111 bytes for ./Payload/App.app/_CodeSignature/CodeResources
+2025-12-12 17:37:58 +0000  copying file ./Payload/App.app/App ... 
+2025-12-12 17:37:58 +0000  149504 bytes for ./Payload/App.app/App
+2025-12-12 17:37:58 +0000  copying file ./Payload/App.app/embedded.mobileprovision ... 
+2025-12-12 17:37:58 +0000  14591 bytes for ./Payload/App.app/embedded.mobileprovision
+2025-12-12 17:37:58 +0000  copying file ./Payload/App.app/Info.plist ... 
+2025-12-12 17:37:58 +0000  1228 bytes for ./Payload/App.app/Info.plist
+2025-12-12 17:37:58 +0000  copying file ./Payload/App.app/PkgInfo ... 
+2025-12-12 17:37:58 +0000  8 bytes for ./Payload/App.app/PkgInfo
+2025-12-12 17:37:58 +0000 [MT] /usr/bin/ditto exited with 0
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionAppStoreInformationStep
+2025-12-12 17:37:58 +0000 [MT] Skipping step: IDEDistributionAppStoreInformationStep because it said so
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionGenerateProcessedDistributionItems
+2025-12-12 17:37:58 +0000 [MT] IDEDistributionItem init <DVTFilePath:0xa003a8000:'/var/folders/qc/zngxsyh562d1mwpsxydqg5b40000gn/T/XcodeDistPipeline.~~~pCq9a4/Root/Payload/App.app'>
+2025-12-12 17:37:58 +0000 [MT] Processing step: IDEDistributionCreateManifestStep

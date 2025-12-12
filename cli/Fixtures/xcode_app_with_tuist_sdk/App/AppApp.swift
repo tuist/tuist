@@ -12,8 +12,8 @@ import TuistSDK
 struct AppApp: App {
     private let tuistSDK = TuistSDK(
         fullHandle: "tuist/tuist",
-        apiKey: "tuist_019b1324-c2f9-7f74-a467-2e0f6167099b_xE47CuzS/s4I5iEkdwnca9RKCwo=",
-        serverURL: URL(string: "http://localhost:8080")!
+        apiKey: "tuist_019b139f-10ab-73c4-8845-4e230fe8ab8b_jC5U8ok8DvT6GhUta901ljUTUVE=",
+        serverURL: URL(string: "https://staging.tuist.dev")!
     )
 
     var body: some Scene {

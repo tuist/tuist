@@ -29,7 +29,7 @@ public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The app build could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The app build could not be uploaded due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }

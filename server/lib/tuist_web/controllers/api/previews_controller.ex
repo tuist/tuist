@@ -882,7 +882,8 @@ defmodule TuistWeb.API.PreviewsController do
             id: preview.created_by_account.id,
             handle: preview.created_by_account.name
           },
-      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
+      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id),
+      binary_id: preview.binary_id
     }
   end
 
