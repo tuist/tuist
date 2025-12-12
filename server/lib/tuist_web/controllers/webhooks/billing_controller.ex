@@ -3,7 +3,17 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Accounts
   alias Tuist.Billing
+
+  @impl true
+  def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
+    customer = event.data.object
+    {:ok, account} = Accounts.get_account_from_customer_id(customer.id)
+    {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
+
+    :ok
+  end
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.created"} = event) do

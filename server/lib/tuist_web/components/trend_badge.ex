@@ -6,7 +6,10 @@ defmodule TuistWeb.Components.TrendBadge do
   use Noora
 
   attr :trend_value, :integer, required: true
-  attr :trend_inverse, :boolean, default: false
+
+  attr :trend_type, :atom,
+    default: :regular,
+    values: [:regular, :inverse, :neutral]
 
   def trend_badge(assigns) do
     rounded = Float.round(assigns.trend_value, 1)
@@ -28,10 +31,11 @@ defmodule TuistWeb.Components.TrendBadge do
       }
       color={
         cond do
-          @trend_value < 0 and not @trend_inverse -> "destructive"
-          @trend_value < 0 and @trend_inverse -> "success"
-          @trend_value > 0 and not @trend_inverse -> "success"
-          @trend_value > 0 and @trend_inverse -> "destructive"
+          @trend_type == :neutral -> "neutral"
+          @trend_value < 0 and @trend_type == :regular -> "destructive"
+          @trend_value < 0 and @trend_type == :inverse -> "success"
+          @trend_value > 0 and @trend_type == :regular -> "success"
+          @trend_value > 0 and @trend_type == :inverse -> "destructive"
           true -> "neutral"
         end
       }

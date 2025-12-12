@@ -465,6 +465,8 @@ defmodule TuistWeb.MembersLive do
   # end
 
   def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
+    email = String.trim(email)
+
     # NOTE: Enable this when tag-input is used.
     # Accounts.invite_users_to_organization(socket.assigns.invite_emails, %{
     #   inviter: socket.assigns.current_user,

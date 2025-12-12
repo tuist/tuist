@@ -288,6 +288,8 @@ defmodule TuistWeb.Router do
 
       scope "/tokens" do
         post "/", AccountTokensController, :create
+        get "/", AccountTokensController, :index
+        delete "/:token_name", AccountTokensController, :delete
       end
     end
 
@@ -461,6 +463,10 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
+
+    get "/registry/swift", Registry.SwiftController, :availability
+
+    post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
   scope "/oauth2", TuistWeb.Oauth do

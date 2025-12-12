@@ -25,11 +25,11 @@ on:
       - handbook/package.json
 
 permissions:
+  id-token: write
   contents: read
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   PNPM_HOME: ~/.pnpm
 
 concurrency:
@@ -73,6 +73,8 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           working_directory: docs
+      - name: Authenticate with Tuist
+        run: tuist auth login
       - name: Generate CLI docs
         working-directory: docs
         run: mise run generate-cli-docs

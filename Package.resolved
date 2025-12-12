@@ -1,5 +1,5 @@
 {
-  "originHash" : "1c324f1915addc6cdcf9b188159f9767853603e2e83cdc79c0aa90e745a00d12",
+  "originHash" : "768bb670bde491d7f780f5a7e4a63cd6c35fb3c6d7b6356b0bcc448ff75faafc",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -226,14 +226,6 @@
       }
     },
     {
-      "identity" : "fabrizioBrancati.Queuer",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "2.1.1"
-      }
-    },
-    {
       "identity" : "facebook.zstd",
       "kind" : "registry",
       "location" : "",
@@ -415,7 +407,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.43"
+        "version" : "0.2.45"
       }
     },
     {

@@ -34,7 +34,7 @@
               <span data-part="label">
                 {format_bytes(@bundle.install_size)}
               </span>
-              <.trend_badge trend_value={@install_size_deviation * 100} trend_inverse />
+              <.trend_badge trend_value={@install_size_deviation * 100} trend_type={:inverse} />
               <.link_button
                 :if={not is_nil(@last_bundle)}
                 navigate={

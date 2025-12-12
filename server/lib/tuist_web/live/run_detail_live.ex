@@ -23,6 +23,7 @@ defmodule TuistWeb.RunDetailLive do
         _ -> nil
       end
 
+    run = Tuist.ClickHouseRepo.preload(run, [:xcode_targets])
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,
@@ -101,6 +102,21 @@ defmodule TuistWeb.RunDetailLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
+  def handle_event(
+        "toggle-expand",
+        %{"row-key" => target_name},
+        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
+      ) do
+    updated_expanded_names =
+      if MapSet.member?(expanded_target_names, target_name) do
+        MapSet.delete(expanded_target_names, target_name)
+      else
+        MapSet.put(expanded_target_names, target_name)
+      end
+
+    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
+  end
+
   def sort_icon("desc") do
     "square_rounded_arrow_down"
   end
@@ -138,6 +154,8 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
     |> assign(:binary_cache_active_filters, [])
+    |> assign(:expanded_target_names, MapSet.new())
+    |> assign(:binary_cache_json, "[]")
   end
 
   defp build_uri(params) do
@@ -186,6 +204,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_json, binary_cache_targets_json(socket.assigns.run))
   end
 
   defp assign_selective_testing_defaults(socket) do
@@ -256,6 +275,49 @@ defmodule TuistWeb.RunDetailLive do
     {analytics, meta}
   end
 
+  defp binary_cache_targets_json(run) do
+    run.xcode_targets
+    |> Enum.filter(&(&1.binary_cache_hash != nil))
+    |> Enum.sort_by(& &1.name)
+    |> Enum.map(&target_to_json_map/1)
+    |> Jason.encode!(pretty: true)
+  end
+
+  defp target_to_json_map(target) do
+    %{
+      name: target.name,
+      binary_cache_hit: target.binary_cache_hit,
+      binary_cache_hash: target.binary_cache_hash,
+      product: target.product,
+      bundle_id: target.bundle_id,
+      product_name: target.product_name,
+      external_hash: target.external_hash,
+      sources_hash: target.sources_hash,
+      resources_hash: target.resources_hash,
+      copy_files_hash: target.copy_files_hash,
+      core_data_models_hash: target.core_data_models_hash,
+      target_scripts_hash: target.target_scripts_hash,
+      environment_hash: target.environment_hash,
+      headers_hash: target.headers_hash,
+      deployment_target_hash: target.deployment_target_hash,
+      info_plist_hash: target.info_plist_hash,
+      entitlements_hash: target.entitlements_hash,
+      dependencies_hash: target.dependencies_hash,
+      project_settings_hash: target.project_settings_hash,
+      target_settings_hash: target.target_settings_hash,
+      buildable_folders_hash: target.buildable_folders_hash,
+      destinations: target.destinations,
+      additional_strings: target.additional_strings
+    }
+    |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
+    |> Map.new()
+  end
+
+  defp empty_value?(nil), do: true
+  defp empty_value?(""), do: true
+  defp empty_value?([]), do: true
+  defp empty_value?(_), do: false
+
   defp ensure_allowed_params("binary-cache-sort-by", %{"binary-cache-sort-by" => value}) when value in ["name"],
     do: String.to_existing_atom(value)
 
@@ -304,5 +366,38 @@ defmodule TuistWeb.RunDetailLive do
         value: nil
       }
     ]
+  end
+
+  def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
+    has_local = local_hits > 0
+    has_remote = remote_hits > 0
+    has_misses = misses > 0
+
+    case category do
+      :local when has_local ->
+        if not has_remote and not has_misses do
+          [6, 6, 6, 6]
+        else
+          [6, 0, 0, 6]
+        end
+
+      :remote when has_remote ->
+        cond do
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          not has_local and has_misses -> [6, 0, 0, 6]
+          has_local and not has_misses -> [0, 6, 6, 0]
+          true -> [0, 0, 0, 0]
+        end
+
+      :misses when has_misses ->
+        if not has_local and not has_remote do
+          [6, 6, 6, 6]
+        else
+          [0, 6, 6, 0]
+        end
+
+      _ ->
+        [0, 0, 0, 0]
+    end
   end
 end

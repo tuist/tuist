@@ -1,6 +1,38 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.115.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* upload command run analytics in the background by [@fortmarek](https://github.com/fortmarek) in [#8883](https://github.com/tuist/tuist/pull/8883)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.114.0...4.115.0
+
+## What's Changed in 4.114.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* OIDC support Bitrise and CircleCI by [@fortmarek](https://github.com/fortmarek) in [#8878](https://github.com/tuist/tuist/pull/8878)
+* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+### 🐛 Bug Fixes
+
+* parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.114.0
+
+## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* account tokens by [@fortmarek](https://github.com/fortmarek) in [#8834](https://github.com/tuist/tuist/pull/8834)
+* report module cache subhashes by [@fortmarek](https://github.com/fortmarek) in [#8822](https://github.com/tuist/tuist/pull/8822)
+### 🐛 Bug Fixes
+
+* respect explicit cache profile none with target focus by [@hiltonc](https://github.com/hiltonc) in [#8830](https://github.com/tuist/tuist/pull/8830)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.112.0
+
 ## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

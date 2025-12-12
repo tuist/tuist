@@ -7,7 +7,7 @@ const ShikiHighlight = {
 
     for (const block of codeBlocks) {
       const language = block.getAttribute("language") || "text";
-      const code = block.textContent;
+      const code = block.textContent.trim();
 
       try {
         // Highlight the code using Shiki

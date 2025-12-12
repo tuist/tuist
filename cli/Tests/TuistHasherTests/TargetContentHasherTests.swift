@@ -102,6 +102,14 @@ struct TargetContentHasherTests {
 
         // Then
         #expect(got.hash == "hash-Target-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone")
+        #expect(
+            got.subhashes == TargetContentHashSubhashes(
+                dependencies: "dependencies_hash",
+                projectSettings: "settings_hash",
+                targetSettings: "settings_hash",
+                external: "hash"
+            )
+        )
     }
 
     @Test func hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
@@ -121,6 +129,15 @@ struct TargetContentHasherTests {
         #expect(
             got.hash ==
                 "hash-Target-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two"
+        )
+        #expect(
+            got.subhashes == TargetContentHashSubhashes(
+                dependencies: "dependencies_hash",
+                projectSettings: "settings_hash",
+                targetSettings: "settings_hash",
+                additionalStrings: ["additional_string_one", "additional_string_two"],
+                external: "hash"
+            )
         )
     }
 
@@ -148,6 +165,21 @@ struct TargetContentHasherTests {
                 -core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad\
                 -iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
+        )
+        #expect(
+            got.subhashes == TargetContentHashSubhashes(
+                sources: "sources_hash",
+                resources: "resources_hash",
+                copyFiles: "copy_files_hash",
+                coreDataModels: "core_data_models_hash",
+                targetScripts: "target_scripts_hash",
+                dependencies: "dependencies_hash",
+                environment: "dictionary_hash",
+                deploymentTarget: "deployment_targets_hash",
+                projectSettings: "settings_hash",
+                targetSettings: "settings_hash",
+                additionalStrings: ["additional_string"]
+            )
         )
     }
 
@@ -212,8 +244,24 @@ struct TargetContentHasherTests {
         #expect(
             got.hash ==
                 """
-                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
+        )
+        #expect(
+            got.subhashes == TargetContentHashSubhashes(
+                sources: "sources_hash",
+                resources: "resources_hash",
+                copyFiles: "copy_files_hash",
+                coreDataModels: "core_data_models_hash",
+                targetScripts: "target_scripts_hash",
+                dependencies: "dependencies_hash",
+                environment: "dictionary_hash",
+                deploymentTarget: "deployment_targets_hash",
+                projectSettings: "settings_hash",
+                targetSettings: "settings_hash",
+                buildableFolders:
+                "/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header"
+            )
         )
     }
 
@@ -246,6 +294,20 @@ struct TargetContentHasherTests {
         )
         #expect(
             got.hash.contains("iOS-16") == true
+        )
+        #expect(
+            got.subhashes == TargetContentHashSubhashes(
+                sources: "sources_hash",
+                resources: "resources_hash",
+                copyFiles: "copy_files_hash",
+                coreDataModels: "core_data_models_hash",
+                targetScripts: "target_scripts_hash",
+                dependencies: "dependencies_hash",
+                environment: "dictionary_hash",
+                deploymentTarget: "deployment_targets_hash",
+                projectSettings: "settings_hash",
+                targetSettings: "settings_hash"
+            )
         )
     }
 }

@@ -99,8 +99,36 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       assert redirect_path =~ "/auth/complete-signup?token="
 
       # Verify user was created
-      user = Accounts.get_user_by_email(oauth_data["email"])
-      assert user
+      {:ok, user} = Accounts.get_user_by_email(oauth_data["email"])
+      assert user.account.name == username
+    end
+
+    test "trims whitespace from username before creating user", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "trimuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      username = "trimmeduser#{System.unique_integer([:positive])}"
+
+      result =
+        lv
+        |> form("#choose-username-form", account: %{name: "  #{username}  "})
+        |> render_submit()
+
+      assert {:error, {:redirect, %{to: redirect_path}}} = result
+      assert redirect_path =~ "/auth/complete-signup?token="
+
+      # Verify user was created with trimmed username
+      {:ok, user} = Accounts.get_user_by_email(oauth_data["email"])
       assert user.account.name == username
     end
 

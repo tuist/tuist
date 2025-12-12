@@ -74,7 +74,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         end
 
       conn
-      |> put_resp_header("connection", "close")
       |> put_status(status)
       |> json(%{
         message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
@@ -86,9 +85,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
     caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
-
-    subject =
-      Authentication.authenticated_subject(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     subject_id =
       case subject do
@@ -124,7 +121,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       conn
     else
       conn
-      |> put_resp_header("connection", "close")
       |> put_status(:forbidden)
       |> json(%{
         message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"

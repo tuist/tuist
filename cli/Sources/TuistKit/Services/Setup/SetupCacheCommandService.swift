@@ -151,7 +151,11 @@ struct SetupCacheCommandService {
 
         var environmentVariables: [String: String] = [:]
         if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
-            environmentVariables["TUIST_CONFIG_TOKEN"] = token
+            environmentVariables["TUIST_TOKEN"] = token
+        } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            AlertController.current
+                .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
+            environmentVariables["TUIST_TOKEN"] = token
         }
 
         let plistContent = launchAgentPlist(

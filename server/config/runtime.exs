@@ -210,6 +210,9 @@ if Tuist.Environment.error_tracking_enabled?() do
     env: env,
     active: true,
     ignore_errors: [
+      # Bandit.TransportError is raised when the client disconnects mid-request.
+      # These are expected and not actionable errors.
+      "Bandit.TransportError",
       "TuistWeb.Errors.BadRequestError",
       "TuistWeb.Errors.NotFoundError",
       "TuistWeb.Errors.TooManyRequestsError",

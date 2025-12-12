@@ -54,6 +54,7 @@
           value={@qa_runs_analytics.count}
           id="widget-qa-run-count"
           trend_value={@qa_runs_analytics.trend}
+          trend_type={:neutral}
           trend_label={@analytics_trend_label}
           phx_click="select_widget"
           phx_value_widget="qa_run_count"
@@ -71,7 +72,7 @@
           id="widget-qa-issues-count"
           trend_value={@qa_issues_analytics.trend}
           trend_label={@analytics_trend_label}
-          trend_inverse
+          trend_type={:inverse}
           phx_click="select_widget"
           phx_value_widget="qa_issues_count"
           selected={@analytics_selected_widget == "qa_issues_count"}
@@ -95,7 +96,7 @@
           id="widget-qa-duration"
           trend_value={@qa_duration_analytics.trend}
           trend_label={@analytics_trend_label}
-          trend_inverse
+          trend_type={:inverse}
           phx_click="select_widget"
           phx_value_widget="qa_duration"
           selected={@analytics_selected_widget == "qa_duration"}

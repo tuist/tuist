@@ -85,20 +85,17 @@ defmodule Cache.Workers.S3UploadWorkerTest do
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(Upload, :stream_file, fn ^local_path ->
-        %Upload{src: local_path, bucket: "test-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _upload -> {:error, %File.Error{}} end)
-
       job = %Oban.Job{
         args: %{"key" => key}
       }
 
-      capture_log(fn ->
-        result = S3UploadWorker.perform(job)
-        assert result == {:error, %File.Error{}}
-      end)
+      {result, log} =
+        with_log(fn ->
+          S3UploadWorker.perform(job)
+        end)
+
+      assert result == :ok
+      assert log =~ "Local file not found for S3 upload"
     end
   end
 end

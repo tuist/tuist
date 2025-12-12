@@ -20,6 +20,8 @@ defmodule TuistWeb.SSOLoginLive do
   end
 
   def handle_event("submit", %{"user" => %{"email" => email}}, socket) do
+    email = String.trim(email)
+
     case Accounts.okta_organization_for_user_email(email) do
       {:ok, organization} ->
         encoded_email = URI.encode_www_form(email)

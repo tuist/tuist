@@ -80,6 +80,7 @@ defmodule TuistWeb.ChooseUsernameLive do
 
   @impl true
   def handle_event("choose_username", %{"account" => %{"name" => username}}, socket) do
+    username = String.trim(username)
     oauth_data = socket.assigns.oauth_data
 
     case Accounts.create_user_from_pending_oauth(oauth_data, username) do

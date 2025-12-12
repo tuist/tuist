@@ -126,8 +126,8 @@ final class HashCacheCommandService {
         if sortedHashes.isEmpty {
             AlertController.current.warning(.alert("The project contains no hashable targets."))
         } else {
-            for (target, hash) in sortedHashes {
-                Logger.current.info("\(target.target.name) - \(hash)")
+            for (target, targetContentHash) in sortedHashes {
+                Logger.current.info("\(target.target.name) - \(targetContentHash.hash)")
             }
         }
     }

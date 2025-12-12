@@ -602,15 +602,24 @@ export async function guidesSidebar(locale) {
           link: `/${locale}/guides/integrations/continuous-integration`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} SSO</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.sso.text",
+          )}</span>`,
           link: `/${locale}/guides/integrations/sso`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} Git forges</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.git-forges.text",
+          )}</span>`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${githubIcon()} GitHub</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${githubIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.integrations.items.git-forges.items.github.text",
+              )}</span>`,
               link: `/${locale}/guides/integrations/gitforge/github`,
             },
           ],
@@ -618,26 +627,41 @@ export async function guidesSidebar(locale) {
       ],
     },
     {
-      text: "Server",
+      text: localizedString(locale, "sidebars.guides.items.server.text"),
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${accountsIcon()} Accounts and projects</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${accountsIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.accounts-and-projects.text",
+          )}</span>`,
           link: `/${locale}/guides/server/accounts-and-projects`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} Authentication</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.authentication.text",
+          )}</span>`,
           link: `/${locale}/guides/server/authentication`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} Self-hosting</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.self-hosting.text",
+          )}</span>`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} Installation</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.server.items.self-hosting.items.installation.text",
+              )}</span>`,
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} Telemetry</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
+              )}</span>`,
               link: `/${locale}/guides/server/self-host/telemetry`,
             },
           ],

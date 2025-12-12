@@ -96,7 +96,7 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id, :region])
+    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> unique_constraint(:namespace_tenant_id)

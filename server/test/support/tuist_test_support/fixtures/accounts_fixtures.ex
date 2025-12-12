@@ -88,9 +88,19 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     account =
       Keyword.get_lazy(opts, :account, fn -> user_fixture(preload: [:account]).account end)
 
-    scopes = Keyword.get(opts, :scopes, [])
+    scopes = Keyword.get(opts, :scopes, ["project:cache:read"])
+    name = Keyword.get(opts, :name, "token-#{TuistTestSupport.Utilities.unique_integer()}")
+    all_projects = Keyword.get(opts, :all_projects, true)
+    project_ids = Keyword.get(opts, :project_ids, [])
 
-    {:ok, {account_token, _}} = Accounts.create_account_token(%{account: account, scopes: scopes})
+    {:ok, {account_token, _}} =
+      Accounts.create_account_token(%{
+        account: account,
+        scopes: scopes,
+        name: name,
+        all_projects: all_projects,
+        project_ids: project_ids
+      })
 
     account_token
   end

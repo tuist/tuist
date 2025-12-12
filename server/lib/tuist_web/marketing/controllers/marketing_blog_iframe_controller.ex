@@ -36,6 +36,7 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeController do
         |> put_layout(false)
         |> put_view(MarketingHTML)
         |> assign(:plain_disabled?, true)
+        |> assign(:analytics_disabled?, true)
         |> render(template)
     end
   end

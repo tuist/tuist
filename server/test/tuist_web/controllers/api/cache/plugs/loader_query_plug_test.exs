@@ -50,7 +50,6 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlugTest do
     # Then
     assert result.halted
     assert result.status == 404
-    assert get_resp_header(result, "connection") == ["close"]
     assert JSON.decode!(result.resp_body) == %{"message" => "The project #{project_slug} was not found."}
   end
 
@@ -65,7 +64,6 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlugTest do
     # Then
     assert result.halted
     assert result.status == 400
-    assert get_resp_header(result, "connection") == ["close"]
 
     assert JSON.decode!(result.resp_body) == %{
              "message" => "account_handle and project_handle query parameters are required"
@@ -83,7 +81,6 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlugTest do
     # Then
     assert result.halted
     assert result.status == 400
-    assert get_resp_header(result, "connection") == ["close"]
 
     assert JSON.decode!(result.resp_body) == %{
              "message" => "account_handle and project_handle query parameters are required"
@@ -101,7 +98,6 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlugTest do
     # Then
     assert result.halted
     assert result.status == 400
-    assert get_resp_header(result, "connection") == ["close"]
 
     assert JSON.decode!(result.resp_body) == %{
              "message" => "account_handle and project_handle query parameters are required"

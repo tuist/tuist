@@ -12,7 +12,7 @@ public protocol CacheGraphContentHashing {
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
-    ) async throws -> [GraphTarget: String]
+    ) async throws -> [GraphTarget: TargetContentHash]
 }
 
 public final class CacheGraphContentHasher: CacheGraphContentHashing {
@@ -51,7 +51,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
-    ) async throws -> [GraphTarget: String] {
+    ) async throws -> [GraphTarget: TargetContentHash] {
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(

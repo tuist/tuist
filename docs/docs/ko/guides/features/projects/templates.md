@@ -72,7 +72,7 @@ After defining the template, we can use it from the `scaffold` command:
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
+::: info Mise란?
 <!-- -->
 Since platform is an optional argument, we can also call the command without the
 `--platform macos` argument.

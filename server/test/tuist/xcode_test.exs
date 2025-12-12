@@ -640,4 +640,15 @@ defmodule Tuist.XcodeTest do
     assert counts.binary_cache_misses_count == 2
     assert counts.total_count == 2
   end
+
+  describe "humanize_xcode_target_destination/1" do
+    test "returns human-readable name for known destinations" do
+      assert Xcode.humanize_xcode_target_destination("iphone") == "iPhone"
+      assert Xcode.humanize_xcode_target_destination("mac_with_ipad_design") == "Mac with iPad design"
+    end
+
+    test "returns input unchanged for unknown destinations" do
+      assert Xcode.humanize_xcode_target_destination("unknown") == "unknown"
+    end
+  end
 end

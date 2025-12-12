@@ -629,6 +629,41 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns additional Finch pools from the TUIST_ADDITIONAL_FINCH_POOLS environment variable.
+
+  The value should be a base64-encoded JSON object where keys are endpoint URLs
+  and values are pool configuration options.
+
+  Example JSON (before base64 encoding):
+  {
+    "https://s3.us-west-2.amazonaws.com": {"size": 500, "count": 4},
+    "https://s3.us-east-1.amazonaws.com": {"size": 500}
+  }
+
+  Supported pool options:
+  - size: Number of connections per pool (default: 100)
+  - count: Number of pools (default: System.schedulers_online())
+  """
+  def additional_finch_pools(secrets \\ secrets()) do
+    case get([:additional_finch_pools], secrets) do
+      nil ->
+        %{}
+
+      base64_json ->
+        case Base.decode64(base64_json) do
+          {:ok, json} ->
+            case JSON.decode(json) do
+              {:ok, pools} when is_map(pools) -> pools
+              _ -> %{}
+            end
+
+          :error ->
+            %{}
+        end
+    end
+  end
+
+  @doc """
   Returns the bucket size for the authentication rate limiter.
 
   This configures the maximum number of authentication requests allowed

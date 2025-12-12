@@ -110,7 +110,7 @@ defmodule TuistWeb.API.RunsController do
         page: page,
         page_size: page_size,
         filters: filters,
-        order_by: [:created_at],
+        order_by: [:ran_at],
         order_directions: [:desc]
       })
 

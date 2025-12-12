@@ -1,6 +1,6 @@
 [tools]
   pnpm = "10.17.1"
-  node = "24"
+  node = "24.11.0"
   sops = "3.9.3"
   age = "1.2.1"
   "ubi:aquasecurity/trivy" = "0.63.0"

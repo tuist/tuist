@@ -116,6 +116,7 @@
         value={ByteFormatter.format_bytes(@downloads_analytics.total_size)}
         id="widget-cache-downloads"
         trend_value={@downloads_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_downloads"
@@ -133,6 +134,7 @@
         value={ByteFormatter.format_bytes(@uploads_analytics.total_size)}
         id="widget-cache-uploads"
         trend_value={@uploads_analytics.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_uploads"

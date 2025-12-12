@@ -16,10 +16,27 @@ public protocol TargetContentHashing {
     ) async throws -> TargetContentHash
 }
 
-public struct TargetContentHash {
+public struct TargetContentHash: Equatable {
     public let hash: String
     public let hashedPaths: [AbsolutePath: String]
+    public let subhashes: TargetContentHashSubhashes
 }
+
+#if DEBUG
+    extension TargetContentHash {
+        public static func test(
+            hash: String = "test-hash",
+            hashedPaths: [AbsolutePath: String] = [:],
+            subhashes: TargetContentHashSubhashes = .test()
+        ) -> TargetContentHash {
+            TargetContentHash(
+                hash: hash,
+                hashedPaths: hashedPaths,
+                subhashes: subhashes
+            )
+        }
+    }
+#endif
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
@@ -152,9 +169,18 @@ public final class TargetContentHasher: TargetContentHashing {
                 additionalStrings: \(additionalStrings.joined(separator: ", "))
             """)
 
+            let subhashes = TargetContentHashSubhashes(
+                dependencies: dependenciesHash.hash,
+                projectSettings: projectSettingsHash,
+                targetSettings: settingsHash,
+                additionalStrings: additionalStrings,
+                external: projectHash
+            )
+
             return TargetContentHash(
                 hash: hash,
-                hashedPaths: [:]
+                hashedPaths: [:],
+                subhashes: subhashes
             )
         }
         var hashedPaths = hashedPaths
@@ -215,6 +241,10 @@ public final class TargetContentHasher: TargetContentHashing {
                 }
             }
 
+        let buildableFoldersHash: String? = buildableFolderHashes.isEmpty
+            ? nil
+            : try contentHasher.hash(buildableFolderHashes)
+
         var stringsToHash =
             [
                 graphTarget.target.name,
@@ -228,7 +258,11 @@ public final class TargetContentHasher: TargetContentHashing {
                 coreDataModelHash,
                 targetScriptsHash,
                 environmentHash,
-            ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
+            ] + destinations + additionalStrings + destinationHashes
+
+        if let buildableFoldersHash {
+            stringsToHash.append(buildableFoldersHash)
+        }
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -290,16 +324,35 @@ public final class TargetContentHasher: TargetContentHashing {
             destinations: \(destinations.joined(separator: ", "))
             destinationHashes: \(destinationHashes.joined(separator: ", "))
             additionalStrings: \(additionalStrings.joined(separator: ", "))
-            buildableFolders: \(buildableFolderHashes.joined(separator: ","))
+            buildableFolders: \(buildableFoldersHash ?? "nil")
             headers: \(headersHash ?? "nil")
             deploymentTarget: \(deploymentTargetHash)
             infoPlist: \(infoPlistHash ?? "nil")
             entitlements: \(entitlementsHash ?? "nil")
         """)
 
+        let subhashes = TargetContentHashSubhashes(
+            sources: sourcesHash,
+            resources: resourcesHash,
+            copyFiles: copyFilesHash,
+            coreDataModels: coreDataModelHash,
+            targetScripts: targetScriptsHash,
+            dependencies: dependenciesHash.hash,
+            environment: environmentHash,
+            headers: headersHash,
+            deploymentTarget: deploymentTargetHash,
+            infoPlist: infoPlistHash,
+            entitlements: entitlementsHash,
+            projectSettings: projectSettingsHash,
+            targetSettings: settingsHash,
+            buildableFolders: buildableFoldersHash,
+            additionalStrings: additionalStrings
+        )
+
         return TargetContentHash(
             hash: hash,
-            hashedPaths: hashedPaths
+            hashedPaths: hashedPaths,
+            subhashes: subhashes
         )
     }
 }

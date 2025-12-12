@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistCache
 import TuistCore
+import TuistHasher
 import TuistLoader
 import TuistSupport
 import TuistTesting
@@ -67,7 +68,7 @@ import XcodeGraph
                 excludedTargets: .value([]),
                 destination: .value(nil)
             ).willReturn([
-                graphTarget: hash,
+                graphTarget: .test(hash: hash),
             ])
             // When
             try await subject.run(path: path.pathString, configuration: "Debug")

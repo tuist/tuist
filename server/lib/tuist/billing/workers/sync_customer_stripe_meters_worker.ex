@@ -26,7 +26,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
       )
     end
 
-    account = Accounts.get_account_from_customer_id(customer_id)
+    {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
     {:ok, _} = Billing.update_remote_cache_hit_meter(customer_id, idempotency_key)
 

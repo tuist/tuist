@@ -153,87 +153,116 @@ defmodule Tuist.Application do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
-      %{
-        :default => [size: 10, start_pool_metrics?: true],
-        "https://api.github.com" => [
-          conn_opts: [
-            log: true,
-            protocols: [:http2, :http1],
-            transport_opts: [
-              inet6: Environment.use_ipv6?() in ~w(true 1),
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
-          ],
-          size: 10,
-          count: 2,
-          protocols: [:http2, :http1],
-          start_pool_metrics?: true
-        ],
-        Environment.s3_endpoint() => [
-          conn_opts: [
-            log: true,
-            protocols: Environment.s3_protocols(),
-            transport_opts:
-              [
+      base_pools =
+        %{
+          :default => [size: 10, start_pool_metrics?: true],
+          "https://api.github.com" => [
+            conn_opts: [
+              log: true,
+              protocols: [:http2, :http1],
+              transport_opts: [
                 inet6: Environment.use_ipv6?() in ~w(true 1),
+                cacertfile: CAStore.file_path(),
                 verify: :verify_peer
-              ] ++ s3_ca_cert_opts()
+              ]
+            ],
+            size: 10,
+            count: 2,
+            protocols: [:http2, :http1],
+            start_pool_metrics?: true
           ],
-          size: Environment.s3_pool_size(),
-          count: Environment.s3_pool_count(),
-          protocols: Environment.s3_protocols(),
-          start_pool_metrics?: true
-        ],
-        Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
-          conn_opts: [
-            log: true,
+          Environment.s3_endpoint() => [
+            conn_opts: [
+              log: true,
+              protocols: Environment.s3_protocols(),
+              transport_opts:
+                [
+                  inet6: Environment.use_ipv6?() in ~w(true 1),
+                  verify: :verify_peer
+                ] ++ s3_ca_cert_opts()
+            ],
+            size: Environment.s3_pool_size(),
+            count: Environment.s3_pool_count(),
             protocols: Environment.s3_protocols(),
-            transport_opts:
-              [
+            start_pool_metrics?: true
+          ],
+          Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
+            conn_opts: [
+              log: true,
+              protocols: Environment.s3_protocols(),
+              transport_opts:
+                [
+                  inet6: Environment.use_ipv6?() in ~w(true 1),
+                  verify: :verify_peer
+                ] ++ s3_ca_cert_opts()
+            ],
+            size: Environment.s3_pool_size(),
+            count: Environment.s3_pool_count(),
+            protocols: Environment.s3_protocols(),
+            start_pool_metrics?: true
+          ],
+          "https://marketing.tuist.dev" => [
+            conn_opts: [
+              log: true,
+              protocols: [:http2, :http1],
+              transport_opts: [
                 inet6: Environment.use_ipv6?() in ~w(true 1),
+                cacertfile: CAStore.file_path(),
                 verify: :verify_peer
-              ] ++ s3_ca_cert_opts()
-          ],
-          size: Environment.s3_pool_size(),
-          count: Environment.s3_pool_count(),
-          protocols: Environment.s3_protocols(),
-          start_pool_metrics?: true
-        ],
-        "https://marketing.tuist.dev" => [
-          conn_opts: [
-            log: true,
+              ]
+            ],
+            size: 10,
+            count: 1,
             protocols: [:http2, :http1],
-            transport_opts: [
-              inet6: Environment.use_ipv6?() in ~w(true 1),
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
+            start_pool_metrics?: true
           ],
-          size: 10,
-          count: 1,
-          protocols: [:http2, :http1],
-          start_pool_metrics?: true
-        ],
-        Environment.posthog_url() => [
-          conn_opts: [
-            log: true,
+          Environment.posthog_url() => [
+            conn_opts: [
+              log: true,
+              protocols: [:http2, :http1],
+              transport_opts: [
+                inet6: Environment.use_ipv6?() in ~w(true 1),
+                cacertfile: CAStore.file_path(),
+                verify: :verify_peer
+              ]
+            ],
+            size: 5,
+            count: 1,
             protocols: [:http2, :http1],
-            transport_opts: [
-              inet6: Environment.use_ipv6?() in ~w(true 1),
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
-          ],
-          size: 5,
-          count: 1,
-          protocols: [:http2, :http1],
-          start_pool_metrics?: true
-        ]
-      }
-      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
-      |> Map.new()
+            start_pool_metrics?: true
+          ]
+        }
+        |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+        |> Map.new()
+
+      additional_pools =
+        Map.new(Environment.additional_finch_pools(), fn {endpoint, config} ->
+          {endpoint, build_additional_pool_opts(config)}
+        end)
+
+      Map.merge(base_pools, additional_pools)
     end
+  end
+
+  defp build_additional_pool_opts(config) when is_map(config) do
+    size = Map.get(config, "size", 100)
+    count = Map.get(config, "count", System.schedulers_online())
+
+    [
+      conn_opts: [
+        log: true,
+        protocols: [:http1],
+        transport_opts: [
+          inet6: Environment.use_ipv6?() in ~w(true 1),
+          cacertfile: CAStore.file_path(),
+          verify: :verify_peer
+        ]
+      ],
+      size: size,
+      count: count,
+      protocols: [:http1],
+      start_pool_metrics?: true
+    ]
   end
 
   # Tell Phoenix to update the endpoint configuration

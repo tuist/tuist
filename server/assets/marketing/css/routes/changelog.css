@@ -155,6 +155,11 @@
       gap: var(--noora-spacing-9);
       margin-bottom: var(--noora-spacing-10);
       min-width: 0;
+      scroll-margin-top: 80px;
+
+      @media (min-width: 768px) {
+        scroll-margin-top: 120px;
+      }
 
       @media (min-width: 1024px) {
         grid-column: 3;

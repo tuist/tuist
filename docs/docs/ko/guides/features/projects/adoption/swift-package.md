@@ -19,7 +19,7 @@ Package Manager의 모든 기능을 제공할 계획은 없으며,
 <!-- -->
 :::
 
-::: info ROOT DIRECTORY
+::: info 최상위 폴더
 <!-- -->
 Tuist 명령어는 `Tuist`나 `.git` 디렉토리로 루트가 식별되는 특정
 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">디렉토리

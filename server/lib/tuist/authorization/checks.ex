@@ -8,6 +8,17 @@ defmodule Tuist.Authorization.Checks do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
+  @scope_groups %{
+    "ci" => [
+      "project:cache:write",
+      "project:previews:write",
+      "project:bundles:write",
+      "project:tests:write",
+      "project:builds:write",
+      "project:runs:write"
+    ]
+  }
+
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
       id: project.account_id
@@ -72,12 +83,64 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) do
-    Enum.member?(scopes, scope)
+  @doc """
+  Checks if the authenticated account's scopes include the required scope.
+
+  Scopes are expected to be strings in the format "entity:object:action"
+  (e.g., "project:cache:read", "account:registry:read").
+
+  Scope groups (e.g., "ci") are automatically expanded to their component scopes.
+
+  When the object is a Project, this also verifies the token has access to that
+  specific project (either via `all_projects: true` or the project being in `project_ids`).
+  """
+  def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
+      when is_binary(scope) do
+    expanded_scopes = expand_scope_groups(scopes)
+    Enum.member?(expanded_scopes, scope) and project_access_permitted(auth_account, project)
+  end
+
+  def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
+    expanded_scopes = expand_scope_groups(scopes)
+    Enum.member?(expanded_scopes, scope)
   end
 
   def scopes_permit(_, _, _) do
     false
+  end
+
+  defp expand_scope_groups(scopes) do
+    Enum.flat_map(scopes, fn scope ->
+      Map.get(@scope_groups, scope, [scope])
+    end)
+  end
+
+  @doc """
+  Checks if the authenticated account has access to the specified project.
+
+  When `all_projects` is true, the token has access to all projects under the account.
+  When `all_projects` is false, access is restricted to projects in `project_ids`.
+  """
+  def project_access_permitted(%AuthenticatedAccount{all_projects: true}, _project) do
+    true
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: nil}, _project) do
+    false
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: []}, _project) do
+    false
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: project_ids}, %Project{
+        id: project_id
+      }) do
+    project_id in project_ids
+  end
+
+  def project_access_permitted(_, _) do
+    true
   end
 
   def projects_match(%User{}, %Project{}) do

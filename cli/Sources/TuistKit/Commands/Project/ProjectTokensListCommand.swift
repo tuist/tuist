@@ -7,7 +7,8 @@ struct ProjectTokensListCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "list",
             _superCommandName: "tokens",
-            abstract: "List Tuist project tokens."
+            abstract: "List Tuist project tokens.",
+            shouldDisplay: false
         )
     }
 

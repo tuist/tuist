@@ -159,7 +159,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             )
             .willReturn(
                 GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
-                    acc[target] = target.target.name
+                    acc[target] = .test(hash: target.target.name)
                 }
             )
 
@@ -334,7 +334,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             )
             .willReturn(
                 GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
-                    acc[target] = target.target.name
+                    acc[target] = .test(hash: target.target.name)
                 }
             )
 
@@ -466,7 +466,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             )
             .willReturn(
                 GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
-                    acc[target] = target.target.name
+                    acc[target] = .test(hash: target.target.name)
                 }
             )
 
@@ -540,7 +540,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             )
             .willReturn(
                 GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
-                    acc[target] = target.target.name
+                    acc[target] = .test(hash: target.target.name)
                 }
             )
 
@@ -646,7 +646,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             )
             .willReturn(
                 GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
-                    acc[target] = target.target.name
+                    acc[target] = .test(hash: target.target.name)
                 }
             )
 

@@ -81,7 +81,6 @@ Here's an example workflow for GitHub Actions for resolving and caching dependen
   with:
     path: .build
     key: ${{ runner.os }}-${{ hashFiles('App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-    restore-keys: .build
 - name: Resolve dependencies
   if: steps.cache-restore.outputs.cache-hit != 'true'
   run: xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build

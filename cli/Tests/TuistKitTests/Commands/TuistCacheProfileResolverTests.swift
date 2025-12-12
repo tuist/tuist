@@ -5,7 +5,7 @@ import TuistCore
 @testable import TuistKit
 
 struct TuistCacheProfileResolverTests {
-    @Test func resolves_allPossible_when_targets_focused_even_if_explicit_set() throws {
+    @Test func explicit_cache_profile_overrides_target_focus() throws {
         // Given
         let config = Tuist.test(project: .testGeneratedProject())
 
@@ -14,6 +14,36 @@ struct TuistCacheProfileResolverTests {
             ignoreBinaryCache: false,
             includedTargets: ["App"],
             cacheProfile: CacheProfileType.none
+        )
+
+        // Then
+        #expect(result == .none)
+    }
+
+    @Test func target_focus_implies_allPossible_when_no_explicit_cache_profile() throws {
+        // Given
+        let config = Tuist.test(project: .testGeneratedProject())
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: ["App"],
+            cacheProfile: nil
+        )
+
+        // Then
+        #expect(result == .allPossible)
+    }
+
+    @Test func target_focus_overrides_explicit_onlyExternal() throws {
+        // Given
+        let config = Tuist.test(project: .testGeneratedProject())
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: ["App"],
+            cacheProfile: CacheProfileType.onlyExternal
         )
 
         // Then

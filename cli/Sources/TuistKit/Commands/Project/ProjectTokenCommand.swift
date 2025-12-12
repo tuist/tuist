@@ -8,6 +8,7 @@ struct ProjectTokensCommand: AsyncParsableCommand {
             commandName: "tokens",
             _superCommandName: "project",
             abstract: "Manage Tuist project tokens.",
+            shouldDisplay: false,
             subcommands: [
                 ProjectTokensCreateCommand.self,
                 ProjectTokensListCommand.self,

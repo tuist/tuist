@@ -2,10 +2,9 @@ import ArgumentParser
 import Foundation
 import Mockable
 import Path
-import TuistAnalytics
-import TuistAsyncQueue
 import TuistCore
 import TuistGit
+import TuistProcess
 import TuistServer
 import TuistSupport
 import XCTest
@@ -15,18 +14,15 @@ import XCTest
 
 final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
-    private var asyncQueue: MockAsyncQueuing!
+    private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
 
     override func setUp() {
         super.setUp()
         gitController = MockGitControlling()
-        asyncQueue = MockAsyncQueuing()
-        given(asyncQueue)
-            .waitIfCI()
-            .willReturn()
-        given(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.any)
+        backgroundProcessRunner = MockBackgroundProcessRunning()
+        given(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
             .willReturn()
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
@@ -40,7 +36,7 @@ final class TrackableCommandTests: TuistTestCase {
     override func tearDown() {
         subject = nil
         gitController = nil
-        asyncQueue = nil
+        backgroundProcessRunner = nil
         super.tearDown()
     }
 
@@ -61,29 +57,32 @@ final class TrackableCommandTests: TuistTestCase {
             commandEventFactory: CommandEventFactory(
                 gitController: gitController
             ),
-            asyncQueue: asyncQueue
+            backgroundProcessRunner: backgroundProcessRunner
         )
     }
 
     // MARK: - Tests
 
-    func test_whenCommandFails_dispatchesEventWithExpectedInfo() async throws {
+    func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
         await XCTAssertThrowsSpecific(
             try await subject.run(
-                backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())
+                fullHandle: "tuist/tuist",
+                serverURL: .test(),
+                shouldTrackAnalytics: true
             ),
             TestCommand.TestError.commandFailed
         )
 
         // Then
-        verify(asyncQueue)
-            .dispatch(
-                event: Parameter<CommandEvent>.matching { event in
-                    event.name == "test" && event.status == .failure("Command failed")
-                }
+        verify(backgroundProcessRunner)
+            .runInBackground(
+                .matching { arguments in
+                    arguments.contains("analytics-upload")
+                },
+                environment: .any
             )
             .called(1)
     }
@@ -93,27 +92,27 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
+        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.any)
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
             .called(1)
         verify(gitController)
             .gitInfo(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
             .called(1)
     }
 
-    func test_whenPathIsInArguments_and_no_backend_is_set() async throws {
+    func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(backend: nil)
+        try await subject.run(fullHandle: nil, serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.any)
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
             .called(0)
         verify(gitController)
             .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
@@ -125,35 +124,15 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm"])
 
         // When
-        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
+        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
 
         // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.any)
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
             .called(1)
         verify(gitController)
             .gitInfo(workingDirectory: .value(fileHandler.currentPath))
             .called(1)
-    }
-
-    func test_when_command_event_is_required_to_be_uploaded() async throws {
-        // Given
-        given(asyncQueue)
-            .wait()
-            .willReturn()
-        makeSubject(
-            analyticsRequired: true
-        )
-
-        // When
-        try await subject.run(
-            backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test())
-        )
-
-        // Then
-        verify(asyncQueue)
-            .wait()
-            .called(0)
     }
 }
 
@@ -185,11 +164,5 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
         if shouldFail {
             throw TestError.commandFailed
         }
-    }
-}
-
-final class MockTuistServerAnalyticsBackend: TuistAnalyticsServerBackend {
-    override func send(commandEvent _: CommandEvent) async throws -> ServerCommandEvent {
-        return .test()
     }
 }

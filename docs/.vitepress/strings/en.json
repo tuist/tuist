@@ -379,6 +379,39 @@
           "items": {
             "continuous-integration": {
               "text": "Continuous integration"
+            },
+            "sso": {
+              "text": "SSO"
+            },
+            "git-forges": {
+              "text": "Git forges",
+              "items": {
+                "github": {
+                  "text": "GitHub"
+                }
+              }
+            }
+          }
+        },
+        "server": {
+          "text": "Server",
+          "items": {
+            "accounts-and-projects": {
+              "text": "Accounts and projects"
+            },
+            "authentication": {
+              "text": "Authentication"
+            },
+            "self-hosting": {
+              "text": "Self-hosting",
+              "items": {
+                "installation": {
+                  "text": "Installation"
+                },
+                "telemetry": {
+                  "text": "Telemetry"
+                }
+              }
             }
           }
         },

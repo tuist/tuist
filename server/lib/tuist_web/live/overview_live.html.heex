@@ -105,7 +105,7 @@
         id="widget-average-build-time"
         trend_value={@build_analytics.trend}
         trend_label={@analytics_trend_label}
-        trend_inverse={true}
+        trend_type={:inverse}
         empty={@build_analytics.total_average_duration == 0}
       />
       <.widget
@@ -121,7 +121,7 @@
         id="widget-average-test-time"
         trend_value={@test_analytics.trend}
         trend_label={@analytics_trend_label}
-        trend_inverse={true}
+        trend_type={:inverse}
         empty={@test_analytics.total_average_duration == 0}
       />
     </div>
@@ -442,7 +442,7 @@
       :if={Enum.empty?(@latest_app_previews)}
       data-part="empty-previews-card-section"
       title={gettext("No previews yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/share/previews"
+      get_started_href="https://docs.tuist.dev/en/guides/features/previews"
     >
       <:image>
         <img src="/images/empty_previews_light.png" data-theme="light" />

@@ -71,7 +71,7 @@ import XcodeGraph
                     )
                     .willReturn(
                         [
-                            GraphTarget(path: temporaryPath, target: targetA, project: project): "hash-a",
+                            GraphTarget(path: temporaryPath, target: targetA, project: project): .test(hash: "hash-a"),
                         ]
                     )
 
@@ -99,7 +99,7 @@ import XcodeGraph
                     .called(1)
                 #expect(
                     got == [
-                        GraphTarget(path: temporaryPath, target: targetA, project: project): "hash-a",
+                        GraphTarget(path: temporaryPath, target: targetA, project: project): .test(hash: "hash-a"),
                     ]
                 )
             }

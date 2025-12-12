@@ -1,8 +1,10 @@
 import Foundation
 import Mockable
+import Noora
 import Path
 import TuistCore
 import TuistLoader
+import TuistOIDC
 import TuistServer
 import TuistSupport
 
@@ -19,6 +21,7 @@ protocol LoginServicing: AnyObject {
 enum LoginServiceEvent: CustomStringConvertible {
     case openingBrowser(URL)
     case waitForAuthentication
+    case oidcAuthenticating
     case completed
 
     var description: String {
@@ -27,6 +30,8 @@ enum LoginServiceEvent: CustomStringConvertible {
             "Opening \(url.absoluteString) to start the authentication flow"
         case .waitForAuthentication:
             "Press CTRL + C once to cancel the process."
+        case .oidcAuthenticating:
+            "Detected CI environment, authenticating with OIDC..."
         case .completed:
             "Successfully logged in."
         }
@@ -39,6 +44,8 @@ final class LoginService: LoginServicing {
     private let configLoader: ConfigLoading
     private let userInputReader: UserInputReading
     private let authenticateService: AuthenticateServicing
+    private let ciOIDCAuthenticator: CIOIDCAuthenticating
+    private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
 
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
@@ -46,12 +53,16 @@ final class LoginService: LoginServicing {
         configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
+        ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
+        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
     ) {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.userInputReader = userInputReader
         self.authenticateService = authenticateService
+        self.ciOIDCAuthenticator = ciOIDCAuthenticator
+        self.exchangeOIDCTokenService = exchangeOIDCTokenService
     }
 
     // MARK: - AuthServicing
@@ -79,10 +90,30 @@ final class LoginService: LoginServicing {
                 password: password,
                 serverURL: serverURL
             )
+        } else if Environment.current.isCI {
+            try await authenticateWithCIOIDC(serverURL: serverURL, onEvent: onEvent)
         } else {
             try await authenticateWithBrowserLogin(serverURL: serverURL, onEvent: onEvent)
         }
         await onEvent(.completed)
+    }
+
+    private func authenticateWithCIOIDC(
+        serverURL: URL,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
+    ) async throws {
+        await onEvent(.oidcAuthenticating)
+
+        let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
+        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+            oidcToken: oidcToken,
+            serverURL: serverURL
+        )
+
+        try await ServerCredentialsStore.current.store(
+            credentials: ServerCredentials(accessToken: accessToken),
+            serverURL: serverURL
+        )
     }
 
     private func authenticateWithEmailAndPassword(
@@ -141,8 +172,8 @@ extension LoginServicing {
         switch event {
         case .completed:
             AlertController.current.success(.alert("\(event.description)"))
-        default:
-            Logger.current.notice("\(event.description)")
+        case .oidcAuthenticating, .openingBrowser, .waitForAuthentication:
+            Noora.current.info(.init(stringLiteral: event.description))
         }
     }
 }
