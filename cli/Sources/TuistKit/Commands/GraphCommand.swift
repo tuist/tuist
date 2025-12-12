@@ -82,7 +82,7 @@ public struct GraphCommand: AsyncParsableCommand {
     var outputPath: String?
 
     public func run() async throws {
-        try await GraphService().run(
+        try await GraphCommandService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
@@ -99,7 +99,7 @@ public struct GraphCommand: AsyncParsableCommand {
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, legacyJSON, png, svg
+    case dot, toon, json, legacyJSON, png, svg
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {

@@ -286,25 +286,19 @@ extension ProjectAutomation.BuildConfiguration.Variant {
     }
 }
 
-enum GraphServiceError: FatalError {
+enum GraphServiceError: LocalizedError {
     case jsonNotValidForVisualExport
+    case toonNotValidForVisualExport
     case encodingError(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .jsonNotValidForVisualExport:
-            return "json format is not valid for visual export"
+            return "The json format is not valid for visual export."
+        case .toonNotValidForVisualExport:
+            return "The toon format is not valid for visual export."
         case let .encodingError(format):
-            return "failed to encode graph to \(format)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .jsonNotValidForVisualExport:
-            return .abort
-        case .encodingError:
-            return .abort
+            return "Failed to encode graph to \(format)."
         }
     }
 }

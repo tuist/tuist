@@ -692,6 +692,30 @@
       }
     },
     {
+      "identity" : "tadija.AEXML",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "4.7.0"
+      }
+    },
+    {
+      "identity" : "tid-kijyun.Kanna",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "5.3.0"
+      }
+    },
+    {
+      "identity" : "toon-format.toon-swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.0"
+      }
+    },
+    {
       "identity" : "tuist.Command",
       "kind" : "registry",
       "location" : "",
