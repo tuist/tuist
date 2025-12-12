@@ -29,15 +29,15 @@ config :cache, Oban,
   engine: Oban.Engines.Lite,
   notifier: Oban.Notifiers.PG,
   queues: [
-    s3_uploads: 10,
-    s3_downloads: 10,
-    maintenance: 1
+    maintenance: 1,
+    s3_transfers: 1
   ],
   plugins: [
     Oban.Plugins.Pruner,
     {Oban.Plugins.Cron,
      crontab: [
-       {"*/10 * * * *", Cache.DiskEvictionWorker}
+       {"*/10 * * * *", Cache.DiskEvictionWorker},
+       {"* * * * *", Cache.S3TransferWorker}
      ]}
   ]
 

@@ -2,7 +2,10 @@ defmodule Cache.S3Test do
   use ExUnit.Case, async: false
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.S3
+  alias ExAws.S3.Upload
 
   describe "presign_download_url/1" do
     test "returns presigned URL when bucket configured" do
@@ -95,6 +98,282 @@ defmodule Cache.S3Test do
       expect(ExAws, :request, fn _head_object -> {:error, :timeout} end)
 
       assert S3.exists?(key) == false
+    end
+  end
+
+  describe "upload/3" do
+    test "uploads file to S3 when local file exists" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      File.write!(local_path, "test content")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
+
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+        {:upload_operation, "test-bucket", key}
+      end)
+
+      expect(ExAws, :request, fn {:upload_operation, "test-bucket", ^key} ->
+        {:ok, %{status_code: 200}}
+      end)
+
+      capture_log(fn ->
+        assert :ok = S3.upload(account_handle, project_handle, artifact_id)
+      end)
+    end
+
+    test "returns :ok when local file does not exist" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> "/nonexistent/path/file" end)
+
+      capture_log(fn ->
+        assert :ok = S3.upload(account_handle, project_handle, artifact_id)
+      end)
+    end
+
+    test "returns error on S3 failure" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      File.write!(local_path, "test content")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
+
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+        {:upload_operation, "test-bucket", key}
+      end)
+
+      expect(ExAws, :request, fn {:upload_operation, "test-bucket", ^key} ->
+        {:error, :timeout}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :timeout} = S3.upload(account_handle, project_handle, artifact_id)
+      end)
+    end
+
+    test "returns :rate_limited error on 429 response" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      File.write!(local_path, "test content")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
+
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+        {:upload_operation, "test-bucket", key}
+      end)
+
+      expect(ExAws, :request, fn {:upload_operation, "test-bucket", ^key} ->
+        {:error, {:http_error, 429, %{body: "Too many requests"}}}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :rate_limited} = S3.upload(account_handle, project_handle, artifact_id)
+      end)
+    end
+  end
+
+  describe "download/3" do
+    test "downloads file from S3 when it exists" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
+        {:download_operation, "test-bucket", key, local_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
+        File.write!(local_path, "downloaded content")
+        {:ok, :done}
+      end)
+
+      expect(Cache.Disk, :stat, fn ^account_handle, ^project_handle, ^artifact_id ->
+        {:ok, %{size: 18}}
+      end)
+
+      :telemetry.attach(
+        "test-download-handler",
+        [:cache, :cas, :download, :s3_hit],
+        fn event, measurements, metadata, _config ->
+          send(self(), {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      capture_log(fn ->
+        assert :ok = S3.download(account_handle, project_handle, artifact_id)
+      end)
+
+      assert_receive {:telemetry_event, [:cache, :cas, :download, :s3_hit], %{size: 18},
+                      %{
+                        cas_id: ^artifact_id,
+                        account_handle: ^account_handle,
+                        project_handle: ^project_handle
+                      }}
+
+      :telemetry.detach("test-download-handler")
+    end
+
+    test "returns :ok and emits s3_miss telemetry when file does not exist in S3" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, {:http_error, 404, "Not Found"}} end)
+
+      :telemetry.attach(
+        "test-download-miss-handler",
+        [:cache, :cas, :download, :s3_miss],
+        fn event, measurements, metadata, _config ->
+          send(self(), {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      capture_log(fn ->
+        assert :ok = S3.download(account_handle, project_handle, artifact_id)
+      end)
+
+      assert_receive {:telemetry_event, [:cache, :cas, :download, :s3_miss], %{},
+                      %{
+                        cas_id: ^artifact_id,
+                        account_handle: ^account_handle,
+                        project_handle: ^project_handle
+                      }}
+
+      :telemetry.detach("test-download-miss-handler")
+    end
+
+    test "returns error on S3 download failure" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
+        {:download_operation, "test-bucket", key, local_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
+        {:error, :timeout}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :timeout} = S3.download(account_handle, project_handle, artifact_id)
+      end)
+    end
+
+    test "returns :rate_limited error on 429 during exists check" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+        {:error, {:http_error, 429, %{body: "Too many requests"}}}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :rate_limited} = S3.download(account_handle, project_handle, artifact_id)
+      end)
+    end
+
+    test "returns :rate_limited error on 429 during download" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      artifact_id = "test_hash"
+      key = "test_account/test_project/cas/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      expect(Cache.Disk, :cas_key, fn ^account_handle, ^project_handle, ^artifact_id -> key end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
+        {:download_operation, "test-bucket", key, local_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
+        {:error, {:http_error, 429, %{body: "Too many requests"}}}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :rate_limited} = S3.download(account_handle, project_handle, artifact_id)
+      end)
     end
   end
 end

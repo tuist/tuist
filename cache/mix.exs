@@ -55,6 +55,7 @@ defmodule Cache.MixProject do
       {:req, "~> 0.1"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
+      {:uuid_v7, "~> 0.6"},
       {:ymlr, "~> 5.0"}
     ]
   end

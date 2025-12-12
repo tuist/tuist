@@ -1,13 +1,13 @@
 defmodule CacheWeb.CASControllerTest do
   use CacheWeb.ConnCase, async: true
   use Mimic
-  use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog
 
   alias Cache.Authentication
   alias Cache.CASArtifacts
   alias Cache.Disk
+  alias Cache.S3Transfers
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
@@ -47,7 +47,13 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      assert_enqueued(worker: Cache.S3UploadWorker, args: %{key: "#{account_handle}/#{project_handle}/cas/#{id}"})
+      uploads = S3Transfers.pending(:upload, 10)
+      assert length(uploads) == 1
+      upload = hd(uploads)
+      assert upload.type == :upload
+      assert upload.account_handle == account_handle
+      assert upload.project_handle == project_handle
+      assert upload.artifact_id == id
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -83,7 +89,13 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      assert_enqueued(worker: Cache.S3UploadWorker, args: %{key: "#{account_handle}/#{project_handle}/cas/#{id}"})
+      uploads = S3Transfers.pending(:upload, 10)
+      assert length(uploads) == 1
+      upload = hd(uploads)
+      assert upload.type == :upload
+      assert upload.account_handle == account_handle
+      assert upload.project_handle == project_handle
+      assert upload.artifact_id == id
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -321,10 +333,13 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      assert_enqueued(
-        worker: Cache.S3DownloadWorker,
-        args: %{account_handle: account_handle, project_handle: project_handle, id: id}
-      )
+      downloads = S3Transfers.pending(:download, 10)
+      assert length(downloads) == 1
+      download = hd(downloads)
+      assert download.type == :download
+      assert download.account_handle == account_handle
+      assert download.project_handle == project_handle
+      assert download.artifact_id == id
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do
