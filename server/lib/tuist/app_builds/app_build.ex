@@ -31,6 +31,8 @@ defmodule Tuist.AppBuilds.AppBuild do
         macos: 8
       ]
 
+    field :binary_id, :string
+
     timestamps(type: :utc_datetime)
   end
 
@@ -40,7 +42,8 @@ defmodule Tuist.AppBuilds.AppBuild do
       :preview_id,
       :type,
       :inserted_at,
-      :supported_platforms
+      :supported_platforms,
+      :binary_id
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:preview_id, :type])

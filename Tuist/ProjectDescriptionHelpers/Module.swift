@@ -35,6 +35,7 @@ public enum Module: String, CaseIterable {
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
+    case sdk = "TuistSDK"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -242,7 +243,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting, .simulator, .testing, .process:
+             .acceptanceTesting, .simulator, .testing, .process, .sdk:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -259,6 +260,8 @@ public enum Module: String, CaseIterable {
             return .commandLineTool
         case .projectAutomation, .projectDescription:
             return forceStaticLinking() ? .staticFramework : .framework
+        case .sdk:
+            return .framework
         default:
             return .staticFramework
         }
@@ -339,7 +342,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:project-loading")
         case .dependencies:
             moduleTags.append("domain:dependencies")
-        case .server, .oidc:
+        case .server, .oidc, .sdk:
             moduleTags.append("domain:server")
         case .kit:
             moduleTags.append("domain:cli")
@@ -717,8 +720,10 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
                 ]
+            case .sdk:
+                []
             }
-        if self != .projectDescription, self != .projectAutomation {
+        if self != .projectDescription, self != .projectAutomation, self != .sdk {
             dependencies.append(contentsOf: sharedDependencies)
         }
         return dependencies
@@ -727,7 +732,7 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process:
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process, .sdk:
                 []
             case .tuistFixtureGenerator:
                 [
