@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* migrate Fixtures - Tuist initializer with .project by [@2sem](https://github.com/2sem) in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+## New Contributors
+* [@2sem](https://github.com/2sem) made their first contribution in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.0...4.115.1
+
 ## What's Changed in 4.115.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
