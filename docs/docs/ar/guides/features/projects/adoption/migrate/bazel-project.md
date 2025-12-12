@@ -29,7 +29,6 @@ concepts (e.g., targets, schemes, build settings), a familiar language (i.e.,
 Swift), and a simple and enjoyable experience that makes maintaining and scaling
 projects everyone's job and not just the iOS platform team's.
 <!-- -->
-:::
 
 ## Rules {#rules}
 
@@ -40,7 +39,6 @@ convenience of using Xcode's autocompletion, type-checking, and validation
 features. For example, the following rule describes how to build a Swift library
 in Bazel:
 
-::: code-group
 ```txt [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
@@ -58,12 +56,10 @@ let project = Project(
 )
 ```
 <!-- -->
-:::
 
 Here's another example but comparing how to define unit tests in Bazel and
 Tuist:
 
-::: code-group
 ```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
@@ -92,7 +88,6 @@ let project = Project(
 )
 ```
 <!-- -->
-:::
 
 
 ## Swift Package Manager dependencies {#swift-package-manager-dependencies}
