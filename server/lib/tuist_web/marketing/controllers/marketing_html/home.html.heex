@@ -156,16 +156,6 @@
       <div data-part="rows">
         <div
           data-part="org-logo"
-          aria-label="Bumble"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.bumble_org_logo_color />
-          <% else %>
-            <.bumble_org_logo />
-          <% end %>
-        </div>
-        <div
-          data-part="org-logo"
           aria-label="Asana"
         >
           <%= if Gettext.get_locale() == "ko" do %>
@@ -541,7 +531,6 @@
         </div>
         <header data-part="content">
           <div data-part="name">
-            <.bumble_testimonial_logo />
             <.button
               href="https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7"
               variant="secondary"
