@@ -148,6 +148,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:511
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:536
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
 msgstr ""

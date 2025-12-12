@@ -21,7 +21,7 @@ defmodule TuistWeb.ProjectsLive do
 
     if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.NotFoundError,
-            gettext("The page you are looking for doesn't exist or has been moved.")
+            dgettext("dashboard_projects", "The page you are looking for doesn't exist or has been moved.")
     end
 
     form = to_form(Project.create_changeset(%{}))
@@ -30,7 +30,7 @@ defmodule TuistWeb.ProjectsLive do
      socket
      |> assign(:form, form)
      |> assign(:selected_tab, "projects")
-     |> assign(:head_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")
+     |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
   end
 
@@ -121,7 +121,7 @@ defmodule TuistWeb.ProjectsLive do
     ~H"""
     <div id="projects">
       <div data-part="row">
-        <h2 data-part="title">{gettext("Projects")}</h2>
+        <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
         <.create_project_form id="create-project-form" form={@form} source="header" />
       </div>
 
@@ -162,12 +162,12 @@ defmodule TuistWeb.ProjectsLive do
               </div>
             </div>
             <span :if={project.last_interacted_at} data-part="time">
-              {gettext("Last interacted with %{time}", %{
+              {dgettext("dashboard_projects", "Last interacted with %{time}", %{
                 time: DateFormatter.from_now(project.last_interacted_at)
               })}
             </span>
             <span :if={!project.last_interacted_at} data-part="time">
-              {gettext("Created %{time}", %{
+              {dgettext("dashboard_projects", "Created %{time}", %{
                 time: DateFormatter.from_now(project.created_at)
               })}
             </span>
@@ -177,7 +177,7 @@ defmodule TuistWeb.ProjectsLive do
         <!-- Complex layout for 7+ projects -->
         <!-- Recent projects section -->
         <div :if={Enum.any?(@recent_projects)} data-part="recent-section">
-          <h3 data-part="section-title">{gettext("Recent projects")}</h3>
+          <h3 data-part="section-title">{dgettext("dashboard_projects", "Recent projects")}</h3>
           <div data-part="grid">
             <div
               :for={project <- @recent_projects}
@@ -193,7 +193,7 @@ defmodule TuistWeb.ProjectsLive do
                 :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
                 data-part="platforms"
               >
-                <h3>{gettext("Supported platforms")}</h3>
+                <h3>{dgettext("dashboard_projects", "Supported platforms")}</h3>
                 <div data-part="tags">
                   <.tag
                     :for={
@@ -205,12 +205,12 @@ defmodule TuistWeb.ProjectsLive do
                 </div>
               </div>
               <span :if={project.last_interacted_at} data-part="time">
-                {gettext("Last interacted with %{time}", %{
+                {dgettext("dashboard_projects", "Last interacted with %{time}", %{
                   time: DateFormatter.from_now(project.last_interacted_at)
                 })}
               </span>
               <span :if={!project.last_interacted_at} data-part="time">
-                {gettext("Created %{time}", %{
+                {dgettext("dashboard_projects", "Created %{time}", %{
                   time: DateFormatter.from_now(project.created_at)
                 })}
               </span>
@@ -220,7 +220,7 @@ defmodule TuistWeb.ProjectsLive do
         
     <!-- All projects section -->
         <div data-part="all-section">
-          <h3 data-part="section-title">{gettext("All projects")}</h3>
+          <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
           <.form
             for={%{}}
             phx-change="search"
@@ -232,7 +232,7 @@ defmodule TuistWeb.ProjectsLive do
               id="projects-search-input"
               name="search"
               value={@search_term}
-              placeholder={gettext("Search projects...")}
+              placeholder={dgettext("dashboard_projects", "Search projects...")}
               phx-debounce="100"
             />
           </.form>
@@ -272,12 +272,12 @@ defmodule TuistWeb.ProjectsLive do
                 </div>
               </div>
               <span :if={project.last_interacted_at} data-part="time">
-                {gettext("Last interacted with %{time}", %{
+                {dgettext("dashboard_projects", "Last interacted with %{time}", %{
                   time: DateFormatter.from_now(project.last_interacted_at)
                 })}
               </span>
               <span :if={!project.last_interacted_at} data-part="time">
-                {gettext("Created %{time}", %{
+                {dgettext("dashboard_projects", "Created %{time}", %{
                   time: DateFormatter.from_now(project.created_at)
                 })}
               </span>
@@ -301,19 +301,19 @@ defmodule TuistWeb.ProjectsLive do
   defp create_project_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="create-project">
-      <.modal id={"#{@id}-modal"} title={gettext("Create project")} on_dismiss="close-create-project">
+      <.modal id={"#{@id}-modal"} title={dgettext("dashboard_projects", "Create project")} on_dismiss="close-create-project">
         <:trigger :let={attrs}>
-          <.button :if={@source == "header"} variant="primary" label={gettext("New project")} {attrs} />
+          <.button :if={@source == "header"} variant="primary" label={dgettext("dashboard_projects", "New project")} {attrs} />
           <.button
             :if={@source == "empty-state"}
             variant="secondary"
             size="medium"
-            label={gettext("Create a new project")}
+            label={dgettext("dashboard_projects", "Create a new project")}
             {attrs}
           />
         </:trigger>
         <.line_divider />
-        <.text_input id={"#{@id}-input"} field={@form[:name]} label={gettext("Name")} />
+        <.text_input id={"#{@id}-input"} field={@form[:name]} label={dgettext("dashboard_projects", "Name")} />
         <.line_divider />
         <:footer>
           <.modal_footer>

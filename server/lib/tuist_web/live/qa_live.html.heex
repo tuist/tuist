@@ -1,11 +1,11 @@
 <%= if @has_qa_runs do %>
   <div id="qa">
-    <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+    <.card title={dgettext("dashboard_qa", "Analytics")} icon="chart_arcs" data-part="analytics">
       <:actions>
         <.dropdown
           id="qa-analytics-app-dropdown"
           label={@analytics_app_label}
-          secondary_text={gettext("App:")}
+          secondary_text={dgettext("dashboard_qa", "App:")}
         >
           <.dropdown_item
             value="any"
@@ -28,26 +28,26 @@
         <.button_group size="large">
           <.button_group_item
             patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-            label={gettext("7 days")}
+            label={dgettext("dashboard_qa", "7 days")}
             data-selected={@analytics_date_range == "last_7_days"}
           />
           <.button_group_item
             patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-            label={gettext("30 days")}
+            label={dgettext("dashboard_qa", "30 days")}
             data-selected={@analytics_date_range == "last_30_days"}
           />
           <.button_group_item
             patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-            label={gettext("12 months")}
+            label={dgettext("dashboard_qa", "12 months")}
             data-selected={@analytics_date_range == "last_12_months"}
           />
         </.button_group>
       </:actions>
       <div data-part="widgets">
         <.widget
-          title={gettext("QA runs")}
+          title={dgettext("dashboard_qa", "QA runs")}
           description={
-            gettext(
+            dgettext("dashboard_qa", 
               "QA runs represent the number of QA test sessions executed during a given period."
             )
           }
@@ -62,9 +62,9 @@
           empty={@qa_runs_analytics.count == 0}
         />
         <.widget
-          title={gettext("App issues found")}
+          title={dgettext("dashboard_qa", "App issues found")}
           description={
-            gettext(
+            dgettext("dashboard_qa", 
               "App issues found represents the total number of issues discovered during QA testing in a given period."
             )
           }
@@ -79,14 +79,14 @@
           empty={@qa_runs_analytics.count == 0}
         />
         <.widget
-          title={gettext("Avg. QA duration")}
+          title={dgettext("dashboard_qa", "Avg. QA duration")}
           description={
-            gettext(
+            dgettext("dashboard_qa", 
               "Average QA duration represents the average time it took to complete a QA session during a given period."
             )
           }
           value={
-            gettext("%{qa_average_duration}s",
+            dgettext("dashboard_qa", "%{qa_average_duration}s",
               qa_average_duration:
                 (@qa_duration_analytics.total_average_duration / 1000)
                 |> Decimal.from_float()
@@ -167,14 +167,14 @@
           />
         </div>
       </.card_section>
-      <.empty_card_section :if={@qa_runs_analytics.count == 0} title={gettext("No data yet")}>
+      <.empty_card_section :if={@qa_runs_analytics.count == 0} title={dgettext("dashboard_qa", "No data yet")}>
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
           <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
         </:image>
       </.empty_card_section>
     </.card>
-    <.card title={gettext("QA Sessions")} icon="devices_code" data-part="qa-runs">
+    <.card title={dgettext("dashboard_qa", "QA Sessions")} icon="devices_code" data-part="qa-runs">
       <.card_section data-part="qa-runs-section">
         <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
           <.table
@@ -186,17 +186,17 @@
               end
             }
           >
-            <:col :let={run} label={gettext("Name")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Name")}>
               <.text_cell label={run.app_build.preview.display_name} />
             </:col>
-            <:col :let={run} label={gettext("Status")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Status")}>
               <.badge_cell
                 label={
                   case run.status do
-                    "running" -> gettext("Running")
-                    "pending" -> gettext("Pending")
-                    "failed" -> gettext("Failed")
-                    "completed" -> gettext("Completed")
+                    "running" -> dgettext("dashboard_qa", "Running")
+                    "pending" -> dgettext("dashboard_qa", "Pending")
+                    "failed" -> dgettext("dashboard_qa", "Failed")
+                    "completed" -> dgettext("dashboard_qa", "Completed")
                   end
                 }
                 color={
@@ -210,33 +210,33 @@
                 style="light-fill"
               />
             </:col>
-            <:col :let={run} label={gettext("Platform")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Platform")}>
               <.platform_cell platform={
                 run.app_build.preview.supported_platforms
                 |> Preview.map_simulators_to_devices()
                 |> List.first()
               } />
             </:col>
-            <:col :let={run} label={gettext("Issues")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Issues")}>
               <% issue_count = length(Enum.flat_map(run.run_steps, & &1.issues)) %>
               <.badge_cell
-                label={"#{issue_count} #{ngettext("issue", "issues", issue_count)}"}
+                label={"#{issue_count} #{dngettext("dashboard_qa", "issue", "issues", issue_count)}"}
                 color={if issue_count > 0, do: "warning", else: "success"}
                 style="light-fill"
                 icon={if issue_count > 0, do: "alert_hexagon", else: "check"}
               />
             </:col>
-            <:col :let={run} label={gettext("Branch")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Branch")}>
               <.text_cell
                 icon="git_branch"
-                label={run.app_build.preview.git_branch || gettext("None")}
+                label={run.app_build.preview.git_branch || dgettext("dashboard_qa", "None")}
               />
             </:col>
-            <:col :let={run} label={gettext("Commit SHA")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Commit SHA")}>
               <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
             </:col>
-            <:col :let={run} label={gettext("Duration")}>
-              <.text_cell :if={is_nil(run.finished_at)} label={gettext("In progress")} />
+            <:col :let={run} label={dgettext("dashboard_qa", "Duration")}>
+              <.text_cell :if={is_nil(run.finished_at)} label={dgettext("dashboard_qa", "In progress")} />
               <.text_cell
                 :if={not is_nil(run.finished_at)}
                 icon="history"
@@ -248,7 +248,7 @@
                 }
               />
             </:col>
-            <:col :let={run} label={gettext("Started at")}>
+            <:col :let={run} label={dgettext("dashboard_qa", "Started at")}>
               <.text_cell label={DateFormatter.from_now(run.inserted_at)} />
             </:col>
           </.table>
@@ -263,7 +263,7 @@
 
         <div :if={Enum.empty?(@qa_runs)} data-part="empty-qa-runs">
           <.empty_card_section
-            title={gettext("No QA runs yet")}
+            title={dgettext("dashboard_qa", "No QA runs yet")}
             data-part="empty-qa-runs-table-card-section"
           >
             <:image>
@@ -292,17 +292,17 @@
       <.card_section data-part="step-one">
         <div data-part="header">
           <span data-part="title">
-            {gettext("1. Upload a preview from a PR")}
+            {dgettext("dashboard_qa", "1. Upload a preview from a PR")}
           </span>
           <span data-part="subtitle">
-            {gettext(
+            {dgettext("dashboard_qa", 
               "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
             )}
           </span>
         </div>
         <.button
           data-part="documentation-button"
-          label={gettext("Tuist documentation")}
+          label={dgettext("dashboard_qa", "Tuist documentation")}
           variant="primary"
           size="large"
           href="https://docs.tuist.dev/en/guides/features/qa"
@@ -315,15 +315,15 @@
       <.card_section data-part="step-two">
         <div data-part="header">
           <span data-part="title">
-            {gettext("2. Trigger the QA session from the PR")}
+            {dgettext("dashboard_qa", "2. Trigger the QA session from the PR")}
           </span>
           <span data-part="subtitle">
-            {gettext("Start the QA session from GitHub with the sample command below.")}
+            {dgettext("dashboard_qa", "Start the QA session from GitHub with the sample command below.")}
           </span>
         </div>
         <.terminal
           id="qa-empty-state-terminal"
-          title={gettext("GitHub comment")}
+          title={dgettext("dashboard_qa", "GitHub comment")}
           command="/tuist qa <prompt for the agent>"
         />
       </.card_section>

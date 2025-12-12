@@ -12,7 +12,7 @@ defmodule TuistWeb.UserLoginLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Log in")} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
       |> assign(:github_configured?, Environment.github_oauth_configured?())
       |> assign(:google_configured?, Environment.google_oauth_configured?())
@@ -32,14 +32,14 @@ defmodule TuistWeb.UserLoginLive do
     <div id="login">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
           </div>
           <div data-part="header">
-            <h1 data-part="title">{gettext("Log in to Tuist")}</h1>
-            <span data-part="subtitle">{gettext("Welcome back! Please log in to continue")}</span>
+            <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
+            <span data-part="subtitle">{dgettext("dashboard_auth", "Welcome back! Please log in to continue")}</span>
           </div>
           <div
             :if={oauth_configured?()}
@@ -126,7 +126,7 @@ defmodule TuistWeb.UserLoginLive do
             <.text_input
               field={@form[:email]}
               id="email"
-              label={gettext("Email address")}
+              label={dgettext("dashboard_auth", "Email address")}
               type="email"
               placeholder="hello@tuist.dev"
               show_prefix={false}
@@ -137,7 +137,7 @@ defmodule TuistWeb.UserLoginLive do
             />
             <.text_input
               field={@form[:password]}
-              label={gettext("Password")}
+              label={dgettext("dashboard_auth", "Password")}
               id="password"
               input_type="password"
               show_prefix={false}
@@ -150,26 +150,26 @@ defmodule TuistWeb.UserLoginLive do
               <.checkbox
                 id="remember_me"
                 field={@form[:remember_me]}
-                label={gettext("Keep me logged in")}
+                label={dgettext("dashboard_auth", "Keep me logged in")}
                 tabindex={3}
               />
               <.link_button
                 navigate={~p"/users/reset_password"}
                 variant="primary"
                 size="large"
-                label={gettext("Forgot password?")}
+                label={dgettext("dashboard_auth", "Forgot password?")}
               />
             </div>
-            <.button variant="primary" size="large" label={gettext("Log in")} tabindex={4} />
+            <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Log in")} tabindex={4} />
           </.form>
         </div>
         <div data-part="bottom-link">
-          <span>{gettext("Don't have an account?")}</span>
+          <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
             variant="primary"
             size="large"
-            label={gettext("Sign up")}
+            label={dgettext("dashboard_auth", "Sign up")}
           />
         </div>
       </div>

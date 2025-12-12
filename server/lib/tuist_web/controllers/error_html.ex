@@ -13,25 +13,25 @@ defmodule TuistWeb.ErrorHTML do
 
   def render("400.html", %{reason: %TuistWeb.Errors.BadRequestError{message: error_message}} = assigns) do
     assigns
-    |> Map.put(:head_title, gettext("Bad request"))
+    |> Map.put(:head_title, dgettext("dashboard", "Bad request"))
     |> Map.put(:title, error_message)
     |> Map.put(
       :message,
       error_message
     )
-    |> Map.put(:error_name, gettext("400"))
+    |> Map.put(:error_name, dgettext("dashboard", "400"))
     |> render_error_page()
   end
 
   def render("401.html", assigns) do
     assigns
-    |> Map.put(:head_title, gettext("Unauthorized"))
-    |> Map.put(:title, gettext("You are not authorized to view this page"))
+    |> Map.put(:head_title, dgettext("dashboard", "Unauthorized"))
+    |> Map.put(:title, dgettext("dashboard", "You are not authorized to view this page"))
     |> Map.put(
       :message,
-      gettext("Please, make sure you are accessing the right resource and that you have the permissions to access it.")
+      dgettext("dashboard", "Please, make sure you are accessing the right resource and that you have the permissions to access it.")
     )
-    |> Map.put(:error_name, gettext("401"))
+    |> Map.put(:error_name, dgettext("dashboard", "401"))
     |> render_error_page()
   end
 
@@ -40,19 +40,19 @@ defmodule TuistWeb.ErrorHTML do
 
     reason_message =
       if is_nil(reason) do
-        gettext("Sorry, the page you are looking for doesn't exist or has been moved.")
+        dgettext("dashboard", "Sorry, the page you are looking for doesn't exist or has been moved.")
       else
         reason.message
       end
 
     assigns
-    |> Map.put(:head_title, gettext("Not found"))
-    |> Map.put(:title, gettext("Oops, we couldn't find that page"))
+    |> Map.put(:head_title, dgettext("dashboard", "Not found"))
+    |> Map.put(:title, dgettext("dashboard", "Oops, we couldn't find that page"))
     |> Map.put(
       :message,
       reason_message
     )
-    |> Map.put(:error_name, gettext("404"))
+    |> Map.put(:error_name, dgettext("dashboard", "404"))
     |> render_error_page()
   end
 
@@ -61,31 +61,31 @@ defmodule TuistWeb.ErrorHTML do
 
     reason_message =
       if is_nil(reason) do
-        gettext("Sorry, you made too many requests. Please try again later.")
+        dgettext("dashboard", "Sorry, you made too many requests. Please try again later.")
       else
         reason.message
       end
 
     assigns
-    |> Map.put(:head_title, gettext("Too many requests"))
-    |> Map.put(:title, gettext("Too many requests."))
+    |> Map.put(:head_title, dgettext("dashboard", "Too many requests"))
+    |> Map.put(:title, dgettext("dashboard", "Too many requests."))
     |> Map.put(
       :message,
       reason_message
     )
-    |> Map.put(:error_name, gettext("429"))
+    |> Map.put(:error_name, dgettext("dashboard", "429"))
     |> render_error_page()
   end
 
   def render("500.html", assigns) do
     assigns
-    |> Map.put(:head_title, gettext("Server error"))
-    |> Map.put(:title, gettext("Oops! Something went wrong"))
+    |> Map.put(:head_title, dgettext("dashboard", "Server error"))
+    |> Map.put(:title, dgettext("dashboard", "Oops! Something went wrong"))
     |> Map.put(
       :message,
-      gettext("Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it.")
+      dgettext("dashboard", "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it.")
     )
-    |> Map.put(:error_name, gettext("500"))
+    |> Map.put(:error_name, dgettext("dashboard", "500"))
     |> render_error_page()
   end
 
@@ -112,7 +112,7 @@ defmodule TuistWeb.ErrorHTML do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csp-nonce" content={get_csp_nonce()} />
         <meta name="csrf-token" content={get_csrf_token()} />
-        <.live_title>{"#{@head_title || gettext("Error")} · Tuist"}</.live_title>
+        <.live_title>{"#{@head_title || dgettext("dashboard", "Error")} · Tuist"}</.live_title>
         <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
       </head>
       <body>
@@ -134,7 +134,7 @@ defmodule TuistWeb.ErrorHTML do
           <.button
             variant="primary"
             size="large"
-            label={gettext("Go to dashboard")}
+            label={dgettext("dashboard", "Go to dashboard")}
             navigate={~p"/dashboard"}
           />
         </div>

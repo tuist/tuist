@@ -45,33 +45,33 @@ defmodule TuistWeb.CreateProjectLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_projects", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
-              <h1 data-part="title">{gettext("Create a project")}</h1>
+              <h1 data-part="title">{dgettext("dashboard_projects", "Create a project")}</h1>
               <span data-part="subtitle">
-                {gettext("Create a Tuist project to continue")}
+                {dgettext("dashboard_projects", "Create a Tuist project to continue")}
               </span>
             </div>
             <.form data-part="form" for={@form} id="create-project-form" phx-submit="create_project">
               <.text_input
                 field={@form[:name]}
                 type="basic"
-                label={gettext("Name")}
+                label={dgettext("dashboard_projects", "Name")}
                 show_required={false}
                 required
               />
               <div data-part="dropdown">
-                <.label label={gettext("Select account")} />
+                <.label label={dgettext("dashboard_projects", "Select account")} />
                 <.select
                   id="account-selection"
                   name="account_id"
-                  label={gettext("Account")}
+                  label={dgettext("dashboard_projects", "Account")}
                   hint={
-                    gettext("Choose an account to create your project or set up a new organization.")
+                    dgettext("dashboard_projects", "Choose an account to create your project or set up a new organization.")
                   }
                   value={@selected_account}
                   on_value_change="select_account"
@@ -85,10 +85,10 @@ defmodule TuistWeb.CreateProjectLive do
                 </.select>
               </div>
 
-              <.button variant="primary" label={gettext("Continue")} type="submit" />
-              <.line_divider text={gettext("Or set up a new organization")} />
+              <.button variant="primary" label={dgettext("dashboard_projects", "Continue")} type="submit" />
+              <.line_divider text={dgettext("dashboard_projects", "Or set up a new organization")} />
               <.button
-                label={gettext("Create organization")}
+                label={dgettext("dashboard_projects", "Create organization")}
                 variant="secondary"
                 navigate={~p"/organizations/new"}
               />

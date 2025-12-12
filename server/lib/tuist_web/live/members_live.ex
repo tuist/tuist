@@ -14,7 +14,7 @@ defmodule TuistWeb.MembersLive do
       socket
       |> assign(
         :head_title,
-        "#{gettext("Members")} · #{account.name} · Tuist"
+        "#{dgettext("dashboard_account", "Members")} · #{account.name} · Tuist"
       )
       |> assign(
         form: to_form(%{}, as: :invitation),
@@ -33,14 +33,14 @@ defmodule TuistWeb.MembersLive do
   def render(assigns) do
     ~H"""
     <div id="members">
-      <h2 data-part="title">{gettext("Members")}</h2>
+      <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
       <div data-part="row">
         <.form :if={@selected_inner_tab == "members"} for={%{}} phx-change="search">
           <.text_input
             id="search-members"
             name="search"
             type="search"
-            placeholder={gettext("Search members...")}
+            placeholder={dgettext("dashboard_account", "Search members...")}
             show_suffix={false}
           />
         </.form>
@@ -56,14 +56,14 @@ defmodule TuistWeb.MembersLive do
         <div data-part="root">
           <.tab_menu_horizontal data-part="list">
             <.tab_menu_horizontal_item
-              label={gettext("All members")}
+              label={dgettext("dashboard_account", "All members")}
               phx-click="select-inner-tab"
               phx-value-tab="members"
               data-selected={@selected_inner_tab == "members"}
             />
             <.tab_menu_horizontal_item
               :if={Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok}
-              label={gettext("Invitations")}
+              label={dgettext("dashboard_account", "Invitations")}
               phx-click="select-inner-tab"
               phx-value-tab="invitations"
               data-selected={@selected_inner_tab == "invitations"}
@@ -75,7 +75,7 @@ defmodule TuistWeb.MembersLive do
               rows={@members}
               row_key={fn [member, _role] -> "member-#{member.id}" end}
             >
-              <:col :let={[member, _role]} label={gettext("Member")}>
+              <:col :let={[member, _role]} label={dgettext("dashboard_account", "Member")}>
                 <.text_and_description_cell label={member.account.name}>
                   <:image>
                     <.avatar
@@ -87,16 +87,16 @@ defmodule TuistWeb.MembersLive do
                   </:image>
                 </.text_and_description_cell>
               </:col>
-              <:col :let={[member, _role]} label={gettext("E-mail")}>
+              <:col :let={[member, _role]} label={dgettext("dashboard_account", "E-mail")}>
                 <.text_cell label={member.email} />
               </:col>
-              <:col :let={[_member, role]} label={gettext("Role")}>
+              <:col :let={[_member, role]} label={dgettext("dashboard_account", "Role")}>
                 <.text_cell label={Macro.camelize(role)} />
               </:col>
               <:col :let={[member, role]}>
                 <.modal
                   id={"manage-role-modal-#{member.id}"}
-                  title={gettext("Manage role")}
+                  title={dgettext("dashboard_account", "Manage role")}
                   on_dismiss={"close-manage-role-modal-#{member.id}"}
                   header_type="icon"
                   header_size="small"
@@ -115,19 +115,19 @@ defmodule TuistWeb.MembersLive do
                   </:trigger>
                   <.line_divider />
                   <div data-part="change-role">
-                    <label>{gettext("Role")}</label>
+                    <label>{dgettext("dashboard_account", "Role")}</label>
                     <.dropdown
                       id={"role-dropdown-#{member.id}"}
                       label={
                         case get_selected_role(@managing_member, member.id, role) do
-                          "user" -> gettext("User")
-                          "admin" -> gettext("Admin")
+                          "user" -> dgettext("dashboard_account", "User")
+                          "admin" -> dgettext("dashboard_account", "Admin")
                         end
                       }
                     >
                       <.dropdown_item
                         value="user"
-                        label={gettext("User")}
+                        label={dgettext("dashboard_account", "User")}
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="user"
@@ -137,7 +137,7 @@ defmodule TuistWeb.MembersLive do
                       </.dropdown_item>
                       <.dropdown_item
                         value="admin"
-                        label={gettext("Admin")}
+                        label={dgettext("dashboard_account", "Admin")}
                         phx-click="select-member-role"
                         phx-value-member_id={member.id}
                         phx-value-role="admin"
@@ -154,7 +154,7 @@ defmodule TuistWeb.MembersLive do
                     <.modal_footer>
                       <:action>
                         <.button
-                          label={gettext("Cancel")}
+                          label={dgettext("dashboard_account", "Cancel")}
                           variant="secondary"
                           type="button"
                           phx-click={"close-manage-role-modal-#{member.id}"}
@@ -162,7 +162,7 @@ defmodule TuistWeb.MembersLive do
                       </:action>
                       <:action>
                         <.button
-                          label={gettext("Save")}
+                          label={dgettext("dashboard_account", "Save")}
                           type="button"
                           phx-click="save-member-role"
                           phx-value-member-id={member.id}
@@ -175,7 +175,7 @@ defmodule TuistWeb.MembersLive do
 
                 <.modal
                   id={"remove-member-modal-#{member.id}"}
-                  title={gettext("Remove member")}
+                  title={dgettext("dashboard_account", "Remove member")}
                   header_type="icon"
                   header_size="small"
                   on_dismiss={"close-remove-member-modal-#{member.id}"}
@@ -193,7 +193,7 @@ defmodule TuistWeb.MembersLive do
                     <.trash_x />
                   </:header_icon>
                   <p>
-                    {gettext("Are you sure you want to remove %{name} from this organization?",
+                    {dgettext("dashboard_account", "Are you sure you want to remove %{name} from this organization?",
                       name: member.account.name
                     )}
                   </p>
@@ -201,7 +201,7 @@ defmodule TuistWeb.MembersLive do
                     <.modal_footer>
                       <:action>
                         <.button
-                          label={gettext("Cancel")}
+                          label={dgettext("dashboard_account", "Cancel")}
                           variant="secondary"
                           type="button"
                           phx-click={"close-remove-member-modal-#{member.id}"}
@@ -209,7 +209,7 @@ defmodule TuistWeb.MembersLive do
                       </:action>
                       <:action>
                         <.button
-                          label={gettext("Remove")}
+                          label={dgettext("dashboard_account", "Remove")}
                           variant="destructive"
                           type="button"
                           phx-click="confirm-remove-member"
@@ -231,7 +231,7 @@ defmodule TuistWeb.MembersLive do
 
                   <.dropdown_item
                     :if={member.id != @current_user.id}
-                    label={gettext("Manage role")}
+                    label={dgettext("dashboard_account", "Manage role")}
                     value="manage_role"
                     phx-click={
                       JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})
@@ -241,7 +241,7 @@ defmodule TuistWeb.MembersLive do
                   </.dropdown_item>
 
                   <.dropdown_item
-                    label={gettext("Remove member")}
+                    label={dgettext("dashboard_account", "Remove member")}
                     value="remove"
                     phx-click={
                       JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})
@@ -255,8 +255,8 @@ defmodule TuistWeb.MembersLive do
               <:empty_state>
                 <.table_empty_state
                   icon="user_x"
-                  title={gettext("No members found")}
-                  subtitle={gettext("Try changing your search term")}
+                  title={dgettext("dashboard_account", "No members found")}
+                  subtitle={dgettext("dashboard_account", "Try changing your search term")}
                 />
               </:empty_state>
             </.table>
@@ -269,17 +269,17 @@ defmodule TuistWeb.MembersLive do
             data-part="content"
           >
             <.table id="invitations-table" rows={@invitations}>
-              <:col :let={invitation} label={gettext("Email")}>
+              <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
                 <.text_cell label={invitation.invitee_email} />
               </:col>
-              <:col label={gettext("Status")}>
-                <.status_badge_cell label={gettext("Pending")} status="attention" />
+              <:col label={dgettext("dashboard_account", "Status")}>
+                <.status_badge_cell label={dgettext("dashboard_account", "Pending")} status="attention" />
               </:col>
               <:col :let={invitation}>
                 <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
                   <:icon><.dots_vertical /></:icon>
                   <.dropdown_item
-                    label={gettext("Revoke invite")}
+                    label={dgettext("dashboard_account", "Revoke invite")}
                     value="revoke"
                     on_click="revoke_invite"
                     phx-value-id={invitation.id}
@@ -295,10 +295,10 @@ defmodule TuistWeb.MembersLive do
                   <.background_grid_dark />
                   <.cards_dark />
                   <div data-part="title">
-                    {gettext("No invitations created")}
+                    {dgettext("dashboard_account", "No invitations created")}
                   </div>
                   <div data-part="subtitle">
-                    {gettext("Invite members to your organization")}
+                    {dgettext("dashboard_account", "Invite members to your organization")}
                   </div>
                   <.invite_member_form id="invite-member-form-empty-state" form={@form} />
                 </.table_empty_state>
@@ -314,16 +314,16 @@ defmodule TuistWeb.MembersLive do
   defp invite_member_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
-      <.modal id={"#{@id}-modal"} title={gettext("Invite member")} on_dismiss="close-invite-members">
+      <.modal id={"#{@id}-modal"} title={dgettext("dashboard_account", "Invite member")} on_dismiss="close-invite-members">
         <:trigger :let={attrs}>
-          <.button variant="primary" label={gettext("Invite members")} {attrs} />
+          <.button variant="primary" label={dgettext("dashboard_account", "Invite members")} {attrs} />
         </:trigger>
         <.line_divider />
         <.text_input
           id={"#{@id}-input"}
           field={@form[:invitee_email]}
           type="email"
-          label={gettext("Email address")}
+          label={dgettext("dashboard_account", "Email address")}
           show_prefix={false}
         />
         <.line_divider />
@@ -347,7 +347,7 @@ defmodule TuistWeb.MembersLive do
 
     <%!-- <div id="invite-members-input" phx-hook="NooraTagsInput"> --%>
     <%!--   <div data-part="root"> --%>
-    <%!--     <span data-part="placeholder">{gettext("Email, comma separated")}</span> --%>
+    <%!--     <span data-part="placeholder">{dgettext("dashboard_account", "Email, comma separated")}</span> --%>
     <%!--     <.input_tag --%>
     <%!--       :for={{email, index} <- Enum.with_index(@invite_emails)} --%>
     <%!--       label={email} --%>
@@ -366,8 +366,8 @@ defmodule TuistWeb.MembersLive do
     <%!--     /> --%>
     <% # NOTE: This doesn't work. The dropdown items disappear once one is selected, and for some reason the modal closes as well. %>
     <%!-- <.inline_dropdown id="invite-members-role" label={Macro.camelize(Atom.to_string(@invite_role))}> --%>
-    <%!--   <.dropdown_item label={gettext("User")} on_click="select-invite-role" value="user" /> --%>
-    <%!--   <.dropdown_item label={gettext("Admin")} on_click="select-invite-role" value="admin" /> --%>
+    <%!--   <.dropdown_item label={dgettext("dashboard_account", "User")} on_click="select-invite-role" value="user" /> --%>
+    <%!--   <.dropdown_item label={dgettext("dashboard_account", "Admin")} on_click="select-invite-role" value="admin" /> --%>
     <%!-- </.inline_dropdown> --%>
     <%!-- </div> --%>
     <%!-- </div> --%>

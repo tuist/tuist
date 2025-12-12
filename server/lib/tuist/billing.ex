@@ -34,48 +34,48 @@ defmodule Tuist.Billing do
     [
       %{
         id: :air,
-        name: gettext("Air"),
+        name: dgettext("dashboard_account", "Air"),
         popular: true,
-        description: gettext("Get started with no credit card required—try with no commitment."),
-        price: gettext("Free"),
-        cta: {:primary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        description: dgettext("dashboard_account", "Get started with no credit card required—try with no commitment."),
+        price: dgettext("dashboard_account", "Free"),
+        cta: {:primary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {gettext("Generous free monthly tier"), gettext("Usage capped at free tier limits")},
-          {gettext("Like, totally free"), gettext("All features, no credit card required")},
-          {gettext("Community support"), gettext("Support via community forum")}
+          {dgettext("dashboard_account", "Generous free monthly tier"), dgettext("dashboard_account", "Usage capped at free tier limits")},
+          {dgettext("dashboard_account", "Like, totally free"), dgettext("dashboard_account", "All features, no credit card required")},
+          {dgettext("dashboard_account", "Community support"), dgettext("dashboard_account", "Support via community forum")}
         ],
         badges: [
-          gettext("No credit card required")
+          dgettext("dashboard_account", "No credit card required")
         ]
       },
       %{
         id: :pro,
-        name: gettext("Pro"),
+        name: dgettext("dashboard_account", "Pro"),
         popular: false,
-        description: gettext("Usage-based pricing after free tier."),
-        price: gettext("$0"),
-        price_frequency: gettext("and up"),
-        cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        description: dgettext("dashboard_account", "Usage-based pricing after free tier."),
+        price: dgettext("dashboard_account", "$0"),
+        price_frequency: dgettext("dashboard_account", "and up"),
+        cta: {:secondary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {gettext("Generous base price"), gettext("Pay nothing if below free tier limits")},
-          {gettext("Usage-based pricing"), gettext("Pay only for what you use per feature")},
-          {gettext("Standard support"), gettext("Via Slack and email")}
+          {dgettext("dashboard_account", "Generous base price"), dgettext("dashboard_account", "Pay nothing if below free tier limits")},
+          {dgettext("dashboard_account", "Usage-based pricing"), dgettext("dashboard_account", "Pay only for what you use per feature")},
+          {dgettext("dashboard_account", "Standard support"), dgettext("dashboard_account", "Via Slack and email")}
         ],
         badges: [
-          gettext("Unlimited projects")
+          dgettext("dashboard_account", "Unlimited projects")
         ]
       },
       %{
         id: :enterprise,
-        name: gettext("Enterprise"),
+        name: dgettext("dashboard_account", "Enterprise"),
         popular: false,
-        description: gettext("Create your plan or self-host your instance."),
-        price: gettext("Custom"),
-        cta: {:secondary, gettext("Contact sales"), "mailto:contact@tuist.dev"},
+        description: dgettext("dashboard_account", "Create your plan or self-host your instance."),
+        price: dgettext("dashboard_account", "Custom"),
+        cta: {:secondary, dgettext("dashboard_account", "Contact sales"), "mailto:contact@tuist.dev"},
         features: [
-          {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
-          {gettext("On-premise"), gettext("Self-host your instance of Tuist")},
-          {gettext("Priority support"), gettext("Via shared Slack channel")}
+          {dgettext("dashboard_account", "Custom terms"), dgettext("dashboard_account", "Tailored agreements to meet your specific needs")},
+          {dgettext("dashboard_account", "On-premise"), dgettext("dashboard_account", "Self-host your instance of Tuist")},
+          {dgettext("dashboard_account", "Priority support"), dgettext("dashboard_account", "Via shared Slack channel")}
         ],
         badges: []
       }

@@ -2,8 +2,8 @@
   <.empty_state
     command="tuist inspect bundle"
     id="bundles-empty-state"
-    title={gettext("Explore bundle analysis")}
-    subtitle={gettext("Run the following command to analyze a bundle.")}
+    title={dgettext("dashboard_cache", "Explore bundle analysis")}
+    subtitle={dgettext("dashboard_cache", "Run the following command to analyze a bundle.")}
     learn_more_href="https://docs.tuist.dev/en/guides/develop/bundle-size"
   >
     <:light_background>
@@ -16,7 +16,7 @@
 <% else %>
   <div id="bundles">
     <.card
-      title={gettext("Bundle Size")}
+      title={dgettext("dashboard_cache", "Bundle Size")}
       icon="device_desktop_analytics"
       data-part="bundle-size-card"
     >
@@ -24,7 +24,7 @@
         <.dropdown
           id="bundle-size-app-dropdown"
           label={@bundle_size_selected_app}
-          secondary_text={gettext("App:")}
+          secondary_text={dgettext("dashboard_cache", "App:")}
         >
           <%= for app <- @bundle_size_apps do %>
             <.dropdown_item
@@ -42,10 +42,10 @@
           id="bundle-size-branch-dropdown"
           label={
             if @bundle_size_branch == "any",
-              do: gettext("Any"),
+              do: dgettext("dashboard_cache", "Any"),
               else: @selected_project.default_branch
           }
-          secondary_text={gettext("Branch:")}
+          secondary_text={dgettext("dashboard_cache", "Branch:")}
         >
           <.dropdown_item
             value="default-branch"
@@ -57,7 +57,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="any"
-            label={gettext("Any")}
+            label={dgettext("dashboard_cache", "Any")}
             patch={"?#{Query.put(@uri.query, "bundle-size-branch", "any")}"}
             data-selected={@bundle_size_branch == "any"}
           >
@@ -67,11 +67,11 @@
         <.dropdown
           id="bundle-size-type-dropdown"
           label={bundles_type_label(@bundles_type)}
-          secondary_text={gettext("Type:")}
+          secondary_text={dgettext("dashboard_cache", "Type:")}
         >
           <.dropdown_item
             value="any"
-            label={gettext("Any")}
+            label={dgettext("dashboard_cache", "Any")}
             patch={"?#{Query.put(@uri.query, "bundles-type", "any")}"}
             data-selected={@bundles_type == "any"}
           >
@@ -79,7 +79,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="ipa"
-            label={gettext("IPA")}
+            label={dgettext("dashboard_cache", "IPA")}
             patch={"?#{Query.put(@uri.query, "bundles-type", "ipa")}"}
             data-selected={@bundles_type == "ipa"}
           >
@@ -87,7 +87,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="app"
-            label={gettext("App bundle")}
+            label={dgettext("dashboard_cache", "App bundle")}
             patch={"?#{Query.put(@uri.query, "bundles-type", "app")}"}
             data-selected={@bundles_type == "app"}
           >
@@ -95,7 +95,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="xcarchive"
-            label={gettext("XCArchive")}
+            label={dgettext("dashboard_cache", "XCArchive")}
             patch={"?#{Query.put(@uri.query, "bundles-type", "xcarchive")}"}
             data-selected={@bundles_type == "xcarchive"}
           >
@@ -105,26 +105,26 @@
         <.button_group size="large">
           <.button_group_item
             patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
-            label={gettext("7 days")}
+            label={dgettext("dashboard_cache", "7 days")}
             data-selected={@bundle_size_date_range == "last-7-days"}
           />
           <.button_group_item
             patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
-            label={gettext("30 days")}
+            label={dgettext("dashboard_cache", "30 days")}
             data-selected={@bundle_size_date_range == "last-30-days"}
           />
           <.button_group_item
             patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
-            label={gettext("12 months")}
+            label={dgettext("dashboard_cache", "12 months")}
             data-selected={@bundle_size_date_range == "last-12-months"}
           />
         </.button_group>
       </:actions>
       <div data-part="widgets">
         <.widget
-          title={gettext("Install size (MB)")}
+          title={dgettext("dashboard_cache", "Install size (MB)")}
           description={
-            gettext(
+            dgettext("dashboard_cache", 
               "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
             )
           }
@@ -146,15 +146,15 @@
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
-          title={gettext("Download size (MB)")}
+          title={dgettext("dashboard_cache", "Download size (MB)")}
           description={
-            gettext(
+            dgettext("dashboard_cache", 
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
             )
           }
           value={
             (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
-               format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
+               format_bytes(@bundle_size_last_bundle.download_size)) || dgettext("dashboard_cache", "0 MB")
           }
           id="widget-download-size"
           phx_click="select_widget"
@@ -174,8 +174,8 @@
       >
         <span data-part="legend">
           {case @bundle_size_selected_widget do
-            "download-size" -> gettext("Download size (MB)")
-            _ -> gettext("Install size (MB)")
+            "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
+            _ -> dgettext("dashboard_cache", "Install size (MB)")
           end}
         </span>
         <.chart
@@ -228,8 +228,8 @@
               data: @bundle_size_analytics,
               name:
                 case @bundles_sort_by do
-                  "install-size" -> gettext("Install size")
-                  _ -> gettext("Donwload size")
+                  "install-size" -> dgettext("dashboard_cache", "Install size")
+                  _ -> dgettext("dashboard_cache", "Donwload size")
                 end,
               type: "line",
               smooth: 0.1,
@@ -241,7 +241,7 @@
       </.card_section>
       <.empty_card_section
         :if={Enum.all?(@bundle_size_analytics, fn [_date, value] -> value == 0 end)}
-        title={gettext("No bundles yet")}
+        title={dgettext("dashboard_cache", "No bundles yet")}
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -249,23 +249,23 @@
         </:image>
       </.empty_card_section>
     </.card>
-    <.card title={gettext("Bundles")} icon="chart_cohort" data-part="bundles-card">
+    <.card title={dgettext("dashboard_cache", "Bundles")} icon="chart_cohort" data-part="bundles-card">
       <.card_section data-part="bundles-card-section">
         <div data-part="filters">
           <.dropdown
             id="bundles-sort-by"
             label={
               case @bundles_sort_by do
-                "install-size" -> gettext("Install size (MB)")
-                "download-size" -> gettext("Download size (MB)")
-                _ -> gettext("Created at")
+                "install-size" -> dgettext("dashboard_cache", "Install size (MB)")
+                "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
+                _ -> dgettext("dashboard_cache", "Created at")
               end
             }
-            secondary_text={gettext("Sort by:")}
+            secondary_text={dgettext("dashboard_cache", "Sort by:")}
           >
             <.dropdown_item
               value="created-at"
-              label={gettext("Created at")}
+              label={dgettext("dashboard_cache", "Created at")}
               patch={bundles_dropdown_item_patch_sort("created-at", @uri)}
               data-selected={@bundles_sort_by == "created-at"}
             >
@@ -273,7 +273,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="install-size"
-              label={gettext("Install size (MB)")}
+              label={dgettext("dashboard_cache", "Install size (MB)")}
               patch={bundles_dropdown_item_patch_sort("install-size", @uri)}
               data-selected={@bundles_sort_by == "install-size"}
             >
@@ -281,7 +281,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="download-size"
-              label={gettext("Download size (MB)")}
+              label={dgettext("dashboard_cache", "Download size (MB)")}
               patch={bundles_dropdown_item_patch_sort("download-size", @uri)}
               data-selected={@bundles_sort_by == "download-size"}
             >
@@ -290,7 +290,7 @@
           </.dropdown>
           <.filter_dropdown
             id="filter-dropdown"
-            label={gettext("Filter")}
+            label={dgettext("dashboard_cache", "Filter")}
             available_filters={@available_filters}
             active_filters={@active_filters}
           />
@@ -310,18 +310,18 @@
               end
             }
           >
-            <:col :let={bundle} label={gettext("Name")}>
+            <:col :let={bundle} label={dgettext("dashboard_cache", "Name")}>
               <.text_and_description_cell label={bundle.name} />
             </:col>
-            <:col :let={bundle} label={gettext("Branch")}>
+            <:col :let={bundle} label={dgettext("dashboard_cache", "Branch")}>
               <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
             </:col>
-            <:col :let={bundle} label={gettext("Type")}>
+            <:col :let={bundle} label={dgettext("dashboard_cache", "Type")}>
               <.text_cell label={format_bundle_type(bundle.type)} />
             </:col>
             <:col
               :let={bundle}
-              label={gettext("Install size")}
+              label={dgettext("dashboard_cache", "Install size")}
               patch={
                 @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
               }
@@ -334,7 +334,7 @@
             </:col>
             <:col
               :let={bundle}
-              label={gettext("Download size")}
+              label={dgettext("dashboard_cache", "Download size")}
               patch={
                 @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
               }
@@ -346,13 +346,13 @@
               <.text_cell label={
                 if bundle.download_size,
                   do: format_bytes(bundle.download_size),
-                  else: gettext("Not available")
+                  else: dgettext("dashboard_cache", "Not available")
               } />
             </:col>
-            <:col :let={bundle} label={gettext("Commit SHA")}>
+            <:col :let={bundle} label={dgettext("dashboard_cache", "Commit SHA")}>
               <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
             </:col>
-            <:col :let={bundle} label={gettext("Platform")}>
+            <:col :let={bundle} label={dgettext("dashboard_cache", "Platform")}>
               <.platform_cell
                 :if={not Enum.empty?(bundle.supported_platforms)}
                 platform={bundle.supported_platforms |> hd}
@@ -360,7 +360,7 @@
             </:col>
             <:col
               :let={bundle}
-              label={gettext("Created at")}
+              label={dgettext("dashboard_cache", "Created at")}
               patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
               icon={
                 @bundles_sort_by == "created-at" &&
@@ -380,7 +380,7 @@
         </div>
         <.empty_card_section
           :if={Enum.empty?(@bundles)}
-          title={gettext("No data yet")}
+          title={dgettext("dashboard_cache", "No data yet")}
           data-part="empty-bundles-table-card-section"
         >
           <:image>

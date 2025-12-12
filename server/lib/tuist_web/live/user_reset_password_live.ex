@@ -17,22 +17,22 @@ defmodule TuistWeb.UserResetPasswordLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
-              <h1 data-part="title">{gettext("Change your password")}</h1>
+              <h1 data-part="title">{dgettext("dashboard_auth", "Change your password")}</h1>
               <span data-part="subtitle">
-                {gettext("Your new password must be different to previously used passwords.")}
+                {dgettext("dashboard_auth", "Your new password must be different to previously used passwords.")}
               </span>
             </div>
             <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
               <.text_input
                 field={@form[:password]}
                 input_type="password"
-                label={gettext("New password")}
+                label={dgettext("dashboard_auth", "New password")}
                 show_prefix={false}
                 show_suffix={false}
                 required
@@ -40,12 +40,12 @@ defmodule TuistWeb.UserResetPasswordLive do
               <.text_input
                 field={@form[:password_confirmation]}
                 input_type="password"
-                label={gettext("Confirm password")}
+                label={dgettext("dashboard_auth", "Confirm password")}
                 show_prefix={false}
                 show_suffix={false}
                 required
               />
-              <.button variant="primary" size="large" label={gettext("Reset password")} />
+              <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Reset password")} />
             </.form>
           </div>
         </div>
@@ -80,7 +80,7 @@ defmodule TuistWeb.UserResetPasswordLive do
       {:ok, _} ->
         {:noreply,
          socket
-         |> put_flash(:info, gettext("Password reset successfully."))
+         |> put_flash(:info, dgettext("dashboard_auth", "Password reset successfully."))
          |> redirect(to: ~p"/users/log_in")}
 
       {:error, changeset} ->

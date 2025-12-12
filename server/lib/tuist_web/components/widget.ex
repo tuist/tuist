@@ -141,7 +141,7 @@ defmodule TuistWeb.Widget do
           <span data-part="title">{@title}</span>
         </div>
         <span data-part="empty-label">
-          {if @empty_label, do: @empty_label, else: gettext("No data yet")}
+          {if @empty_label, do: @empty_label, else: dgettext("dashboard", "No data yet")}
         </span>
       </.card_section>
     <% else %>

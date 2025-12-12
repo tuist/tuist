@@ -22,11 +22,11 @@ defmodule TuistWeb.TestRunLive do
           test
 
         {:error, :not_found} ->
-          raise NotFoundError, gettext("Test run not found.")
+          raise NotFoundError, dgettext("dashboard_tests", "Test run not found.")
       end
 
     if run.project_id != project.id do
-      raise NotFoundError, gettext("Test run not found.")
+      raise NotFoundError, dgettext("dashboard_tests", "Test run not found.")
     end
 
     slug = Projects.get_project_slug_from_id(project.id)
@@ -48,7 +48,7 @@ defmodule TuistWeb.TestRunLive do
       socket
       |> assign(:run, run)
       |> assign(:command_event, command_event)
-      |> assign(:head_title, "#{gettext("Test Run")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign_initial_analytics_state()
@@ -699,7 +699,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_case_duration",
         field: :test_case_duration,
-        display_name: gettext("Duration"),
+        display_name: dgettext("dashboard_tests", "Duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -707,13 +707,13 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_case_status",
         field: :test_case_status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed"),
-          "skipped" => gettext("Skipped")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -726,7 +726,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_suite_test_case_count",
         field: :test_suite_test_case_count,
-        display_name: gettext("Test cases"),
+        display_name: dgettext("dashboard_tests", "Test cases"),
         type: :number,
         operator: :>,
         value: ""
@@ -734,7 +734,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_suite_avg_test_case_duration",
         field: :test_suite_avg_test_case_duration,
-        display_name: gettext("Avg. test case duration"),
+        display_name: dgettext("dashboard_tests", "Avg. test case duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -742,7 +742,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_suite_duration",
         field: :test_suite_duration,
-        display_name: gettext("Duration"),
+        display_name: dgettext("dashboard_tests", "Duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -750,13 +750,13 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_suite_status",
         field: :test_suite_status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed"),
-          "skipped" => gettext("Skipped")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -769,7 +769,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_module_test_suite_count",
         field: :test_module_test_suite_count,
-        display_name: gettext("Test suites"),
+        display_name: dgettext("dashboard_tests", "Test suites"),
         type: :number,
         operator: :>,
         value: ""
@@ -777,7 +777,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_module_test_case_count",
         field: :test_module_test_case_count,
-        display_name: gettext("Test cases"),
+        display_name: dgettext("dashboard_tests", "Test cases"),
         type: :number,
         operator: :>,
         value: ""
@@ -785,7 +785,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_module_avg_test_case_duration",
         field: :test_module_avg_test_case_duration,
-        display_name: gettext("Avg. test case duration"),
+        display_name: dgettext("dashboard_tests", "Avg. test case duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -793,7 +793,7 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_module_duration",
         field: :test_module_duration,
-        display_name: gettext("Duration"),
+        display_name: dgettext("dashboard_tests", "Duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -801,12 +801,12 @@ defmodule TuistWeb.TestRunLive do
       %Filter.Filter{
         id: "test_module_status",
         field: :test_module_status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
         options: ["success", "failure"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed")
         },
         operator: :==,
         value: nil
@@ -819,59 +819,59 @@ defmodule TuistWeb.TestRunLive do
       case {failure.path, failure.issue_type, failure.message} do
         # No path cases
         {nil, "assertion_failure", nil} ->
-          gettext("Expectation failed")
+          dgettext("dashboard_tests", "Expectation failed")
 
         {nil, "assertion_failure", message} ->
-          gettext("Expectation failed: %{message}", message: message)
+          dgettext("dashboard_tests", "Expectation failed: %{message}", message: message)
 
         {nil, "error_thrown", nil} ->
-          gettext("Caught error")
+          dgettext("dashboard_tests", "Caught error")
 
         {nil, "error_thrown", message} ->
-          gettext("Caught error: %{message}", message: message)
+          dgettext("dashboard_tests", "Caught error: %{message}", message: message)
 
         {nil, "issue_recorded", nil} ->
-          gettext("Issue recorded")
+          dgettext("dashboard_tests", "Issue recorded")
 
         {nil, "issue_recorded", message} ->
-          gettext("Issue recorded: %{message}", message: message)
+          dgettext("dashboard_tests", "Issue recorded: %{message}", message: message)
 
         {nil, _, nil} ->
-          gettext("Unknown error")
+          dgettext("dashboard_tests", "Unknown error")
 
         {nil, _, message} ->
           message
 
         # Has path cases
         {path, "assertion_failure", nil} ->
-          gettext("Expectation failed at %{location}",
+          dgettext("dashboard_tests", "Expectation failed at %{location}",
             location: "#{path}:#{failure.line_number}"
           )
 
         {path, "assertion_failure", message} ->
-          gettext("Expectation failed at %{location}: %{message}",
+          dgettext("dashboard_tests", "Expectation failed at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
             message: message
           )
 
         {path, "error_thrown", nil} ->
-          gettext("Caught error at %{location}",
+          dgettext("dashboard_tests", "Caught error at %{location}",
             location: "#{path}:#{failure.line_number}"
           )
 
         {path, "error_thrown", message} ->
-          gettext("Caught error at %{location}: %{message}",
+          dgettext("dashboard_tests", "Caught error at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
             message: message
           )
 
         {path, "issue_recorded", nil} ->
-          gettext("Issue recorded at %{location}",
+          dgettext("dashboard_tests", "Issue recorded at %{location}",
             location: "#{path}:#{failure.line_number}"
           )
 
         {path, "issue_recorded", message} ->
-          gettext("Issue recorded at %{location}: %{message}",
+          dgettext("dashboard_tests", "Issue recorded at %{location}: %{message}",
             location: "#{path}:#{failure.line_number}",
             message: message
           )

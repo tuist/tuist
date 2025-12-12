@@ -49,7 +49,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(:duplicates, find_duplicates(bundle.artifacts))
       |> assign(
         :head_title,
-        "#{bundle.name} · #{gettext("Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
+        "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
       )
       |> assign(:all_artifacts, all_artifacts)
       |> assign(:artifacts_by_id, artifacts_by_id)
@@ -741,7 +741,7 @@ defmodule TuistWeb.BundleLive do
   defp get_selected_bundle(bundle_id) do
     case Bundles.get_bundle(bundle_id, preload: :uploaded_by_account) do
       {:error, :not_found} ->
-        raise NotFoundError, gettext("Bundle not found.")
+        raise NotFoundError, dgettext("dashboard_cache", "Bundle not found.")
 
       {:ok, bundle} ->
         bundle
@@ -764,9 +764,9 @@ defmodule TuistWeb.BundleLive do
       artifact.size / bundle.install_size * 100
 
     if space_usage < 0.1 do
-      gettext("< 0.1 %")
+      dgettext("dashboard_cache", "< 0.1 %")
     else
-      gettext("%{space_usage} %",
+      dgettext("dashboard_cache", "%{space_usage} %",
         space_usage:
           space_usage
           |> Decimal.from_float()
@@ -880,8 +880,8 @@ defmodule TuistWeb.BundleLive do
     |> Enum.sort_by(& &1.value, :desc)
   end
 
-  def format_bundle_type(:ipa), do: gettext("IPA")
-  def format_bundle_type(:app), do: gettext("App bundle")
-  def format_bundle_type(:xcarchive), do: gettext("XCArchive")
-  def format_bundle_type(_), do: gettext("Unknown")
+  def format_bundle_type(:ipa), do: dgettext("dashboard_cache", "IPA")
+  def format_bundle_type(:app), do: dgettext("dashboard_cache", "App bundle")
+  def format_bundle_type(:xcarchive), do: dgettext("dashboard_cache", "XCArchive")
+  def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
 end

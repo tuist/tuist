@@ -98,8 +98,8 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-  gettext_default:
-    name: Gettext (Default)
+  gettext_dashboard:
+    name: Gettext (Dashboard)
     runs-on: namespace-profile-default
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -126,30 +126,60 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
-      - name: Check default gettext template is up-to-date
+      - name: Check dashboard gettext templates are up-to-date
         run: |
-          # Extract only (without --merge) to check if default.pot changes
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          # Extract only (without --merge) to check if any .pot changes
           # DO NOT use --merge here as it would modify .po translation files
-          cp priv/gettext/default.pot priv/gettext/default.pot.backup
           mix gettext.extract > /dev/null 2>&1 || true
 
-          if ! diff -q priv/gettext/default.pot.backup priv/gettext/default.pot > /dev/null; then
-            echo "::error title=Default gettext template out of sync::The default.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            rm priv/gettext/default.pot.backup
+          # Check each domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
             exit 1
           else
-            echo "✅ Default gettext template is up-to-date"
-            rm priv/gettext/default.pot.backup
+            echo "✅ All dashboard gettext templates are up-to-date"
           fi
-      - name: Check default translations exist
+      - name: Check dashboard translations templates exist
         run: |
-          # Check if default.pot exists
-          if [ ! -f priv/gettext/default.pot ]; then
-            echo "::error title=Missing default translations::default.pot file is missing. Please run 'mix gettext.extract' in the server directory."
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          MISSING_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ ! -f "priv/gettext/${domain}.pot" ]; then
+              MISSING_DOMAINS="$MISSING_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$MISSING_DOMAINS" ]; then
+            echo "::error title=Missing dashboard translations::The following .pot files are missing:$MISSING_DOMAINS. Please run 'mix gettext.extract' in the server directory."
             exit 1
           fi
 
-          echo "✅ Default translations template present"
+          echo "✅ All dashboard translation templates present"
   translation_protection:
     name: Translation Protection
     runs-on: namespace-profile-default

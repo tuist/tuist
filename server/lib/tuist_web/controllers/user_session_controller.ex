@@ -25,7 +25,7 @@ defmodule TuistWeb.UserSessionController do
 
       {:deny, _limit} ->
         conn
-        |> put_flash(:error, gettext("You've exceeded the rate limit. Try again later."))
+        |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
         |> redirect(to: ~p"/users/log_in")
         |> halt()
     end

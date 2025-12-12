@@ -21,7 +21,7 @@ defmodule TuistWeb.OverviewLive do
      )
      |> assign(
        :head_title,
-       "#{gettext("Overview")} · #{account.name}/#{project.name} · Tuist"
+       "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
      )}
   end
 
@@ -275,20 +275,20 @@ defmodule TuistWeb.OverviewLive do
     )
   end
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
 
   defp environment_label("any") do
-    gettext("Any")
+    dgettext("dashboard_projects", "Any")
   end
 
   defp environment_label("local") do
-    gettext("Local")
+    dgettext("dashboard_projects", "Local")
   end
 
   defp environment_label("ci") do
-    gettext("CI")
+    dgettext("dashboard_projects", "CI")
   end
 
   defp date_range(params) do

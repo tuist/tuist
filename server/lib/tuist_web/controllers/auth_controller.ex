@@ -20,7 +20,7 @@ defmodule TuistWeb.AuthController do
 
   def request(_conn, _params) do
     raise TuistWeb.Errors.NotFoundError,
-          gettext("The authentication URL is not supported")
+          dgettext("dashboard", "The authentication URL is not supported")
   end
 
   def okta_request(conn, params) do

@@ -1,9 +1,9 @@
 <div id="billing">
   <div data-part="header">
-    <h1 data-part="title">{gettext("Billing")}</h1>
-    <span data-part="subtitle">{gettext("Manage your billing and payment details")}</span>
+    <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
+    <span data-part="subtitle">{dgettext("dashboard_account", "Manage your billing and payment details")}</span>
   </div>
-  <.card data-part="current-plan-card" icon="package" title={gettext("Current plan")}>
+  <.card data-part="current-plan-card" icon="package" title={dgettext("dashboard_account", "Current plan")}>
     <div data-part="current-plan-card-sections">
       <.card_section :if={@plan in [:air, :pro]} data-part="usage-card-section">
         <div data-part="current-bill">
@@ -13,10 +13,10 @@
           </span>
         </div>
         <div data-part="usage-details-title">
-          <span data-part="label">{gettext("Usage details")}</span>
+          <span data-part="label">{dgettext("dashboard_account", "Usage details")}</span>
           <.badge
             :if={@current_month_remote_cache_hits_count > 200}
-            label={gettext("Free tier exceeded")}
+            label={dgettext("dashboard_account", "Free tier exceeded")}
             color="attention"
             size="small"
             style="light-fill"
@@ -25,20 +25,20 @@
         <.progress_bar
           value={@current_month_remote_cache_hits_count}
           max={200}
-          title={gettext("Remote cache hits:")}
+          title={dgettext("dashboard_account", "Remote cache hits:")}
         >
           <:description>
             <div data-part="description">
               <.link_button
                 href="https://tuist.dev/pricing"
-                label={gettext("Learn more")}
+                label={dgettext("dashboard_account", "Learn more")}
                 variant="primary"
                 size="medium"
                 target="_blank"
                 underline
               />
               <span data-part="label">
-                {gettext("about remote cache hits")}
+                {dgettext("dashboard_account", "about remote cache hits")}
               </span>
             </div>
           </:description>
@@ -49,19 +49,19 @@
           <div data-part="title">
             <span data-part="label">
               {case @plan do
-                :air -> gettext("Air")
-                :open_source -> gettext("Open source")
-                :pro -> gettext("Pro")
-                :enterprise -> gettext("Enterprise")
+                :air -> dgettext("dashboard_account", "Air")
+                :open_source -> dgettext("dashboard_account", "Open source")
+                :pro -> dgettext("dashboard_account", "Pro")
+                :enterprise -> dgettext("dashboard_account", "Enterprise")
               end}
             </span>
             <.badge
               label={
                 case @plan do
-                  :air -> gettext("Free")
-                  :open_source -> gettext("Free")
-                  :pro -> gettext("Usage-based")
-                  :enterprise -> gettext("Custom")
+                  :air -> dgettext("dashboard_account", "Free")
+                  :open_source -> dgettext("dashboard_account", "Free")
+                  :pro -> dgettext("dashboard_account", "Usage-based")
+                  :enterprise -> dgettext("dashboard_account", "Custom")
                 end
               }
               color="primary"
@@ -70,63 +70,63 @@
             />
           </div>
           <span :if={@plan == :air} data-part="subtitle">
-            {gettext("Get started with no credit card required—try with no commitment.")}
+            {dgettext("dashboard_account", "Get started with no credit card required—try with no commitment.")}
           </span>
           <span :if={@plan == :pro} data-part="subtitle">
-            {gettext("Usage-based pricing after free tier.")}
+            {dgettext("dashboard_account", "Usage-based pricing after free tier.")}
           </span>
           <span :if={@plan == :enterprise} data-part="subtitle">
-            {gettext("Create your plan or self-host your instance.")}
+            {dgettext("dashboard_account", "Create your plan or self-host your instance.")}
           </span>
           <span :if={@plan == :open_source} data-part="subtitle">
-            {gettext("Use all Tuist features as long as you stay open source.")}
+            {dgettext("dashboard_account", "Use all Tuist features as long as you stay open source.")}
           </span>
         </div>
         <ul :if={@plan == :air} data-part="feature-list">
           <.plan_feature label={
-            gettext("Generous free monthly tier: Usage capped at free tier limits")
+            dgettext("dashboard_account", "Generous free monthly tier: Usage capped at free tier limits")
           } />
           <.plan_feature label={
-            gettext("Like, totally free: All features, no credit card required")
+            dgettext("dashboard_account", "Like, totally free: All features, no credit card required")
           } />
-          <.plan_feature label={gettext("Community support: Support via community forum")} />
+          <.plan_feature label={dgettext("dashboard_account", "Community support: Support via community forum")} />
         </ul>
         <ul :if={@plan == :pro} data-part="feature-list">
           <.plan_feature label={
-            gettext("Generous base price: Pay nothing if below free tier limits")
+            dgettext("dashboard_account", "Generous base price: Pay nothing if below free tier limits")
           } />
           <.plan_feature label={
-            gettext("Usage-based pricing: Pay only for what you use per feature")
+            dgettext("dashboard_account", "Usage-based pricing: Pay only for what you use per feature")
           } />
-          <.plan_feature label={gettext("Standard support: Via Slack and email")} />
+          <.plan_feature label={dgettext("dashboard_account", "Standard support: Via Slack and email")} />
         </ul>
         <ul :if={@plan == :enterprise} data-part="feature-list">
           <.plan_feature label={
-            gettext("Custom terms: Tailored agreements to meet your specific needs")
+            dgettext("dashboard_account", "Custom terms: Tailored agreements to meet your specific needs")
           } />
-          <.plan_feature label={gettext("On-premise: Self-host your instance of Tuist")} />
-          <.plan_feature label={gettext("Priority support: Via shared Slack channel")} />
+          <.plan_feature label={dgettext("dashboard_account", "On-premise: Self-host your instance of Tuist")} />
+          <.plan_feature label={dgettext("dashboard_account", "Priority support: Via shared Slack channel")} />
         </ul>
         <ul :if={@plan == :open_source} data-part="feature-list">
-          <.plan_feature label={gettext("Completely free for open source projects")} />
+          <.plan_feature label={dgettext("dashboard_account", "Completely free for open source projects")} />
         </ul>
         <.modal
           :if={@plan in [:air, :pro]}
           id="billing-upgrade-modal"
-          description={gettext("Change your subscription to fit your needs.")}
-          title={gettext("Change subscription plan")}
+          description={dgettext("dashboard_account", "Change your subscription to fit your needs.")}
+          title={dgettext("dashboard_account", "Change subscription plan")}
           header_type="icon"
           header_size="large"
         >
           <:trigger :let={attrs}>
-            <.button label={gettext("Upgrade plan")} variant="primary" {attrs} />
+            <.button label={dgettext("dashboard_account", "Upgrade plan")} variant="primary" {attrs} />
           </:trigger>
           <:header_icon>
             <.credit_card />
           </:header_icon>
           <:header_button>
             <.button
-              label={gettext("Pricing details")}
+              label={dgettext("dashboard_account", "Pricing details")}
               variant="secondary"
               href="https://tuist.dev/pricing"
               target="_blank"
@@ -160,11 +160,11 @@
     :if={@plan == :pro and @current_month_remote_cache_hits_count > 200}
     data-part="usage-card"
     icon="history"
-    title={gettext("Usage")}
+    title={dgettext("dashboard_account", "Usage")}
   >
     <.card_section data-part="usage-card-section">
       <span data-part="info-label">
-        {gettext(
+        {dgettext("dashboard_account", 
           "You’ve exceeded your free tier quota and will incur charges for additional usage."
         )}
       </span>
@@ -173,21 +173,21 @@
         rows={[
           %{
             current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
-            price: gettext("$0.50"),
+            price: dgettext("dashboard_account", "$0.50"),
             total: @estimated_next_payment
           }
         ]}
       >
-        <:col :let={usage_item} label={gettext("Remote cache hits")}>
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Remote cache hits")}>
           <.text_and_description_cell
             label={usage_item.current_month_remote_cache_hits_count}
-            description={gettext("above free tier")}
+            description={dgettext("dashboard_account", "above free tier")}
           />
         </:col>
-        <:col :let={usage_item} label={gettext("Price")}>
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Price")}>
           <.text_cell label={usage_item.price} />
         </:col>
-        <:col :let={usage_item} label={gettext("Total")}>
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Total")}>
           <.text_cell label={usage_item.total} />
         </:col>
       </.table>
@@ -196,10 +196,10 @@
   <.card_section :if={@plan == :pro} data-part="billing-payment-method-card-section">
     <div data-part="header">
       <span data-part="title">
-        {gettext("Payment method")}
+        {dgettext("dashboard_account", "Payment method")}
       </span>
       <span data-part="subtitle">
-        {gettext("Payments for your subscription are made using the default card.")}
+        {dgettext("dashboard_account", "Payments for your subscription are made using the default card.")}
       </span>
     </div>
     <div data-part="content">
@@ -207,7 +207,7 @@
         href={~p"/#{@selected_account.name}/billing/manage"}
         target="_blank"
         variant="secondary"
-        label={gettext("Update payment method")}
+        label={dgettext("dashboard_account", "Update payment method")}
         size="medium"
         data-part="update-button"
       >
@@ -229,7 +229,7 @@
           href={~p"/#{@selected_account.name}/billing/manage"}
           target="_blank"
           variant="secondary"
-          label={gettext("Add payment method")}
+          label={dgettext("dashboard_account", "Add payment method")}
           size="large"
         >
           <:icon_right>
@@ -244,14 +244,14 @@
             {@payment_method.card.cardholder_name}
           </span>
           <span data-part="expiry-date">
-            {gettext("%{month}/%{year}",
+            {dgettext("dashboard_account", "%{month}/%{year}",
               month:
                 String.pad_leading(@payment_method.card.exp_month |> Integer.to_string(), 2, "0"),
               year: @payment_method.card.exp_year
             )}
           </span>
           <span data-part="card-number">
-            {gettext("xxxx xxxx xxxx %{card_number}", card_number: @payment_method.card.last4)}
+            {dgettext("dashboard_account", "xxxx xxxx xxxx %{card_number}", card_number: @payment_method.card.last4)}
           </span>
         </div>
         <div data-part="blur-top-left"></div>
@@ -262,10 +262,10 @@
   <.card_section data-part="billing-email-card-section">
     <div data-part="header">
       <span data-part="title">
-        {gettext("Billing email")}
+        {dgettext("dashboard_account", "Billing email")}
       </span>
       <span data-part="subtitle">
-        {gettext("All billing correspondence will go to this email")}
+        {dgettext("dashboard_account", "All billing correspondence will go to this email")}
       </span>
     </div>
     <div data-part="content">
@@ -273,7 +273,7 @@
         href={~p"/#{@selected_account.name}/billing/manage"}
         target="_blank"
         variant="secondary"
-        label={gettext("Update billing email")}
+        label={dgettext("dashboard_account", "Update billing email")}
         size="medium"
         data-part="update-button"
       >
@@ -282,7 +282,7 @@
         </:icon_right>
       </.button>
       <div data-part="email">
-        <.label label={gettext("Email")} />
+        <.label label={dgettext("dashboard_account", "Email")} />
         <span data-part="billing-email">
           {@selected_account.billing_email}
         </span>

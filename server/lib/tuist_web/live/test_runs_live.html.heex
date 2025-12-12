@@ -1,10 +1,10 @@
 <div id="test-runs">
-  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
     <:actions>
       <.dropdown
         id="test-runs-analytics-environment-dropdown"
         label={@analytics_environment_label}
-        secondary_text={gettext("Environment:")}
+        secondary_text={dgettext("dashboard_tests", "Environment:")}
       >
         <.dropdown_item
           value="any"
@@ -34,26 +34,26 @@
       <.button_group size="large">
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={gettext("7 days")}
+          label={dgettext("dashboard_tests", "7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={gettext("30 days")}
+          label={dgettext("dashboard_tests", "30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
           patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={gettext("12 months")}
+          label={dgettext("dashboard_tests", "12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
       </.button_group>
     </:actions>
     <div data-part="widgets">
       <.widget
-        title={gettext("Test run count")}
+        title={dgettext("dashboard_tests", "Test run count")}
         description={
-          gettext(
+          dgettext("dashboard_tests", 
             "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -68,9 +68,9 @@
         empty={@test_runs_analytics.count == 0}
       />
       <.widget
-        title={gettext("Failed run count")}
+        title={dgettext("dashboard_tests", "Failed run count")}
         description={
-          gettext(
+          dgettext("dashboard_tests", 
             "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -88,10 +88,10 @@
         id="widget-test-run-duration"
         title={
           case @selected_duration_type do
-            "avg" -> gettext("Avg. test run duration")
-            "p99" -> gettext("p99 test run duration")
-            "p90" -> gettext("p90 test run duration")
-            "p50" -> gettext("p50 test run duration")
+            "avg" -> dgettext("dashboard_tests", "Avg. test run duration")
+            "p99" -> dgettext("dashboard_tests", "p99 test run duration")
+            "p90" -> dgettext("dashboard_tests", "p90 test run duration")
+            "p50" -> dgettext("dashboard_tests", "p50 test run duration")
           end
         }
         legend_color={
@@ -102,7 +102,7 @@
             _ -> "primary"
           end
         }
-        description={gettext("Average duration of test runs during a given period.")}
+        description={dgettext("dashboard_tests", "Average duration of test runs during a given period.")}
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_duration_type do
@@ -142,7 +142,7 @@
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
         empty={@test_runs_analytics.count == 0}
-        empty_label={gettext("No data")}
+        empty_label={dgettext("dashboard_tests", "No data")}
       />
     </div>
     <.card_section :if={@test_runs_analytics.count != 0}>
@@ -276,7 +276,7 @@
                   @test_runs_duration_analytics.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("Average"),
+              name: dgettext("dashboard_tests", "Average"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -289,7 +289,7 @@
                   @test_runs_duration_analytics.p99_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p99"),
+              name: dgettext("dashboard_tests", "p99"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -302,7 +302,7 @@
                   @test_runs_duration_analytics.p90_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p90"),
+              name: dgettext("dashboard_tests", "p90"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -315,7 +315,7 @@
                   @test_runs_duration_analytics.p50_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: gettext("p50"),
+              name: dgettext("dashboard_tests", "p50"),
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -325,14 +325,14 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_runs_analytics.count == 0} title={gettext("No data yet")}>
+    <.empty_card_section :if={@test_runs_analytics.count == 0} title={dgettext("dashboard_tests", "No data yet")}>
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
+  <.card title={dgettext("dashboard_tests", "Test Runs")} icon="dashboard" data-part="test-runs">
     <.card_section data-part="test-runs-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-test-runs" phx-debounce="200">
@@ -340,7 +340,7 @@
             type="search"
             id="search-test-runs"
             name="search"
-            placeholder={gettext("Search...")}
+            placeholder={dgettext("dashboard_tests", "Search...")}
             show_suffix={false}
             data-part="search"
             value={@test_runs_filter}
@@ -348,7 +348,7 @@
         </.form>
         <.filter_dropdown
           id="filter-dropdown"
-          label={gettext("Filter")}
+          label={dgettext("dashboard_tests", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
@@ -369,7 +369,7 @@
             end
           }
         >
-          <:col :let={test_run} label={gettext("Scheme")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
             <.text_and_description_cell label={
               (test_run.scheme !== "" && test_run.scheme) || "Unknown"
             } />
@@ -377,32 +377,32 @@
           <:col :let={test_run} label="Status">
             <.status_badge_cell
               :if={test_run.status == "success"}
-              label={gettext("Passed")}
+              label={dgettext("dashboard_tests", "Passed")}
               status="success"
             />
             <.status_badge_cell
               :if={test_run.status == "failure"}
-              label={gettext("Failed")}
+              label={dgettext("dashboard_tests", "Failed")}
               status="error"
             />
             <.status_badge_cell
               :if={test_run.status == "skipped"}
-              label={gettext("Skipped")}
+              label={dgettext("dashboard_tests", "Skipped")}
               status="warning"
             />
           </:col>
-          <:col :let={test_run} label={gettext("Branch")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>
             <.text_cell
               icon="git_branch"
               label={
-                if test_run.git_branch == "", do: gettext("Unknown"), else: test_run.git_branch
+                if test_run.git_branch == "", do: dgettext("dashboard_tests", "Unknown"), else: test_run.git_branch
               }
             />
           </:col>
-          <:col :let={test_run} label={gettext("Ran by")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
           </:col>
-          <:col :let={test_run} label={gettext("Duration")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(test_run.duration)
@@ -410,7 +410,7 @@
               icon="history"
             />
           </:col>
-          <:col :let={test_run} label={gettext("Ran at")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
           </:col>
         </.table>
@@ -425,7 +425,7 @@
 
       <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
         <.empty_card_section
-          title={gettext("No data yet")}
+          title={dgettext("dashboard_tests", "No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
           data-part="empty-test-runs-table-card-section"
         >

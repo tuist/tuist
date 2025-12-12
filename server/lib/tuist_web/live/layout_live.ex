@@ -58,7 +58,7 @@ defmodule TuistWeb.LayoutLive do
 
     if is_nil(selected_project) do
       raise NotFoundError,
-            gettext("The project you are looking for doesn't exist or has been moved.")
+            dgettext("dashboard", "The project you are looking for doesn't exist or has been moved.")
     end
 
     %{account: selected_account} = selected_project
@@ -93,7 +93,7 @@ defmodule TuistWeb.LayoutLive do
          end) ++
            [
              %{
-               label: gettext("Create organization"),
+               label: dgettext("dashboard", "Create organization"),
                value: "create-organization",
                href: ~p"/organizations/new",
                icon: "building_plus",
@@ -139,7 +139,7 @@ defmodule TuistWeb.LayoutLive do
 
     if is_nil(selected_account) do
       raise NotFoundError,
-            gettext("The account you are looking for doesn't exist or has been moved.")
+            dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
     end
 
     {:cont,
@@ -162,7 +162,7 @@ defmodule TuistWeb.LayoutLive do
          end) ++
            [
              %{
-               label: gettext("Create organization"),
+               label: dgettext("dashboard", "Create organization"),
                value: "create-organization",
                href: ~p"/organizations/new",
                icon: "building_plus",
@@ -239,7 +239,7 @@ defmodule TuistWeb.LayoutLive do
 
         {:error, :not_found} ->
           raise NotFoundError,
-                gettext("The run you are looking for doesn't exist or has been moved.")
+                dgettext("dashboard", "The run you are looking for doesn't exist or has been moved.")
       end
     end
   end

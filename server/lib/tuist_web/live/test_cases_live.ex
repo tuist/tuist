@@ -17,7 +17,7 @@ defmodule TuistWeb.TestCasesLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Test Cases")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters())
 
     if connected?(socket) do
@@ -32,13 +32,13 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "last_status",
         field: "last_status",
-        display_name: gettext("Last Status"),
+        display_name: dgettext("dashboard_tests", "Last Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed"),
-          "skipped" => gettext("Skipped")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -46,7 +46,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: gettext("Module"),
+        display_name: dgettext("dashboard_tests", "Module"),
         type: :text,
         operator: :=~,
         value: ""
@@ -54,7 +54,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: gettext("Suite"),
+        display_name: dgettext("dashboard_tests", "Suite"),
         type: :text,
         operator: :=~,
         value: ""
@@ -62,7 +62,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "name",
         field: "name",
-        display_name: gettext("Test Case"),
+        display_name: dgettext("dashboard_tests", "Test Case"),
         type: :text,
         operator: :=~,
         value: ""
@@ -213,7 +213,7 @@ defmodule TuistWeb.TestCasesLive do
           %{
             dates: test_case_runs_analytics.dates,
             values: test_case_runs_analytics.values,
-            name: gettext("Test case runs"),
+            name: dgettext("dashboard_tests", "Test case runs"),
             value_formatter: "{value}"
           }
 
@@ -221,7 +221,7 @@ defmodule TuistWeb.TestCasesLive do
           %{
             dates: failed_test_case_runs_analytics.dates,
             values: failed_test_case_runs_analytics.values,
-            name: gettext("Failed test case runs"),
+            name: dgettext("dashboard_tests", "Failed test case runs"),
             value_formatter: "{value}"
           }
 
@@ -229,16 +229,16 @@ defmodule TuistWeb.TestCasesLive do
           {values, name} =
             case selected_duration_type do
               "p99" ->
-                {test_case_runs_duration_analytics.p99_values, gettext("p99 test case run duration")}
+                {test_case_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test case run duration")}
 
               "p90" ->
-                {test_case_runs_duration_analytics.p90_values, gettext("p90 test case run duration")}
+                {test_case_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test case run duration")}
 
               "p50" ->
-                {test_case_runs_duration_analytics.p50_values, gettext("p50 test case run duration")}
+                {test_case_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test case run duration")}
 
               _ ->
-                {test_case_runs_duration_analytics.values, gettext("Avg. test case run duration")}
+                {test_case_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test case run duration")}
             end
 
           %{
@@ -267,13 +267,13 @@ defmodule TuistWeb.TestCasesLive do
   defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp analytics_environment_label("any"), do: gettext("Any")
-  defp analytics_environment_label("local"), do: gettext("Local")
-  defp analytics_environment_label("ci"), do: gettext("CI")
+  defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
+  defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
+  defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
   defp date_range(params) do
     params["analytics_date_range"] || "last_30_days"

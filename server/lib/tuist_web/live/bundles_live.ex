@@ -19,7 +19,7 @@ defmodule TuistWeb.BundlesLive do
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist")
       |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
@@ -250,9 +250,9 @@ defmodule TuistWeb.BundlesLive do
   defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp bundle_size_trend_label("last-7-days"), do: gettext("since last week")
-  defp bundle_size_trend_label("last-12-months"), do: gettext("since last year")
-  defp bundle_size_trend_label(_), do: gettext("since last month")
+  defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
+  defp bundle_size_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
+  defp bundle_size_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
   defp bundle_size_trend_value(last_bundle, previous_bundle) do
     if last_bundle && last_bundle.download_size && last_bundle.download_size > 0 &&
@@ -356,15 +356,15 @@ defmodule TuistWeb.BundlesLive do
     ByteFormatter.format_bytes(bytes)
   end
 
-  def format_bundle_type(:ipa), do: gettext("IPA")
-  def format_bundle_type(:app), do: gettext("App bundle")
-  def format_bundle_type(:xcarchive), do: gettext("XCArchive")
-  def format_bundle_type(_), do: gettext("Unknown")
+  def format_bundle_type(:ipa), do: dgettext("dashboard_cache", "IPA")
+  def format_bundle_type(:app), do: dgettext("dashboard_cache", "App bundle")
+  def format_bundle_type(:xcarchive), do: dgettext("dashboard_cache", "XCArchive")
+  def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
 
-  def bundles_type_label("ipa"), do: gettext("IPA")
-  def bundles_type_label("app"), do: gettext("App bundle")
-  def bundles_type_label("xcarchive"), do: gettext("XCArchive")
-  def bundles_type_label(_), do: gettext("Any")
+  def bundles_type_label("ipa"), do: dgettext("dashboard_cache", "IPA")
+  def bundles_type_label("app"), do: dgettext("dashboard_cache", "App bundle")
+  def bundles_type_label("xcarchive"), do: dgettext("dashboard_cache", "XCArchive")
+  def bundles_type_label(_), do: dgettext("dashboard_cache", "Any")
 
   defp string_to_bundle_type("ipa"), do: :ipa
   defp string_to_bundle_type("app"), do: :app
@@ -878,7 +878,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "name",
         field: :name,
-        display_name: gettext("Name"),
+        display_name: dgettext("dashboard_cache", "Name"),
         type: :text,
         operator: :=~,
         value: ""
@@ -886,7 +886,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_cache", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -894,13 +894,13 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "type",
         field: :type,
-        display_name: gettext("Type"),
+        display_name: dgettext("dashboard_cache", "Type"),
         type: :option,
         options: [:app, :ipa, :xcarchive],
         options_display_names: %{
-          app: gettext("App bundle"),
-          ipa: gettext("IPA"),
-          xcarchive: gettext("XCArchive")
+          app: dgettext("dashboard_cache", "App bundle"),
+          ipa: dgettext("dashboard_cache", "IPA"),
+          xcarchive: dgettext("dashboard_cache", "XCArchive")
         },
         operator: :==,
         value: nil
@@ -908,7 +908,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "install_size",
         field: :install_size,
-        display_name: gettext("Install size (MB)"),
+        display_name: dgettext("dashboard_cache", "Install size (MB)"),
         type: :number,
         operator: :>=,
         value: nil
@@ -916,7 +916,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "download_size",
         field: :download_size,
-        display_name: gettext("Download size (MB)"),
+        display_name: dgettext("dashboard_cache", "Download size (MB)"),
         type: :number,
         operator: :>=,
         value: nil
@@ -924,7 +924,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "supported_platforms",
         field: :supported_platforms,
-        display_name: gettext("Platform"),
+        display_name: dgettext("dashboard_cache", "Platform"),
         type: :option,
         options: platform_options,
         options_display_names: %{

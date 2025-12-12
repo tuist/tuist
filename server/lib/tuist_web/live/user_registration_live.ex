@@ -24,27 +24,27 @@ defmodule TuistWeb.UserRegistrationLive do
             <div data-part="feature">
               <div>
                 <div data-part="icon"><.subtask /></div>
-                <span data-part="title">{gettext("Selective testing")}</span>
+                <span data-part="title">{dgettext("dashboard_auth", "Selective testing")}</span>
               </div>
               <span data-part="description">
-                {gettext("Discover how selective testing is reducing your test time.")}
+                {dgettext("dashboard_auth", "Discover how selective testing is reducing your test time.")}
               </span>
             </div>
             <div data-part="feature">
               <div>
                 <div data-part="icon"><.database /></div>
-                <span data-part="title">{gettext("Binary caching")}</span>
+                <span data-part="title">{dgettext("dashboard_auth", "Binary caching")}</span>
               </div>
               <span data-part="description">
-                {gettext("Explore how binary caching is enhancing your build times.")}
+                {dgettext("dashboard_auth", "Explore how binary caching is enhancing your build times.")}
               </span>
             </div>
             <div data-part="feature">
               <div>
                 <div data-part="icon"><.devices /></div>
-                <span data-part="title">{gettext("Previews")}</span>
+                <span data-part="title">{dgettext("dashboard_auth", "Previews")}</span>
               </div>
-              <span data-part="description">{gettext("Instantly share your app using a URL.")}</span>
+              <span data-part="description">{dgettext("dashboard_auth", "Instantly share your app using a URL.")}</span>
             </div>
           </div>
           <div data-part="image" data-oauth-enabled={oauth_configured?()}>
@@ -54,14 +54,14 @@ defmodule TuistWeb.UserRegistrationLive do
         </div>
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
-              <h1 data-part="title">{gettext("Sign up for Tuist")}</h1>
-              <span data-part="subtitle">{gettext("Welcome! Create an account to continue")}</span>
+              <h1 data-part="title">{dgettext("dashboard_auth", "Sign up for Tuist")}</h1>
+              <span data-part="subtitle">{dgettext("dashboard_auth", "Welcome! Create an account to continue")}</span>
             </div>
             <div
               :if={oauth_configured?()}
@@ -131,7 +131,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 field={@form[:email]}
                 name="user[email]"
                 id="email"
-                label={gettext("Email address")}
+                label={dgettext("dashboard_auth", "Email address")}
                 type="email"
                 placeholder="hello@tuist.dev"
                 show_prefix={false}
@@ -141,7 +141,7 @@ defmodule TuistWeb.UserRegistrationLive do
               <.text_input
                 field={@form[:password]}
                 name="user[password]"
-                label={gettext("Password")}
+                label={dgettext("dashboard_auth", "Password")}
                 id="password"
                 input_type="password"
                 error={format_password_error(@errors)}
@@ -152,25 +152,25 @@ defmodule TuistWeb.UserRegistrationLive do
               <.text_input
                 field={@form[:username]}
                 name="user[username]"
-                label={gettext("Username")}
+                label={dgettext("dashboard_auth", "Username")}
                 id="Username"
                 type="basic"
-                hint={gettext("Username may only contain alphanumeric characters")}
+                hint={dgettext("dashboard_auth", "Username may only contain alphanumeric characters")}
                 error={Map.get(@errors, :name)}
                 show_prefix={false}
                 required
                 tabindex={3}
               />
-              <.button variant="primary" size="large" label={gettext("Sign up")} tabindex={4} />
+              <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Sign up")} tabindex={4} />
             </.form>
           </div>
           <div data-part="bottom-link">
-            <span>{gettext("Already have an account?")}</span>
+            <span>{dgettext("dashboard_auth", "Already have an account?")}</span>
             <.link_button
               navigate={~p"/users/log_in"}
               variant="primary"
               size="large"
-              label={gettext("Log in")}
+              label={dgettext("dashboard_auth", "Log in")}
             />
           </div>
         </div>
@@ -185,15 +185,15 @@ defmodule TuistWeb.UserRegistrationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
-              <h1 data-part="title">{gettext("Confirm your account")}</h1>
+              <h1 data-part="title">{dgettext("dashboard_auth", "Confirm your account")}</h1>
               <span data-part="subtitle">
-                {gettext("Check your inbox for a confirmation email and click the link to continue.")}
+                {dgettext("dashboard_auth", "Check your inbox for a confirmation email and click the link to continue.")}
               </span>
             </div>
           </div>
@@ -233,7 +233,7 @@ defmodule TuistWeb.UserRegistrationLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Sign up")} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_auth", "Sign up")} · Tuist")
       |> assign(:form, form)
       |> assign(:success, false)
       |> assign(:errors, %{})
@@ -261,7 +261,7 @@ defmodule TuistWeb.UserRegistrationLive do
           # User is already confirmed and can log in immediately
           {:noreply,
            socket
-           |> put_flash(:info, gettext("Account created successfully! Please log in."))
+           |> put_flash(:info, dgettext("dashboard_auth", "Account created successfully! Please log in."))
            |> redirect(to: ~p"/users/log_in")}
         else
           Accounts.deliver_user_confirmation_instructions(%{
@@ -273,10 +273,10 @@ defmodule TuistWeb.UserRegistrationLive do
         end
 
       {:error, :account_handle_taken} ->
-        {:noreply, put_flash(socket, :error, gettext("Account name is already taken"))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_auth", "Account name is already taken"))}
 
       {:error, :email_taken} ->
-        {:noreply, put_flash(socket, :error, gettext("Email is already taken"))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_auth", "Email is already taken"))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         socket =

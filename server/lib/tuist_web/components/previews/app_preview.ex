@@ -22,7 +22,7 @@ defmodule TuistWeb.Previews.AppPreview do
           )
         }
         alt={
-          gettext("%{app_name} icon",
+          dgettext("dashboard", "%{app_name} icon",
             app_name: @preview.display_name
           )
         }

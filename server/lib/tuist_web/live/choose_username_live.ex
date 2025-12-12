@@ -35,15 +35,15 @@ defmodule TuistWeb.ChooseUsernameLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
-              <h1 data-part="title">{gettext("Choose a username")}</h1>
+              <h1 data-part="title">{dgettext("dashboard_auth", "Choose a username")}</h1>
               <span data-part="subtitle">
-                {gettext("Choose a username for your personal account")}
+                {dgettext("dashboard_auth", "Choose a username for your personal account")}
               </span>
             </div>
             <.form
@@ -56,14 +56,14 @@ defmodule TuistWeb.ChooseUsernameLive do
                 id="username"
                 field={@form[:name]}
                 type="basic"
-                label={gettext("Username")}
-                hint={gettext("Username may only contain alphanumeric characters")}
+                label={dgettext("dashboard_auth", "Username")}
+                hint={dgettext("dashboard_auth", "Username may only contain alphanumeric characters")}
                 error={@error}
                 show_required
                 required
               />
               <div data-part="actions">
-                <.button type="submit" variant="primary" label={gettext("Continue")} />
+                <.button type="submit" variant="primary" label={dgettext("dashboard_auth", "Continue")} />
               </div>
             </.form>
           </div>
@@ -103,7 +103,7 @@ defmodule TuistWeb.ChooseUsernameLive do
         socket =
           socket
           |> assign(:form, to_form(%{"name" => username}, as: "account"))
-          |> assign(:error, gettext("This username has already been taken"))
+          |> assign(:error, dgettext("dashboard_auth", "This username has already been taken"))
 
         {:noreply, socket}
 
