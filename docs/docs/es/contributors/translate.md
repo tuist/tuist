@@ -29,6 +29,7 @@ If you believe Tuist would benefit from supporting a new language, please create
 a new [topic in the community forum](https://community.tuist.io/c/general/4) to
 discuss it with the community.
 <!-- -->
+:::
 
 ## How to translate {#how-to-translate}
 
@@ -46,6 +47,7 @@ Weblate segments the files to bind source and target languages. If you modify
 the source language, you'll break the binding, and the reconciliation might
 yield unexpected results.
 <!-- -->
+:::
 
 ## Guidelines {#guidelines}
 
