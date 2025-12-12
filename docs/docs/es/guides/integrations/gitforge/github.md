@@ -39,6 +39,7 @@ comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 The comment is only posted when your CI runs are
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 <!-- -->
+:::
 
 ::: info GITHUB_REF
 <!-- -->
@@ -51,3 +52,4 @@ You can run the relevant command, like `tuist share`, with the prefixed
 `GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{
 github.event.issue.number }}/head" tuist share</code>
 <!-- -->
+:::
