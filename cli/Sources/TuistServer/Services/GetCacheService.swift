@@ -10,7 +10,8 @@
             projectId: String,
             hash: String,
             name: String,
-            cacheCategory: RemoteCacheCategory
+            cacheCategory: RemoteCacheCategory,
+            authenticationURL: URL?
         ) async throws -> ServerCacheArtifact
     }
 
@@ -41,9 +42,10 @@
             projectId: String,
             hash: String,
             name: String,
-            cacheCategory: RemoteCacheCategory
+            cacheCategory: RemoteCacheCategory,
+            authenticationURL: URL? = nil
         ) async throws -> ServerCacheArtifact {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.authenticated(serverURL: serverURL, authenticationURL: authenticationURL)
 
             let response = try await client.downloadCacheArtifact(
                 .init(

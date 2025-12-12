@@ -9,6 +9,45 @@ defmodule Cache.S3DownloadWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
+        args:
+          %{
+            "account_handle" => account_handle,
+            "project_handle" => project_handle,
+            "category" => category,
+            "hash" => hash,
+            "name" => name
+          } = _args
+      }) do
+    key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
+    Logger.info("Starting S3 download for module artifact: #{key}")
+
+    if Cache.S3.exists?(key) do
+      local_path = Cache.Disk.artifact_path(key)
+
+      case download_from_s3(key, local_path) do
+        :ok ->
+          {:ok, %{size: size}} = Cache.Disk.module_stat(account_handle, project_handle, category, hash, name)
+
+          :telemetry.execute([:cache, :module, :download, :s3_hit], %{size: size}, %{
+            category: category,
+            hash: hash,
+            name: name,
+            account_handle: account_handle,
+            project_handle: project_handle
+          })
+
+          :ok
+
+        {:error, _reason} = error ->
+          error
+      end
+    else
+      Logger.info("Module artifact not found in S3, skipping download: #{key}")
+      :ok
+    end
+  end
+
+  def perform(%Oban.Job{
         args: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => id} = _args
       }) do
     key = Cache.Disk.cas_key(account_handle, project_handle, id)
@@ -43,6 +82,18 @@ defmodule Cache.S3DownloadWorker do
       account_handle: account_handle,
       project_handle: project_handle,
       id: id
+    }
+    |> __MODULE__.new()
+    |> Oban.insert()
+  end
+
+  def enqueue_module_download(account_handle, project_handle, category, hash, name) do
+    %{
+      account_handle: account_handle,
+      project_handle: project_handle,
+      category: category,
+      hash: hash,
+      name: name
     }
     |> __MODULE__.new()
     |> Oban.insert()

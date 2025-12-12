@@ -1,11 +1,11 @@
-defmodule Cache.CASArtifact do
+defmodule Cache.CacheArtifact do
   @moduledoc false
 
   use Ecto.Schema
 
   import Ecto.Changeset
 
-  schema "cas_artifacts" do
+  schema "cache_artifacts" do
     field :key, :string
     field :size_bytes, :integer
     field :last_accessed_at, :utc_datetime_usec
