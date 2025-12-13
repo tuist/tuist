@@ -31,7 +31,7 @@ struct InspectDependenciesCommand: AsyncParsableCommand {
             Set(only)
         }
 
-        try await InspectDependenciesService()
+        try await InspectDependenciesCommandService()
             .run(path: path, inspectionTypes: inspectionTypes)
     }
 }
