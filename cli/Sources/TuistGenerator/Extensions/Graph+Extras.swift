@@ -35,7 +35,7 @@ extension XcodeGraph.Graph {
         sourceTargets: [String] = [],
         sinkTargets: [String] = [],
         directOnly: Bool = false,
-        labelFilter: Set<String> = []
+        typeFilter: Set<String> = []
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
 
@@ -114,8 +114,8 @@ extension XcodeGraph.Graph {
                 .filter { dependency in
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
 
-                    // Apply label filter
-                    if !labelFilter.isEmpty, !labelFilter.contains(dependency.labelName) {
+                    // Apply type filter
+                    if !typeFilter.isEmpty, !typeFilter.contains(dependency.labelName) {
                         return false
                     }
 
