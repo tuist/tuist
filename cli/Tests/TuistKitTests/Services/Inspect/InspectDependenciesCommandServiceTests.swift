@@ -1,49 +1,38 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistKit
 
-final class InspectDependenciesServiceTests: TuistUnitTestCase {
-    private var configLoader: MockConfigLoading!
-    private var generatorFactory: MockGeneratorFactorying!
-    private var targetScanner: MockTargetImportsScanning!
-    private var subject: InspectDependenciesService!
-    private var generator: MockGenerating!
-    private var loadCallCount: Int = 0
+struct InspectDependenciesCommandServiceTests {
+    private let configLoader: MockConfigLoading
+    private let generatorFactory: MockGeneratorFactorying
+    private let targetScanner: MockTargetImportsScanning
+    private let subject: InspectDependenciesCommandService
+    private let generator: MockGenerating
 
-    override func setUp() {
-        super.setUp()
+    init() throws {
         configLoader = MockConfigLoading()
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
-        loadCallCount = 0
-        subject = InspectDependenciesService(
+        subject = InspectDependenciesCommandService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
             graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
         )
     }
 
-    override func tearDown() {
-        configLoader = nil
-        generatorFactory = nil
-        targetScanner = nil
-        generator = nil
-        subject = nil
-        super.tearDown()
-    }
-
     // MARK: - Both Checks Tests
 
-    func test_run_withBothChecks_failsOnImplicitIssues() async throws {
+    @Test
+    func runWithBothChecksFailsOnImplicitIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -59,13 +48,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
-        )
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
+        }
     }
 
-    func test_run_withBothChecks_reportsBothIssues_whenBothFound() async throws {
+    @Test
+    func runWithBothChecksReportsBothIssuesWhenBothFound() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -97,16 +88,18 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(unusedFramework)).willReturn(Set([]))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            InspectImportsServiceError.issuesFound(
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(
                 implicit: [.init(target: app.productName, dependencies: [sharedCore.productName])],
                 redundant: [.init(target: app.productName, dependencies: [unusedFramework.productName])]
             )
-        )
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
+        }
     }
 
-    func test_run_withBothChecks_failsOnRedundantIssues_afterImplicitPasses() async throws {
+    @Test
+    func runWithBothChecksFailsOnRedundantIssuesAfterImplicitPasses() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -133,13 +126,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant]),
-            InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
-        )
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
+        }
     }
 
-    func test_run_withBothChecks_successWhenNoIssues() async throws {
+    @Test
+    func runWithBothChecksSucceedsWhenNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -162,7 +157,8 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
     }
 
-    func test_run_graphLoadedOnce() async throws {
+    @Test
+    func graphLoadedOnce() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -175,10 +171,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
             dependencies: [.target(name: app.name, path: path): Set([.target(name: framework.name, path: path)])]
         )
 
+        final class LoadCounter {
+            var count = 0
+        }
+        let loadCounter = LoadCounter()
+
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willProduce { _, _ in
-            self.loadCallCount += 1
+            loadCounter.count += 1
             return graph
         }
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
@@ -188,12 +189,13 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
 
         // Then
-        XCTAssertEqual(loadCallCount, 1, "Graph should be loaded exactly once")
+        #expect(loadCounter.count == 1, "Graph should be loaded exactly once")
     }
 
     // MARK: - Implicit Check Only Tests
 
-    func test_run_implicitOnly_throwsAnError_when_thereAreIssues() async throws {
+    @Test
+    func runImplicitOnlyThrowsErrorWhenThereAreIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -209,13 +211,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit]),
-            InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
-        )
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(target: app.productName, dependencies: [framework.productName])])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+        }
     }
 
-    func test_run_implicitOnly_when_transitiveLocalDependencyIsImplicitlyImported() async throws {
+    @Test
+    func runImplicitOnlyWhenTransitiveLocalDependencyIsImplicitlyImported() async throws {
         // Given
         let config = Tuist.test()
 
@@ -262,13 +266,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(testTargetDependency)).willReturn(Set())
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.implicit]),
-            InspectImportsServiceError.issuesFound(implicit: [.init(target: "App", dependencies: ["TestTargetDependency"])])
-        )
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(target: "App", dependencies: ["TestTargetDependency"])])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+        }
     }
 
-    func test_run_implicitOnly_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
+    @Test
+    func runImplicitOnlyDoesntThrowErrorsWhenThereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -293,7 +299,8 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
 
     // MARK: - Redundant Check Only Tests
 
-    func test_run_redundantOnly_throwsAnError_when_thereAreIssues() async throws {
+    @Test
+    func runRedundantOnlyThrowsErrorWhenThereAreIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -320,13 +327,15 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(path: path.pathString, inspectionTypes: [.redundant]),
-            InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
-        )
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(redundant: [.init(target: app.productName, dependencies: [extraFramework.productName])])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+        }
     }
 
-    func test_run_redundantOnly_respectsIgnoreTags() async throws {
+    @Test
+    func runRedundantOnlyRespectsIgnoreTags() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test(
@@ -353,7 +362,8 @@ final class InspectDependenciesServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
     }
 
-    func test_run_redundantOnly_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
+    @Test
+    func runRedundantOnlyDoesntThrowErrorsWhenThereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
