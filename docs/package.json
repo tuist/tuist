@@ -16,7 +16,7 @@
     "postcss-rtlcss": "^5.7.1",
     "tempy": "^3.1.0",
     "undici": "^7.16.0",
-    "vite": "^6.3.6",
+    "vite": "^6.4.1",
     "vitepress": "^1.6.4",
     "vitepress-plugin-llmstxt": "^0.4.2",
     "vue": "^3.5.22",
