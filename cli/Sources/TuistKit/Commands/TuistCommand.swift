@@ -55,12 +55,6 @@ public struct TuistCommand: AsyncParsableCommand {
                     ]
                 ),
                 CommandGroup(
-                    name: "AI",
-                    subcommands: [
-                        MCPCommand.self,
-                    ]
-                ),
-                CommandGroup(
                     name: "Account",
                     subcommands: [
                         AccountCommand.self,
