@@ -43,7 +43,7 @@ struct GraphExtrasTests {
             sourceTargets: ["App"],
             sinkTargets: [],
             directOnly: false,
-            labelFilter: []
+            typeFilter: []
         )
 
         // Then
@@ -88,7 +88,7 @@ struct GraphExtrasTests {
             sourceTargets: ["App"],
             sinkTargets: [],
             directOnly: true,
-            labelFilter: []
+            typeFilter: []
         )
 
         // Then
@@ -139,7 +139,7 @@ struct GraphExtrasTests {
             sourceTargets: [],
             sinkTargets: [],
             directOnly: false,
-            labelFilter: ["target"]
+            typeFilter: ["target"]
         )
 
         // Then

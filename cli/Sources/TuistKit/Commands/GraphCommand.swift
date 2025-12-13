@@ -115,9 +115,9 @@ public struct GraphCommand: AsyncParsableCommand {
         name: .long,
         parsing: .upToNextOption,
         help: "Filter by dependency type: target, package, framework, xcframework, sdk, bundle, library, macro.",
-        envKey: .graphLabel
+        envKey: .graphType
     )
-    var label: [String] = []
+    var type: [String] = []
 
     @Option(
         name: .long,
@@ -144,7 +144,7 @@ public struct GraphCommand: AsyncParsableCommand {
             sourceTargets: source,
             sinkTargets: sink,
             directOnly: direct,
-            labelFilter: Set(label),
+            typeFilter: Set(type),
             outputFields: outputFields,
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath

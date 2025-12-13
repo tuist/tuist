@@ -67,7 +67,7 @@ final class GraphCommandService {
         sourceTargets: [String],
         sinkTargets: [String],
         directOnly: Bool,
-        labelFilter: Set<String>,
+        typeFilter: Set<String>,
         outputFields _: Set<GraphOutputField>?,
         path: AbsolutePath,
         outputPath: AbsolutePath,
@@ -100,7 +100,7 @@ final class GraphCommandService {
             sourceTargets: sourceTargets,
             sinkTargets: sinkTargets,
             directOnly: directOnly,
-            labelFilter: labelFilter
+            typeFilter: typeFilter
         )
 
         if stdout {
