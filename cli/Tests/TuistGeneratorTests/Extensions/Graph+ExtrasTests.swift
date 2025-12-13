@@ -139,12 +139,12 @@ struct GraphExtrasTests {
             sourceTargets: [],
             sinkTargets: [],
             directOnly: false,
-            labelFilter: [.target]
+            labelFilter: ["target"]
         )
 
         // Then
         let appDeps = result.first { $0.key.target.name == "App" }?.value ?? []
-        let depTypes = appDeps.map { GraphDependencyLabel(from: $0) }
-        #expect(depTypes.allSatisfy { $0 == .target })
+        let depLabelNames = appDeps.map(\.labelName)
+        #expect(depLabelNames.allSatisfy { $0 == "target" })
     }
 }

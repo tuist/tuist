@@ -117,7 +117,7 @@ public struct GraphCommand: AsyncParsableCommand {
         help: "Filter by dependency type: target, package, framework, xcframework, sdk, bundle, library, macro.",
         envKey: .graphLabel
     )
-    var label: [GraphDependencyLabel] = []
+    var label: [String] = []
 
     @Option(
         name: .long,
@@ -158,8 +158,6 @@ public struct GraphCommand: AsyncParsableCommand {
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
     case dot, toon, json, legacyJSON, png, svg
 }
-
-extension GraphDependencyLabel: ExpressibleByArgument {}
 
 enum GraphOutputField: String, CaseIterable {
     case name, type, linking, status, path, product
