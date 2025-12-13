@@ -150,11 +150,13 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
                 "TypeAliasModule",
                 "VarModule",
             ]
-            let expectedAppIssue = InspectImportsIssue(target: "App", dependencies: appDependencies)
-            let expectedFrameworkIssue = InspectImportsIssue(target: "FrameworkA", dependencies: ["FrameworkB"])
-            let expectedError = InspectImportsServiceError.implicitImportsFound([expectedAppIssue, expectedFrameworkIssue])
-
-            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), expectedError)
+            await XCTAssertThrowsSpecific(
+                try await run(InspectImplicitImportsCommand.self),
+                InspectImportsServiceError.issuesFound(implicit: [
+                    .init(target: "App", dependencies: appDependencies),
+                    .init(target: "FrameworkA", dependencies: ["FrameworkB"]),
+                ])
+            )
         }
     }
 
