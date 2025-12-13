@@ -4,6 +4,30 @@ import TSCBasic
 import TuistCore
 import XcodeGraph
 
+public enum GraphDependencyLabel: String, CaseIterable, Sendable {
+    case target
+    case package
+    case framework
+    case xcframework
+    case sdk
+    case bundle
+    case library
+    case macro
+
+    public init?(from dependency: GraphDependency) {
+        switch dependency {
+        case .target: self = .target
+        case .packageProduct: self = .package
+        case .framework: self = .framework
+        case .xcframework: self = .xcframework
+        case .sdk: self = .sdk
+        case .bundle: self = .bundle
+        case .library: self = .library
+        case .macro: self = .macro
+        }
+    }
+}
+
 extension XcodeGraph.Graph {
     /// Filters the project graph
     /// - Parameters:
@@ -12,13 +36,18 @@ extension XcodeGraph.Graph {
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
         platformToFilter: Platform?,
-        targetsToFilter: [String]
+        targetsToFilter: [String],
+        sourceTargets: [String] = [],
+        sinkTargets: [String] = [],
+        directOnly: Bool = false,
+        labelFilter: Set<GraphDependencyLabel> = []
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
 
         let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
             .allTargets()
-        let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
+
+        var filteredTargets: Set<GraphTarget> = allTargets.filter { target in
             if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
                 return false
             }
@@ -34,11 +63,47 @@ extension XcodeGraph.Graph {
             return true
         }
 
-        let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
-            transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+        // Apply source filter: show only what these targets depend on
+        if !sourceTargets.isEmpty {
+            let sources = filteredTargets.filter { sourceTargets.contains($0.target.name) }
+            if directOnly {
+                // Direct dependencies only
+                let directDeps = sources.flatMap { source in
+                    graphTraverser.directTargetDependencies(path: source.path, name: source.target.name).map(\.graphTarget)
+                }
+                filteredTargets = sources.union(Set(directDeps))
+            } else {
+                // Transitive dependencies
+                let transitiveDeps = transitiveClosure(Array(sources)) { target in
+                    Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+                }
+                filteredTargets = sources.union(transitiveDeps)
             }
-        )
+        }
+
+        // Apply sink filter: show only what depends on these targets
+        if !sinkTargets.isEmpty {
+            let sinks = filteredTargets.filter { sinkTargets.contains($0.target.name) }
+            let reverseDeps = computeReverseDependencies(
+                for: sinks,
+                in: filteredTargets,
+                graphTraverser: graphTraverser,
+                directOnly: directOnly
+            )
+            filteredTargets = sinks.union(reverseDeps)
+        }
+
+        // If neither source nor sink is specified, use transitive closure (original behavior)
+        let filteredTargetsAndDependencies: Set<GraphTarget>
+        if sourceTargets.isEmpty, sinkTargets.isEmpty {
+            filteredTargetsAndDependencies = filteredTargets.union(
+                transitiveClosure(Array(filteredTargets)) { target in
+                    Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+                }
+            )
+        } else {
+            filteredTargetsAndDependencies = filteredTargets
+        }
 
         return filteredTargetsAndDependencies.reduce(into: [GraphTarget: Set<GraphDependency>]()) { result, target in
             if skipExternalDependencies, case .external = target.project.type { return }
@@ -53,8 +118,60 @@ extension XcodeGraph.Graph {
             result[target] = targetDependencies
                 .filter { dependency in
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
+
+                    // Apply label filter
+                    if !labelFilter.isEmpty {
+                        guard let depLabel = GraphDependencyLabel(from: dependency) else { return false }
+                        if !labelFilter.contains(depLabel) { return false }
+                    }
+
                     return true
                 }
+        }
+    }
+
+    /// Computes reverse dependencies (what depends on the given targets)
+    private func computeReverseDependencies(
+        for targets: Set<GraphTarget>,
+        in allTargets: Set<GraphTarget>,
+        graphTraverser: GraphTraverser,
+        directOnly: Bool
+    ) -> Set<GraphTarget> {
+        // Build reverse dependency map: target -> set of targets that depend on it
+        var reverseDeps: [GraphTarget: Set<GraphTarget>] = [:]
+        for target in allTargets {
+            let directDeps = graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+            for dep in directDeps {
+                reverseDeps[dep.graphTarget, default: []].insert(target)
+            }
+        }
+
+        if directOnly {
+            // Return only direct reverse dependencies
+            return targets.reduce(into: Set<GraphTarget>()) { result, target in
+                if let deps = reverseDeps[target] {
+                    result.formUnion(deps)
+                }
+            }
+        } else {
+            // Compute transitive reverse closure
+            var visited = Set<GraphTarget>()
+            var queue = Array(targets)
+
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                guard !visited.contains(current) else { continue }
+                visited.insert(current)
+
+                if let upstream = reverseDeps[current] {
+                    for dep in upstream where !visited.contains(dep) {
+                        queue.append(dep)
+                    }
+                }
+            }
+
+            // Remove the original targets from visited to return only upstream targets
+            return visited.subtracting(targets)
         }
     }
 }

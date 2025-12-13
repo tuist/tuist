@@ -7,6 +7,7 @@ import Mockable
 import ProjectAutomation
 import Testing
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
@@ -64,6 +65,11 @@ struct GraphCommandServiceTests {
                 open: false,
                 platformToFilter: nil,
                 targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                labelFilter: [],
+                outputFields: nil,
                 path: temporaryDirectory,
                 outputPath: temporaryDirectory,
                 stdout: false
@@ -104,6 +110,11 @@ struct GraphCommandServiceTests {
                 open: false,
                 platformToFilter: nil,
                 targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                labelFilter: [],
+                outputFields: nil,
                 path: temporaryDirectory,
                 outputPath: temporaryDirectory,
                 stdout: false
@@ -148,6 +159,11 @@ struct GraphCommandServiceTests {
                 open: false,
                 platformToFilter: nil,
                 targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                labelFilter: [],
+                outputFields: nil,
                 path: temporaryDirectory,
                 outputPath: temporaryDirectory,
                 stdout: false
@@ -190,6 +206,11 @@ struct GraphCommandServiceTests {
                 open: false,
                 platformToFilter: nil,
                 targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                labelFilter: [],
+                outputFields: nil,
                 path: temporaryDirectory,
                 outputPath: temporaryDirectory,
                 stdout: false
@@ -225,6 +246,11 @@ struct GraphCommandServiceTests {
                     open: false,
                     platformToFilter: nil,
                     targetsToFilter: [],
+                    sourceTargets: [],
+                    sinkTargets: [],
+                    directOnly: false,
+                    labelFilter: [],
+                    outputFields: nil,
                     path: temporaryDirectory,
                     outputPath: temporaryDirectory,
                     stdout: true
@@ -254,6 +280,11 @@ struct GraphCommandServiceTests {
                     open: false,
                     platformToFilter: nil,
                     targetsToFilter: [],
+                    sourceTargets: [],
+                    sinkTargets: [],
+                    directOnly: false,
+                    labelFilter: [],
+                    outputFields: nil,
                     path: temporaryDirectory,
                     outputPath: temporaryDirectory,
                     stdout: true
