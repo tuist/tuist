@@ -4,26 +4,21 @@ import TSCBasic
 import TuistCore
 import XcodeGraph
 
-public enum GraphDependencyLabel: String, CaseIterable, Sendable {
-    case target
-    case package
-    case framework
-    case xcframework
-    case sdk
-    case bundle
-    case library
-    case macro
+extension GraphDependency {
+    public static let allLabelNames: [String] = [
+        "target", "package", "framework", "xcframework", "sdk", "bundle", "library", "macro",
+    ]
 
-    public init?(from dependency: GraphDependency) {
-        switch dependency {
-        case .target: self = .target
-        case .packageProduct: self = .package
-        case .framework: self = .framework
-        case .xcframework: self = .xcframework
-        case .sdk: self = .sdk
-        case .bundle: self = .bundle
-        case .library: self = .library
-        case .macro: self = .macro
+    public var labelName: String {
+        switch self {
+        case .target: return "target"
+        case .packageProduct: return "package"
+        case .framework: return "framework"
+        case .xcframework: return "xcframework"
+        case .sdk: return "sdk"
+        case .bundle: return "bundle"
+        case .library: return "library"
+        case .macro: return "macro"
         }
     }
 }
@@ -40,7 +35,7 @@ extension XcodeGraph.Graph {
         sourceTargets: [String] = [],
         sinkTargets: [String] = [],
         directOnly: Bool = false,
-        labelFilter: Set<GraphDependencyLabel> = []
+        labelFilter: Set<String> = []
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
 
@@ -120,9 +115,8 @@ extension XcodeGraph.Graph {
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
 
                     // Apply label filter
-                    if !labelFilter.isEmpty {
-                        guard let depLabel = GraphDependencyLabel(from: dependency) else { return false }
-                        if !labelFilter.contains(depLabel) { return false }
+                    if !labelFilter.isEmpty, !labelFilter.contains(dependency.labelName) {
+                        return false
                     }
 
                     return true
