@@ -8,7 +8,6 @@ import {
   bundleSizeIcon,
   previewsIcon,
   projectsIcon,
-  mcpIcon,
   ciIcon,
   githubIcon,
   ssoIcon,
@@ -20,7 +19,6 @@ import {
   selfHostingIcon,
   installTuistIcon,
   getStartedIcon,
-  agenticBuildingIcon,
   qaIcon,
   slackIcon,
 } from "./icons.mjs";
@@ -554,22 +552,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.share.items.previews.text",
           )}</span>`,
           link: `/${locale}/guides/features/previews`,
-        },
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.agentic-coding.text",
-          )}</span>`,
-          collapsed: true,
-          items: [
-            {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
-                locale,
-                "sidebars.guides.items.agentic-coding.items.mcp.text",
-              )}</span>`,
-              link: `/${locale}/guides/features/agentic-coding/mcp`,
-            },
-          ],
         },
       ],
     },
