@@ -66,7 +66,7 @@ final class GraphCommandService {
         sourceTargets: [String],
         sinkTargets: [String],
         directOnly: Bool,
-        labelFilter: Set<GraphDependencyLabel>,
+        labelFilter: Set<String>,
         outputFields _: Set<GraphOutputField>?,
         path: AbsolutePath,
         outputPath: AbsolutePath,
