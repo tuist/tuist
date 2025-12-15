@@ -7622,7 +7622,7 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The Mach-O UUID of the binary (for update checking).
+                    /// The Mach-O UUID of the binary.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
                     public var binary_id: Swift.String?
@@ -7668,7 +7668,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - binary_id: The Mach-O UUID of the binary (for update checking).
+                    ///   - binary_id: The Mach-O UUID of the binary.
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.

@@ -95,7 +95,7 @@
 
             switch previewUploadType {
             case let .ipa(bundle):
-                let binaryId = try await extractBinaryId(fromIPA: bundle.path)
+                let binaryId = try await ipaBinaryId(at: bundle.path)
                 let preview = try await uploadPreview(
                     buildPath: bundle.path,
                     previewType: .ipa,
@@ -121,7 +121,7 @@
                     let bundleArchivePath = try await fileArchiver
                         .makeFileArchiver(for: [bundle.path])
                         .zip(name: bundle.path.basename)
-                    let binaryId = extractBinaryId(fromAppBundle: bundle.path, name: bundle.infoPlist.name)
+                    let binaryId = appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
 
                     preview = try await uploadPreview(
                         buildPath: bundleArchivePath,
@@ -268,9 +268,9 @@
                 .awaitCompletion()
         }
 
-        private func extractBinaryId(fromIPA ipaPath: AbsolutePath) async throws -> String? {
-            let unarchiver = try fileArchiver.makeFileUnarchiver(for: ipaPath)
-            let unzippedPath = try await unarchiver.unzip()
+        private func ipaBinaryId(at path: AbsolutePath) async throws -> String? {
+            let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
+            let unzippedPath = try unarchiver.unzip()
 
             guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
                 .collect()
@@ -280,11 +280,11 @@
             }
 
             let appName = appPath.basenameWithoutExt
-            return extractBinaryId(fromAppBundle: appPath, name: appName)
+            return appBundleBinaryId(at: appPath, name: appName)
         }
 
-        private func extractBinaryId(fromAppBundle appPath: AbsolutePath, name: String) -> String? {
-            let executablePath = appPath.appending(component: name)
+        private func appBundleBinaryId(at path: AbsolutePath, name: String) -> String? {
+            let executablePath = path.appending(component: name)
             guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
                   let uuid = uuids.first
             else {

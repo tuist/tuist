@@ -73,11 +73,38 @@ defmodule Tuist.AppBuilds do
   end
 
   @doc """
-  Finds an app build by its binary ID (Mach-O UUID).
+  Finds the latest preview on the same track (bundle identifier and git branch) as the app build
+  identified by the given binary ID.
 
-  Returns `{:ok, app_build}` if found, `{:error, :not_found}` otherwise.
+  Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
   """
-  def app_build_by_binary_id(binary_id, opts \\ []) do
+  def latest_preview_for_binary_id(binary_id, %Project{} = project, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    with {:ok, app_build} <- app_build_by_binary_id(binary_id, preload: [:preview]),
+         %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch}
+         when not is_nil(bundle_identifier) <- app_build.preview do
+      preview =
+        from(p in Preview,
+          where: p.project_id == ^project.id,
+          where: p.bundle_identifier == ^bundle_identifier,
+          where: p.git_branch == ^git_branch,
+          order_by: [desc: p.inserted_at],
+          limit: 1
+        )
+        |> preload(^preload)
+        |> Repo.one()
+
+      case preview do
+        nil -> {:error, :not_found}
+        %Preview{} -> {:ok, preview}
+      end
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp app_build_by_binary_id(binary_id, opts) do
     preload = Keyword.get(opts, :preload, [])
 
     case Repo.get_by(AppBuild, binary_id: binary_id) do

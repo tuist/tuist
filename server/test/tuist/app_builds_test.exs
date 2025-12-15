@@ -872,53 +872,145 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
-  describe "app_build_by_binary_id/2" do
-    test "returns an app build by binary_id" do
+  describe "latest_preview_for_binary_id/3" do
+    test "returns the latest preview on the same track" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
       binary_id = "550E8400-E29B-41D4-A716-446655440000"
 
-      app_build =
-        AppBuildsFixtures.app_build_fixture(
-          preview: preview,
-          binary_id: binary_id
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
       # When
-      {:ok, result} = AppBuilds.app_build_by_binary_id(binary_id)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
 
       # Then
-      assert result.id == app_build.id
-      assert result.binary_id == binary_id
+      assert result.id == preview_two.id
     end
 
-    test "returns an app build by binary_id with preloaded associations" do
+    test "returns the latest preview with preloaded associations" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
       binary_id = "550E8400-E29B-41D4-A716-446655440001"
 
-      app_build =
-        AppBuildsFixtures.app_build_fixture(
-          preview: preview,
-          binary_id: binary_id
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main"
+        )
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project, preload: [:app_builds])
+
+      # Then
+      assert result.id == preview.id
+      assert length(result.app_builds) == 1
+      assert hd(result.app_builds).id == app_build.id
+    end
+
+    test "respects git_branch when finding latest preview" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440002"
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_main =
+        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id)
+
+      _preview_feature =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "feature-branch",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
         )
 
       # When
-      {:ok, result} = AppBuilds.app_build_by_binary_id(binary_id, preload: [:preview])
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
 
       # Then
-      assert result.id == app_build.id
-      assert result.preview.id == preview.id
+      assert result.id == preview_main.id
+      assert result.git_branch == "main"
     end
 
-    test "returns not_found error when the binary_id is not found" do
+    test "returns not_found when binary_id does not exist" do
       # Given
+      project = ProjectsFixtures.project_fixture()
       binary_id = "nonexistent-binary-id"
 
       # When
-      result = AppBuilds.app_build_by_binary_id(binary_id)
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns not_found when no preview matches the track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440003"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: nil,
+          git_branch: "main"
+        )
+
+      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+
+      # When
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns not_found when preview belongs to a different project" do
+      # Given
+      project_one = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440004"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project_one,
+          bundle_identifier: "com.example.app",
+          git_branch: "main"
+        )
+
+      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+
+      # When
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, project_two)
 
       # Then
       assert result == {:error, :not_found}

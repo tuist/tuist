@@ -3852,7 +3852,7 @@ paths:
             schema:
               properties:
                 binary_id:
-                  description: The Mach-O UUID of the binary (for update checking).
+                  description: The Mach-O UUID of the binary.
                   type: string
                   x-struct:
                   x-validate:

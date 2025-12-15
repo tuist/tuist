@@ -13,7 +13,7 @@ import TuistTesting
 @testable import TuistServer
 
 struct PreviewsUploadServiceTests {
-    private var subject: PreviewsUploadService!
+    private let subject: PreviewsUploadService
 
     private let fileSystem = FileSystem()
     private let fileArchiver = MockFileArchiving()
@@ -510,8 +510,8 @@ struct PreviewsUploadServiceTests {
         let preview = temporaryDirectory.appending(component: "App.ipa")
         try await fileSystem.makeDirectory(at: preview)
 
-        let unzippedPath = temporaryDirectory.appending(component: "Payload")
-        let appPath = unzippedPath.appending(component: "App.app")
+        let unzippedPath = temporaryDirectory.appending(component: "unzipped")
+        let appPath = unzippedPath.appending(components: ["Payload", "App.app"])
         try await fileSystem.makeDirectory(at: appPath)
 
         let expectedUUID = UUID()
