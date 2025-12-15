@@ -1,5 +1,6 @@
 import Command
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
@@ -395,5 +396,218 @@ struct PreviewsUploadServiceTests {
                 )
                 .called(1)
         }
+    }
+
+    @Test(.inTemporaryDirectory) func upload_app_bundle_extracts_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let appName = "TestApp"
+        let preview = temporaryDirectory.appending(component: "\(appName).app")
+        try await fileSystem.makeDirectory(at: preview)
+
+        let expectedUUID = UUID()
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(appName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == preview.appending(component: appName) {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
+            path: temporaryDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .any,
+                version: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_app_bundle_with_no_uuid_passes_nil_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let appName = "TestApp"
+        let preview = temporaryDirectory.appending(component: "\(appName).app")
+        try await fileSystem.makeDirectory(at: preview)
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(appName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { _ in [] }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
+            path: temporaryDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .any,
+                version: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(nil),
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_ipa_extracts_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let preview = temporaryDirectory.appending(component: "App.ipa")
+        try await fileSystem.makeDirectory(at: preview)
+
+        let unzippedPath = temporaryDirectory.appending(component: "Payload")
+        let appPath = unzippedPath.appending(component: "App.app")
+        try await fileSystem.makeDirectory(at: appPath)
+
+        let expectedUUID = UUID()
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unzippedPath)
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == appPath.appending(component: "App") {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
+            path: temporaryDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.ipa),
+                displayName: .any,
+                version: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_ipa_with_no_app_bundle_passes_nil_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let preview = temporaryDirectory.appending(component: "App.ipa")
+        try await fileSystem.makeDirectory(at: preview)
+
+        let unzippedPath = temporaryDirectory.appending(component: "EmptyPayload")
+        try await fileSystem.makeDirectory(at: unzippedPath)
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unzippedPath)
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
+            path: temporaryDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.ipa),
+                displayName: .any,
+                version: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(nil),
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .called(1)
     }
 }

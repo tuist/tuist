@@ -86,6 +86,10 @@ defmodule TuistWeb.API.PreviewsController do
            git_ref: %Schema{
              type: :string,
              description: "The git ref associated with the preview."
+           },
+           binary_id: %Schema{
+             type: :string,
+             description: "The Mach-O UUID of the binary (for update checking)."
            }
          }
        }},
@@ -165,7 +169,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_commit_sha: Map.get(body_params, :git_commit_sha),
         created_by_account_id: account.id,
-        supported_platforms: supported_platforms
+        supported_platforms: supported_platforms,
+         binary_id: Map.get(body_params, :binary_id)
       })
 
     upload_id =
@@ -778,7 +783,8 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
-      inserted_at: app_build.inserted_at
+      inserted_at: app_build.inserted_at,
+      binary_id: app_build.binary_id
     }
   end
 

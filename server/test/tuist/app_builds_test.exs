@@ -872,6 +872,59 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
+  describe "app_build_by_binary_id/2" do
+    test "returns an app build by binary_id" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          binary_id: binary_id
+        )
+
+      # When
+      {:ok, result} = AppBuilds.app_build_by_binary_id(binary_id)
+
+      # Then
+      assert result.id == app_build.id
+      assert result.binary_id == binary_id
+    end
+
+    test "returns an app build by binary_id with preloaded associations" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440001"
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          binary_id: binary_id
+        )
+
+      # When
+      {:ok, result} = AppBuilds.app_build_by_binary_id(binary_id, preload: [:preview])
+
+      # Then
+      assert result.id == app_build.id
+      assert result.preview.id == preview.id
+    end
+
+    test "returns not_found error when the binary_id is not found" do
+      # Given
+      binary_id = "nonexistent-binary-id"
+
+      # When
+      result = AppBuilds.app_build_by_binary_id(binary_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
   describe "create_app_build/1" do
     test "creates an app build with all required attributes" do
       # Given

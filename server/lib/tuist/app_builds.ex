@@ -72,6 +72,20 @@ defmodule Tuist.AppBuilds do
     end
   end
 
+  @doc """
+  Finds an app build by its binary ID (Mach-O UUID).
+
+  Returns `{:ok, app_build}` if found, `{:error, :not_found}` otherwise.
+  """
+  def app_build_by_binary_id(binary_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    case Repo.get_by(AppBuild, binary_id: binary_id) do
+      nil -> {:error, :not_found}
+      %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
+    end
+  end
+
   def create_app_build(attrs) do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)

@@ -42,6 +42,7 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
       preview_id: preview.id,
       type: Keyword.get(opts, :type, :app_bundle),
       supported_platforms: Keyword.get(opts, :supported_platforms, [:ios]),
+      binary_id: Keyword.get(opts, :binary_id),
       inserted_at: Keyword.get(opts, :inserted_at)
     })
     |> Repo.insert!()
