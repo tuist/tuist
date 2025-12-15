@@ -38,6 +38,7 @@
         private let uploadPreviewIconService: UploadPreviewIconServicing
         private let gitController: GitControlling
         private let commandRunner: CommandRunning
+        private let precompiledMetadataProvider: PrecompiledMetadataProviding
 
         public init() {
             self.init(
@@ -52,7 +53,8 @@
                 MultipartUploadCompletePreviewsService(),
                 uploadPreviewIconService: UploadPreviewIconService(),
                 gitController: GitController(),
-                commandRunner: CommandRunner()
+                commandRunner: CommandRunner(),
+                precompiledMetadataProvider: PrecompiledMetadataProvider()
             )
         }
 
@@ -66,7 +68,8 @@
             multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
             uploadPreviewIconService: UploadPreviewIconServicing,
             gitController: GitControlling,
-            commandRunner: CommandRunning
+            commandRunner: CommandRunning,
+            precompiledMetadataProvider: PrecompiledMetadataProviding
         ) {
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -78,6 +81,7 @@
             self.uploadPreviewIconService = uploadPreviewIconService
             self.gitController = gitController
             self.commandRunner = commandRunner
+            self.precompiledMetadataProvider = precompiledMetadataProvider
         }
 
         public func uploadPreview(
@@ -91,6 +95,7 @@
 
             switch previewUploadType {
             case let .ipa(bundle):
+                let binaryId = try await extractBinaryId(fromIPA: bundle.path)
                 let preview = try await uploadPreview(
                     buildPath: bundle.path,
                     previewType: .ipa,
@@ -100,6 +105,7 @@
                     icon: iconPaths(for: previewUploadType).first,
                     supportedPlatforms: bundle.infoPlist.supportedPlatforms,
                     gitInfo: gitInfo,
+                    binaryId: binaryId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     updateProgress: updateProgress
@@ -115,6 +121,7 @@
                     let bundleArchivePath = try await fileArchiver
                         .makeFileArchiver(for: [bundle.path])
                         .zip(name: bundle.path.basename)
+                    let binaryId = extractBinaryId(fromAppBundle: bundle.path, name: bundle.infoPlist.name)
 
                     preview = try await uploadPreview(
                         buildPath: bundleArchivePath,
@@ -125,6 +132,7 @@
                         icon: iconPaths(for: bundle).first,
                         supportedPlatforms: bundle.infoPlist.supportedPlatforms,
                         gitInfo: gitInfo,
+                        binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         updateProgress: { progress in
@@ -146,6 +154,7 @@
             icon: AbsolutePath?,
             supportedPlatforms: [DestinationType],
             gitInfo: GitInfo,
+            binaryId: String?,
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
@@ -163,6 +172,7 @@
                         gitBranch: gitInfo.branch,
                         gitCommitSHA: gitInfo.sha,
                         gitRef: gitInfo.ref,
+                        binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL
                     )
@@ -256,6 +266,31 @@
                     outputPath.pathString,
                 ])
                 .awaitCompletion()
+        }
+
+        private func extractBinaryId(fromIPA ipaPath: AbsolutePath) async throws -> String? {
+            let unarchiver = try fileArchiver.makeFileUnarchiver(for: ipaPath)
+            let unzippedPath = try await unarchiver.unzip()
+
+            guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
+                .collect()
+                .first
+            else {
+                return nil
+            }
+
+            let appName = appPath.basenameWithoutExt
+            return extractBinaryId(fromAppBundle: appPath, name: appName)
+        }
+
+        private func extractBinaryId(fromAppBundle appPath: AbsolutePath, name: String) -> String? {
+            let executablePath = appPath.appending(component: name)
+            guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
+                  let uuid = uuids.first
+            else {
+                return nil
+            }
+            return uuid.uuidString
         }
     }
 #endif
