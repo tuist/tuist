@@ -16,14 +16,14 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
 
       auth_data =
         case TuistWeb.Authentication.authenticated_subject(conn) do
-          %User{id: user_id, account: %{id: account_id}} ->
-            %{user_id: user_id, account_id: account_id}
+          %User{id: user_id, account: %{id: account_id, name: account_handle}} ->
+            %{user_id: user_id, account_id: account_id, account_handle: account_handle}
 
-          %Project{id: project_id, account: %{id: account_id}} ->
-            %{project_id: project_id, account_id: account_id}
+          %Project{id: project_id, account: %{id: account_id, name: account_handle}} ->
+            %{project_id: project_id, account_id: account_id, account_handle: account_handle}
 
-          %AuthenticatedAccount{account: %{id: account_id}} ->
-            %{account_id: account_id}
+          %AuthenticatedAccount{account: %{id: account_id, name: account_handle}} ->
+            %{account_id: account_id, account_handle: account_handle}
 
           nil ->
             %{}
@@ -33,11 +33,16 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
 
       selection_data =
         case {conn.assigns[:selected_project], conn.assigns[:selected_account]} do
-          {%{id: project_id}, %{id: account_id}} ->
-            %{project_id: project_id, account_id: account_id}
+          {%{id: project_id, name: project_handle}, %{id: account_id, name: account_handle}} ->
+            %{
+              project_id: project_id,
+              project_name: project_handle,
+              account_id: account_id,
+              account_handle: account_handle
+            }
 
-          {_, %{id: account_id}} ->
-            %{account_id: account_id}
+          {_, %{id: account_id, name: account_handle}} ->
+            %{account_id: account_id, account_handle: account_handle}
 
           _ ->
             %{}
