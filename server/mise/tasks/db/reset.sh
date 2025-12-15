@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Re-creates and migrates the database and seeds it with data"
 
-set -eo pipefail
+set -euo pipefail
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 

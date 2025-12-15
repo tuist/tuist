@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 #MISE description="Run the formatters"
 #USAGE flag "-c --check" help="It checks without formatting, failing if the checks fail"
 
