@@ -28,7 +28,8 @@ defmodule TuistWeb.ConnectLive do
           <.connection_svg /><span>{dgettext("dashboard_auth", "Waiting for connection")}</span>
         </div>
         <div :if={@connected?} data-part="subtitle">
-          <.connection_success_svg /><span>
+          <.connection_success_svg />
+          <span>
             {dgettext("dashboard_auth", "Connection successful")}
           </span>
         </div>
