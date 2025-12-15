@@ -37,8 +37,13 @@ defmodule TuistWeb.TestCaseLive do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
     end
 
-    {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
-    users = Accounts.get_organization_members(organization)
+    account = Tuist.Repo.preload(account, [:organization, user: :account])
+
+    users =
+      case account.organization do
+        nil -> [account.user]
+        organization -> Accounts.get_organization_members(organization)
+      end
 
     socket =
       socket
