@@ -164,6 +164,10 @@ defmodule TuistWeb.Router do
 
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
+    get "/case-studies/rss.xml", MarketingController, :case_studies_rss, metadata: %{type: :marketing}
+
+    get "/case-studies/atom.xml", MarketingController, :case_studies_atom, metadata: %{type: :marketing}
+
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
@@ -187,6 +191,11 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/changelog"),
              TuistWeb.Marketing.MarketingChangelogLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/case-studies"),
+             TuistWeb.Marketing.MarketingCaseStudiesLive,
              metadata: %{type: :marketing},
              private: private
 
