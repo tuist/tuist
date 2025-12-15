@@ -25,13 +25,11 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
           %AuthenticatedAccount{account: %{id: account_id}} ->
             %{account_id: account_id}
 
-          _ ->
+          nil ->
             %{}
         end
 
-      if map_size(auth_data) > 0 do
-        Appsignal.Span.set_sample_data(span, "auth", auth_data)
-      end
+      set_sample_data(span, "auth", auth_data)
 
       selection_data =
         case {conn.assigns[:selected_project], conn.assigns[:selected_account]} do
@@ -45,11 +43,16 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
             %{}
         end
 
-      if map_size(selection_data) > 0 do
-        Appsignal.Span.set_sample_data(span, "selection", selection_data)
-      end
+      set_sample_data(span, "selection", selection_data)
     end
 
     conn
+  end
+
+  defp set_sample_data(_span, _key, %{} = _data) do
+  end
+
+  defp set_sample_data(span, key, data) do
+    Appsignal.Span.set_sample_data(span, key, data)
   end
 end
