@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-if [ "$usage_update_lockfile" = "true" ]; then
+if [ "${usage_update_lockfile:-}" = "true" ]; then
   mix sobelow --format compact --mark-skip-all
 else
   mix sobelow --format compact --skip
