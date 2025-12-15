@@ -1,6 +1,6 @@
 defmodule Tuist.Marketing.CaseStudies do
   @moduledoc ~S"""
-  This module loads the blog posts and authors to be used in the blog section of the marketing website.
+  This module loads the case studies to be used in the case studies section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
   use NimblePublisher,
@@ -14,5 +14,7 @@ defmodule Tuist.Marketing.CaseStudies do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  def cases, do: @cases
+  @cases Enum.sort_by(@cases, & &1.date, {:desc, Date})
+
+  def get_cases, do: @cases
 end

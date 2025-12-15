@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><%= dgettext("marketing", "Tuist Case Studies") %></title>
+  <subtitle><%= dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.") %></subtitle>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/case-studies") %>"/>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/case-studies/atom.xml") %>" rel="self"/>
+  <id><%= Tuist.Environment.app_url(path: ~p"/case-studies") %></id>
+  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
+
+  <%= for case_study <- @cases do %>
+    <entry>
+      <title><![CDATA[ <%= case_study.title %> ]]></title>
+      <author>
+        <name><![CDATA[ <%= case_study.name %> ]]></name>
+      </author>
+      <summary type="html"><![CDATA[ <%= case_study.title %> - <%= case_study.name %> ]]></summary>
+      <link href="<%= Tuist.Environment.app_url(path: case_study.slug) %>"/>
+      <id><%= Tuist.Environment.app_url(path: case_study.slug) %></id>
+      <updated><%= case_study.date |> Timex.format!("{RFC1123}") %></updated>
+      <content type="html"><![CDATA[ <%= case_study.body %> ]]></content>
+    </entry>
+  <% end %>
+</feed>

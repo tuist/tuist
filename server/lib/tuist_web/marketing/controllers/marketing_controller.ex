@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CaseStudies
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
@@ -448,6 +449,26 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:blog_atom, layout: false)
   end
 
+  def case_studies_rss(conn, _params) do
+    cases = CaseStudies.get_cases()
+    last_build_date = cases |> List.first() |> Map.get(:date)
+
+    conn
+    |> assign(:cases, cases)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:case_studies_rss, layout: false)
+  end
+
+  def case_studies_atom(conn, _params) do
+    cases = CaseStudies.get_cases()
+    last_build_date = cases |> List.first() |> Map.get(:date)
+
+    conn
+    |> assign(:cases, cases)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:case_studies_atom, layout: false)
+  end
+
   def changelog_rss(conn, _params) do
     entries = Changelog.get_entries()
     last_build_date = entries |> List.last() |> Map.get(:date)
@@ -479,7 +500,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
       )
 
-    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog"]
+    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/case-studies"]
 
     # Generate URLs for all locales
     localized_entries =

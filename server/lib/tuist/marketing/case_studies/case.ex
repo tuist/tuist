@@ -1,5 +1,5 @@
 defmodule Tuist.Marketing.CaseStudies.Case do
-  @enforce_keys [:title, :date, :name, :url, :founded, :onboarded, :body]
+  @enforce_keys [:title, :date, :name, :url, :founded, :onboarded, :body, :slug]
   defstruct [
     :title,
     :date,
@@ -7,11 +7,13 @@ defmodule Tuist.Marketing.CaseStudies.Case do
     :url,
     :founded,
     :onboarded,
-    :body
+    :body,
+    :slug
   ]
 
-  def build(_filename, attrs, body) do
+  def build(filename, attrs, body) do
     title = String.trim_trailing(attrs["title"], ".")
+    slug = "/case-studies/#{Path.basename(filename, ".md")}"
 
     struct!(__MODULE__,
       title: title,
@@ -20,7 +22,8 @@ defmodule Tuist.Marketing.CaseStudies.Case do
       url: attrs["url"],
       founded: attrs["founded"],
       onboarded: Date.from_iso8601!(attrs["onboarded"]),
-      body: body
+      body: body,
+      slug: slug
     )
   end
 end
