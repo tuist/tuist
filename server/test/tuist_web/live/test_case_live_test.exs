@@ -33,7 +33,7 @@ defmodule TuistWeb.TestCaseLiveTest do
     } do
       # Given
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
-      test_run = Tuist.IngestRepo.preload(test_run, :test_case_runs)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
       # When / Then - page renders without error
