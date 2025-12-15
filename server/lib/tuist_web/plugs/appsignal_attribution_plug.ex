@@ -54,7 +54,8 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
     conn
   end
 
-  defp set_sample_data(_span, _key, %{} = _data) do
+  defp set_sample_data(_span, _key, data) when data == %{} do
+    :ok
   end
 
   defp set_sample_data(span, key, data) do

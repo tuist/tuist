@@ -34,7 +34,12 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
       expect(Appsignal.Span, :set_sample_data, fn ^span, "auth", data ->
-        assert data == %{user_id: user.id, account_id: user.account.id}
+        assert data == %{
+                 user_id: user.id,
+                 account_id: user.account.id,
+                 account_handle: user.account.name
+               }
+
         :ok
       end)
 
@@ -55,7 +60,12 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
       expect(Appsignal.Span, :set_sample_data, fn ^span, "auth", data ->
-        assert data == %{project_id: project.id, account_id: project.account.id}
+        assert data == %{
+                 project_id: project.id,
+                 account_id: project.account.id,
+                 account_handle: project.account.name
+               }
+
         :ok
       end)
 
@@ -77,7 +87,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
       expect(Appsignal.Span, :set_sample_data, fn ^span, "auth", data ->
-        assert data == %{account_id: account.id}
+        assert data == %{account_id: account.id, account_handle: account.name}
         :ok
       end)
 
@@ -101,10 +111,19 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       expect(Appsignal.Span, :set_sample_data, 2, fn ^span, key, data ->
         case key do
           "auth" ->
-            assert data == %{user_id: user.id, account_id: user.account.id}
+            assert data == %{
+                     user_id: user.id,
+                     account_id: user.account.id,
+                     account_handle: user.account.name
+                   }
 
           "selection" ->
-            assert data == %{project_id: project.id, account_id: project.account.id}
+            assert data == %{
+                     project_id: project.id,
+                     project_name: project.name,
+                     account_id: project.account.id,
+                     account_handle: project.account.name
+                   }
         end
 
         :ok
@@ -132,10 +151,14 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       expect(Appsignal.Span, :set_sample_data, 2, fn ^span, key, data ->
         case key do
           "auth" ->
-            assert data == %{user_id: user.id, account_id: user.account.id}
+            assert data == %{
+                     user_id: user.id,
+                     account_id: user.account.id,
+                     account_handle: user.account.name
+                   }
 
           "selection" ->
-            assert data == %{account_id: account.id}
+            assert data == %{account_id: account.id, account_handle: account.name}
         end
 
         :ok
