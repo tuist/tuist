@@ -97,7 +97,10 @@
           end
         }
         description={
-          dgettext("dashboard_tests", "The average test run duration with individual percentile intervals.")
+          dgettext(
+            "dashboard_tests",
+            "The average test run duration with individual percentile intervals."
+          )
         }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -386,7 +389,11 @@
     </.empty_card_section>
   </.card>
 
-  <.card title={dgettext("dashboard_tests", "Selective Testing")} icon="subtask" data-part="selective-testing">
+  <.card
+    title={dgettext("dashboard_tests", "Selective Testing")}
+    icon="subtask"
+    data-part="selective-testing"
+  >
     <:actions>
       <.dropdown
         id="selective-testing-environment-dropdown"
@@ -590,7 +597,11 @@
     </.empty_card_section>
   </.card>
 
-  <.card title={dgettext("dashboard_tests", "Recent Test Runs")} icon="dashboard" data-part="recent-test-runs">
+  <.card
+    title={dgettext("dashboard_tests", "Recent Test Runs")}
+    icon="dashboard"
+    data-part="recent-test-runs"
+  >
     <:actions>
       <.button
         variant="secondary"
@@ -603,7 +614,11 @@
     <.card_section :if={not Enum.empty?(@recent_test_runs)} data-part="recent-test-runs-section">
       <div data-part="test-runs-chart">
         <div data-part="legends">
-          <.legend title={dgettext("dashboard_tests", "Passed runs")} value={@passed_test_runs_count} style="primary" />
+          <.legend
+            title={dgettext("dashboard_tests", "Passed runs")}
+            value={@passed_test_runs_count}
+            style="primary"
+          />
           <.legend
             title={dgettext("dashboard_tests", "Failed runs")}
             value={@failed_test_runs_count}
@@ -696,7 +711,9 @@
           <.text_cell
             icon="git_branch"
             label={
-              if test_run.git_branch == "", do: dgettext("dashboard_tests", "Unknown"), else: test_run.git_branch
+              if test_run.git_branch == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: test_run.git_branch
             }
           />
         </:col>

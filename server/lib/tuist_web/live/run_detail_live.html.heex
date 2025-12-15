@@ -90,7 +90,11 @@
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
-    <.card title={dgettext("dashboard_builds", "Test Details")} icon="chart_arcs" data-part="test-details">
+    <.card
+      title={dgettext("dashboard_builds", "Test Details")}
+      icon="chart_arcs"
+      data-part="test-details"
+    >
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
@@ -107,9 +111,19 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
               <%= if @run.status == :success do %>
-                <.badge label={dgettext("dashboard_builds", "Passed")} color="success" style="fill" size="large" />
+                <.badge
+                  label={dgettext("dashboard_builds", "Passed")}
+                  color="success"
+                  style="fill"
+                  size="large"
+                />
               <% else %>
-                <.badge label={dgettext("dashboard_builds", "Failed")} color="destructive" style="fill" size="large" />
+                <.badge
+                  label={dgettext("dashboard_builds", "Failed")}
+                  color="destructive"
+                  style="fill"
+                  size="large"
+                />
               <% end %>
             </div>
             <div data-part="metadata">
@@ -183,14 +197,20 @@
       <.card_section data-part="optimization-summary-section">
         <.widget
           title={dgettext("dashboard_builds", "Total modules")}
-          description={dgettext("dashboard_builds", "Total modules represents the total number of testable modules.")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Total modules represents the total number of testable modules."
+            )
+          }
           value={@selective_testing_analytics.total_modules_count}
           id="widget-optimization-summary-total-modules"
         />
         <.widget
           title={dgettext("dashboard_builds", "Selective test hits")}
           description={
-            dgettext("dashboard_builds", 
+            dgettext(
+              "dashboard_builds",
               "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
             )
           }
@@ -203,7 +223,8 @@
         <.widget
           title={dgettext("dashboard_builds", "Selective test misses")}
           description={
-            dgettext("dashboard_builds", 
+            dgettext(
+              "dashboard_builds",
               "Selective test misses represents the number of test modules that were run as they were not successfully run before."
             )
           }
@@ -249,15 +270,29 @@
           <:col :let={test_module} label={dgettext("dashboard_builds", "Hit")}>
             <%= case test_module.selective_testing_hit do %>
               <% :remote -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
               <% :local -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
               <% :miss -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
             <% end %>
           </:col>
           <:col :let={test_module} label={dgettext("dashboard_builds", "Hash")}>
-            <.text_cell label={test_module.selective_testing_hash || dgettext("dashboard_builds", "Unknown")} />
+            <.text_cell label={
+              test_module.selective_testing_hash || dgettext("dashboard_builds", "Unknown")
+            } />
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -290,7 +325,10 @@
         <.widget
           title={dgettext("dashboard_builds", "Cache hits")}
           description={
-            dgettext("dashboard_builds", "Total number of modules taken from either the local or the remote cache.")
+            dgettext(
+              "dashboard_builds",
+              "Total number of modules taken from either the local or the remote cache."
+            )
           }
           value={
             @binary_cache_analytics.binary_cache_local_hits_count +
@@ -301,7 +339,8 @@
         <.widget
           title={dgettext("dashboard_builds", "Cache misses")}
           description={
-            dgettext("dashboard_builds", 
+            dgettext(
+              "dashboard_builds",
               "Total number of modules that could have been taken from the cache if it was fully populated."
             )
           }
@@ -311,14 +350,21 @@
         <.widget
           title={dgettext("dashboard_builds", "Cache hit rate")}
           description={
-            dgettext("dashboard_builds", "Percentage of modules that were successfully retrieved from the cache.")
+            dgettext(
+              "dashboard_builds",
+              "Percentage of modules that were successfully retrieved from the cache."
+            )
           }
           value={"#{@binary_cache_analytics.cache_hit_rate}%"}
           id="widget-optimization-summary-cache-hit-rate"
         />
       </.card_section>
     </.card>
-    <.card title={dgettext("dashboard_builds", "Module Cache")} icon="database" data-part="binary-cache">
+    <.card
+      title={dgettext("dashboard_builds", "Module Cache")}
+      icon="database"
+      data-part="binary-cache"
+    >
       <:actions>
         <.button
           id="copy-binary-cache-json"
@@ -506,15 +552,29 @@
           <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hit")}>
             <%= case binary_cache_module.binary_cache_hit do %>
               <% :remote -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
               <% :local -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
               <% :miss -> %>
-                <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
             <% end %>
           </:col>
           <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hash")}>
-            <.text_cell label={binary_cache_module.binary_cache_hash || dgettext("dashboard_builds", "Unknown")} />
+            <.text_cell label={
+              binary_cache_module.binary_cache_hash || dgettext("dashboard_builds", "Unknown")
+            } />
           </:col>
           <:expanded_content :let={target}>
             <div data-part="subhashes-list">
@@ -523,15 +583,21 @@
                 <span data-part="subhash-value">{target.product}</span>
               </div>
               <div :if={target.product_name != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Product name")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Product name")}:
+                </span>
                 <span data-part="subhash-value">{target.product_name}</span>
               </div>
               <div :if={target.bundle_id != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Bundle ID")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Bundle ID")}:
+                </span>
                 <span data-part="subhash-value">{target.bundle_id}</span>
               </div>
               <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Destinations")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Destinations")}:
+                </span>
                 <span data-part="subhash-value">
                   {target.destinations
                   |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
@@ -547,23 +613,33 @@
                 <span data-part="subhash-value">{target.sources_hash}</span>
               </div>
               <div :if={target.resources_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Resources")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Resources")}:
+                </span>
                 <span data-part="subhash-value">{target.resources_hash}</span>
               </div>
               <div :if={target.copy_files_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Copy files")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Copy files")}:
+                </span>
                 <span data-part="subhash-value">{target.copy_files_hash}</span>
               </div>
               <div :if={target.core_data_models_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Core data models")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Core data models")}:
+                </span>
                 <span data-part="subhash-value">{target.core_data_models_hash}</span>
               </div>
               <div :if={target.target_scripts_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Target scripts")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Target scripts")}:
+                </span>
                 <span data-part="subhash-value">{target.target_scripts_hash}</span>
               </div>
               <div :if={target.environment_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Environment")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Environment")}:
+                </span>
                 <span data-part="subhash-value">{target.environment_hash}</span>
               </div>
               <div :if={target.headers_hash != ""} data-part="subhash-item">
@@ -571,35 +647,51 @@
                 <span data-part="subhash-value">{target.headers_hash}</span>
               </div>
               <div :if={target.deployment_target_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Deployment target")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Deployment target")}:
+                </span>
                 <span data-part="subhash-value">{target.deployment_target_hash}</span>
               </div>
               <div :if={target.info_plist_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Info.plist")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Info.plist")}:
+                </span>
                 <span data-part="subhash-value">{target.info_plist_hash}</span>
               </div>
               <div :if={target.entitlements_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Entitlements")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Entitlements")}:
+                </span>
                 <span data-part="subhash-value">{target.entitlements_hash}</span>
               </div>
               <div :if={target.dependencies_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Dependencies")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Dependencies")}:
+                </span>
                 <span data-part="subhash-value">{target.dependencies_hash}</span>
               </div>
               <div :if={target.project_settings_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Project settings")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Project settings")}:
+                </span>
                 <span data-part="subhash-value">{target.project_settings_hash}</span>
               </div>
               <div :if={target.target_settings_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Target settings")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Target settings")}:
+                </span>
                 <span data-part="subhash-value">{target.target_settings_hash}</span>
               </div>
               <div :if={target.buildable_folders_hash != ""} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Buildable folders")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Buildable folders")}:
+                </span>
                 <span data-part="subhash-value">{target.buildable_folders_hash}</span>
               </div>
               <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
-                <span data-part="subhash-label">{dgettext("dashboard_builds", "Additional strings")}:</span>
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Additional strings")}:
+                </span>
                 <span data-part="subhash-value">
                   {Enum.join(target.additional_strings, ", ")}
                 </span>

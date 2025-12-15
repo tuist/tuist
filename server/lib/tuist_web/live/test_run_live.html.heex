@@ -39,7 +39,11 @@
         navigate={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.build_run.id}"
         }
-        label={dgettext("dashboard_tests", "Build: %{scheme}", scheme: @run.build_run.scheme || dgettext("dashboard_tests", "Unknown"))}
+        label={
+          dgettext("dashboard_tests", "Build: %{scheme}",
+            scheme: @run.build_run.scheme || dgettext("dashboard_tests", "Unknown")
+          )
+        }
         size="large"
         underline
       >
@@ -102,7 +106,11 @@
   </.tab_menu_horizontal>
 
   <%= if @selected_tab == "overview" do %>
-    <.card title={dgettext("dashboard_tests", "Test Details")} icon="chart_arcs" data-part="test-details">
+    <.card
+      title={dgettext("dashboard_tests", "Test Details")}
+      icon="chart_arcs"
+      data-part="test-details"
+    >
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
@@ -110,11 +118,26 @@
               <div data-part="title">{dgettext("dashboard_tests", "Status")}</div>
               <%= case @run.status do %>
                 <% "success" -> %>
-                  <.badge label={dgettext("dashboard_tests", "Passed")} color="success" style="fill" size="large" />
+                  <.badge
+                    label={dgettext("dashboard_tests", "Passed")}
+                    color="success"
+                    style="fill"
+                    size="large"
+                  />
                 <% "failure" -> %>
-                  <.badge label={dgettext("dashboard_tests", "Failed")} color="destructive" style="fill" size="large" />
+                  <.badge
+                    label={dgettext("dashboard_tests", "Failed")}
+                    color="destructive"
+                    style="fill"
+                    size="large"
+                  />
                 <% "skipped" -> %>
-                  <.badge label={dgettext("dashboard_tests", "Skipped")} color="warning" style="fill" size="large" />
+                  <.badge
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    color="warning"
+                    style="fill"
+                    size="large"
+                  />
               <% end %>
             </div>
             <div data-part="metadata">
@@ -144,7 +167,9 @@
               <div data-part="title">{dgettext("dashboard_tests", "Branch")}</div>
               <span data-part="value">
                 <.git_branch />
-                {if @run.git_branch == "", do: dgettext("dashboard_tests", "Unknown"), else: @run.git_branch}
+                {if @run.git_branch == "",
+                  do: dgettext("dashboard_tests", "Unknown"),
+                  else: @run.git_branch}
               </span>
             </div>
             <div data-part="metadata">
@@ -358,7 +383,11 @@
     </.tab_menu_horizontal>
 
     <%= if @selected_test_tab == "test-cases" do %>
-      <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases-card">
+      <.card
+        title={dgettext("dashboard_tests", "Test Cases")}
+        icon="exchange"
+        data-part="test-cases-card"
+      >
         <.card_section data-part="test-cases-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
@@ -474,11 +503,20 @@
             <:col :let={test_case} label="Status">
               <%= case test_case.status do %>
                 <% "success" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
                 <% "failure" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
                 <% "skipped" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
               <% end %>
             </:col>
             <:empty_state>
@@ -504,7 +542,11 @@
     <% end %>
 
     <%= if @selected_test_tab == "test-suites" do %>
-      <.card title={dgettext("dashboard_tests", "Test Suites")} icon="exchange" data-part="test-suites-card">
+      <.card
+        title={dgettext("dashboard_tests", "Test Suites")}
+        icon="exchange"
+        data-part="test-suites-card"
+      >
         <.card_section data-part="test-suites-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-suites" phx-debounce="200">
@@ -522,11 +564,20 @@
               id="test-suites-sort-by"
               label={
                 case @test_suites_sort_by do
-                  "name" -> dgettext("dashboard_tests", "Test suite")
-                  "test_case_count" -> dgettext("dashboard_tests", "Test cases")
-                  "avg_test_case_duration" -> dgettext("dashboard_tests", "Avg. test case duration")
-                  "duration" -> dgettext("dashboard_tests", "Duration")
-                  _ -> dgettext("dashboard_tests", "Test suite")
+                  "name" ->
+                    dgettext("dashboard_tests", "Test suite")
+
+                  "test_case_count" ->
+                    dgettext("dashboard_tests", "Test cases")
+
+                  "avg_test_case_duration" ->
+                    dgettext("dashboard_tests", "Avg. test case duration")
+
+                  "duration" ->
+                    dgettext("dashboard_tests", "Duration")
+
+                  _ ->
+                    dgettext("dashboard_tests", "Test suite")
                 end
               }
               secondary_text={dgettext("dashboard_tests", "Sort by:")}
@@ -627,11 +678,20 @@
             <:col :let={test_suite} label={dgettext("dashboard_tests", "Status")}>
               <%= case test_suite.status do %>
                 <% "success" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
                 <% "failure" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
                 <% "skipped" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
               <% end %>
             </:col>
             <:col
@@ -678,7 +738,11 @@
     <% end %>
 
     <%= if @selected_test_tab == "test-modules" do %>
-      <.card title={dgettext("dashboard_tests", "Test Modules")} icon="apps" data-part="test-modules-card">
+      <.card
+        title={dgettext("dashboard_tests", "Test Modules")}
+        icon="apps"
+        data-part="test-modules-card"
+      >
         <.card_section data-part="test-modules-card-section">
           <div data-part="filters">
             <.form for={%{}} phx-change="search-test-modules" phx-debounce="200">
@@ -696,12 +760,23 @@
               id="test-modules-sort-by"
               label={
                 case @test_modules_sort_by do
-                  "name" -> dgettext("dashboard_tests", "Module")
-                  "test_suite_count" -> dgettext("dashboard_tests", "Test suites")
-                  "test_case_count" -> dgettext("dashboard_tests", "Test cases")
-                  "avg_test_case_duration" -> dgettext("dashboard_tests", "Avg. test case duration")
-                  "duration" -> dgettext("dashboard_tests", "Duration")
-                  _ -> dgettext("dashboard_tests", "Module")
+                  "name" ->
+                    dgettext("dashboard_tests", "Module")
+
+                  "test_suite_count" ->
+                    dgettext("dashboard_tests", "Test suites")
+
+                  "test_case_count" ->
+                    dgettext("dashboard_tests", "Test cases")
+
+                  "avg_test_case_duration" ->
+                    dgettext("dashboard_tests", "Avg. test case duration")
+
+                  "duration" ->
+                    dgettext("dashboard_tests", "Duration")
+
+                  _ ->
+                    dgettext("dashboard_tests", "Module")
                 end
               }
               secondary_text={dgettext("dashboard_tests", "Sort by:")}
@@ -824,9 +899,15 @@
             <:col :let={test_module} label={dgettext("dashboard_tests", "Status")}>
               <%= case test_module.status do %>
                 <% "success" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
                 <% "failure" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
               <% end %>
             </:col>
             <:col
@@ -882,14 +963,20 @@
       <.card_section data-part="optimization-summary-section">
         <.widget
           title={dgettext("dashboard_tests", "Total modules")}
-          description={dgettext("dashboard_tests", "Total modules represents the total number of testable modules.")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Total modules represents the total number of testable modules."
+            )
+          }
           value={@selective_testing_analytics.total_modules_count}
           id="widget-optimization-summary-total-modules"
         />
         <.widget
           title={dgettext("dashboard_tests", "Selective test hits")}
           description={
-            dgettext("dashboard_tests", 
+            dgettext(
+              "dashboard_tests",
               "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
             )
           }
@@ -902,7 +989,8 @@
         <.widget
           title={dgettext("dashboard_tests", "Selective test misses")}
           description={
-            dgettext("dashboard_tests", 
+            dgettext(
+              "dashboard_tests",
               "Selective test misses represents the number of test modules that were run as they were not successfully run before."
             )
           }
@@ -948,15 +1036,29 @@
           <:col :let={test_module} label={dgettext("dashboard_tests", "Hit")}>
             <%= case test_module.selective_testing_hit do %>
               <% :remote -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Remote")} color="focus" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
               <% :local -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Local")} color="secondary" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
               <% :miss -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Missed")} color="warning" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
             <% end %>
           </:col>
           <:col :let={test_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")} />
+            <.text_cell label={
+              test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")
+            } />
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -990,7 +1092,10 @@
         <.widget
           title={dgettext("dashboard_tests", "Binary cache hits")}
           description={
-            dgettext("dashboard_tests", "Total number of modules taken from either the local or the remote cache.")
+            dgettext(
+              "dashboard_tests",
+              "Total number of modules taken from either the local or the remote cache."
+            )
           }
           value={
             @binary_cache_analytics.binary_cache_local_hits_count +
@@ -1001,7 +1106,8 @@
         <.widget
           title={dgettext("dashboard_tests", "Binary cache misses")}
           description={
-            dgettext("dashboard_tests", 
+            dgettext(
+              "dashboard_tests",
               "Total number of modules that could have been taken from the cache if it was fully populated."
             )
           }
@@ -1011,14 +1117,21 @@
         <.widget
           title={dgettext("dashboard_tests", "Cache hit rate")}
           description={
-            dgettext("dashboard_tests", "Percentage of modules that were successfully retrieved from the cache.")
+            dgettext(
+              "dashboard_tests",
+              "Percentage of modules that were successfully retrieved from the cache."
+            )
           }
           value={"#{@binary_cache_analytics.cache_hit_rate}%"}
           id="widget-optimization-summary-cache-hit-rate"
         />
       </.card_section>
     </.card>
-    <.card title={dgettext("dashboard_tests", "Binary Cache")} icon="database" data-part="binary-cache">
+    <.card
+      title={dgettext("dashboard_tests", "Binary Cache")}
+      icon="database"
+      data-part="binary-cache"
+    >
       <.card_section data-part="binary-cache-section">
         <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
           <.text_input
@@ -1051,15 +1164,29 @@
           <:col :let={binary_cache_module} label={dgettext("dashboard_tests", "Hit")}>
             <%= case binary_cache_module.binary_cache_hit do %>
               <% :remote -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Remote")} color="focus" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
               <% :local -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Local")} color="secondary" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
               <% :miss -> %>
-                <.badge_cell label={dgettext("dashboard_tests", "Missed")} color="warning" style="light-fill" />
+                <.badge_cell
+                  label={dgettext("dashboard_tests", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
             <% end %>
           </:col>
           <:col :let={binary_cache_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={binary_cache_module.binary_cache_hash || dgettext("dashboard_tests", "Unknown")} />
+            <.text_cell label={
+              binary_cache_module.binary_cache_hash || dgettext("dashboard_tests", "Unknown")
+            } />
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -1084,7 +1211,11 @@
   <% end %>
 
   <%= if @selected_tab == "failures" do %>
-    <.card title={dgettext("dashboard_tests", "Failures")} icon="alert_circle" data-part="failures-card">
+    <.card
+      title={dgettext("dashboard_tests", "Failures")}
+      icon="alert_circle"
+      data-part="failures-card"
+    >
       <.card_section data-part="failures-card-section">
         <div data-part="header">
           <span data-part="title">

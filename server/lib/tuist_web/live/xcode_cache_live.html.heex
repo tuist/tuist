@@ -1,5 +1,9 @@
 <div id="xcode-cache">
-  <.card title={dgettext("dashboard_cache", "Analytics")} icon="chart_arcs" data-part="analytics-card">
+  <.card
+    title={dgettext("dashboard_cache", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
     <:actions>
       <.button_group size="large">
         <.button_group_item
@@ -40,7 +44,8 @@
           end
         }
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
           )
         }
@@ -109,7 +114,8 @@
         title={dgettext("dashboard_cache", "Cache downloads")}
         legend_color="secondary"
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
           )
         }
@@ -127,7 +133,8 @@
         title={dgettext("dashboard_cache", "Cache uploads")}
         legend_color="p99"
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
           )
         }
@@ -338,7 +345,11 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={dgettext("dashboard_cache", "Recent Builds")} icon="dashboard" data-part="recent-builds">
+  <.card
+    title={dgettext("dashboard_cache", "Recent Builds")}
+    icon="dashboard"
+    data-part="recent-builds"
+  >
     <:actions>
       <.button
         variant="secondary"

@@ -28,7 +28,9 @@ defmodule TuistWeb.ConnectLive do
           <.connection_svg /><span>{dgettext("dashboard_auth", "Waiting for connection")}</span>
         </div>
         <div :if={@connected?} data-part="subtitle">
-          <.connection_success_svg /><span>{dgettext("dashboard_auth", "Connection successful")}</span>
+          <.connection_success_svg /><span>
+            {dgettext("dashboard_auth", "Connection successful")}
+          </span>
         </div>
         <div data-part="title">
           <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{dgettext("dashboard_auth", "using CLI")}</span>
@@ -41,7 +43,11 @@ defmodule TuistWeb.ConnectLive do
             </span>
             <.terminal id="install">
               <:tab id="mise" label={dgettext("dashboard_auth", "mise")} command="mise install tuist" />
-              <:tab id="homebrew" label={dgettext("dashboard_auth", "homebrew")} command="brew install tuist" />
+              <:tab
+                id="homebrew"
+                label={dgettext("dashboard_auth", "homebrew")}
+                command="brew install tuist"
+              />
             </.terminal>
           </div>
           <div data-part="step">
@@ -65,7 +71,8 @@ defmodule TuistWeb.ConnectLive do
           <div data-part="step">
             <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
             <span data-part="description">
-              {dgettext("dashboard_auth", 
+              {dgettext(
+                "dashboard_auth",
                 "Explore Tuist features like binary caching and selective testing to speed up your development."
               )}
             </span>
@@ -82,9 +89,14 @@ defmodule TuistWeb.ConnectLive do
           </div>
           <.line_divider text={dgettext("dashboard_auth", "OR")} />
           <div data-part="step">
-            <span data-part="title">{dgettext("dashboard_auth", "Project Ready? Proceed to dashboard")}</span>
+            <span data-part="title">
+              {dgettext("dashboard_auth", "Project Ready? Proceed to dashboard")}
+            </span>
             <span data-part="description">
-              {dgettext("dashboard_auth", "Already set up your Tuist project? Skip setup and go to the dashboard.")}
+              {dgettext(
+                "dashboard_auth",
+                "Already set up your Tuist project? Skip setup and go to the dashboard."
+              )}
             </span>
             <.button
               variant="secondary"

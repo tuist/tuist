@@ -80,7 +80,9 @@ defmodule TuistWeb.AccountDropdown do
               </.button>
             </div>
             <div data-part="theme-switcher-section">
-              <p data-part="theme-switcher-title">{dgettext("dashboard", "Switch to your preferred theme")}</p>
+              <p data-part="theme-switcher-title">
+                {dgettext("dashboard", "Switch to your preferred theme")}
+              </p>
               <div data-part="theme-switcher">
                 <.theme_light name={@id} id={"#{@id}-theme-switcher-light"} />
                 <.theme_dark name={@id} id={"#{@id}-theme-switcher-dark"} />

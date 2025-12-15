@@ -1,5 +1,9 @@
 <div class="overview">
-  <.card title={dgettext("dashboard_projects", "Analytics")} icon="chart_arcs" data-part="analytics">
+  <.card
+    title={dgettext("dashboard_projects", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
     <% binary_cache_hit_rate =
       (@binary_cache_hit_rate_analytics.cache_hit_rate * 100)
       |> Decimal.from_float()
@@ -61,7 +65,8 @@
       <.widget
         title={dgettext("dashboard_projects", "Cache effectiveness")}
         description={
-          dgettext("dashboard_projects", 
+          dgettext(
+            "dashboard_projects",
             "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
           )
         }
@@ -78,7 +83,8 @@
       <.widget
         title={dgettext("dashboard_projects", "Selective test effectiveness")}
         description={
-          dgettext("dashboard_projects", 
+          dgettext(
+            "dashboard_projects",
             "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
           )
         }
@@ -95,7 +101,10 @@
       <.widget
         title={dgettext("dashboard_projects", "Average build time")}
         description={
-          dgettext("dashboard_projects", "Average time it takes to build a project as reported from Xcode post actions.")
+          dgettext(
+            "dashboard_projects",
+            "Average time it takes to build a project as reported from Xcode post actions."
+          )
         }
         value={
           dgettext("dashboard_projects", "%{duration}s",
@@ -111,7 +120,10 @@
       <.widget
         title={dgettext("dashboard_projects", "Average test time")}
         description={
-          dgettext("dashboard_projects", "Average time it takes to test a project when using the 'tuist test' command.")
+          dgettext(
+            "dashboard_projects",
+            "Average time it takes to test a project when using the 'tuist test' command."
+          )
         }
         value={
           dgettext("dashboard_projects", "%{duration}s",
@@ -351,7 +363,11 @@
     <.card_section :if={not Enum.empty?(@recent_test_runs)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
-          <.legend title={dgettext("dashboard_projects", "Passed runs")} value={@passed_test_runs_count} style="primary" />
+          <.legend
+            title={dgettext("dashboard_projects", "Passed runs")}
+            value={@passed_test_runs_count}
+            style="primary"
+          />
           <.legend
             title={dgettext("dashboard_projects", "Failed runs")}
             value={@failed_test_runs_count}
@@ -450,7 +466,11 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={dgettext("dashboard_projects", "Bundles")} icon="chart_donut_4" data-part="bundle-size-card">
+  <.card
+    title={dgettext("dashboard_projects", "Bundles")}
+    icon="chart_donut_4"
+    data-part="bundle-size-card"
+  >
     <:actions>
       <.dropdown
         id="bundle-size-app-dropdown"
@@ -558,7 +578,11 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={dgettext("dashboard_projects", "Builds")} icon="subtask" data-part="builds-card-section">
+  <.card
+    title={dgettext("dashboard_projects", "Builds")}
+    icon="subtask"
+    data-part="builds-card-section"
+  >
     <:actions>
       <.dropdown
         id="overview-builds-environment-dropdown"

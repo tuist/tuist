@@ -1,5 +1,9 @@
 <div id="builds">
-  <.card title={dgettext("dashboard_builds", "Builds")} icon="chart_arcs" data-part="analytics-card">
+  <.card
+    title={dgettext("dashboard_builds", "Builds")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
     <:actions>
       <.dropdown
         id="builds-analytics-scheme-dropdown"
@@ -191,7 +195,12 @@
             _ -> "secondary"
           end
         }
-        description={dgettext("dashboard_builds", "The average build duration with individual percentile intervals.")}
+        description={
+          dgettext(
+            "dashboard_builds",
+            "The average build duration with individual percentile intervals."
+          )
+        }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_build_duration_type do
@@ -678,7 +687,11 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={dgettext("dashboard_builds", "Recent Builds")} icon="dashboard" data-part="recent-builds-card">
+  <.card
+    title={dgettext("dashboard_builds", "Recent Builds")}
+    icon="dashboard"
+    data-part="recent-builds-card"
+  >
     <:actions>
       <.button
         variant="secondary"
@@ -763,7 +776,9 @@
         }
       >
         <:col :let={build} label={dgettext("dashboard_builds", "Scheme")}>
-          <.text_and_description_cell label={build.scheme || dgettext("dashboard_builds", "Unknown")} />
+          <.text_and_description_cell label={
+            build.scheme || dgettext("dashboard_builds", "Unknown")
+          } />
         </:col>
         <:col :let={build} label="Status">
           <%= if build.status == :success do %>

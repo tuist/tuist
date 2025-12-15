@@ -11,7 +11,11 @@ defmodule TuistWeb.UserConfirmationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+            <img
+              src="/images/tuist_logo_32x32@2x.png"
+              alt={dgettext("dashboard_auth", "Tuist Logo")}
+              data-part="logo"
+            />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -28,7 +32,12 @@ defmodule TuistWeb.UserConfirmationLive do
                 type="secondary"
                 status="success"
                 size="small"
-                title={dgettext("dashboard_auth", "Your account has been confirmed. You will be redirected shortly...")}
+                title={
+                  dgettext(
+                    "dashboard_auth",
+                    "Your account has been confirmed. You will be redirected shortly..."
+                  )
+                }
               />
             <% else %>
               <div data-part="header">
@@ -42,7 +51,9 @@ defmodule TuistWeb.UserConfirmationLive do
                 type="secondary"
                 status="error"
                 size="small"
-                title={dgettext("dashboard_auth", "User confirmation link is invalid or it has expired.")}
+                title={
+                  dgettext("dashboard_auth", "User confirmation link is invalid or it has expired.")
+                }
               />
             <% end %>
           </div>

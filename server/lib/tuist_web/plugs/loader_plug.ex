@@ -108,7 +108,8 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
       {:error, :invalid} ->
         raise BadRequestError,
-              dgettext("dashboard", 
+              dgettext(
+                "dashboard",
                 "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
                 %{
                   project_slug: project_slug

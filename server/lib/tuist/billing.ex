@@ -40,9 +40,12 @@ defmodule Tuist.Billing do
         price: dgettext("dashboard_account", "Free"),
         cta: {:primary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {dgettext("dashboard_account", "Generous free monthly tier"), dgettext("dashboard_account", "Usage capped at free tier limits")},
-          {dgettext("dashboard_account", "Like, totally free"), dgettext("dashboard_account", "All features, no credit card required")},
-          {dgettext("dashboard_account", "Community support"), dgettext("dashboard_account", "Support via community forum")}
+          {dgettext("dashboard_account", "Generous free monthly tier"),
+           dgettext("dashboard_account", "Usage capped at free tier limits")},
+          {dgettext("dashboard_account", "Like, totally free"),
+           dgettext("dashboard_account", "All features, no credit card required")},
+          {dgettext("dashboard_account", "Community support"),
+           dgettext("dashboard_account", "Support via community forum")}
         ],
         badges: [
           dgettext("dashboard_account", "No credit card required")
@@ -57,8 +60,10 @@ defmodule Tuist.Billing do
         price_frequency: dgettext("dashboard_account", "and up"),
         cta: {:secondary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {dgettext("dashboard_account", "Generous base price"), dgettext("dashboard_account", "Pay nothing if below free tier limits")},
-          {dgettext("dashboard_account", "Usage-based pricing"), dgettext("dashboard_account", "Pay only for what you use per feature")},
+          {dgettext("dashboard_account", "Generous base price"),
+           dgettext("dashboard_account", "Pay nothing if below free tier limits")},
+          {dgettext("dashboard_account", "Usage-based pricing"),
+           dgettext("dashboard_account", "Pay only for what you use per feature")},
           {dgettext("dashboard_account", "Standard support"), dgettext("dashboard_account", "Via Slack and email")}
         ],
         badges: [
@@ -73,8 +78,10 @@ defmodule Tuist.Billing do
         price: dgettext("dashboard_account", "Custom"),
         cta: {:secondary, dgettext("dashboard_account", "Contact sales"), "mailto:contact@tuist.dev"},
         features: [
-          {dgettext("dashboard_account", "Custom terms"), dgettext("dashboard_account", "Tailored agreements to meet your specific needs")},
-          {dgettext("dashboard_account", "On-premise"), dgettext("dashboard_account", "Self-host your instance of Tuist")},
+          {dgettext("dashboard_account", "Custom terms"),
+           dgettext("dashboard_account", "Tailored agreements to meet your specific needs")},
+          {dgettext("dashboard_account", "On-premise"),
+           dgettext("dashboard_account", "Self-host your instance of Tuist")},
           {dgettext("dashboard_account", "Priority support"), dgettext("dashboard_account", "Via shared Slack channel")}
         ],
         badges: []

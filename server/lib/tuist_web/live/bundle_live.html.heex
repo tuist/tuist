@@ -102,7 +102,8 @@
                 id="bundle-download-size-tooltip"
                 title={dgettext("dashboard_cache", "Download size")}
                 description={
-                  dgettext("dashboard_cache", 
+                  dgettext(
+                    "dashboard_cache",
                     "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
                   )
                 }
@@ -128,7 +129,8 @@
                 id="bundle-install-size-tooltip"
                 title={dgettext("dashboard_cache", "Install size")}
                 description={
-                  dgettext("dashboard_cache", 
+                  dgettext(
+                    "dashboard_cache",
                     "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
                   )
                 }
@@ -351,7 +353,9 @@
           <div data-part="trigger" data-state="closed">
             <div data-part="header">
               <h2 data-part="title">{dgettext("dashboard_cache", "Remove duplicate files")}</h2>
-              <span data-part="savings-label">{dgettext("dashboard_cache", "Potential savings")}</span>
+              <span data-part="savings-label">
+                {dgettext("dashboard_cache", "Potential savings")}
+              </span>
               <span data-part="savings-value">
                 {format_bytes(
                   Enum.flat_map(@duplicates, & &1.artifacts)

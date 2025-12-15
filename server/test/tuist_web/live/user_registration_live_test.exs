@@ -34,7 +34,9 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       lv
-      |> form("#login_form", user: %{email: "  trimtest@example.com  ", password: "StrongP@ssword!2024", username: "  trimuser  "})
+      |> form("#login_form",
+        user: %{email: "  trimtest@example.com  ", password: "StrongP@ssword!2024", username: "  trimuser  "}
+      )
       |> render_submit()
 
       assert {:ok, user} = Tuist.Accounts.get_user_by_email("trimtest@example.com")

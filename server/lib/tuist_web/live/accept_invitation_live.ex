@@ -47,7 +47,11 @@ defmodule TuistWeb.AcceptInvitationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_account", "Tuist Logo")} data-part="logo" />
+            <img
+              src="/images/tuist_logo_32x32@2x.png"
+              alt={dgettext("dashboard_account", "Tuist Logo")}
+              data-part="logo"
+            />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -56,7 +60,9 @@ defmodule TuistWeb.AcceptInvitationLive do
               <div data-part="header">
                 <h1 data-part="title">{dgettext("dashboard_account", "You have been invited")}</h1>
                 <span data-part="subtitle">
-                  {dgettext("dashboard_account", "%{inviter} has invited you to join the %{organization} organization",
+                  {dgettext(
+                    "dashboard_account",
+                    "%{inviter} has invited you to join the %{organization} organization",
                     inviter: @invitation.inviter.account.name,
                     organization: @organization_name
                   )}
@@ -87,7 +93,8 @@ defmodule TuistWeb.AcceptInvitationLive do
                 status="error"
                 size="small"
                 title={
-                  dgettext("dashboard_account", 
+                  dgettext(
+                    "dashboard_account",
                     "We could not find the invitation you are trying to accept. Please try again."
                   )
                 }
@@ -97,7 +104,10 @@ defmodule TuistWeb.AcceptInvitationLive do
               <div data-part="header">
                 <h1 data-part="title">{dgettext("dashboard_account", "Invitation accepted!")}</h1>
                 <span data-part="subtitle">
-                  {dgettext("dashboard_account", "You have accepted the invite to join the organization")}
+                  {dgettext(
+                    "dashboard_account",
+                    "You have accepted the invite to join the organization"
+                  )}
                 </span>
               </div>
               <.alert
@@ -116,7 +126,10 @@ defmodule TuistWeb.AcceptInvitationLive do
               <div data-part="header">
                 <h1 data-part="title">{dgettext("dashboard_account", "Invitation rejected")}</h1>
                 <span data-part="subtitle">
-                  {dgettext("dashboard_account", "You have rejected the invite to join the organization")}
+                  {dgettext(
+                    "dashboard_account",
+                    "You have rejected the invite to join the organization"
+                  )}
                 </span>
               </div>
               <.alert
@@ -124,7 +137,12 @@ defmodule TuistWeb.AcceptInvitationLive do
                 type="secondary"
                 status="error"
                 size="small"
-                title={dgettext("dashboard_account", "You won’t be able to access this organization unless invited again.")}
+                title={
+                  dgettext(
+                    "dashboard_account",
+                    "You won’t be able to access this organization unless invited again."
+                  )
+                }
               />
             <% end %>
 
