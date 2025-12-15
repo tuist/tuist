@@ -287,12 +287,15 @@ defmodule TuistWeb.TestCasesLive do
     params["analytics_selected_widget"] || "test_case_run_count"
   end
 
+  @allowed_sort_fields ~w(name last_duration avg_duration last_ran_at)
+  @default_sort_field "last_ran_at"
+
   defp assign_test_cases(%{assigns: %{selected_project: project}} = socket, params) do
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
     page = parse_page(params["page"])
-    sort_by = params["sort_by"] || "last_ran_at"
+    sort_by = validate_sort_by(params["sort_by"])
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
@@ -324,6 +327,10 @@ defmodule TuistWeb.TestCasesLive do
   defp parse_page(nil), do: 1
   defp parse_page(page) when is_binary(page), do: String.to_integer(page)
   defp parse_page(page) when is_integer(page), do: page
+
+  defp validate_sort_by(nil), do: @default_sort_field
+  defp validate_sort_by(field) when field in @allowed_sort_fields, do: field
+  defp validate_sort_by(_invalid), do: @default_sort_field
 
   defp build_flop_filters(filters, search) do
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
