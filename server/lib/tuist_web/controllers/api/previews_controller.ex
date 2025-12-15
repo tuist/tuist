@@ -628,41 +628,11 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case AppBuilds.app_build_by_binary_id(binary_id, preload: [:preview]) do
-      {:ok, app_build} ->
-        preview = app_build.preview
-
-        filters =
-          [
-            %{field: :project_id, op: :==, value: selected_project.id},
-            %{field: :bundle_identifier, op: :not_empty, value: true},
-            if(preview.bundle_identifier,
-              do: %{field: :bundle_identifier, op: :==, value: preview.bundle_identifier},
-              else: nil
-            ),
-            if(preview.git_branch, do: %{field: :git_branch, op: :==, value: preview.git_branch}, else: nil)
-          ]
-          |> Enum.reject(&is_nil/1)
-
-        {previews, _meta} =
-          AppBuilds.list_previews(
-            %{
-              page: 1,
-              page_size: 1,
-              filters: filters,
-              order_by: [:inserted_at],
-              order_directions: [:desc]
-            },
-            preload: [:app_builds, :created_by_account]
-          )
-
-        case previews do
-          [latest_preview | _] ->
-            json(conn, %{preview: map_preview(latest_preview, account_handle, project_handle, selected_project.account)})
-
-          [] ->
-            json(conn, %{preview: nil})
-        end
+    case AppBuilds.latest_preview_for_binary_id(binary_id, selected_project,
+           preload: [:app_builds, :created_by_account]
+         ) do
+      {:ok, preview} ->
+        json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
 
       {:error, :not_found} ->
         json(conn, %{preview: nil})
