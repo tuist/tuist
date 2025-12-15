@@ -788,7 +788,8 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
-      inserted_at: app_build.inserted_at
+      inserted_at: app_build.inserted_at,
+      binary_id: app_build.binary_id
     }
   end
 
@@ -882,8 +883,7 @@ defmodule TuistWeb.API.PreviewsController do
             id: preview.created_by_account.id,
             handle: preview.created_by_account.name
           },
-      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id),
-      binary_id: preview.binary_id
+      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
     }
   end
 

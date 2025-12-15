@@ -233,8 +233,9 @@ public final class TuistSDK {
             return nil
         }
 
-        // Update available if the latest preview has a different binary ID than the running app
-        if latestPreview.binaryId != binaryId {
+        // Update available if the preview doesn't have an app build with the current binary ID
+        let hasCurrentBuild = latestPreview.builds.contains { $0.binaryId == binaryId }
+        if !hasCurrentBuild {
             return PreviewUpdateInfo(
                 previewId: latestPreview.id,
                 displayName: latestPreview.displayName,
@@ -309,7 +310,7 @@ private struct LatestPreviewResponse: Codable {
         let version: String?
         let bundleIdentifier: String
         let gitBranch: String?
-        let binaryId: String?
+        let builds: [Build]
         let url: URL
 
         enum CodingKeys: String, CodingKey {
@@ -318,8 +319,18 @@ private struct LatestPreviewResponse: Codable {
             case version
             case bundleIdentifier = "bundle_identifier"
             case gitBranch = "git_branch"
-            case binaryId = "binary_id"
+            case builds
             case url
+        }
+    }
+
+    struct Build: Codable {
+        let id: String
+        let binaryId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case binaryId = "binary_id"
         }
     }
 }
