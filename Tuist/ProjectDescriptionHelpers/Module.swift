@@ -891,6 +891,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
                 ]
