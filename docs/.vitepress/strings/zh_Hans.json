@@ -382,6 +382,12 @@
                     "items": {
                         "continuous-integration": {
                             "text": "持续集成"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "text": "Git 锻造"
                         }
                     }
                 },
@@ -390,6 +396,21 @@
                     "items": {
                         "previews": {
                             "text": "预览"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "遥测"
+                                },
+                                "installation": {
+                                    "text": "安装"
+                                }
+                            },
+                            "text": "自主托管"
                         }
                     }
                 }
