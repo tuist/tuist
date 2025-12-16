@@ -419,7 +419,7 @@
                     }
                 },
                 "integrations": {
-                    "text": "",
+                    "text": "الدمج والربط",
                     "items": {
                         "continuous-integration": {
                             "text": "التكامل المستمر"
@@ -457,8 +457,15 @@
                                 }
                             },
                             "text": "الاستضافة الذاتية"
+                        },
+                        "accounts-and-projects": {
+                            "text": "الحسابات والمشاريع"
+                        },
+                        "authentication": {
+                            "text": "المصادقة"
                         }
-                    }
+                    },
+                    "text": "السيرڤر"
                 }
             }
         }
