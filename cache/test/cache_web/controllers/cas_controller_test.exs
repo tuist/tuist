@@ -29,10 +29,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, ^body ->
         :ok
       end)
 
@@ -67,10 +67,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         assert File.stat!(tmp_path).size == byte_size(large_body)
         File.rm(tmp_path)
@@ -108,7 +108,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         true
       end)
 
@@ -133,10 +133,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, ^body ->
         {:error, :enospc}
       end)
 
@@ -164,10 +164,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         File.rm(tmp_path)
         {:error, :exists}
@@ -234,7 +234,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
@@ -266,7 +266,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
@@ -304,7 +304,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 

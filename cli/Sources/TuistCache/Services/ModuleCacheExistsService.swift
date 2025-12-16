@@ -7,8 +7,9 @@ import TuistServer
 
 @Mockable
 public protocol ModuleCacheExistsServicing: Sendable {
-    func moduleCacheExists(
-        fullHandle: String,
+    func moduleCacheArtifactExists(
+        accountHandle: String,
+        projectHandle: String,
         hash: String,
         name: String,
         cacheCategory: String,
@@ -36,11 +37,12 @@ public enum ModuleCacheExistsServiceError: LocalizedError {
     }
 }
 
-public final class ModuleCacheExistsService: ModuleCacheExistsServicing {
+public struct ModuleCacheExistsService: ModuleCacheExistsServicing {
     public init() {}
 
-    public func moduleCacheExists(
-        fullHandle: String,
+    public func moduleCacheArtifactExists(
+        accountHandle: String,
+        projectHandle: String,
         hash: String,
         name: String,
         cacheCategory: String,
@@ -57,7 +59,8 @@ public final class ModuleCacheExistsService: ModuleCacheExistsServicing {
         let response = try await client.moduleCacheArtifactExists(
             .init(
                 query: .init(
-                    project_id: fullHandle,
+                    account_handle: accountHandle,
+                    project_handle: projectHandle,
                     hash: hash,
                     name: name,
                     cache_category: cacheCategory

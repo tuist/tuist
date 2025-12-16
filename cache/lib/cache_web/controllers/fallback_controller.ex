@@ -1,0 +1,34 @@
+defmodule CacheWeb.FallbackController do
+  @moduledoc """
+  Translates controller action results into JSON responses.
+
+  This module is used as the `action_fallback` for controllers that need
+  standardized JSON error responses.
+  """
+
+  use CacheWeb, :controller
+
+  def call(conn, {:error, :not_found}) do
+    conn
+    |> put_status(:not_found)
+    |> json(%{message: "Artifact not found"})
+  end
+
+  def call(conn, {:error, :too_large}) do
+    conn
+    |> put_status(:request_entity_too_large)
+    |> json(%{message: "Request body exceeded allowed size"})
+  end
+
+  def call(conn, {:error, :timeout}) do
+    conn
+    |> put_status(:request_timeout)
+    |> json(%{message: "Request body read timed out"})
+  end
+
+  def call(conn, {:error, :persist_error}) do
+    conn
+    |> put_status(:internal_server_error)
+    |> json(%{message: "Failed to persist artifact"})
+  end
+end

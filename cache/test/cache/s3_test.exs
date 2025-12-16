@@ -229,7 +229,7 @@ defmodule Cache.S3Test do
         {:ok, :done}
       end)
 
-      expect(Cache.Disk, :stat, fn ^account_handle, ^project_handle, ^artifact_id ->
+      expect(Cache.Disk, :cas_stat, fn ^account_handle, ^project_handle, ^artifact_id ->
         {:ok, %{size: 18}}
       end)
 
