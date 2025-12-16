@@ -2550,6 +2550,10 @@ public enum Components {
             public var qr_code_url: Swift.String
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
             public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
+            /// The track for the preview (e.g., 'beta', 'nightly')
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/track`.
+            public var track: Swift.String?
             /// The URL to download the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/url`.
@@ -2574,6 +2578,7 @@ public enum Components {
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - supported_platforms:
+            ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
             ///   - version: The app version of the preview
             public init(
@@ -2590,6 +2595,7 @@ public enum Components {
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
+                track: Swift.String? = nil,
                 url: Swift.String,
                 version: Swift.String? = nil
             ) {
@@ -2606,6 +2612,7 @@ public enum Components {
                 self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
                 self.supported_platforms = supported_platforms
+                self.track = track
                 self.url = url
                 self.version = version
             }
@@ -2623,6 +2630,7 @@ public enum Components {
                 case inserted_at
                 case qr_code_url
                 case supported_platforms
+                case track
                 case url
                 case version
             }
@@ -7622,7 +7630,7 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The Mach-O UUID of the binary.
+                    /// The Mach-O UUID of the binary (for update checking).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
                     public var binary_id: Swift.String?
@@ -7650,6 +7658,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
                     public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                    /// The track for the preview (e.g., 'beta', 'nightly').
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/track`.
+                    public var track: Swift.String?
                     /// The type of the preview to upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
@@ -7668,13 +7680,14 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - binary_id: The Mach-O UUID of the binary.
+                    ///   - binary_id: The Mach-O UUID of the binary (for update checking).
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
                     ///   - supported_platforms: The supported platforms of the preview.
+                    ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     public init(
@@ -7685,6 +7698,7 @@ public enum Operations {
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
+                        track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
@@ -7695,6 +7709,7 @@ public enum Operations {
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.supported_platforms = supported_platforms
+                        self.track = track
                         self._type = _type
                         self.version = version
                     }
@@ -7706,6 +7721,7 @@ public enum Operations {
                         case git_commit_sha
                         case git_ref
                         case supported_platforms
+                        case track
                         case _type = "type"
                         case version
                     }

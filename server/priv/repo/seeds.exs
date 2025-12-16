@@ -1110,6 +1110,8 @@ platform_combinations = [
   [:watchos_simulator, :visionos, :watchos, :visionos_simulator]
 ]
 
+preview_tracks = [nil, nil, nil, "beta", "nightly", "internal"]
+
 test_previews =
   Enum.map(1..40, fn _index ->
     bundle_identifier = Enum.random(bundle_identifiers)
@@ -1123,6 +1125,7 @@ test_previews =
       |> List.to_string()
 
     git_branch = Enum.random(branches)
+    track = Enum.random(preview_tracks)
 
     %{
       display_name: "MyApp",
@@ -1131,6 +1134,7 @@ test_previews =
       supported_platforms: supported_platforms,
       git_branch: git_branch,
       git_commit_sha: git_commit_sha,
+      track: track,
       project_id: tuist_project.id,
       created_by_account_id: organization.account.id,
       inserted_at:
@@ -1158,10 +1162,16 @@ Enum.each(test_previews, fn preview_attrs ->
 
     build_type = Enum.random([:app_bundle, :ipa])
 
+    binary_id =
+      1..32
+      |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+      |> List.to_string()
+
     app_build_attrs = %{
       preview_id: preview.id,
       type: build_type,
-      supported_platforms: build_platforms
+      supported_platforms: build_platforms,
+      binary_id: binary_id
     }
 
     app_build_changeset = AppBuild.create_changeset(%AppBuild{}, app_build_attrs)

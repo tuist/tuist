@@ -25,6 +25,8 @@ defmodule Tuist.AppBuilds do
           display_name: display_name
         } = attrs
       ) do
+    track = Map.get(attrs, :track)
+
     preview =
       from(p in Preview)
       |> where([p], p.project_id == ^project_id)
@@ -48,6 +50,7 @@ defmodule Tuist.AppBuilds do
         )
       )
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
+      |> then(&if(is_nil(track), do: where(&1, [p], is_nil(p.track)), else: where(&1, [p], p.track == ^track)))
       |> limit(1)
       |> Repo.one()
 
@@ -73,7 +76,7 @@ defmodule Tuist.AppBuilds do
   end
 
   @doc """
-  Finds the latest preview on the same track (bundle identifier and git branch) as the app build
+  Finds the latest preview on the same track (bundle identifier, git branch, and track) as the app build
   identified by the given binary ID.
 
   Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
@@ -82,16 +85,17 @@ defmodule Tuist.AppBuilds do
     preload = Keyword.get(opts, :preload, [])
 
     with {:ok, app_build} <- app_build_by_binary_id(binary_id, preload: [:preview]),
-         %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch}
+         %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch, track: track}
          when not is_nil(bundle_identifier) <- app_build.preview do
       preview =
         from(p in Preview,
           where: p.project_id == ^project.id,
           where: p.bundle_identifier == ^bundle_identifier,
-          where: p.git_branch == ^git_branch,
-          order_by: [desc: p.inserted_at],
-          limit: 1
+          where: p.git_branch == ^git_branch
         )
+        |> then(&if(is_nil(track), do: where(&1, [p], is_nil(p.track)), else: where(&1, [p], p.track == ^track)))
+        |> order_by([p], desc: p.inserted_at)
+        |> limit(1)
         |> preload(^preload)
         |> Repo.one()
 

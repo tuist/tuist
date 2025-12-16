@@ -151,6 +151,14 @@
             </span>
           </div>
         </div>
+        <div :if={@preview.track} data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Track")}</div>
+            <span data-part="label">
+              {@preview.track}
+            </span>
+          </div>
+        </div>
       </div>
     </.card_section>
   </.card>
