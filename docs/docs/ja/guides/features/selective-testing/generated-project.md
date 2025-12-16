@@ -5,7 +5,7 @@
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# 生成されたプロジェクト{#generated-project}。
+# 生成されたプロジェクト{#generated-projects}。
 
 警告 要件
 <!-- -->
