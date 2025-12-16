@@ -5,7 +5,7 @@
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# 生成项目 {#generated-project}
+# 生成的项目 {#generated-projects}
 
 警告要求
 <!-- -->
