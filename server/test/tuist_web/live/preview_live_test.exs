@@ -158,4 +158,41 @@ defmodule TuistWeb.PreviewLiveTest do
       get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
     end
   end
+
+  test "shows track when set", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "div[data-part='title']", "Track")
+    assert has_element?(lv, "div[data-part='metadata'] span[data-part='label']", "beta")
+  end
+
+  test "does not show track row when track is nil", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project, track: nil)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    refute has_element?(lv, "div[data-part='title']", "Track")
+  end
 end

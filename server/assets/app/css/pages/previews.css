@@ -12,8 +12,8 @@
 
   & [data-part="filters"] {
     display: flex;
-    gap: var(--noora-spacing-6);
     align-items: center;
+    gap: var(--noora-spacing-6);
 
     & [data-part="search"] {
       width: 200px;

@@ -23,6 +23,7 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
       git_branch: Keyword.get(opts, :git_branch, "main"),
       git_commit_sha: Keyword.get(opts, :git_commit_sha, "7c184b7"),
       git_ref: Keyword.get(opts, :git_ref, "refs/heads/main"),
+      track: Keyword.get(opts, :track),
       created_by_account_id: Keyword.get(opts, :created_by_account_id, project.account.id),
       visibility: Keyword.get(opts, :visibility),
       supported_platforms: Keyword.get(opts, :supported_platforms, []),
