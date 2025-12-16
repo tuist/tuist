@@ -382,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Ciągła integracja"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Kuźnie Git"
                         }
                     }
                 },
@@ -390,6 +401,21 @@
                     "items": {
                         "previews": {
                             "text": "Wersje podglądowe"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetria"
+                                },
+                                "installation": {
+                                    "text": "Instalacja"
+                                }
+                            },
+                            "text": "Hosting własny"
                         }
                     }
                 }
