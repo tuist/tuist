@@ -413,8 +413,15 @@
                                 }
                             },
                             "text": "Kendi kendine barındırma"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Hesaplar ve projeler"
+                        },
+                        "authentication": {
+                            "text": "Kimlik doğrulama"
                         }
-                    }
+                    },
+                    "text": "Sunucu"
                 }
             }
         }
