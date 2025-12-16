@@ -5,31 +5,32 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Logging {#logging}
+# Logowanie {#logging}
 
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface
-for logging. The package abstracts away the implementation details of logging,
-allowing the CLI to be agnostic to the logging backend. The logger is
-dependency-injected using task locals and can be accessed anywhere using:
+CLI obejmuje interfejs [swift-log](https://github.com/apple/swift-log) dla
+logowania. Pakiet abstrahuje od szczegółów implementacji logowania, pozwalając
+CLI być niezależnym od backendu logowania. Rejestrator jest wstrzykiwany w
+zależności przy użyciu lokalnych zadań i może być dostępny w dowolnym miejscu
+przy użyciu:
 
 ```bash
 Logger.current
 ```
 
-::: info
+:: info
 <!-- -->
-Task locals don't propagate the value when using `Dispatch` or detached tasks,
-so if you use them, you'll need to get it and pass it to the asynchronous
-operation.
+Lokalne zadania nie propagują wartości podczas korzystania z `Dispatch` lub
+odłączonych zadań, więc jeśli ich używasz, musisz je pobrać i przekazać do
+operacji asynchronicznej.
 <!-- -->
 :::
 
-## What to log {#what-to-log}
+## Co rejestrować {#what-to-log}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better. When building new
-features, put yourself in the shoes of a developer coming across unexpected
-behavior, and think about what information would be helpful to them. Ensure you
-you use the right [log
-level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
-Otherwise developers won't be able to filter out the noise.
+Dzienniki nie są interfejsem użytkownika CLI. Są narzędziem do diagnozowania
+problemów, gdy się pojawią. Dlatego im więcej informacji dostarczysz, tym
+lepiej. Tworząc nowe funkcje, postaw się w sytuacji dewelopera napotykającego
+nieoczekiwane zachowanie i zastanów się, jakie informacje byłyby dla niego
+pomocne. Upewnij się, że używasz właściwego [poziomu
+logów](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
+W przeciwnym razie deweloperzy nie będą w stanie odfiltrować szumu.
