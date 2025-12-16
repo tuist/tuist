@@ -140,7 +140,7 @@ struct MyApp: App {
                         fullHandle: "myorg/myapp",
                         apiKey: "your-api-key"
                     )
-                    .monitorUpdates()
+                    .monitorPreviewUpdates()
                 }
         }
     }
