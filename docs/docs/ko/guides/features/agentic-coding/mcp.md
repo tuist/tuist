@@ -52,7 +52,16 @@ For Claude Code, run:
 tuist mcp setup claude-code
 ```
 
-This will configure the same file as Claude desktop.
+이렇게 하면 Claude 데스크톱과 동일한 파일이 구성됩니다.
+
+### [Codex CLI](https://github.com/openai/codex)
+
+Codex CLI를 사용하려면 다음을 실행하세요:
+```bash
+tuist mcp setup codex
+```
+
+이 명령은 `~/.codex/config.toml` 파일을 설정합니다.
 
 ### [Cursor](https://www.cursor.com)
 
@@ -123,6 +132,18 @@ Tuist MCP server to your client's configuration:
     }
   }
 }
+```
+
+```toml [Codex CLI]
+[mcp_servers.tuist]
+command = "tuist"
+args = ["mcp", "start"]
+```
+
+```toml [Codex CLI (Mise)]
+[mcp_servers.tuist]
+command = "mise"
+args = ["x", "tuist@latest", "--", "tuist", "mcp", "start"] # Or tuist@x.y.z to fix the version
 ```
 <!-- -->
 :::
