@@ -45,7 +45,11 @@ defmodule TuistWeb.CreateProjectLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_projects", "Tuist Logo")} data-part="logo" />
+            <img
+              src="/images/tuist_logo_32x32@2x.png"
+              alt={dgettext("dashboard_projects", "Tuist Logo")}
+              data-part="logo"
+            />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -71,7 +75,10 @@ defmodule TuistWeb.CreateProjectLive do
                   name="account_id"
                   label={dgettext("dashboard_projects", "Account")}
                   hint={
-                    dgettext("dashboard_projects", "Choose an account to create your project or set up a new organization.")
+                    dgettext(
+                      "dashboard_projects",
+                      "Choose an account to create your project or set up a new organization."
+                    )
                   }
                   value={@selected_account}
                   on_value_change="select_account"
@@ -85,7 +92,11 @@ defmodule TuistWeb.CreateProjectLive do
                 </.select>
               </div>
 
-              <.button variant="primary" label={dgettext("dashboard_projects", "Continue")} type="submit" />
+              <.button
+                variant="primary"
+                label={dgettext("dashboard_projects", "Continue")}
+                type="submit"
+              />
               <.line_divider text={dgettext("dashboard_projects", "Or set up a new organization")} />
               <.button
                 label={dgettext("dashboard_projects", "Create organization")}

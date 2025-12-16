@@ -128,7 +128,11 @@
                 />
               </:action>
               <:action>
-                <.button type="submit" label={dgettext("dashboard_projects", "Rename")} variant="destructive" />
+                <.button
+                  type="submit"
+                  label={dgettext("dashboard_projects", "Rename")}
+                  variant="destructive"
+                />
               </:action>
             </.modal_footer>
           </:footer>
@@ -171,7 +175,12 @@
             status="warning"
             type="secondary"
             size="small"
-            title={dgettext("dashboard_projects", "Deleting the project will permanently remove all of its data")}
+            title={
+              dgettext(
+                "dashboard_projects",
+                "Deleting the project will permanently remove all of its data"
+              )
+            }
           />
           <.text_input
             label={dgettext("dashboard_projects", "Enter this project's name to confirm")}
@@ -191,7 +200,11 @@
                 />
               </:action>
               <:action>
-                <.button type="submit" label={dgettext("dashboard_projects", "Delete")} variant="destructive" />
+                <.button
+                  type="submit"
+                  label={dgettext("dashboard_projects", "Delete")}
+                  variant="destructive"
+                />
               </:action>
             </.modal_footer>
           </:footer>

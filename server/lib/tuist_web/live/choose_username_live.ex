@@ -35,7 +35,11 @@ defmodule TuistWeb.ChooseUsernameLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+            <img
+              src="/images/tuist_logo_32x32@2x.png"
+              alt={dgettext("dashboard_auth", "Tuist Logo")}
+              data-part="logo"
+            />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -63,7 +67,11 @@ defmodule TuistWeb.ChooseUsernameLive do
                 required
               />
               <div data-part="actions">
-                <.button type="submit" variant="primary" label={dgettext("dashboard_auth", "Continue")} />
+                <.button
+                  type="submit"
+                  variant="primary"
+                  label={dgettext("dashboard_auth", "Continue")}
+                />
               </div>
             </.form>
           </div>

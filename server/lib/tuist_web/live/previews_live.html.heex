@@ -15,7 +15,11 @@
   </.empty_state>
 <% else %>
   <div id="previews">
-    <.card title={dgettext("dashboard_previews", "Previews")} icon="devices" data-part="latest-previews">
+    <.card
+      title={dgettext("dashboard_previews", "Previews")}
+      icon="devices"
+      data-part="latest-previews"
+    >
       <.card_section data-part="latest-app-previews">
         <span data-part="title">{dgettext("dashboard_previews", "Latest app previews")}</span>
         <div data-part="apps">
@@ -25,7 +29,11 @@
         </div>
       </.card_section>
     </.card>
-    <.card title={dgettext("dashboard_previews", "Previews")} icon="screen_share" data-part="previews">
+    <.card
+      title={dgettext("dashboard_previews", "Previews")}
+      icon="screen_share"
+      data-part="previews"
+    >
       <.card_section data-part="previews-table-section">
         <.table
           id="previews-table"

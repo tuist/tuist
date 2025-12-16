@@ -137,7 +137,8 @@ defmodule TuistWeb.AccountSettingsLive do
           {dgettext("dashboard_account", "Storage region")}
         </span>
         <span data-part="subtitle">
-          {dgettext("dashboard_account", 
+          {dgettext(
+            "dashboard_account",
             "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
           )}
         </span>

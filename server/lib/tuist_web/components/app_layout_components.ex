@@ -214,7 +214,11 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
-          <img src="/images/tuist_dashboard.png" alt={dgettext("dashboard", "Tuist Icon")} class="headerbar__logo" />
+          <img
+            src="/images/tuist_dashboard.png"
+            alt={dgettext("dashboard", "Tuist Icon")}
+            class="headerbar__logo"
+          />
         </.link>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
       </div>

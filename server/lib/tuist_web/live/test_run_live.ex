@@ -844,9 +844,7 @@ defmodule TuistWeb.TestRunLive do
 
         # Has path cases
         {path, "assertion_failure", nil} ->
-          dgettext("dashboard_tests", "Expectation failed at %{location}",
-            location: "#{path}:#{failure.line_number}"
-          )
+          dgettext("dashboard_tests", "Expectation failed at %{location}", location: "#{path}:#{failure.line_number}")
 
         {path, "assertion_failure", message} ->
           dgettext("dashboard_tests", "Expectation failed at %{location}: %{message}",
@@ -855,9 +853,7 @@ defmodule TuistWeb.TestRunLive do
           )
 
         {path, "error_thrown", nil} ->
-          dgettext("dashboard_tests", "Caught error at %{location}",
-            location: "#{path}:#{failure.line_number}"
-          )
+          dgettext("dashboard_tests", "Caught error at %{location}", location: "#{path}:#{failure.line_number}")
 
         {path, "error_thrown", message} ->
           dgettext("dashboard_tests", "Caught error at %{location}: %{message}",
@@ -866,9 +862,7 @@ defmodule TuistWeb.TestRunLive do
           )
 
         {path, "issue_recorded", nil} ->
-          dgettext("dashboard_tests", "Issue recorded at %{location}",
-            location: "#{path}:#{failure.line_number}"
-          )
+          dgettext("dashboard_tests", "Issue recorded at %{location}", location: "#{path}:#{failure.line_number}")
 
         {path, "issue_recorded", message} ->
           dgettext("dashboard_tests", "Issue recorded at %{location}: %{message}",

@@ -194,7 +194,12 @@ defmodule TuistWeb.BillingLive do
       ]}
     >
       <:action_button>
-        <.button :if={@plan == :air} label={dgettext("dashboard_account", "Current plan")} variant="secondary" disabled />
+        <.button
+          :if={@plan == :air}
+          label={dgettext("dashboard_account", "Current plan")}
+          variant="secondary"
+          disabled
+        />
         <.button
           :if={@plan == :pro}
           label={dgettext("dashboard_account", "Downgrade")}
@@ -218,7 +223,12 @@ defmodule TuistWeb.BillingLive do
       ]}
     >
       <:action_button>
-        <.button :if={@plan == :pro} label={dgettext("dashboard_account", "Current plan")} variant="primary" disabled />
+        <.button
+          :if={@plan == :pro}
+          label={dgettext("dashboard_account", "Current plan")}
+          variant="primary"
+          disabled
+        />
         <.button
           :if={@plan == :air}
           label={dgettext("dashboard_account", "Upgrade")}
@@ -240,7 +250,11 @@ defmodule TuistWeb.BillingLive do
       ]}
     >
       <:action_button>
-        <.button label={dgettext("dashboard_account", "Contact sales")} variant="secondary" href="mailto:contact@tuist.dev" />
+        <.button
+          label={dgettext("dashboard_account", "Contact sales")}
+          variant="secondary"
+          href="mailto:contact@tuist.dev"
+        />
       </:action_button>
     </.pricing_card>
     """

@@ -25,7 +25,10 @@
         {dgettext("dashboard_qa", "App description")}
       </h3>
       <span data-part="subtitle">
-        {dgettext("dashboard_qa", "Edit or update the app description to ensure the agent can run tests smoothly:")}
+        {dgettext(
+          "dashboard_qa",
+          "Edit or update the app description to ensure the agent can run tests smoothly:"
+        )}
       </span>
       <ul data-part="list">
         <li>{dgettext("dashboard_qa", "Share your naming conventions with the LLM")}</li>
@@ -63,7 +66,8 @@
         {dgettext("dashboard_qa", "Credentials")}
       </h3>
       <span data-part="subtitle">
-        {dgettext("dashboard_qa", 
+        {dgettext(
+          "dashboard_qa",
           "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
         )}
       </span>
@@ -111,7 +115,12 @@
         on_dismiss="close_add_launch_argument_modal"
       >
         <:trigger :let={attrs}>
-          <.button label={dgettext("dashboard_qa", "Add arguments")} size="medium" variant="secondary" {attrs} />
+          <.button
+            label={dgettext("dashboard_qa", "Add arguments")}
+            size="medium"
+            variant="secondary"
+            {attrs}
+          />
         </:trigger>
         <.form
           for={@add_launch_argument_form}
