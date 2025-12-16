@@ -89,7 +89,7 @@ let tuist = Tuist(
 <!-- -->
 :::
 
-### 지속적 통합 #{continuous-integration}
+### 지속적 통합 {#continuous-integration}
 
 CI 환경에서 캐싱을 활성화하려면 로컬 환경과 동일한 명령을 실행해야 합니다: `tuist setup cache`.
 
