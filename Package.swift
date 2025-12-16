@@ -741,7 +741,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
-        .package(id: "tuist.sdk", .upToNextMajor(from: "0.1.2")),
+        .package(id: "tuist.sdk", .upToNextMajor(from: "0.1.3")),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]
