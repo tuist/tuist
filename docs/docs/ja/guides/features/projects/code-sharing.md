@@ -5,44 +5,31 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# Code sharing {#code-sharing}
+# コード・シェアリング {#code-sharing}
 
-One of the inconveniences of Xcode when we use it with large projects is that it
-doesn't allow reusing elements of the projects other than the build settings
-through `.xcconfig` files. Being able to reuse project definitions is useful for
-the following reasons:
+Xcodeを大規模なプロジェクトで使用する際に不便な点の一つは、`.xcconfig`
+ファイルを通して、ビルド設定以外のプロジェクトの要素を再利用できないことです。プロジェクト定義を再利用できることは、以下の理由で便利です：
 
-- It eases the **maintenance** because changes can be applied in one place and
-  all the projects get the changes automatically.
-- It makes it possible to define **conventions** that new projects can conform
-  to.
-- Projects are more **consistent** and therefore the likelihood of broken builds
-  due inconsistencies is significantly less.
-- Adding a new projects becomes an easy task because we can reuse the existing
-  logic.
+- 一箇所で変更が適用され、すべてのプロジェクトに変更が自動的に反映されるため、**** のメンテナンスが容易になる。
+- これにより、新しいプロジェクトが準拠できる**規約** を定義することが可能になる。
+- プロジェクトはより**** 一貫しているため、不整合によるビルドの破損の可能性は著しく低い。
+- 既存のロジックを再利用できるので、新しいプロジェクトを追加するのは簡単な作業になる。
 
-Reusing code across manifest files is possible in Tuist thanks to the concept of
-**project description helpers**.
+**プロジェクト記述ヘルパー** のコンセプトのおかげで、マニフェストファイル間でのコードの再利用がTuistでは可能です。
 
-::: tip A TUIST UNIQUE ASSET
+::: チップ A TUIST ユニークな資産
 <!-- -->
-Many organizations like Tuist because they see in project description helpers a
-platform for platform teams to codify their own conventions and come up with
-their own language for describing their projects. For example, YAML-based
-project generators have to come up with their own YAML-based propietary
-templating solution, or force organizations onto building their tools upon.
+多くの組織がTuistを気に入っているのは、プロジェクト記述ヘルパーに、プラットフォームチームが自分たちの規約を成文化し、自分たちのプロジェクトを記述するための独自の言語を考え出すためのプラットフォームを見出すからである。例えば、YAMLベースのプロジェクトジェネレータは、YAMLベースの独自のテンプレートソリューションを考え出さなければならない。
 <!-- -->
 :::
 
-## Project description helpers {#project-description-helpers}
+## プロジェクト記述ヘルパー{#project-description-helpers}。
 
-Project description helpers are Swift files that get compiled into a module,
-`ProjectDescriptionHelpers`, that manifest files can import. The module is
-compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers`
-directory.
+プロジェクト記述ヘルパーは、マニフェストファイルがインポートできるモジュール`ProjectDescriptionHelpers` にコンパイルされる
+Swift ファイルです。モジュールは、`Tuist/ProjectDescriptionHelpers`
+ディレクトリにあるすべてのファイルを集めることによってコンパイルされます。
 
-You can import them into your manifest file by adding an import statement at the
-top of the file:
+ファイルの先頭に import ステートメントを追加することで、それらをマニフェストファイルにインポートすることができます：
 
 ```swift
 // Project.swift
@@ -50,17 +37,17 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` are available in the following manifests:
-- `Project.swift`
-- `Package.swift` (only behind the `#TUIST` compiler flag)
-- `Workspace.swift`
+`ProjectDescriptionHelpers` は以下のマニフェストで利用できます：
+- `プロジェクト.swift`
+- `Package.swift` (`#TUIST` コンパイラフラグの後ろのみ)
+- `ワークスペース.swift`
 
-## Example {#example}
+## 例 {#example}
 
-The snippets below contain an example of how we extend the `Project` model to
-add static constructors and how we use them from a `Project.swift` file:
+以下のスニペットには、`Project` モデルを拡張して静的コンストラクタを追加する方法と、`Project.swift`
+ファイルからそれらを使用する方法の例が含まれています：
 
-::: code-group
+コードグループ
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -104,9 +91,8 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
+::: ヒント 協約を確立するためのツール
 <!-- -->
-Note how through the function we are defining conventions about the name of the
-targets, the bundle identifier, and the folders structure.
+この関数を通して、ターゲットの名前、バンドル識別子、フォルダー構造に関する規約を定義していることに注目してほしい。
 <!-- -->
 :::
