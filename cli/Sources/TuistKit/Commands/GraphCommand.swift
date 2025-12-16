@@ -81,8 +81,59 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    @Flag(
+        name: .long,
+        help: "Output the graph to standard output instead of a file. Only supported for dot, json, and toon formats.",
+        envKey: .graphStdout
+    )
+    var stdout: Bool = false
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "Show dependencies of these targets (what they depend on).",
+        envKey: .graphSource
+    )
+    var source: [String] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "Show targets that depend on these targets (reverse dependencies).",
+        envKey: .graphSink
+    )
+    var sink: [String] = []
+
+    @Flag(
+        name: .long,
+        help: "Show only direct dependencies instead of transitive.",
+        envKey: .graphDirect
+    )
+    var direct: Bool = false
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "Filter by dependency type: target, package, framework, xcframework, sdk, bundle, library, macro.",
+        envKey: .graphType
+    )
+    var type: [String] = []
+
+    @Option(
+        name: .long,
+        help: "Comma-separated list of fields to output: name, type, linking, status, path, product.",
+        envKey: .graphFields
+    )
+    var fields: String?
+
     public func run() async throws {
-        try await GraphService().run(
+        let outputFields: Set<GraphOutputField>? = fields.map { fieldsString in
+            Set(fieldsString.split(separator: ",")
+                .compactMap { GraphOutputField(rawValue: String($0).trimmingCharacters(in: .whitespaces)) }
+            )
+        }
+
+        try await GraphCommandService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
@@ -90,16 +141,26 @@ public struct GraphCommand: AsyncParsableCommand {
             open: open,
             platformToFilter: platform,
             targetsToFilter: targets,
+            sourceTargets: source,
+            sinkTargets: sink,
+            directOnly: direct,
+            typeFilter: Set(type),
+            outputFields: outputFields,
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+                .currentPath,
+            stdout: stdout
         )
     }
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, legacyJSON, png, svg
+    case dot, toon, json, legacyJSON, png, svg
+}
+
+enum GraphOutputField: String, CaseIterable {
+    case name, type, linking, status, path, product
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {

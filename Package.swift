@@ -99,6 +99,7 @@ let targets: [Target] = [
             "TuistCI",
             "TuistCAS",
             "TuistLaunchctl",
+            .product(name: "ToonFormat", package: "toon-format.toon-swift"),
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "Command", package: "tuist.Command"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
@@ -668,6 +669,7 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(id: "toon-format.toon-swift", .upToNextMajor(from: "0.3.0")),
         .package(id: "apple.swift-argument-parser", from: "1.5.0"),
         .package(id: "apple.swift-log", from: "1.5.3"),
         .package(id: "swiftlang.swift-tools-support-core", from: "0.6.1"),
