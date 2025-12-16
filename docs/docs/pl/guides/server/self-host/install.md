@@ -165,7 +165,7 @@ Jako użytkownik lokalny otrzymasz klucz licencyjny, który musisz ujawnić jako
 zmienną środowiskową. Klucz ten służy do walidacji licencji i zapewnienia, że
 usługa działa zgodnie z warunkami umowy.
 
-| Zmienna środowiskowa               | Opis                                                                                                                                                                                                                                                                 | Wymagane | Domyślne | Przykład                                  |
+| Zmienna środowiskowa               | Opis                                                                                                                                                                                                                                                                 | Wymagane | Domyślne | Przykłady                                 |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ----------------------------------------- |
 | `TUIST_LICENSE`                    | Licencja udzielana po podpisaniu umowy o gwarantowanym poziomie usług                                                                                                                                                                                                | Tak*     |          | `******`                                  |
 | `TUIST_LICENSE_CERTIFICATE_BASE64` | **Wyjątkowa alternatywa dla `TUIST_LICENSE`**. Certyfikat publiczny zakodowany w Base64 do walidacji licencji offline w środowiskach, w których serwer nie może skontaktować się z usługami zewnętrznymi. Używaj tylko wtedy, gdy `TUIST_LICENSE` nie może być użyty | Tak*     |          | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
@@ -184,7 +184,7 @@ licencji, skontaktuj się z [contact@tuist.dev](mailto:contact@tuist.dev).
 
 ### Podstawowa konfiguracja środowiska {#base-environment-configuration}.
 
-| Zmienna środowiskowa                  | Opis                                                                                                                                                                                                                                  | Wymagane | Domyślne                           | Przykład                                                                        |                                                                                                                                    |
+| Zmienna środowiskowa                  | Opis                                                                                                                                                                                                                                  | Wymagane | Domyślne                           | Przykłady                                                                       |                                                                                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `TUIST_APP_URL`                       | Podstawowy adres URL umożliwiający dostęp do instancji z Internetu                                                                                                                                                                    | Tak      |                                    | https://tuist.dev                                                               |                                                                                                                                    |
 | `TUIST_SECRET_KEY_BASE`               | Klucz używany do szyfrowania informacji (np. sesji w pliku cookie).                                                                                                                                                                   | Tak      |                                    |                                                                                 | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
@@ -204,7 +204,7 @@ licencji, skontaktuj się z [contact@tuist.dev](mailto:contact@tuist.dev).
 Następujące zmienne środowiskowe są używane do konfiguracji połączenia z bazą
 danych:
 
-| Zmienna środowiskowa                 | Opis                                                                                                                                                                                                                             | Wymagane | Domyślne  | Przykład                                                               |
+| Zmienna środowiskowa                 | Opis                                                                                                                                                                                                                             | Wymagane | Domyślne  | Przykłady                                                              |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ---------------------------------------------------------------------- |
 | `DATABASE_URL`                       | Adres URL dostępu do bazy danych Postgres. Należy pamiętać, że adres URL powinien zawierać informacje uwierzytelniające                                                                                                          | Tak      |           | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_CLICKHOUSE_URL`               | Adres URL dostępu do bazy danych ClickHouse. Należy pamiętać, że adres URL powinien zawierać informacje uwierzytelniające                                                                                                        | Nie      |           | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
@@ -253,7 +253,7 @@ W sekcji `Uprawnienia i zdarzenia`'s `Uprawnienia konta` ustaw uprawnienie
 Następnie należy ujawnić następujące zmienne środowiskowe w środowisku, w którym
 działa serwer Tuist:
 
-| Zmienna środowiskowa             | Opis                                   | Wymagane | Domyślne | Przykład                                   |
+| Zmienna środowiskowa             | Opis                                   | Wymagane | Domyślne | Przykłady                                  |
 | -------------------------------- | -------------------------------------- | -------- | -------- | ------------------------------------------ |
 | `TUIST_GITHUB_APP_CLIENT_ID`     | Identyfikator klienta aplikacji GitHub | Tak      |          | `Iv1.a629723000043722`                     |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | Sekret klienta aplikacji               | Tak      |          | `232f972951033b89799b0fd24566a04d83f44ccc` |
@@ -287,10 +287,10 @@ instrukcjami</LocalizedLink>.
 Po uzyskaniu identyfikatora klienta i hasła tajnego podczas konfigurowania
 aplikacji Okta należy ustawić następujące zmienne środowiskowe:
 
-| Zmienna środowiskowa         | Opis                                                                                                     | Wymagane | Domyślne | Przykład |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- | -------- | -------- | -------- |
-| `TUIST_OKTA_1_CLIENT_ID`     | Identyfikator klienta do uwierzytelniania w usłudze Okta. Numer powinien być identyfikatorem organizacji | Tak      |          |          |
-| `TUIST_OKTA_1_CLIENT_SECRET` | Klucz tajny klienta do uwierzytelniania w usłudze Okta                                                   | Tak      |          |          |
+| Zmienna środowiskowa         | Opis                                                                                                     | Wymagane | Domyślne | Przykłady |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- | -------- | -------- | --------- |
+| `TUIST_OKTA_1_CLIENT_ID`     | Identyfikator klienta do uwierzytelniania w usłudze Okta. Numer powinien być identyfikatorem organizacji | Tak      |          |           |
+| `TUIST_OKTA_1_CLIENT_SECRET` | Klucz tajny klienta do uwierzytelniania w usłudze Okta                                                   | Tak      |          |           |
 
 Numer `1` należy zastąpić identyfikatorem organizacji. Zazwyczaj będzie to 1,
 ale należy to sprawdzić w bazie danych.
@@ -308,7 +308,7 @@ Do przechowywania artefaktów można użyć dowolnego dostawcy pamięci masowej
 zgodnego z S3. Do uwierzytelnienia i skonfigurowania integracji z dostawcą
 magazynu wymagane są następujące zmienne środowiskowe:
 
-| Zmienna środowiskowa                                     | Opis                                                                                                                                                                                    | Wymagane | Domyślne                         | Przykład                                                      |
+| Zmienna środowiskowa                                     | Opis                                                                                                                                                                                    | Wymagane | Domyślne                         | Przykłady                                                     |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------- | ------------------------------------------------------------- |
 | `TUIST_S3_ACCESS_KEY_ID` lub `AWS_ACCESS_KEY_ID`         | Identyfikator klucza dostępu do uwierzytelniania względem dostawcy pamięci masowej                                                                                                      | Tak      |                                  | `AKIAIOSFOD`                                                  |
 | `TUIST_S3_SECRET_ACCESS_KEY` lub `AWS_SECRET_ACCESS_KEY` | Tajny klucz dostępu do uwierzytelniania wobec dostawcy pamięci masowej                                                                                                                  | Tak      |                                  | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
@@ -350,7 +350,7 @@ Tuist wymaga funkcji poczty e-mail do uwierzytelniania użytkowników i
 powiadomień transakcyjnych (np. resetowania hasła, powiadomień o koncie).
 Obecnie **obsługuje tylko Mailgun** jako dostawcę poczty e-mail.
 
-| Zmienna środowiskowa             | Opis                                                                                                                                                                              | Wymagane | Domyślne                                                                            | Przykład                  |
+| Zmienna środowiskowa             | Opis                                                                                                                                                                              | Wymagane | Domyślne                                                                            | Przykłady                 |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------- | ------------------------- |
 | `TUIST_MAILGUN_API_KEY`          | Klucz API do uwierzytelniania w Mailgun                                                                                                                                           | Tak*     |                                                                                     | `key-1234567890abcdef`    |
 | `TUIST_MAILING_DOMAIN`           | Domena, z której będą wysyłane wiadomości e-mail                                                                                                                                  | Tak*     |                                                                                     | `mg.tuist.io`             |
@@ -399,7 +399,7 @@ utworzyłeś aplikację OAuth GitHub. W sekcji `Uprawnienia i zdarzenia`'s
 Oprócz `TUIST_GITHUB_APP_CLIENT_ID` i `TUIST_GITHUB_APP_CLIENT_SECRET` potrzebne
 będą następujące zmienne środowiskowe:
 
-| Zmienna środowiskowa           | Opis                            | Wymagane | Domyślne | Przykład                             |
+| Zmienna środowiskowa           | Opis                            | Wymagane | Domyślne | Przykłady                            |
 | ------------------------------ | ------------------------------- | -------- | -------- | ------------------------------------ |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | Klucz prywatny aplikacji GitHub | Tak      |          | `-----BEGIN RSA PRIVATE KEY-----...` |
 
