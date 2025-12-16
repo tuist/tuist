@@ -203,18 +203,32 @@ jobs:
             exit 0
           fi
 
-          # Allow adding new language directories (one-time setup), but block modifications
+          # Allow adding new language directories (one-time setup), but block modifications to non-English translations
           if [ "$PR_AUTHOR" != "tuistit" ]; then
-            if [ -n "$MODIFIED_PO_FILES" ]; then
-              echo "::error title=Translation files modified::Translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
+            # Filter out English .po files from modified files (developers can modify English source translations)
+            NON_ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep -v '/en/LC_MESSAGES/' || true)
+
+            if [ -n "$NON_ENGLISH_MODIFIED" ]; then
+              echo "::error title=Translation files modified::Non-English translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
               echo ""
               echo "Modified translation files:"
-              echo "$MODIFIED_PO_FILES"
+              echo "$NON_ENGLISH_MODIFIED"
               echo ""
               echo "If you need to update translations, please use Weblate instead of editing .po files directly."
               echo "You should only commit .pot (template) files, not .po (translation) files."
+              echo "Note: English .po files (en/LC_MESSAGES/*.po) can be modified by developers."
               exit 1
-            elif [ -n "$ADDED_PO_FILES" ]; then
+            fi
+
+            # Report on English modifications (allowed)
+            ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep '/en/LC_MESSAGES/' || true)
+            if [ -n "$ENGLISH_MODIFIED" ]; then
+              echo "✅ English translation files modified by $PR_AUTHOR (allowed):"
+              echo "$ENGLISH_MODIFIED"
+              echo ""
+            fi
+
+            if [ -n "$ADDED_PO_FILES" ]; then
               echo "⚠️  New translation files added by $PR_AUTHOR:"
               echo "$ADDED_PO_FILES"
               echo ""
