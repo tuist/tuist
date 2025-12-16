@@ -55,7 +55,7 @@ Tuist로 만든 프로젝트를 권장 합니다.
 <!-- -->
 :::
 
-## 프로젝트 수정 {#edit-the-project}
+## 프로젝트 편집 {#edit-the-project}
 
 의존성을 추가하거나 Target을 조정하는 등, 프로젝트를 수정해야 한다면,
 <LocalizedLink href="/guides/features/projects/editing">`tuist edit` 명령을 사용할 수
