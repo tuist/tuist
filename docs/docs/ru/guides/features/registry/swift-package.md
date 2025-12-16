@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# Пакет Swift {#swift-package}
+# Пакеты Swift {#swift-packages}
 
 Если вы работаете над пакетом Swift, вы можете использовать флаг
 `--replace-scm-with-registry` для разрешения зависимостей из реестра, если они
