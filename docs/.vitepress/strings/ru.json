@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Автозавершения Shell"
+                        },
+                        "directories": {
+                            "text": "Справочники"
                         }
                     }
                 },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "Лучшие практики"
+                                },
+                                "metadata-tags": {
+                                    "text": "Теги метаданных"
                                 }
                             }
                         },
@@ -376,6 +382,12 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Непрерывная интеграция (CI)"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "text": "Гит формирует"
                         }
                     }
                 },
@@ -384,6 +396,21 @@
                     "items": {
                         "previews": {
                             "text": "Превью"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Телеметрия"
+                                },
+                                "installation": {
+                                    "text": "Установка"
+                                }
+                            },
+                            "text": "Самостоятельный хостинг"
                         }
                     }
                 }
