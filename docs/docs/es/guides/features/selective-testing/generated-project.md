@@ -5,7 +5,7 @@
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# Proyecto generado {#generated-project}
+# Proyectos generados {#generated-projects}
 
 ::: advertencia REQUISITOS
 <!-- -->
