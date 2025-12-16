@@ -22,14 +22,29 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
     ]
 }
 
-let inspectBuildPostAction: ExecutionAction = .executionAction(
-    title: "Inspect build",
-    scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect build",
+        scriptText: """
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-    tuist inspect build
-    """
-)
+        tuist inspect build
+        """,
+        target: target
+    )
+}
+
+func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect test",
+        scriptText: """
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+        tuist inspect test
+        """,
+        target: target
+    )
+}
 
 let oauthClientIdEnvironmentVariable: EnvironmentVariable =
     switch Environment.env {
@@ -108,6 +123,7 @@ let project = Project(
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
                 .external(name: "ArgumentParser", condition: .when([.ios])),
+                .external(name: "TuistSDK"),
             ],
             settings: .settings(
                 base: [
@@ -255,13 +271,16 @@ let project = Project(
                     .target("TuistApp"),
                 ],
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistApp"),
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 [
                     .testableTarget(target: "TuistMenuBarTests"),
+                ],
+                postActions: [
+                    inspectTestPostAction(target: "TuistMenuBarTests"),
                 ],
                 options: .options(
                     language: "en"
