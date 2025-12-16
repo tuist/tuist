@@ -5,62 +5,34 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Code reviews {#code-reviews}
+# コード・レビュー {#コード・レビュー}
 
-Reviewing pull requests is a common type of contribution. Despite continuous
-integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
-There are contribution traits that can’t be automated: design, code structure &
-architecture, tests quality, or typos. The following sections represent
-different aspects of the code review process.
+プルリクエストをレビューすることは、一般的な貢献の一種である。継続的インテグレーション（CI）は、コードがやるべきことを確実に実行することを保証するが、それだけでは十分ではない。自動化できない貢献の特徴があります:
+デザイン、コード構造とアーキテクチャ、テストの品質、タイプミスなどです。以下のセクションは、コードレビュープロセスのさまざまな側面を表しています。
 
-## Readability {#readability}
+## 読みやすさ{#readability}。
 
-Does the code express its intention clearly? **If you need to spend a bunch of
-time figuring out what the code does, the code implementation needs to be
-improved.** Suggest splitting the code into smaller abstractions that are easier
-to understand. Alternative, and as a last resource, they can add a comment
-explaining the reasoning behind it. Ask yourself if you’d be able to understand
-the code in a near future, without any surrounding context like the pull request
-description.
+コードはその意図を明確に表現しているか？**コードが何をするのか理解するのに多くの時間を費やす必要があるなら、コードの実装を改善する必要がある。**
+コードをより理解しやすい小さな抽象的なものに分割することを提案する。代替案として、また最後のリソースとして、その理由を説明するコメントを追加することもできる。近い将来、プルリクエストの説明のような周囲の文脈なしに、そのコードを理解できるかどうか自問してみてください。
 
-## Small pull requests {#small-pull-requests}
+## 小さなプルリクエスト{#small-pull-requests}。
 
-Large pull requests are hard to review and it’s easier to miss out details. If a
-pull request becomes too large and unmanageable, suggest the author to break it
-down.
+大規模なプルリクエストはレビューが難しく、詳細を見落としやすくなります。もしプルリクエストが大きすぎて管理できなくなったら、作者に分割するように提案してください。
 
-::: info EXCEPTIONS
+例外情報
 <!-- -->
-There are few scenarios where splitting up the pull request is not possible,
-like when the changes are tightly coupled and can’t be split. In those cases,
-the author should provide a clear explanation of the changes and the reasoning
-behind them.
+プルリクエストの分割が不可能なシナリオもあります。たとえば、変更が緊密に結合していて分割できない場合などです。そのような場合、作者は変更内容とその理由を明確に説明する必要があります。
 <!-- -->
 :::
 
-## Consistency {#consistency}
+## 一貫性{#consistency}。
 
-It’s important that the changes are consistent with the rest of the project.
-Inconsistencies complicate maintenance, and therefore we should avoid them. If
-there’s an approach to output messages to the user, or report errors, we should
-stick to that. If the author disagrees with the project’s standards, suggest
-them to open an issue where we can discuss them further.
+変更がプロジェクトの他の部分と一貫していることが重要だ。矛盾はメンテナンスを複雑にするので、避けるべきだ。ユーザーにメッセージを出力したり、エラーを報告したりする方法があるのなら、それに従うべきです。もし作者がプロジェクトの標準に同意しないのであれば、issueを開くよう提案し、そこでさらに議論しましょう。
 
-## Tests {#tests}
+## テスト {#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be
-tested, and all tests should pass. A good test is a test that consistently
-produces the same result and that it’s easy to understand and maintain.
-Reviewers spend most of the review time in the implementation code, but tests
-are equally important because they are code too.
+テストによって、安心してコードを変更できる。プルリクエストのコードはテストされるべきであり、すべてのテストはパスすべきである。良いテストとは、一貫して同じ結果が得られるテストであり、理解しやすく保守しやすいテストである。レビュアーはレビュー時間のほとんどを実装コードに費やしますが、テストもコードなので同様に重要です。
 
-## Breaking changes {#breaking-changes}
+## ブレークチェンジ{#breaking-changes}。
 
-Breaking changes are a bad user experience for users of Tuist. Contributions
-should avoid introducing breaking changes unless it’s strictly necessary. There
-are many language features that we can leverage to evolve the interface of Tuist
-without resorting to a breaking change. Whether a change is breaking or not
-might not be obvious. A method to verify whether the change is breaking is
-running Tuist against the fixture projects in the fixtures directory. It
-requires putting ourselves in the user’s shoes and imagine how the changes would
-impact them.
+破たん的な変更はTuistのユーザーにとって悪いユーザーエクスペリエンスです。コントリビューションは、それが厳密に必要でない限り、ブレークチェンジを導入することを避けるべきである。壊れるような変更に頼らずにTuistのインターフェイスを進化させるために活用できる言語機能はたくさんあります。変更が壊れるかどうかは明らかではないかもしれない。変更が壊れるかどうかを検証する方法は、fixturesディレクトリのfixtureプロジェクトに対してTuistを実行することである。それにはユーザーの立場に立って、その変更が彼らにどのような影響を与えるかを想像する必要がある。
