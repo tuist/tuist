@@ -43,7 +43,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
             maybe_put(
               %{
                 selected_project_id: project_id,
-                selected_project_name: project_handle,
+                selected_project_handle: project_handle,
                 selected_account_id: account_id,
                 selected_account_handle: account_handle
               },
@@ -62,20 +62,20 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
             %{}
         end
 
-      custom_data = Map.merge(auth_data, selection_data)
+      tags = Map.merge(auth_data, selection_data)
 
-      set_sample_data(span, "custom_data", custom_data)
+      set_tags(span, tags)
     end
 
     conn
   end
 
-  defp set_sample_data(_span, _key, data) when data == %{} do
+  defp set_tags(_span, tags) when tags == %{} do
     :ok
   end
 
-  defp set_sample_data(span, key, data) do
-    Appsignal.Span.set_sample_data(span, key, data)
+  defp set_tags(span, tags) do
+    Appsignal.Span.set_sample_data(span, "tags", tags)
   end
 
   defp maybe_put(map, _key, nil), do: map
