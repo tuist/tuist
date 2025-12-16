@@ -112,13 +112,13 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 
 ## In-app update notifications {#in-app-update-notifications}
 
-The [TuistSDK](https://github.com/tuist/sdk) enables your app to detect when a newer preview version is available and notify users. This is useful for keeping testers on the latest build.
+The [Tuist SDK](https://github.com/tuist/sdk) enables your app to detect when a newer preview version is available and notify users. This is useful for keeping testers on the latest build.
 
 The SDK checks for updates within the same **preview track**. Currently, the track is determined by the git branch — so a preview built from the `main` branch will only notify about newer previews also built from `main`.
 
 ### Installation {#sdk-installation}
 
-Add TuistSDK as a Swift Package dependency:
+Add Tuist SDK as a Swift Package dependency:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", from: "0.1.0")
