@@ -80,6 +80,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 path: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                track: .any,
                 updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
@@ -118,7 +119,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -230,7 +232,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -240,6 +243,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
+                    track: .value(nil),
                     updateProgress: .any
                 )
                 .called(1)
@@ -326,7 +330,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.noAppsFound(app: "App", configuration: "Debug")
         )
@@ -422,7 +427,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -432,6 +438,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
+                    track: .value(nil),
                     updateProgress: .any
                 )
                 .called(1)
@@ -511,7 +518,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: true
+                json: true,
+                track: nil
             )
 
             XCTAssertStandardOutput(pattern: #""bundleIdentifier": "dev.tuist.app""#)
@@ -599,7 +607,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -627,7 +636,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.appNotSpecified
         )
@@ -653,7 +663,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -679,7 +690,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.platformsNotSpecified
         )
@@ -707,7 +719,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [.iOS],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
         )
@@ -760,7 +773,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [.iOS],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -770,6 +784,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
+                    track: .value(nil),
                     updateProgress: .any
                 )
                 .called(1)
@@ -807,7 +822,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -834,7 +850,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.multipleAppsSpecified([
                 ipaPath.pathString,
@@ -889,7 +906,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -906,6 +924,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
+                    track: .value(nil),
                     updateProgress: .any
                 )
                 .called(1)
@@ -953,7 +972,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             )
 
             // Then
@@ -970,6 +990,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
+                    track: .value(nil),
                     updateProgress: .any
                 )
                 .called(1)
@@ -1000,11 +1021,115 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                track: nil
             ),
             ShareCommandServiceError.multipleAppsSpecified([
                 ipaPath.pathString, watchOSIpaPath.pathString,
             ])
         )
+    }
+
+    func test_share_with_track() async throws {
+        try await withMockedDependencies { @MainActor in
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
+
+            let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
+            try await fileSystem.makeDirectory(at: iosApp)
+
+            given(appBundleLoader)
+                .load(.value(iosApp))
+                .willReturn(
+                    .test(
+                        path: iosApp,
+                        infoPlist: .test(name: "App")
+                    )
+                )
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: [iosApp.pathString],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false,
+                track: "beta"
+            )
+
+            // Then
+            verify(previewsUploadService)
+                .uploadPreview(
+                    .any,
+                    path: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production),
+                    track: .value("beta"),
+                    updateProgress: .any
+                )
+                .called(1)
+
+            assertSnapshot(of: ui(), as: .lines)
+        }
+    }
+
+    func test_share_ipa_with_track() async throws {
+        try await withMockedDependencies { @MainActor in
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
+
+            let ipaPath = try temporaryPath().appending(components: "App.ipa")
+            try await fileSystem.touch(ipaPath)
+
+            given(appBundleLoader)
+                .load(ipa: .value(ipaPath))
+                .willReturn(
+                    .test(
+                        path: ipaPath,
+                        infoPlist: .test(
+                            version: "1.0.0",
+                            name: "App",
+                            bundleId: "dev.tuist.app"
+                        )
+                    )
+                )
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: [ipaPath.pathString],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false,
+                track: "nightly"
+            )
+
+            // Then
+            verify(previewsUploadService)
+                .uploadPreview(
+                    .matching {
+                        switch $0 {
+                        case .ipa:
+                            return true
+                        default:
+                            return false
+                        }
+                    },
+                    path: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production),
+                    track: .value("nightly"),
+                    updateProgress: .any
+                )
+                .called(1)
+
+            assertSnapshot(of: ui(), as: .lines)
+        }
     }
 }

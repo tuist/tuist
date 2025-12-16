@@ -100,7 +100,8 @@ struct PreviewsUploadServiceTests {
                 gitRef: .any,
                 binaryId: .any,
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                track: .any
             )
             .willReturn(
                 AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
@@ -141,6 +142,7 @@ struct PreviewsUploadServiceTests {
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                track: nil,
                 updateProgress: { _ in }
             )
 
@@ -172,7 +174,8 @@ struct PreviewsUploadServiceTests {
                     gitRef: .any,
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(serverURL)
+                    serverURL: .value(serverURL),
+                    track: .value(nil)
                 )
                 .called(1)
         }
@@ -219,7 +222,8 @@ struct PreviewsUploadServiceTests {
                     gitRef: .any,
                     binaryId: .any,
                     fullHandle: .any,
-                    serverURL: .any
+                    serverURL: .any,
+                    track: .any
                 )
                 .willReturn(AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id"))
 
@@ -239,6 +243,7 @@ struct PreviewsUploadServiceTests {
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                track: nil,
                 updateProgress: { _ in }
             )
 
@@ -255,7 +260,8 @@ struct PreviewsUploadServiceTests {
                     gitRef: .any,
                     binaryId: .any,
                     fullHandle: .any,
-                    serverURL: .any
+                    serverURL: .any,
+                    track: .any
                 )
                 .called(2)
 
@@ -357,6 +363,7 @@ struct PreviewsUploadServiceTests {
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                track: nil,
                 updateProgress: { _ in }
             )
 
@@ -389,7 +396,8 @@ struct PreviewsUploadServiceTests {
                     gitRef: .value("git-ref"),
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(serverURL)
+                    serverURL: .value(serverURL),
+                    track: .value(nil)
                 )
                 .called(1)
 
@@ -439,6 +447,7 @@ struct PreviewsUploadServiceTests {
             path: temporaryDirectory,
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            track: nil,
             updateProgress: { _ in }
         )
 
@@ -455,7 +464,8 @@ struct PreviewsUploadServiceTests {
                 gitRef: .any,
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                track: .any
             )
             .called(1)
     }
@@ -481,6 +491,7 @@ struct PreviewsUploadServiceTests {
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                track: nil,
                 updateProgress: { _ in }
             )
         }
@@ -524,6 +535,7 @@ struct PreviewsUploadServiceTests {
             path: temporaryDirectory,
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            track: nil,
             updateProgress: { _ in }
         )
 
@@ -540,7 +552,8 @@ struct PreviewsUploadServiceTests {
                 gitRef: .any,
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                track: .any
             )
             .called(1)
     }
@@ -566,6 +579,7 @@ struct PreviewsUploadServiceTests {
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                track: nil,
                 updateProgress: { _ in }
             )
         }

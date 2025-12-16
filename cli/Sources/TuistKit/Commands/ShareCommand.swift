@@ -55,7 +55,7 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     var json: Bool = false
 
     @Option(
-        help: "The track for the preview (e.g., 'beta', 'nightly'). Used to group and filter previews.",
+        help: "The track of the preview (e.g., 'beta', 'nightly').",
         envKey: .shareTrack
     )
     var track: String?
