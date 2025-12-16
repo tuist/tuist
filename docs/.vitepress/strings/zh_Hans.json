@@ -359,13 +359,13 @@
                             }
                         },
                         "insights": {
-                            "text": "洞察"
+                            "text": "构建洞察"
                         },
                         "bundle-size": {
-                            "text": "包体积"
+                            "text": "应用包洞察"
                         },
                         "qa": {
-                            "text": ""
+                            "text": "质量保证"
                         }
                     }
                 },
@@ -387,7 +387,12 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Git 锻造"
+                            "text": "Git 锻造",
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            }
                         }
                     }
                 },
@@ -411,8 +416,15 @@
                                 }
                             },
                             "text": "自主托管"
+                        },
+                        "accounts-and-projects": {
+                            "text": "账户和项目"
+                        },
+                        "authentication": {
+                            "text": "认证"
                         }
-                    }
+                    },
+                    "text": "服务器"
                 }
             }
         }
