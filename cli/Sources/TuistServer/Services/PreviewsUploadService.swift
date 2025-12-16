@@ -15,6 +15,20 @@
         case appBundles([AppBundle])
     }
 
+    public enum PreviewsUploadServiceError: LocalizedError, Equatable {
+        case appBundleNotFound(AbsolutePath)
+        case binaryIdNotFound(AbsolutePath)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .appBundleNotFound(path):
+                return "Could not find app bundle in IPA at \(path.pathString)"
+            case let .binaryIdNotFound(path):
+                return "Could not extract binary ID from \(path.pathString)"
+            }
+        }
+    }
+
     @Mockable
     public protocol PreviewsUploadServicing {
         func uploadPreview(
@@ -38,6 +52,7 @@
         private let uploadPreviewIconService: UploadPreviewIconServicing
         private let gitController: GitControlling
         private let commandRunner: CommandRunning
+        private let precompiledMetadataProvider: PrecompiledMetadataProviding
 
         public init() {
             self.init(
@@ -52,7 +67,8 @@
                 MultipartUploadCompletePreviewsService(),
                 uploadPreviewIconService: UploadPreviewIconService(),
                 gitController: GitController(),
-                commandRunner: CommandRunner()
+                commandRunner: CommandRunner(),
+                precompiledMetadataProvider: PrecompiledMetadataProvider()
             )
         }
 
@@ -66,7 +82,8 @@
             multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
             uploadPreviewIconService: UploadPreviewIconServicing,
             gitController: GitControlling,
-            commandRunner: CommandRunning
+            commandRunner: CommandRunning,
+            precompiledMetadataProvider: PrecompiledMetadataProviding
         ) {
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -78,6 +95,7 @@
             self.uploadPreviewIconService = uploadPreviewIconService
             self.gitController = gitController
             self.commandRunner = commandRunner
+            self.precompiledMetadataProvider = precompiledMetadataProvider
         }
 
         public func uploadPreview(
@@ -91,6 +109,7 @@
 
             switch previewUploadType {
             case let .ipa(bundle):
+                let binaryId = try await ipaBinaryId(at: bundle.path)
                 let preview = try await uploadPreview(
                     buildPath: bundle.path,
                     previewType: .ipa,
@@ -100,6 +119,7 @@
                     icon: iconPaths(for: previewUploadType).first,
                     supportedPlatforms: bundle.infoPlist.supportedPlatforms,
                     gitInfo: gitInfo,
+                    binaryId: binaryId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     updateProgress: updateProgress
@@ -115,6 +135,7 @@
                     let bundleArchivePath = try await fileArchiver
                         .makeFileArchiver(for: [bundle.path])
                         .zip(name: bundle.path.basename)
+                    let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
 
                     preview = try await uploadPreview(
                         buildPath: bundleArchivePath,
@@ -125,6 +146,7 @@
                         icon: iconPaths(for: bundle).first,
                         supportedPlatforms: bundle.infoPlist.supportedPlatforms,
                         gitInfo: gitInfo,
+                        binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         updateProgress: { progress in
@@ -146,6 +168,7 @@
             icon: AbsolutePath?,
             supportedPlatforms: [DestinationType],
             gitInfo: GitInfo,
+            binaryId: String,
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
@@ -163,6 +186,7 @@
                         gitBranch: gitInfo.branch,
                         gitCommitSHA: gitInfo.sha,
                         gitRef: gitInfo.ref,
+                        binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL
                     )
@@ -256,6 +280,31 @@
                     outputPath.pathString,
                 ])
                 .awaitCompletion()
+        }
+
+        private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
+            let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
+            let unzippedPath = try unarchiver.unzip()
+
+            guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
+                .collect()
+                .first
+            else {
+                throw PreviewsUploadServiceError.appBundleNotFound(path)
+            }
+
+            let appName = appPath.basenameWithoutExt
+            return try appBundleBinaryId(at: appPath, name: appName)
+        }
+
+        private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
+            let executablePath = path.appending(component: name)
+            guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
+                  let uuid = uuids.first
+            else {
+                throw PreviewsUploadServiceError.binaryIdNotFound(executablePath)
+            }
+            return uuid.uuidString
         }
     }
 #endif

@@ -109,6 +109,78 @@ Testing new functionality should be a part of any code review. But having to bui
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
 
+
+## In-app update notifications {#in-app-update-notifications}
+
+The [Tuist SDK](https://github.com/tuist/sdk) enables your app to detect when a newer preview version is available and notify users. This is useful for keeping testers on the latest build.
+
+The SDK checks for updates within the same **preview track**. Currently, the track is determined by the git branch — so a preview built from the `main` branch will only notify about newer previews also built from `main`.
+
+### Installation {#sdk-installation}
+
+Add Tuist SDK as a Swift Package dependency:
+
+```swift
+.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
+```
+
+### Monitor for updates {#sdk-monitor-updates}
+
+Use `monitorUpdates` to periodically check for new preview versions:
+
+```swift
+import TuistSDK
+
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .task {
+                    TuistSDK(
+                        fullHandle: "myorg/myapp",
+                        apiKey: "your-api-key"
+                    )
+                    .monitorPreviewUpdates()
+                }
+        }
+    }
+}
+```
+
+### Single update check {#sdk-single-check}
+
+For manual update checking:
+
+```swift
+let sdk = TuistSDK(
+    fullHandle: "myorg/myapp",
+    apiKey: "your-api-key"
+)
+
+if let preview = try await sdk.checkForUpdate() {
+    print("New version available: \(preview.version ?? "unknown")")
+}
+```
+
+### Stopping update monitoring {#sdk-stop-monitoring}
+
+`monitorUpdates` returns a `Task` that can be cancelled:
+
+```swift
+let task = sdk.monitorUpdates { preview in
+    // Handle update
+}
+
+// Later, to stop monitoring:
+task.cancel()
+```
+
+::: info
+<!-- -->
+Update checking is automatically disabled on simulators and App Store builds.
+<!-- -->
+:::
+
 ## README badge {#readme-badge}
 
 To make Tuist Previews more visible in your repository, you can add a badge to your `README` file that points to the latest Tuist Preview:
