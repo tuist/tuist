@@ -9,7 +9,9 @@ defmodule CacheWeb.Plugs.RequestContextPlug do
   @behaviour Plug
 
   def init(opts) do
-    appsignal_active_fn = Keyword.get(opts, :appsignal_active_fn, &appsignal_active?/0)
+    appsignal_active_fn =
+      Keyword.get(opts, :appsignal_active_fn, &__MODULE__.appsignal_active?/0)
+
     %{appsignal_active_fn: appsignal_active_fn}
   end
 
@@ -29,7 +31,8 @@ defmodule CacheWeb.Plugs.RequestContextPlug do
     conn
   end
 
-  defp appsignal_active? do
+  @doc false
+  def appsignal_active? do
     case Application.get_env(:appsignal, :config) do
       nil -> false
       config -> config[:active] || false
