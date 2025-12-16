@@ -17,13 +17,21 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
       auth_data =
         case TuistWeb.Authentication.authenticated_subject(conn) do
           %User{id: user_id, account: %{id: account_id, name: account_handle}} ->
-            %{user_id: user_id, account_id: account_id, account_handle: account_handle}
+            %{
+              auth_user_id: user_id,
+              auth_account_id: account_id,
+              auth_account_handle: account_handle
+            }
 
           %Project{id: project_id, account: %{id: account_id, name: account_handle}} ->
-            %{project_id: project_id, account_id: account_id, account_handle: account_handle}
+            %{
+              auth_project_id: project_id,
+              auth_account_id: account_id,
+              auth_account_handle: account_handle
+            }
 
           %AuthenticatedAccount{account: %{id: account_id, name: account_handle}} ->
-            %{account_id: account_id, account_handle: account_handle}
+            %{auth_account_id: account_id, auth_account_handle: account_handle}
 
           nil ->
             %{}
@@ -31,25 +39,30 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
 
       selection_data =
         case {conn.assigns[:selected_project], conn.assigns[:selected_account]} do
-          {%{id: project_id, name: project_handle}, %{id: account_id, name: account_handle}} ->
-            %{
-              project_id: project_id,
-              project_name: project_handle,
-              account_id: account_id,
-              account_handle: account_handle
-            }
+          {%{id: project_id, name: project_handle}, %{id: account_id, name: account_handle, customer_id: customer_id}} ->
+            maybe_put(
+              %{
+                selected_project_id: project_id,
+                selected_project_name: project_handle,
+                selected_account_id: account_id,
+                selected_account_handle: account_handle
+              },
+              :selected_account_customer_id,
+              customer_id
+            )
 
-          {_, %{id: account_id, name: account_handle}} ->
-            %{account_id: account_id, account_handle: account_handle}
+          {_, %{id: account_id, name: account_handle, customer_id: customer_id}} ->
+            maybe_put(
+              %{selected_account_id: account_id, selected_account_handle: account_handle},
+              :selected_account_customer_id,
+              customer_id
+            )
 
           _ ->
             %{}
         end
 
-      custom_data =
-        %{}
-        |> maybe_put(:auth, auth_data)
-        |> maybe_put(:selection, selection_data)
+      custom_data = Map.merge(auth_data, selection_data)
 
       set_sample_data(span, "custom_data", custom_data)
     end
@@ -65,6 +78,6 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
     Appsignal.Span.set_sample_data(span, key, data)
   end
 
-  defp maybe_put(map, _key, value) when value == %{}, do: map
+  defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
