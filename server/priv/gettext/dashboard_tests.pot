@@ -161,7 +161,7 @@ msgstr ""
 msgid "Build: %{scheme}"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:77
+#: lib/tuist_web/live/test_case_live.ex:90
 #: lib/tuist_web/live/test_cases_live.ex:276
 #: lib/tuist_web/live/test_runs_live.ex:313
 #: lib/tuist_web/live/tests_live.ex:254
@@ -226,7 +226,7 @@ msgstr ""
 msgid "Download result"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:86
+#: lib/tuist_web/live/test_case_live.ex:69
 #: lib/tuist_web/live/test_case_live.html.heex:182
 #: lib/tuist_web/live/test_case_live.html.heex:198
 #: lib/tuist_web/live/test_case_live.html.heex:246
@@ -277,7 +277,7 @@ msgstr ""
 msgid "Expectation failed: %{message}"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:63
+#: lib/tuist_web/live/test_case_live.ex:60
 #: lib/tuist_web/live/test_case_live.html.heex:75
 #: lib/tuist_web/live/test_case_live.html.heex:236
 #: lib/tuist_web/live/test_cases_live.ex:40
@@ -524,7 +524,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:62
+#: lib/tuist_web/live/test_case_live.ex:59
 #: lib/tuist_web/live/test_case_live.html.heex:68
 #: lib/tuist_web/live/test_case_live.html.heex:234
 #: lib/tuist_web/live/test_cases_live.ex:39
@@ -564,7 +564,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:72
+#: lib/tuist_web/live/test_case_live.ex:85
 #: lib/tuist_web/live/test_case_live.html.heex:241
 #: lib/tuist_web/live/test_run_live.html.heex:144
 #: lib/tuist_web/live/test_runs_live.ex:67
@@ -640,7 +640,7 @@ msgstr ""
 msgid "Selective testing: no data yet"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:64
+#: lib/tuist_web/live/test_case_live.ex:61
 #: lib/tuist_web/live/test_case_live.html.heex:82
 #: lib/tuist_web/live/test_case_live.html.heex:238
 #: lib/tuist_web/live/test_cases_live.ex:41
@@ -671,7 +671,7 @@ msgstr ""
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:58
+#: lib/tuist_web/live/test_case_live.ex:55
 #: lib/tuist_web/live/test_case_live.html.heex:231
 #: lib/tuist_web/live/test_run_live.ex:710
 #: lib/tuist_web/live/test_run_live.ex:753

@@ -701,6 +701,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    LatestPreviewResponse:
+      properties:
+        preview:
+          $ref: '#/components/schemas/Preview'
+      title: LatestPreviewResponse
+      type: object
+      x-struct:
+      x-validate:
     PreviewSupportedPlatform:
       enum:
         - ios
@@ -2445,6 +2453,11 @@ components:
       x-validate:
     AppBuild:
       properties:
+        binary_id:
+          description: The Mach-O UUID of the build's main binary.
+          type: string
+          x-struct:
+          x-validate:
         id:
           description: Unique identifier of the build.
           type: string
@@ -3838,6 +3851,11 @@ paths:
           application/json:
             schema:
               properties:
+                binary_id:
+                  description: The Mach-O UUID of the binary.
+                  type: string
+                  x-struct:
+                  x-validate:
                 bundle_identifier:
                   description: The bundle identifier of the preview.
                   type: string
@@ -4135,30 +4153,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4171,6 +4165,30 @@ paths:
           in: path
           name: project_handle
           required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -5093,6 +5111,64 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/previews/latest:
+    get:
+      callbacks: {}
+      description: Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+      operationId: getLatestPreview
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The Mach-O UUID of the running binary.
+          in: query
+          name: binary_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  preview:
+                    $ref: '#/components/schemas/Preview'
+                title: LatestPreviewResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The latest preview on the same track, or null if not found.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Get the latest preview for a binary.
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url:
     post:
       callbacks: {}
@@ -5288,7 +5364,7 @@ paths:
     post:
       callbacks: {}
       description: |
-        Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+        Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
         for a short-lived Tuist access token.
       operationId: exchangeOIDCToken
       parameters: []
@@ -5738,15 +5814,6 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
-        - description: The ID of the bundle.
-          in: path
-          name: bundle_id
-          required: true
-          schema:
-            format: uuid
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -5760,6 +5827,15 @@ paths:
           name: project_handle
           required: true
           schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
             type: string
             x-struct:
             x-validate:

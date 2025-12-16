@@ -184,6 +184,39 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.preview_id == preview.id
     end
 
+    test "starts multipart upload with binary_id", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          binary_id: binary_id
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+      assert app_build.binary_id == binary_id
+    end
+
     test "returns error when project doesn't exist", %{
       conn: conn,
       user: user,
@@ -445,7 +478,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                    "type" => "app_bundle",
                    "supported_platforms" => ["ios"],
                    "url" => "https://mocked-url.com",
-                   "inserted_at" => DateTime.to_iso8601(app_build.inserted_at)
+                   "inserted_at" => DateTime.to_iso8601(app_build.inserted_at),
+                   "binary_id" => nil
                  }
                ],
                "supported_platforms" => ["ios"],
@@ -816,7 +850,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                      "type" => "app_bundle",
                      "supported_platforms" => ["ios"],
                      "url" => "https://mocked-url.com",
-                     "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at)
+                     "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at),
+                     "binary_id" => nil
                    }
                  ],
                  "supported_platforms" => [],
@@ -1232,6 +1267,196 @@ defmodule TuistWeb.PreviewsControllerTest do
         get(
           conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "tuist is not authorized to read preview"
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/previews/latest" do
+    test "returns the latest preview on the same track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["preview"]["id"] == preview_two.id
+      assert response["preview"]["bundle_identifier"] == "com.example.app"
+      assert response["preview"]["git_branch"] == "main"
+      assert hd(response["preview"]["builds"])["id"] == app_build_two.id
+    end
+
+    test "returns nil when binary_id is not found", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      _preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app"
+        )
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=nonexistent-id"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["preview"] == nil
+    end
+
+    test "respects git_branch when finding latest preview", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440001"
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_main =
+        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id)
+
+      _preview_feature =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "feature-branch",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["preview"]["id"] == preview_main.id
+      assert response["preview"]["git_branch"] == "main"
+    end
+
+    test "returns nil when no preview matches the track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440002"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: nil,
+          git_branch: "main"
+        )
+
+      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["preview"] == nil
+    end
+
+    test "returns forbidden when user is not authorized", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=some-id"
         )
 
       # Then

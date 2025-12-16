@@ -86,6 +86,10 @@ defmodule TuistWeb.API.PreviewsController do
            git_ref: %Schema{
              type: :string,
              description: "The git ref associated with the preview."
+           },
+           binary_id: %Schema{
+             type: :string,
+             description: "The Mach-O UUID of the binary (for update checking)."
            }
          }
        }},
@@ -165,7 +169,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_commit_sha: Map.get(body_params, :git_commit_sha),
         created_by_account_id: account.id,
-        supported_platforms: supported_platforms
+        supported_platforms: supported_platforms,
+        binary_id: Map.get(body_params, :binary_id)
       })
 
     upload_id =
@@ -576,6 +581,62 @@ defmodule TuistWeb.API.PreviewsController do
     })
   end
 
+  operation(:latest,
+    summary: "Get the latest preview for a binary.",
+    description:
+      "Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.",
+    operation_id: "getLatestPreview",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      binary_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The Mach-O UUID of the running binary."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"The latest preview on the same track, or null if not found.", "application/json",
+         %Schema{
+           title: "LatestPreviewResponse",
+           type: :object,
+           properties: %{
+             preview: Schemas.Preview
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+    }
+  )
+
+  def latest(
+        %{
+          assigns: %{selected_project: selected_project},
+          params: %{account_handle: account_handle, project_handle: project_handle, binary_id: binary_id}
+        } = conn,
+        _params
+      ) do
+    case AppBuilds.latest_preview_for_binary_id(binary_id, selected_project, preload: [:app_builds, :created_by_account]) do
+      {:ok, preview} ->
+        json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
+
+      {:error, :not_found} ->
+        json(conn, %{preview: nil})
+    end
+  end
+
   defp get_filters(%Project{} = project, params) do
     specifier = Map.get(params, :specifier)
 
@@ -690,7 +751,8 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
-      inserted_at: app_build.inserted_at
+      inserted_at: app_build.inserted_at,
+      binary_id: app_build.binary_id
     }
   end
 
