@@ -168,7 +168,8 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_qa", "Bundle identifier")}</div>
               <span data-part="label">
-                {@qa_run.app_build.preview.bundle_identifier || dgettext("dashboard_qa", "Unknown")}
+                {@qa_run.app_build.preview.bundle_identifier ||
+                  dgettext("dashboard_qa", "Unknown")}
               </span>
             </div>
           </div>
@@ -176,7 +177,11 @@
       </.card_section>
     </.card>
 
-    <.card icon="file_alert" title={dgettext("dashboard_qa", "Issues identified")} data-part="issues-card">
+    <.card
+      icon="file_alert"
+      title={dgettext("dashboard_qa", "Issues identified")}
+      data-part="issues-card"
+    >
       <.empty_card_section
         :if={Enum.empty?(@issues)}
         title={dgettext("dashboard_qa", "No issues identified")}
@@ -199,7 +204,9 @@
                 <div data-part="issue-icon">
                   <.icon name="alert_hexagon" />
                 </div>
-                <div data-part="issue-title">{dgettext("dashboard_qa", "Temporary visual inconsistency")}</div>
+                <div data-part="issue-title">
+                  {dgettext("dashboard_qa", "Temporary visual inconsistency")}
+                </div>
                 <div data-part="issue-toggle">
                   <.neutral_button
                     data-part="closed-collapsible-button"
@@ -378,7 +385,9 @@
                   </span>
                 </div>
                 <span data-part="step-number">
-                  {dgettext("dashboard_qa", "Step %{step_number}", step_number: @current_step.index)}
+                  {dgettext("dashboard_qa", "Step %{step_number}",
+                    step_number: @current_step.index
+                  )}
                 </span>
                 <span data-part="step-action">
                   {Enum.at(@steps, @current_step.index - 1).action}
@@ -397,7 +406,9 @@
                   <.chevron_right />
                 </div>
                 <span data-part="step-number">
-                  {dgettext("dashboard_qa", "Step %{step_number}", step_number: @current_step.index + 2)}
+                  {dgettext("dashboard_qa", "Step %{step_number}",
+                    step_number: @current_step.index + 2
+                  )}
                 </span>
                 <span data-part="step-action">
                   {Enum.at(@steps, @current_step.index + 1).action}
@@ -632,7 +643,12 @@
       <.card_section data-part="app-context-card-section">
         <div :if={@qa_run.email != "" and @qa_run.password != ""} data-part="credentials">
           <div data-part="email">
-            <.text_input name="email" label={dgettext("dashboard_qa", "Email")} value={@qa_run.email} disabled />
+            <.text_input
+              name="email"
+              label={dgettext("dashboard_qa", "Email")}
+              value={@qa_run.email}
+              disabled
+            />
           </div>
           <div data-part="password">
             <.text_input

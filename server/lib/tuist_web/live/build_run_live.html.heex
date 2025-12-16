@@ -30,7 +30,11 @@
         navigate={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@test_run.id}"
         }
-        label={dgettext("dashboard_builds", "Test: %{scheme}", scheme: @test_run.scheme || dgettext("dashboard_builds", "Unknown"))}
+        label={
+          dgettext("dashboard_builds", "Test: %{scheme}",
+            scheme: @test_run.scheme || dgettext("dashboard_builds", "Unknown")
+          )
+        }
         size="large"
         underline
       >
@@ -85,7 +89,11 @@
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
-    <.card title={dgettext("dashboard_builds", "Build Details")} icon="chart_arcs" data-part="build-details">
+    <.card
+      title={dgettext("dashboard_builds", "Build Details")}
+      icon="chart_arcs"
+      data-part="build-details"
+    >
       <.card_section data-part="build-details-section">
         <div data-part="metadata-grid">
           <div :if={not is_nil(@command_event)} data-part="metadata-row">
@@ -115,9 +123,17 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
               <%= if @run.status == :success do %>
-                <.badge label={dgettext("dashboard_builds", "Passed")} color="success" style="fill" />
+                <.badge
+                  label={dgettext("dashboard_builds", "Passed")}
+                  color="success"
+                  style="fill"
+                />
               <% else %>
-                <.badge label={dgettext("dashboard_builds", "Failed")} color="destructive" style="fill" />
+                <.badge
+                  label={dgettext("dashboard_builds", "Failed")}
+                  color="destructive"
+                  style="fill"
+                />
               <% end %>
             </div>
             <div data-part="metadata">
@@ -535,7 +551,11 @@
     </.card>
   <% end %>
   <%= if @selected_tab == "warnings" do %>
-    <.card title={dgettext("dashboard_builds", "Warnings")} icon="alert_hexagon" data-part="warnings-card">
+    <.card
+      title={dgettext("dashboard_builds", "Warnings")}
+      icon="alert_hexagon"
+      data-part="warnings-card"
+    >
       <.card_section data-part="warnings-card-section">
         <div data-part="header">
           <span data-part="title">
@@ -560,13 +580,19 @@
             <img src="/images/empty_warnings_dark.png" data-theme="dark" />
           </div>
           <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
-          <span data-part="subtitle">{dgettext("dashboard_builds", "Looks like you're having a great day!")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
         </div>
       </.card_section>
     </.card>
   <% end %>
   <%= if @selected_tab == "errors" do %>
-    <.card title={dgettext("dashboard_builds", "Errors")} icon="alert_circle" data-part="errors-card">
+    <.card
+      title={dgettext("dashboard_builds", "Errors")}
+      icon="alert_circle"
+      data-part="errors-card"
+    >
       <.card_section data-part="errors-card-section">
         <div data-part="header">
           <span data-part="title">
@@ -593,7 +619,9 @@
             <img src="/images/empty_errors_dark.png" data-theme="dark" />
           </div>
           <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
-          <span data-part="subtitle">{dgettext("dashboard_builds", "Looks like you're having a great day!")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
         </div>
       </.card_section>
     </.card>
@@ -609,14 +637,19 @@
           <.widget
             title={dgettext("dashboard_builds", "Task hits")}
             description={
-              dgettext("dashboard_builds", "Cacheable tasks that were retrieved from cache (local + remote).")
+              dgettext(
+                "dashboard_builds",
+                "Cacheable tasks that were retrieved from cache (local + remote)."
+              )
             }
             value={@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count}
             id="widget-task-hits"
           />
           <.widget
             title={dgettext("dashboard_builds", "Task misses")}
-            description={dgettext("dashboard_builds", "Cacheable tasks that were not found in cache.")}
+            description={
+              dgettext("dashboard_builds", "Cacheable tasks that were not found in cache.")
+            }
             value={
               @run.cacheable_tasks_count - @run.cacheable_task_local_hits_count -
                 @run.cacheable_task_remote_hits_count
@@ -626,7 +659,10 @@
           <.widget
             title={dgettext("dashboard_builds", "Hit rate")}
             description={
-              dgettext("dashboard_builds", "The percentage of cacheable tasks that were cache hits (local + remote).")
+              dgettext(
+                "dashboard_builds",
+                "The percentage of cacheable tasks that were cache hits (local + remote)."
+              )
             }
             value={
               if @run.cacheable_tasks_count > 0 do
@@ -645,7 +681,9 @@
           />
           <.widget
             title={dgettext("dashboard_builds", "Cache downloads")}
-            description={dgettext("dashboard_builds", "Total size of cache artifacts downloaded.")}
+            description={
+              dgettext("dashboard_builds", "Total size of cache artifacts downloaded.")
+            }
             value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.download_bytes)}
             id="widget-binary-cache-pulls"
           />
@@ -806,7 +844,8 @@
                   end
                 }
                 description={
-                  dgettext("dashboard_builds", 
+                  dgettext(
+                    "dashboard_builds",
                     "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
                   )
                 }
@@ -861,7 +900,8 @@
                   end
                 }
                 description={
-                  dgettext("dashboard_builds", 
+                  dgettext(
+                    "dashboard_builds",
                     "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
                   )
                 }
@@ -960,11 +1000,23 @@
               <:col :let={task} label={dgettext("dashboard_builds", "Hit")}>
                 <%= case task.status do %>
                   <% "hit_local" -> %>
-                    <.badge_cell label={dgettext("dashboard_builds", "Local")} color="secondary" style="light-fill" />
+                    <.badge_cell
+                      label={dgettext("dashboard_builds", "Local")}
+                      color="secondary"
+                      style="light-fill"
+                    />
                   <% "hit_remote" -> %>
-                    <.badge_cell label={dgettext("dashboard_builds", "Remote")} color="focus" style="light-fill" />
+                    <.badge_cell
+                      label={dgettext("dashboard_builds", "Remote")}
+                      color="focus"
+                      style="light-fill"
+                    />
                   <% "miss" -> %>
-                    <.badge_cell label={dgettext("dashboard_builds", "Missed")} color="warning" style="light-fill" />
+                    <.badge_cell
+                      label={dgettext("dashboard_builds", "Missed")}
+                      color="warning"
+                      style="light-fill"
+                    />
                 <% end %>
               </:col>
               <:col :let={task} label={dgettext("dashboard_builds", "Type")}>
@@ -1045,7 +1097,12 @@
                 <.table_empty_state
                   icon="chart_arcs"
                   title={dgettext("dashboard_builds", "No cacheable tasks found")}
-                  subtitle={dgettext("dashboard_builds", "Cacheable tasks will appear here when using Tuist cache")}
+                  subtitle={
+                    dgettext(
+                      "dashboard_builds",
+                      "Cacheable tasks will appear here when using Tuist cache"
+                    )
+                  }
                 />
               </:empty_state>
             </.table>
@@ -1171,7 +1228,10 @@
               <.widget
                 title={dgettext("dashboard_builds", "Download throughput")}
                 description={
-                  dgettext("dashboard_builds", "Time-weighted average download throughput in megabits per second.")
+                  dgettext(
+                    "dashboard_builds",
+                    "Time-weighted average download throughput in megabits per second."
+                  )
                 }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
@@ -1185,7 +1245,10 @@
               <.widget
                 title={dgettext("dashboard_builds", "Upload throughput")}
                 description={
-                  dgettext("dashboard_builds", "Time-weighted average upload throughput in megabits per second.")
+                  dgettext(
+                    "dashboard_builds",
+                    "Time-weighted average upload throughput in megabits per second."
+                  )
                 }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
@@ -1278,9 +1341,17 @@
               <:col :let={output} label={dgettext("dashboard_builds", "Status")}>
                 <%= case output.operation do %>
                   <% "download" -> %>
-                    <.badge_cell label={dgettext("dashboard_builds", "Download")} color="focus" style="light-fill" />
+                    <.badge_cell
+                      label={dgettext("dashboard_builds", "Download")}
+                      color="focus"
+                      style="light-fill"
+                    />
                   <% "upload" -> %>
-                    <.badge_cell label={dgettext("dashboard_builds", "Upload")} color="secondary" style="light-fill" />
+                    <.badge_cell
+                      label={dgettext("dashboard_builds", "Upload")}
+                      color="secondary"
+                      style="light-fill"
+                    />
                 <% end %>
               </:col>
               <:col :let={output} label={dgettext("dashboard_builds", "Type")}>
@@ -1336,7 +1407,12 @@
                 <.table_empty_state
                   icon="package"
                   title={dgettext("dashboard_builds", "No CAS outputs found")}
-                  subtitle={dgettext("dashboard_builds", "CAS outputs will appear here when using Tuist cache")}
+                  subtitle={
+                    dgettext(
+                      "dashboard_builds",
+                      "CAS outputs will appear here when using Tuist cache"
+                    )
+                  }
                 />
               </:empty_state>
             </.table>

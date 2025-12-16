@@ -28,7 +28,9 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{message: dgettext("dashboard", "The project %{project_slug} was not found.", %{project_slug: project_slug})})
+        |> json(%{
+          message: dgettext("dashboard", "The project %{project_slug} was not found.", %{project_slug: project_slug})
+        })
         |> halt()
 
       {:error, :invalid} ->
@@ -36,7 +38,8 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            dgettext("dashboard", 
+            dgettext(
+              "dashboard",
               "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
               %{project_slug: project_slug}
             )

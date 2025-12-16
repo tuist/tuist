@@ -53,7 +53,8 @@
       <.widget
         title={dgettext("dashboard_tests", "Test run count")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -70,7 +71,8 @@
       <.widget
         title={dgettext("dashboard_tests", "Failed run count")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -102,7 +104,9 @@
             _ -> "primary"
           end
         }
-        description={dgettext("dashboard_tests", "Average duration of test runs during a given period.")}
+        description={
+          dgettext("dashboard_tests", "Average duration of test runs during a given period.")
+        }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_duration_type do
@@ -325,7 +329,10 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_runs_analytics.count == 0} title={dgettext("dashboard_tests", "No data yet")}>
+    <.empty_card_section
+      :if={@test_runs_analytics.count == 0}
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -395,7 +402,9 @@
             <.text_cell
               icon="git_branch"
               label={
-                if test_run.git_branch == "", do: dgettext("dashboard_tests", "Unknown"), else: test_run.git_branch
+                if test_run.git_branch == "",
+                  do: dgettext("dashboard_tests", "Unknown"),
+                  else: test_run.git_branch
               }
             />
           </:col>

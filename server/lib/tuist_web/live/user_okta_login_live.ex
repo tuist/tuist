@@ -42,7 +42,11 @@ defmodule TuistWeb.UserOktaLoginLive do
     <div id="okta-login">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+          <img
+            src="/images/tuist_logo_32x32@2x.png"
+            alt={dgettext("dashboard_auth", "Tuist Logo")}
+            data-part="logo"
+          />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />

@@ -6,7 +6,10 @@
         {dgettext("dashboard_integrations", "GitHub")}
       </span>
       <span data-part="subtitle">
-        {dgettext("dashboard_integrations", "Connect any of your GitHub repositories to a project")}
+        {dgettext(
+          "dashboard_integrations",
+          "Connect any of your GitHub repositories to a project"
+        )}
       </span>
     </div>
     <div data-part="content">
@@ -32,7 +35,8 @@
           :if={not is_nil(@github_app_installation)}
           id="add-connection-modal"
           description={
-            dgettext("dashboard_integrations", 
+            dgettext(
+              "dashboard_integrations",
               "Your access to repositories depends on your GitHub and Tuist integration setup."
             )
           }

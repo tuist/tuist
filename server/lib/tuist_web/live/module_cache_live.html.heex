@@ -1,5 +1,9 @@
 <div id="module-cache">
-  <.card title={dgettext("dashboard_cache", "Analytics")} icon="chart_arcs" data-part="analytics-card">
+  <.card
+    title={dgettext("dashboard_cache", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
     <:actions>
       <.dropdown
         id="module-cache-analytics-environment-dropdown"
@@ -70,7 +74,8 @@
           end
         }
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
           )
         }
@@ -139,7 +144,8 @@
         title={dgettext("dashboard_cache", "Hits")}
         legend_color="secondary"
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
           )
         }
@@ -157,7 +163,8 @@
         title={dgettext("dashboard_cache", "Misses")}
         legend_color="destructive"
         description={
-          dgettext("dashboard_cache", 
+          dgettext(
+            "dashboard_cache",
             "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
           )
         }

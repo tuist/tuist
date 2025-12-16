@@ -47,7 +47,8 @@
         <.widget
           title={dgettext("dashboard_qa", "QA runs")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "QA runs represent the number of QA test sessions executed during a given period."
             )
           }
@@ -64,7 +65,8 @@
         <.widget
           title={dgettext("dashboard_qa", "App issues found")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "App issues found represents the total number of issues discovered during QA testing in a given period."
             )
           }
@@ -81,7 +83,8 @@
         <.widget
           title={dgettext("dashboard_qa", "Avg. QA duration")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "Average QA duration represents the average time it took to complete a QA session during a given period."
             )
           }
@@ -167,7 +170,10 @@
           />
         </div>
       </.card_section>
-      <.empty_card_section :if={@qa_runs_analytics.count == 0} title={dgettext("dashboard_qa", "No data yet")}>
+      <.empty_card_section
+        :if={@qa_runs_analytics.count == 0}
+        title={dgettext("dashboard_qa", "No data yet")}
+      >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
           <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -236,7 +242,10 @@
               <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
             </:col>
             <:col :let={run} label={dgettext("dashboard_qa", "Duration")}>
-              <.text_cell :if={is_nil(run.finished_at)} label={dgettext("dashboard_qa", "In progress")} />
+              <.text_cell
+                :if={is_nil(run.finished_at)}
+                label={dgettext("dashboard_qa", "In progress")}
+              />
               <.text_cell
                 :if={not is_nil(run.finished_at)}
                 icon="history"
@@ -295,7 +304,8 @@
             {dgettext("dashboard_qa", "1. Upload a preview from a PR")}
           </span>
           <span data-part="subtitle">
-            {dgettext("dashboard_qa", 
+            {dgettext(
+              "dashboard_qa",
               "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
             )}
           </span>
@@ -318,7 +328,10 @@
             {dgettext("dashboard_qa", "2. Trigger the QA session from the PR")}
           </span>
           <span data-part="subtitle">
-            {dgettext("dashboard_qa", "Start the QA session from GitHub with the sample command below.")}
+            {dgettext(
+              "dashboard_qa",
+              "Start the QA session from GitHub with the sample command below."
+            )}
           </span>
         </div>
         <.terminal

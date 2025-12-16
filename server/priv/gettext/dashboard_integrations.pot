@@ -11,27 +11,27 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:46
+#: lib/tuist_web/live/integrations_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:109
+#: lib/tuist_web/live/integrations_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:61
+#: lib/tuist_web/live/integrations_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:88
+#: lib/tuist_web/live/integrations_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:39
+#: lib/tuist_web/live/integrations_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr ""
@@ -51,7 +51,7 @@ msgstr ""
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:116
+#: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "GitHub"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:16
+#: lib/tuist_web/live/integrations_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr ""
@@ -72,17 +72,17 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:155
+#: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:24
+#: lib/tuist_web/live/integrations_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:158
+#: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr ""
@@ -92,7 +92,7 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:35
+#: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""

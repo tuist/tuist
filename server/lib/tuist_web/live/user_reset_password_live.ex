@@ -17,7 +17,11 @@ defmodule TuistWeb.UserResetPasswordLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+            <img
+              src="/images/tuist_logo_32x32@2x.png"
+              alt={dgettext("dashboard_auth", "Tuist Logo")}
+              data-part="logo"
+            />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -25,7 +29,10 @@ defmodule TuistWeb.UserResetPasswordLive do
             <div data-part="header">
               <h1 data-part="title">{dgettext("dashboard_auth", "Change your password")}</h1>
               <span data-part="subtitle">
-                {dgettext("dashboard_auth", "Your new password must be different to previously used passwords.")}
+                {dgettext(
+                  "dashboard_auth",
+                  "Your new password must be different to previously used passwords."
+                )}
               </span>
             </div>
             <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
@@ -45,7 +52,11 @@ defmodule TuistWeb.UserResetPasswordLive do
                 show_suffix={false}
                 required
               />
-              <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Reset password")} />
+              <.button
+                variant="primary"
+                size="large"
+                label={dgettext("dashboard_auth", "Reset password")}
+              />
             </.form>
           </div>
         </div>

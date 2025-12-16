@@ -170,7 +170,7 @@ defmodule TuistWeb.API.PreviewsController do
         git_commit_sha: Map.get(body_params, :git_commit_sha),
         created_by_account_id: account.id,
         supported_platforms: supported_platforms,
-         binary_id: Map.get(body_params, :binary_id)
+        binary_id: Map.get(body_params, :binary_id)
       })
 
     upload_id =
@@ -628,9 +628,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case AppBuilds.latest_preview_for_binary_id(binary_id, selected_project,
-           preload: [:app_builds, :created_by_account]
-         ) do
+    case AppBuilds.latest_preview_for_binary_id(binary_id, selected_project, preload: [:app_builds, :created_by_account]) do
       {:ok, preview} ->
         json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
 

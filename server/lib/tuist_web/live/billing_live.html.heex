@@ -1,9 +1,15 @@
 <div id="billing">
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
-    <span data-part="subtitle">{dgettext("dashboard_account", "Manage your billing and payment details")}</span>
+    <span data-part="subtitle">
+      {dgettext("dashboard_account", "Manage your billing and payment details")}
+    </span>
   </div>
-  <.card data-part="current-plan-card" icon="package" title={dgettext("dashboard_account", "Current plan")}>
+  <.card
+    data-part="current-plan-card"
+    icon="package"
+    title={dgettext("dashboard_account", "Current plan")}
+  >
     <div data-part="current-plan-card-sections">
       <.card_section :if={@plan in [:air, :pro]} data-part="usage-card-section">
         <div data-part="current-bill">
@@ -70,7 +76,10 @@
             />
           </div>
           <span :if={@plan == :air} data-part="subtitle">
-            {dgettext("dashboard_account", "Get started with no credit card required—try with no commitment.")}
+            {dgettext(
+              "dashboard_account",
+              "Get started with no credit card required—try with no commitment."
+            )}
           </span>
           <span :if={@plan == :pro} data-part="subtitle">
             {dgettext("dashboard_account", "Usage-based pricing after free tier.")}
@@ -79,47 +88,81 @@
             {dgettext("dashboard_account", "Create your plan or self-host your instance.")}
           </span>
           <span :if={@plan == :open_source} data-part="subtitle">
-            {dgettext("dashboard_account", "Use all Tuist features as long as you stay open source.")}
+            {dgettext(
+              "dashboard_account",
+              "Use all Tuist features as long as you stay open source."
+            )}
           </span>
         </div>
         <ul :if={@plan == :air} data-part="feature-list">
           <.plan_feature label={
-            dgettext("dashboard_account", "Generous free monthly tier: Usage capped at free tier limits")
+            dgettext(
+              "dashboard_account",
+              "Generous free monthly tier: Usage capped at free tier limits"
+            )
           } />
           <.plan_feature label={
-            dgettext("dashboard_account", "Like, totally free: All features, no credit card required")
+            dgettext(
+              "dashboard_account",
+              "Like, totally free: All features, no credit card required"
+            )
           } />
-          <.plan_feature label={dgettext("dashboard_account", "Community support: Support via community forum")} />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Community support: Support via community forum")
+          } />
         </ul>
         <ul :if={@plan == :pro} data-part="feature-list">
           <.plan_feature label={
-            dgettext("dashboard_account", "Generous base price: Pay nothing if below free tier limits")
+            dgettext(
+              "dashboard_account",
+              "Generous base price: Pay nothing if below free tier limits"
+            )
           } />
           <.plan_feature label={
-            dgettext("dashboard_account", "Usage-based pricing: Pay only for what you use per feature")
+            dgettext(
+              "dashboard_account",
+              "Usage-based pricing: Pay only for what you use per feature"
+            )
           } />
-          <.plan_feature label={dgettext("dashboard_account", "Standard support: Via Slack and email")} />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Standard support: Via Slack and email")
+          } />
         </ul>
         <ul :if={@plan == :enterprise} data-part="feature-list">
           <.plan_feature label={
-            dgettext("dashboard_account", "Custom terms: Tailored agreements to meet your specific needs")
+            dgettext(
+              "dashboard_account",
+              "Custom terms: Tailored agreements to meet your specific needs"
+            )
           } />
-          <.plan_feature label={dgettext("dashboard_account", "On-premise: Self-host your instance of Tuist")} />
-          <.plan_feature label={dgettext("dashboard_account", "Priority support: Via shared Slack channel")} />
+          <.plan_feature label={
+            dgettext("dashboard_account", "On-premise: Self-host your instance of Tuist")
+          } />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Priority support: Via shared Slack channel")
+          } />
         </ul>
         <ul :if={@plan == :open_source} data-part="feature-list">
-          <.plan_feature label={dgettext("dashboard_account", "Completely free for open source projects")} />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Completely free for open source projects")
+          } />
         </ul>
         <.modal
           :if={@plan in [:air, :pro]}
           id="billing-upgrade-modal"
-          description={dgettext("dashboard_account", "Change your subscription to fit your needs.")}
+          description={
+            dgettext("dashboard_account", "Change your subscription to fit your needs.")
+          }
           title={dgettext("dashboard_account", "Change subscription plan")}
           header_type="icon"
           header_size="large"
         >
           <:trigger :let={attrs}>
-            <.button label={dgettext("dashboard_account", "Upgrade plan")} variant="primary" {attrs} />
+            <.button
+              label={dgettext("dashboard_account", "Upgrade plan")}
+              variant="primary"
+              {attrs}
+            />
           </:trigger>
           <:header_icon>
             <.credit_card />
@@ -164,7 +207,8 @@
   >
     <.card_section data-part="usage-card-section">
       <span data-part="info-label">
-        {dgettext("dashboard_account", 
+        {dgettext(
+          "dashboard_account",
           "You’ve exceeded your free tier quota and will incur charges for additional usage."
         )}
       </span>
@@ -199,7 +243,10 @@
         {dgettext("dashboard_account", "Payment method")}
       </span>
       <span data-part="subtitle">
-        {dgettext("dashboard_account", "Payments for your subscription are made using the default card.")}
+        {dgettext(
+          "dashboard_account",
+          "Payments for your subscription are made using the default card."
+        )}
       </span>
     </div>
     <div data-part="content">
@@ -251,7 +298,9 @@
             )}
           </span>
           <span data-part="card-number">
-            {dgettext("dashboard_account", "xxxx xxxx xxxx %{card_number}", card_number: @payment_method.card.last4)}
+            {dgettext("dashboard_account", "xxxx xxxx xxxx %{card_number}",
+              card_number: @payment_method.card.last4
+            )}
           </span>
         </div>
         <div data-part="blur-top-left"></div>

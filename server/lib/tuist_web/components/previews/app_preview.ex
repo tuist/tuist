@@ -21,11 +21,7 @@ defmodule TuistWeb.Previews.AppPreview do
             ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
           )
         }
-        alt={
-          dgettext("dashboard", "%{app_name} icon",
-            app_name: @preview.display_name
-          )
-        }
+        alt={dgettext("dashboard", "%{app_name} icon", app_name: @preview.display_name)}
         data-part="icon"
         id={"tuist-app-preview-#{@preview.id}"}
         phx-hook="ImageFallback"

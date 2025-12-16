@@ -193,7 +193,9 @@ defmodule TuistWeb.MembersLive do
                     <.trash_x />
                   </:header_icon>
                   <p>
-                    {dgettext("dashboard_account", "Are you sure you want to remove %{name} from this organization?",
+                    {dgettext(
+                      "dashboard_account",
+                      "Are you sure you want to remove %{name} from this organization?",
                       name: member.account.name
                     )}
                   </p>
@@ -273,7 +275,10 @@ defmodule TuistWeb.MembersLive do
                 <.text_cell label={invitation.invitee_email} />
               </:col>
               <:col label={dgettext("dashboard_account", "Status")}>
-                <.status_badge_cell label={dgettext("dashboard_account", "Pending")} status="attention" />
+                <.status_badge_cell
+                  label={dgettext("dashboard_account", "Pending")}
+                  status="attention"
+                />
               </:col>
               <:col :let={invitation}>
                 <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
@@ -314,7 +319,11 @@ defmodule TuistWeb.MembersLive do
   defp invite_member_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
-      <.modal id={"#{@id}-modal"} title={dgettext("dashboard_account", "Invite member")} on_dismiss="close-invite-members">
+      <.modal
+        id={"#{@id}-modal"}
+        title={dgettext("dashboard_account", "Invite member")}
+        on_dismiss="close-invite-members"
+      >
         <:trigger :let={attrs}>
           <.button variant="primary" label={dgettext("dashboard_account", "Invite members")} {attrs} />
         </:trigger>

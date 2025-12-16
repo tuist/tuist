@@ -124,7 +124,8 @@
         <.widget
           title={dgettext("dashboard_cache", "Install size (MB)")}
           description={
-            dgettext("dashboard_cache", 
+            dgettext(
+              "dashboard_cache",
               "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
             )
           }
@@ -148,13 +149,15 @@
         <.widget
           title={dgettext("dashboard_cache", "Download size (MB)")}
           description={
-            dgettext("dashboard_cache", 
+            dgettext(
+              "dashboard_cache",
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
             )
           }
           value={
             (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
-               format_bytes(@bundle_size_last_bundle.download_size)) || dgettext("dashboard_cache", "0 MB")
+               format_bytes(@bundle_size_last_bundle.download_size)) ||
+              dgettext("dashboard_cache", "0 MB")
           }
           id="widget-download-size"
           phx_click="select_widget"
@@ -249,7 +252,11 @@
         </:image>
       </.empty_card_section>
     </.card>
-    <.card title={dgettext("dashboard_cache", "Bundles")} icon="chart_cohort" data-part="bundles-card">
+    <.card
+      title={dgettext("dashboard_cache", "Bundles")}
+      icon="chart_cohort"
+      data-part="bundles-card"
+    >
       <.card_section data-part="bundles-card-section">
         <div data-part="filters">
           <.dropdown

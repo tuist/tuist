@@ -19,7 +19,10 @@ defmodule TuistWeb.BundlesLive do
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     socket =
       socket
-      |> assign(:head_title, "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist")
+      |> assign(
+        :head_title,
+        "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+      )
       |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
