@@ -176,7 +176,9 @@ task.cancel()
 ```
 
 ::: info
+<!-- -->
 Update checking is automatically disabled on simulators and App Store builds.
+<!-- -->
 :::
 
 ## README badge {#readme-badge}
