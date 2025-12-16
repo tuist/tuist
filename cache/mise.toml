@@ -3,3 +3,6 @@ elixir = "1.19.2"
 erlang = "28.1"
 ruby = "3.3.10"
 "gem:kamal" = "2.10.1"
+
+[settings]
+ruby.compile = true
