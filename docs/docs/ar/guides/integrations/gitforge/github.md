@@ -5,51 +5,53 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# GitHub integration {#github}
+# تكامل GitHub {#github}
 
-Git repositories are the centerpiece of the vast majority of software projects
-out there. We integrate with GitHub to provide Tuist insights right in your pull
-requests and to save you some configuration such as syncing your default branch.
+تُعد مستودعات Git محور الغالبية العظمى من مشاريع البرمجيات الموجودة هناك. نحن
+نتكامل مع GitHub لتوفير رؤى تويست مباشرةً في طلبات السحب الخاصة بك ولتوفير بعض
+التكوينات مثل مزامنة الفرع الافتراضي الخاص بك.
 
-## Setup {#setup}
+## إعداد {#إعداد {#إعداد}
 
-You will need to install the Tuist GitHub app in the `Integrations` tab of your
-organization: ![An image that shows the integrations
-tab](/images/guides/integrations/gitforge/github/integrations.png)
+ستحتاج إلى تثبيت تطبيق Tuist GitHub في علامة التبويب `التكاملات` في مؤسستك:
+![صورة تُظهر علامة تبويب التكاملات]
+(/images/guides/integrations/gitforge/github/integrations.png)
 
-After that, you can add a project connection between your GitHub repository and
-your Tuist project:
+بعد ذلك، يمكنك إضافة اتصال مشروع بين مستودع GitHub الخاص بك ومشروع Tuist الخاص
+بك:
 
-![An image that shows adding the project
-connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
+![صورة تُظهر إضافة اتصال المشروع]
+(/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## Pull/merge request comments {#pull-merge-request-comments}
+## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-The GitHub app posts a Tuist run report, which includes a summary of the PR,
-including links to the latest
-<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
-or
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>:
+يقوم تطبيق GitHub بنشر تقرير تشغيل تويست، والذي يتضمن ملخصًا للعلاقات العامة،
+بما في ذلك روابط لأحدث
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">
+المراجعات</LocalizedLink> أو
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">
+الاختبارات</LocalizedLink>:
 
-![An image that shows the pull request
-comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
+![صورة تُظهر تعليق طلب
+السحب](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
+:::: متطلبات المعلومات
 <!-- -->
-The comment is only posted when your CI runs are
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+لا يتم نشر التعليق إلا عندما تكون عمليات تشغيل CI الخاصة بك
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+مصادق عليها</LocalizedLink>.
 <!-- -->
 :::
 
-::: info GITHUB_REF
+:::: معلومات GITHUB_REF
 <!-- -->
-If you have a custom workflow that's not triggered on a PR commit, but for
-example, a GitHub comment, you might need to ensure that the `GITHUB_REF`
-variable is set to either `refs/pull/<PR_NUMBER>/merge` or
-`refs/pull/<PR_NUMBER>/head`.
+إذا كان لديك سير عمل مخصص لا يتم تشغيله على التزام PR، ولكن على سبيل المثال،
+تعليق GitHub، فقد تحتاج إلى التأكد من تعيين المتغير `GITHUB_REF` إما إلى
+`refs/pull/<pr_number>/merge` أو
+`refs/pull/<pr_number>/head`.</pr_number></pr_number>
 
-You can run the relevant command, like `tuist share`, with the prefixed
-`GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{
-github.event.issue.number }}/head" tuist share</code>
+يمكنك تشغيل الأمر ذي الصلة، مثل `tuist share` ، مع متغير البيئة `GITHUB_REF`
+المسبوق GITHUB_REF : <code v-pre>GITHUB_REF="refs/pull/${{{{
+github.event.issue.number }}}}/head" مشاركة tuist</code>
 <!-- -->
 :::

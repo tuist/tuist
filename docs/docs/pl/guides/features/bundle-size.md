@@ -5,25 +5,26 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle insights {#bundle-size}
+# Wgląd w pakiet {#bundle-size}
 
-::: warning REQUIREMENTS
+::: ostrzeżenie WYMAGANIA
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
-As you add more features to your app, your app bundle size keeps growing. While
-some of the bundle size growth is inevitable as you ship more code and assets,
-there are many ways to minimze that growth, such as by ensuring your assets are
-not duplicated across your bundles or stripping unused binary symbols. Tuist
-provides you with tools and insights to help your app size stay small – and we
-also monitor your app size over time.
+W miarę dodawania kolejnych funkcji do aplikacji, rozmiar pakietu aplikacji
+stale rośnie. Podczas gdy wzrost rozmiaru pakietu jest nieunikniony w miarę
+dostarczania większej ilości kodu i zasobów, istnieje wiele sposobów na
+zminimalizowanie tego wzrostu, na przykład poprzez zapewnienie, że zasoby nie są
+duplikowane w pakietach lub usuwanie nieużywanych symboli binarnych. Tuist
+zapewnia narzędzia i analizy, które pomagają utrzymać niewielki rozmiar
+aplikacji - a także monitorujemy jej rozmiar w czasie.
 
-## Usage {#usage}
+## Użycie {#usage}
 
-To analyze a bundle, you can use the `tuist inspect bundle` command:
+Aby przeanalizować pakiet, można użyć polecenia `tuist inspect bundle`:
 
 ::: code-group
 ```bash [Analyze an .ipa]
@@ -38,19 +39,19 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
-The `tuist inspect bundle` command analyzes the bundle and provides you with a
-link to see a detailed overview of the bundle including a scan of the contents
-of the bundle or a module breakdown:
+Polecenie `tuist inspect bundle` analizuje pakiet i udostępnia łącze do
+szczegółowego przeglądu pakietu, w tym skanowania zawartości pakietu lub
+podziału modułów:
 
-![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
+![Analizowany pakiet](/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## Continuous integration {#continuous-integration}
+## Ciągła integracja {#continuous-integration}
 
-To track bundle size over time, you will need to analyze the bundle on the CI.
-First, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>:
+Aby śledzić rozmiar pakietu w czasie, należy przeanalizować pakiet na CI. Po
+pierwsze, należy upewnić się, że CI jest
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>:
 
-An example workflow for GitHub Actions could then look like this:
+Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:
 
 ```yaml
 name: Build
@@ -65,24 +66,25 @@ jobs:
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 ```
 
-Once set up, you will be able to see how your bundle size evolves over time:
+Po skonfigurowaniu będziesz mógł zobaczyć, jak rozmiar pakietu zmienia się w
+czasie:
 
-![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
+![Wykres rozmiaru
+pakietu](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
-To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+z platformą
+<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), Tuist will post a comment directly in your
-pull/merge requests whenever you run `tuist inspect bundle`: ![GitHub app
-comment with inspected
-bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+Po połączeniu projektu Tuist z platformą Git, taką jak
+[GitHub](https://github.com), Tuist opublikuje komentarz bezpośrednio w
+żądaniach ściągnięcia/łączenia za każdym razem, gdy uruchomisz `tuist inspect
+bundle`: ![Komentarz aplikacji GitHub ze sprawdzonymi
+pakietami](/images/guides/features/bundle-size/github-app-with-bundles.png).

@@ -5,155 +5,139 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Principles {#principles}
+# المبادئ {#المبادئ}
 
-This page describes principles that are pillars to the design and development of
-Tuist. They evolve with the project and are meant to ensure a sustainable growth
-that is well-aligned with the project foundation.
+تصف هذه الصفحة المبادئ التي تمثل ركائز تصميم وتطوير تويست. وهي تتطور مع المشروع
+وتهدف إلى ضمان نمو مستدام يتماشى بشكل جيد مع أساس المشروع.
 
-## Default to conventions {#default-to-conventions}
+## افتراضي إلى الاتفاقيات {#افتراضي إلى الاتفاقيات}
 
-One of the reasons why Tuist exists is because Xcode is weak in conventions and
-that leads to complex projects that are hard to scale up and maintain. For that
-reason, Tuist takes a different approach by defaulting to simple and thoroughly
-designed conventions. **Developers can opt-out from the conventions, but that’s
-a conscious decision that doesn’t feel natural.**
+أحد أسباب وجود Tuist هو أن Xcode ضعيف في الاصطلاحات وهذا يؤدي إلى مشاريع معقدة
+يصعب توسيع نطاقها وصيانتها. لهذا السبب، يتخذ Tuist نهجًا مختلفًا من خلال اعتماده
+افتراضيًا على اصطلاحات بسيطة ومصممة بدقة. **يمكن للمطورين إلغاء الاشتراك في هذه
+الاصطلاحات، ولكن هذا قرار واعٍ لا يبدو طبيعيًا.**
 
-For example, there’s a convention for defining dependencies between targets by
-using the provided public interface. By doing that, Tuist ensures that the
-projects are generated with the right configurations for the linking to work.
-Developers have the option to define the dependencies through build settings,
-but they’d be doing it implicitly and therefore breaking Tuist features such as
-`tuist graph` or `tuist cache` that rely on some conventions being followed.
+على سبيل المثال، هناك اصطلاح لتحديد التبعيات بين الأهداف باستخدام الواجهة العامة
+المتوفرة. من خلال القيام بذلك، يضمن تويست أن يتم إنشاء المشاريع بالتكوينات
+الصحيحة لعمل الربط. يتوفر للمطورين خيار تحديد التبعيات من خلال إعدادات الإنشاء،
+لكنهم سيفعلون ذلك ضمنيًا، وبالتالي سيتعطلون ميزات تويست مثل `tuist graph` أو
+`tuist cache` التي تعتمد على اتباع بعض الاتفاقيات.
 
-The reason why we default to conventions is that the more decision we can make
-on behalf of the developers, the more focus they’ll have crafting features for
-their apps. When we are left with no conventions like it’s the case in many
-projects, we have to make decisions that will end up not being consistent with
-other decisions and as a consequence, there’ll be an accidental complexity that
-will be hard to manage.
+السبب الذي يجعلنا نعتمد على الاصطلاحات هو أنه كلما زاد عدد القرارات التي يمكننا
+اتخاذها نيابةً عن المطورين، زاد تركيزهم على صياغة ميزات تطبيقاتهم. عندما لا نترك
+لنا أي اصطلاحات كما هو الحال في العديد من المشاريع، سنضطر إلى اتخاذ قرارات لن
+تكون متسقة مع القرارات الأخرى، ونتيجة لذلك، سيكون هناك تعقيد غير مقصود يصعب
+إدارته.
 
-## Manifests are the source of truth {#manifests-are-the-source-of-truth}
+## المظاهر هي مصدر الحقيقة {#المظاهر هي مصدر الحقيقة}
 
-Having many layers of configurations and contracts between them results in a
-project setup that is hard to reason about and maintain. Think for a second on
-an average project. The definition of the project lives in the `.xcodeproj`
-directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in
-pipelines. Those are three layers with contracts between them that we need to
-maintain. *How often have you been in a situation where you changed something in
-your projects, and then a week later you realized that the release scripts
-broke?*
+يؤدي وجود العديد من طبقات التكوينات والعقود فيما بينها إلى إعداد مشروع يصعب
+التفكير فيه والحفاظ عليه. فكر للحظة في مشروع عادي. يعيش تعريف المشروع في الدلائل
+`.xcodeproj` ، وواجهة برمجة التطبيقات في البرامج النصية (على سبيل المثال
+`Fastfiles`)، ومنطق CI في خطوط الأنابيب. هذه ثلاث طبقات مع عقود بينها نحتاج إلى
+الحفاظ عليها. *كم مرة مررت بموقف قمت فيه بتغيير شيء ما في مشاريعك، ثم أدركت بعد
+أسبوع أن البرامج النصية للإصدار تعطلت؟*
 
-We can simplify this by having a single source of truth, the manifest files.
-Those files provide Tuist with the information that it needs to generate Xcode
-projects that developers can use to edit their files. Moreover, it allows having
-standard commands for building projects from a local or CI environment.
+يمكننا تبسيط ذلك من خلال وجود مصدر واحد للحقيقة، ملفات البيان. تزود هذه الملفات
+تويست بالمعلومات التي يحتاجها لإنشاء مشاريع Xcode التي يمكن للمطورين استخدامها
+لتحرير ملفاتهم. علاوةً على ذلك، تسمح بوجود أوامر قياسية لبناء المشاريع من بيئة
+محلية أو بيئة CI.
 
-**Tuist should own the complexity and expose a simple, safe, and enjoyable
-interface to describe their projects as explicitly as possible.**
+**يجب أن يمتلك التويست التعقيدات ويكشف عن واجهة بسيطة وآمنة وممتعة لوصف مشاريعهم
+بأكبر قدر ممكن من الوضوح.**
 
-## Make the implicit explicit {#make-the-implicit-explicit}
+## اجعل الضمني صريحًا {#اجعل الضمني صريحًا}
 
-Xcode supports implicit configurations. A good example of that is inferring the
-implicitly defined dependencies. While implicitness is fine for small projects,
-where configurations are simple, as projects get larger it might cause slowness
-or odd behaviors.
+يدعم Xcode التكوينات الضمنية. مثال جيد على ذلك هو استنتاج التبعيات المحددة
+ضمنيًا. بينما لا بأس بالشهادة الضمنية للمشاريع الصغيرة، حيث تكون التكوينات
+بسيطة، ولكن كلما كبرت المشاريع، قد يتسبب ذلك في بطء أو سلوكيات غريبة.
 
-Tuist should provide explicit APIs for implicit Xcode behaviors. It should also
-support defining Xcode implicitness but implemented in such a way that
-encourages developers to opt for the explicit approach. Supporting Xcode
-implicitness and intricacies facilitates the adoption of Tuist, after which
-teams can take some time to get rid of the implicitness.
+يجب أن يوفر Tuist واجهات برمجة تطبيقات صريحة لسلوكيات Xcode الضمنية. كما يجب أن
+يدعم تحديد شاهد Xcode الضمني ولكن يتم تنفيذه بطريقة تشجع المطورين على اختيار
+النهج الصريح. يسهّل دعم شاهد Xcode الضمني والتعقيدات اعتماد Tuist، وبعد ذلك يمكن
+للفرق أن تستغرق بعض الوقت للتخلص من الشاهد الضمني.
 
-The definition of dependencies is a good example of that. While developers can
-define dependencies through build settings and phases, Tuist provides a
-beautiful API that encourages its adoption.
+تعريف التبعيات مثال جيد على ذلك. في حين يمكن للمطورين تحديد التبعيات من خلال
+إعدادات ومراحل الإنشاء، يوفر Tuist واجهة برمجة تطبيقات جميلة تشجع على اعتمادها.
 
-**Designing the API to be explicit allows Tuist to run some checks and
-optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
-it enables features like `tuist graph`, which exports a representation of the
-dependency graph, or `tuist cache`, which caches all the targets as binaries.
+**يسمح تصميم واجهة برمجة التطبيقات لتكون صريحة لـ Tuist بإجراء بعض الفحوصات
+والتحسينات على المشاريع التي لم تكن ممكنة لولا ذلك.** وعلاوة على ذلك، فإنه يتيح
+ميزات مثل `tuist graph` ، الذي يصدّر تمثيلًا للرسم البياني للتبعية أو `tuist
+cache` ، الذي يخزن جميع الأهداف في شكل ثنائيات.
 
-::: tip
+:::: إكرامية
 <!-- -->
-We should treat each request to port features from Xcode as an opportunity to
-simplify concepts with simple and explicit APIs.
+يجب أن نتعامل مع كل طلب لنقل الميزات من Xcode كفرصة لتبسيط المفاهيم باستخدام
+واجهات برمجة تطبيقات بسيطة وواضحة.
 <!-- -->
 :::
 
-## Keep it simple {#keep-it-simple}
+## اجعل الأمر بسيطًا {# حافظ على بساطته}
 
-One of the main challenges when scaling Xcode projects comes from the fact that
-**Xcode exposes a lot of complexity to the users.** Due to that, teams have a
-high bus factor and only a few people in the team understand the project and the
-errors that the build system throws. That’s a bad situation to be in because the
-team relies on a few people.
+يأتي أحد التحديات الرئيسية عند توسيع نطاق مشاريع Xcode من حقيقة أن **Xcode يعرض
+الكثير من التعقيدات للمستخدمين.** وبسبب ذلك، فإن الفرق لديها عامل نقل كبير ولا
+يفهم المشروع والأخطاء التي يلقيها نظام البناء إلا عدد قليل من الأشخاص في الفريق.
+وهذا وضع سيء لأن الفريق يعتمد على عدد قليل من الأشخاص.
 
-Xcode is a great tool, but so many years of improvements, new platforms, and
-programming languages, are reflected on their surface, which struggled to remain
-simple.
+يعد Xcode أداة رائعة، لكن سنوات عديدة من التحسينات والمنصات الجديدة ولغات
+البرمجة الجديدة انعكست على سطحه الذي كافح ليبقى بسيطاً.
 
-Tuist should take the opportunity to keep things simple because working on
-simple things is fun and motivates us. No one wants to spend time trying to
-debug an error that happens at the very end of the compilation process, or
-understanding why they are not able to run the app on their devices. Xcode
-delegates the tasks to its underlying build system and in some cases it does a
-very poor job translating errors into actionable items. Have you ever got a
-*“framework X not found”* error and you didn’t know what to do? Imagine if we
-got a list of potential root causes for the bug.
+يجب أن ينتهز تويست الفرصة لإبقاء الأمور بسيطة لأن العمل على الأشياء البسيطة أمر
+ممتع ويحفزنا. لا أحد يرغب في قضاء الوقت في محاولة تصحيح خطأ يحدث في نهاية عملية
+التجميع، أو فهم سبب عدم قدرته على تشغيل التطبيق على أجهزته. يقوم Xcode بتفويض
+المهام إلى نظام الإنشاء الأساسي الخاص به، وفي بعض الحالات يقوم بعمل سيء للغاية
+في ترجمة الأخطاء إلى عناصر قابلة للتنفيذ. هل سبق لك أن تلقيت خطأ *"لم يتم العثور
+على الإطار X"* ولم تعرف ماذا تفعل؟ تخيل لو حصلنا على قائمة بالأسباب الجذرية
+المحتملة للخطأ.
 
-## Start from the developer’s experience {#start-from-the-developers-experience}
+## ابدأ من تجربة المطور {#ابدأ من تجربة المطورين}
 
-Part of the reason why there is a lack of innovation around Xcode, or put
-differently, not as much as in other programming environments, is because **we
-often start analyzing problems from existing solutions.** As a consequence, most
-of the solutions that we find nowadays revolve around the same ideas and
-workflows. While it’s good to include existing solutions in the equations, we
-should not let them constrain our creativity.
+جزء من السبب في قلة الابتكار حول Xcode، أو بعبارة أخرى، ليس بالقدر نفسه كما هو
+الحال في بيئات البرمجة الأخرى، هو أننا **غالباً ما نبدأ في تحليل المشاكل من
+الحلول الموجودة.** ونتيجة لذلك، فإن معظم الحلول التي نجدها في الوقت الحاضر تدور
+حول نفس الأفكار وسير العمل. في حين أنه من الجيد تضمين الحلول الموجودة في
+المعادلات، إلا أنه لا ينبغي أن ندعها تقيد إبداعنا.
 
-We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in
-[this podcast](https://tom.preston-werner.com/): *“Most things can be achieved,
-whatever you have in your head you can probably pull off with code as long as is
-possible within the constrains of the universe”.* If **we imagine how we’d like
-the developer experience to be**, it’s just a matter of time to pull it off — by
-starting to analyze the problems from the developer experience gives us a unique
-point of view that will lead us to solutions that users will love to use.
+نحب أن نفكر كما قال [توم بريستون] (https://tom.preston-werner.com/) في [هذا
+البودكاست] (https://tom.preston-werner.com/): *"يمكن تحقيق معظم الأشياء، أيًا
+كان ما يدور في رأسك يمكنك على الأرجح تحقيقه باستخدام التعليمات البرمجية طالما
+كان ذلك ممكنًا ضمن قيود الكون".* إذا **تخيلنا كيف نرغب في أن تكون تجربة المطور**
+، فإن الأمر مجرد مسألة وقت لإنجازها - من خلال البدء في تحليل المشاكل من تجربة
+المطور يعطينا وجهة نظر فريدة من نوعها ستقودنا إلى حلول سيحب المستخدمون
+استخدامها.
 
-We might feel tempted to follow what everyone is doing, even if that means
-sticking with the inconveniences that everyone continues to complain about.
-Let’s not do that. How do I imagine archiving my app? How would I love code
-signing to be? What processes can I help streamline with Tuist? For example,
-adding support for [Fastlane](https://fastlane.tools/) is a solution to a
-problem that we need to understand first. We can get to the root of the problem
-by asking “why” questions. Once we narrow down where the motivation comes from,
-we can think of how Tuist can help them best. Maybe the solution is integrating
-with Fastlane, but it’s important we don’t disregard other equally valid
-solutions that we can put on the table before making trade-offs.
+قد نشعر بالإغراء لاتباع ما يفعله الجميع، حتى لو كان ذلك يعني التمسك بالمضايقات
+التي يستمر الجميع في الشكوى منها. دعنا لا نفعل ذلك. كيف أتخيل أرشفة تطبيقي؟ كيف
+أحب أن يكون توقيع الأكواد البرمجية؟ ما هي العمليات التي يمكنني المساعدة في
+تبسيطها مع تويست؟ على سبيل المثال، إضافة دعم [Fastlane]
+(https://fastlane.tools/) هو حل لمشكلة نحتاج إلى فهمها أولاً. يمكننا الوصول إلى
+جذور المشكلة من خلال طرح أسئلة "لماذا". وبمجرد أن نحدد مصدر الدافع، يمكننا
+التفكير في أفضل طريقة يمكن أن يساعدهم بها تويست. ربما يكون الحل هو الاندماج مع
+Fastlane، ولكن من المهم ألا نتجاهل الحلول الأخرى الصالحة بنفس القدر التي يمكننا
+وضعها على الطاولة قبل إجراء المفاضلة.
 
-## Errors can and will happen {#errors-can-and-will-happen}
+## الأخطاء يمكن أن تحدث وستحدث {#الأخطاء-يمكن-وستحدث}
 
-We, developers, have an inherent temptation to disregard that errors can happen.
-As a result, we design and test software only considering the ideal scenario.
+نحن، المطورين، لدينا ميل متأصل لتجاهل إمكانية حدوث الأخطاء. ونتيجة لذلك، نقوم
+بتصميم واختبار البرامج مع الأخذ في الاعتبار السيناريو المثالي فقط.
 
-Swift, its type system, and a well-architected code might help prevent some
-errors, but not all of them because some are out of our control. We can’t assume
-the user will always have an internet connection, or that the system commands
-will return successfully. The environments in which Tuist runs are not sandboxes
-that we control, and hence we need to make an effort to understand how they
-might change and impact Tuist.
+قد يساعد نظام سويفت، ونظام النوع الخاص به، والشيفرة المصممة بشكل جيد في منع بعض
+الأخطاء، ولكن ليس كلها لأن بعضها خارج عن سيطرتنا. لا يمكننا افتراض أن المستخدم
+سيكون لديه دائمًا اتصال بالإنترنت، أو أن أوامر النظام ستعود بنجاح. إن البيئات
+التي يعمل فيها تويست ليست بيئات رملية نتحكم بها، وبالتالي نحتاج إلى بذل جهد لفهم
+كيف يمكن أن تتغير وتؤثر على تويست.
 
-Poorly handled errors result in bad user experience, and users might lose trust
-in the project. We want users to enjoy every single piece of Tuist, even the way
-we present errors to them.
+تؤدي الأخطاء التي يتم التعامل معها بشكل سيء إلى تجربة مستخدم سيئة، وقد يفقد
+المستخدمون الثقة في المشروع. نحن نريد أن يستمتع المستخدمون بكل جزء من تويست، حتى
+الطريقة التي نقدم بها الأخطاء لهم.
 
-We should put ourselves in the shoes of users and imagine what we’d expect the
-error to tell us. If the programming language is the communication channel
-through which errors propagate, and the users are the destination of the errors,
-they should be written in the same language that the target (users) speak. They
-should include enough information to know what happened and hide the information
-that is not relevant. Also, they should be actionable by telling users what
-steps they can take to recover from them.
+يجب أن نضع أنفسنا مكان المستخدمين ونتخيل ما نتوقع أن يخبرنا به الخطأ. إذا كانت
+لغة البرمجة هي قناة الاتصال التي تنتشر من خلالها الأخطاء، والمستخدمون هم وجهة
+الأخطاء، فيجب أن تكون مكتوبة بنفس اللغة التي يتحدث بها الهدف (المستخدمون). يجب
+أن تتضمن معلومات كافية لمعرفة ما حدث وإخفاء المعلومات غير ذات الصلة. كما يجب أن
+تكون قابلة للتنفيذ من خلال إخبار المستخدمين بالخطوات التي يمكنهم اتخاذها للتعافي
+منها.
 
-And last but not least, our test cases should contemplate failing scenarios. Not
-only they ensure that we are handling errors as we are supposed to, but prevent
-future developers from breaking that logic.
+وأخيرًا وليس آخرًا، يجب أن تفكر حالات الاختبار لدينا في سيناريوهات الفشل. فهي لا
+تضمن فقط أننا نتعامل مع الأخطاء كما هو مفترض، بل تمنع المطورين المستقبليين من
+كسر هذا المنطق.

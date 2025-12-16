@@ -5,25 +5,26 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# Непрерывная интеграция (CI) {#continuous-integration-ci}
 
-To run Tuist commands in your [continuous
-integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows,
-you'll need to install it in your CI environment.
+Чтобы выполнять команды Tuist в рабочих процессах [непрерывной
+интеграции](https://en.wikipedia.org/wiki/Continuous_integration), вам нужно
+установить его в среду CI.
 
-Authentication is optional but required if you want to use server-side features
-like <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>.
+Аутентификация необязательна, но необходима, если вы хотите использовать функции
+на стороне сервера, такие как
+<LocalizedLink href="/guides/features/cache">кэш</LocalizedLink>.
 
-The following sections provide examples of how to do this on different CI
-platforms.
+В следующих разделах приведены примеры того, как это сделать на различных
+платформах CI.
 
-## Examples {#examples}
+## Примеры {#examples}
 
-### GitHub Actions {#github-actions}
+### Действия GitHub {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+На [GitHub Actions](https://docs.github.com/en/actions) вы можете использовать
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC-аутентификацию</LocalizedLink>
+для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -119,30 +120,30 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
-write` is required for OIDC to work. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` secret.
+Прежде чем использовать аутентификацию OIDC, необходимо
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. Разрешение `: id-token:
+write` необходимо для работы OIDC. В качестве альтернативы можно использовать
+токен
+<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+с секретом `TUIST_TOKEN`.
 <!-- -->
 :::
 
 ::: tip
 <!-- -->
-We recommend using `mise use --pin` in your Tuist projects to pin the version of
-Tuist across environments. The command will create a `.tool-versions` file
-containing the version of Tuist.
+Мы рекомендуем использовать команду `mise use --pin` в ваших проектах Tuist,
+чтобы зафиксировать версию Tuist в разных средах. Команда создаст файл
+`.tool-versions`, содержащий версию Tuist.
 <!-- -->
 :::
 
 ### Xcode Cloud {#xcode-cloud}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
-projects as the source of truth, you'll need to add a
+В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), который использует
+проекты Xcode в качестве источника истины, вам нужно будет добавить скрипт
 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-script to install Tuist and run the commands you need, for example `tuist
-generate`:
+для установки Tuist и запуска необходимых команд, например `tuist generate`:
 
 ::: code-group
 
@@ -170,17 +171,18 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
-Xcode Cloud workflow settings.
+Используйте токен
+<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>,
+установив переменную окружения `TUIST_TOKEN` в настройках рабочего процесса
+Xcode Cloud.
 <!-- -->
 :::
 
 ### CircleCI {#circleci}
 
-On [CircleCI](https://circleci.com) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+На [CircleCI](https://circleci.com) вы можете использовать аутентификацию
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
+для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -233,21 +235,22 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+Прежде чем использовать аутентификацию OIDC, необходимо
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены CircleCI
+включают подключенный репозиторий GitHub, который Tuist использует для
+авторизации доступа к вашим проектам. В качестве альтернативы вы можете
+использовать токен
+<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+с помощью переменной окружения `TUIST_TOKEN`.
 <!-- -->
 :::
 
 ### Bitrise {#bitrise}
 
-On [Bitrise](https://bitrise.io) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+На [Bitrise](https://bitrise.io) вы можете использовать аутентификацию
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
+для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -302,20 +305,20 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+Прежде чем использовать аутентификацию OIDC, необходимо
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены Bitrise включают
+подключенный репозиторий GitHub, который Tuist использует для авторизации
+доступа к вашим проектам. В качестве альтернативы вы можете использовать токен
+<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+с помощью переменной окружения `TUIST_TOKEN`.
 <!-- -->
 :::
 
 ### Codemagic {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your
-workflow to install Tuist:
+В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в
+рабочий процесс для установки Tuist:
 
 ::: code-group
 ```yaml [Mise]
@@ -356,9 +359,8 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Create a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> and add it as a secret environment variable named
-`TUIST_TOKEN`.
+Создайте токен
+<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+и добавьте его в качестве секретной переменной окружения с именем `TUIST_TOKEN`.
 <!-- -->
 :::

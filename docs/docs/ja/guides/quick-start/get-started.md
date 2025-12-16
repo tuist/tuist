@@ -5,12 +5,11 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# 始めよう{#get-started}。
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+任意のディレクトリ、またはXcodeプロジェクトやワークスペースのディレクトリでTuistを始める最も簡単な方法：
 
-::: code-group
+コードグループ
 
 ```bash [Mise]
 mise x tuist@latest -- tuist init
@@ -22,22 +21,12 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+このコマンドは、<LocalizedLink href="/guides/features/projects">生成されたプロジェクトを作成したり、</LocalizedLink>既存の
+Xcode
+プロジェクトやワークスペースを統合するための手順を説明します。3}選択的テスト</LocalizedLink>、<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>、<LocalizedLink href="/guides/features/registry">レジストリ</LocalizedLink>のような機能にアクセスできるように、リモートサーバにセットアップを接続するのに役立ちます。
 
-::: info MIGRATE AN EXISTING PROJECT
+既存のプロジェクトを移行する
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+既存のプロジェクトを生成されたプロジェクトに移行して、開発者のエクスペリエンスを向上させ、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>を利用したい場合は、<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">移行ガイド</LocalizedLink>をご覧ください。
 <!-- -->
 :::

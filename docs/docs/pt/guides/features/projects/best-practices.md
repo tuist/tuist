@@ -49,7 +49,7 @@ reliability and prevents configuration-related issues.
 <!-- -->
 :::
 
-## Generated projects
+## Projetos gerados
 
 ### Buildable folders
 

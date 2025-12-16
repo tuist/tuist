@@ -5,85 +5,80 @@
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Registry {#registry}
+# السجل {#سجل}
 
-As the number of dependencies grows, so does the time to resolve them. While
-other package managers like [CocoaPods](https://cocoapods.org/) or
-[npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not.
-Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of
-each repository, which can be time-consuming and takes up more memory than a
-centralized approach would. To address this, Tuist provides an implementation of
-the [Package
-Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
-so you can download only the commits you _actually need_. The packages in the
-registry are based on the [Swift Package Index](https://swiftpackageindex.com/)
-– if you can find a package there, the package is also available in the Tuist
-Registry. Additionally, the packages are distributed across the globe using an
-edge storage for minimum latency when resolving them.
+كلما زاد عدد التبعيات، زاد الوقت اللازم لحلها. في حين أن مديري الحزم الأخرى مثل
+[CocoaPods] (https://cocoapods.org/) أو [npm] (https://www.npmjs.com/) مركزية،
+فإن Swift Package Manager ليس كذلك. وبسبب ذلك، يحتاج SwiftPM إلى حل التبعيات عن
+طريق إجراء استنساخ عميق لكل مستودع، الأمر الذي قد يستغرق وقتًا طويلاً ويستهلك
+ذاكرة أكثر من النهج المركزي. لمعالجة هذه المشكلة، يوفر تويست تطبيقًا لـ [سجل
+الحزم]
+(https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)،
+بحيث يمكنك تنزيل الالتزامات التي تحتاجها _بالفعل_. تستند الحزم في السجل على
+[فهرس حزمة سويفت] (https://swiftpackageindex.com/) - إذا تمكنت من العثور على
+حزمة هناك، فإن الحزمة متوفرة أيضًا في سجل تويست. بالإضافة إلى ذلك، يتم توزيع
+الحزم في جميع أنحاء العالم باستخدام مخزن حافة لأدنى حد من زمن الاستجابة عند
+حلها.
 
-## Usage {#usage}
+## الاستخدام {#استخدام}
 
-To set up the registry, run the following command in your project's directory:
+لإعداد السجل، قم بتشغيل الأمر التالي في دليل مشروعك:
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration file that enables the registry
-for your project. Ensure this file is committed so your team can also benefit
-from the registry.
+يقوم هذا الأمر بإنشاء ملف تكوين السجل الذي يمكّن السجل لمشروعك. تأكد من التزام
+هذا الملف حتى يتمكن فريقك أيضًا من الاستفادة من السجل.
 
-### Authentication (optional) {#authentication}
+### المصادقة (اختياري) {#المصادقة}
 
-Authentication is **optional**. Without authentication, you can use the registry
-with a rate limit of **1,000 requests per minute** per IP address. To get a
-higher rate limit of **20,000 requests per minute**, you can authenticate by
-running:
+المصادقة **اختياري**. بدون المصادقة، يمكنك استخدام السجل بحد معدل **1000 طلب في
+الدقيقة** لكل عنوان IP. للحصول على حد معدل أعلى للمعدل **20,000 طلب في الدقيقة**
+، يمكنك المصادقة عن طريق تشغيل:
 
 ```bash
 tuist registry login
 ```
 
-::: info
+:::: المعلومات
 <!-- -->
-Authentication requires a
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-project</LocalizedLink>.
+تتطلب المصادقة حساب
+<LocalizedLink href="/guides/server/accounts-and-projects">تويست
+ومشروع</LocalizedLink>.
 <!-- -->
 :::
 
-### Resolving dependencies {#resolving-dependencies}
+### حل التبعيات {# حل التبعيات}
 
-To resolve dependencies from the registry instead of from source control,
-continue reading based on your project setup:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
-  project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated
-  project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated
-  project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift
-  package</LocalizedLink>
+لحل التبعيات من السجل بدلاً من التحكم في المصدر، تابع القراءة بناءً على إعداد
+مشروعك:
+- <LocalizedLink href="/guides/features/registry/xcode-project">مشروع
+  Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">مشروع تم
+  إنشاؤه مع تكامل حزمة Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">مشروع تم
+  إنشاؤه باستخدام تكامل الحزمة المستند إلى XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">الحزمة
+  السريعة</LocalizedLink>
 
-To set up the registry on the CI, follow this guide:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
-integration</LocalizedLink>.
+لإعداد السجل على CI، اتبع هذا الدليل:
+<LocalizedLink href="/guides/features/registry/continuous-integration">التكامل
+المستمر</LocalizedLink>.
 
-### Package registry identifiers {#package-registry-identifiers}
+### معرّفات سجل الحزمة {#معرّفات-سجل-معرّفات-حزمة-سجل-معرّفات}
 
-When you use package registry identifiers in a `Package.swift` or
-`Project.swift` file, you need to convert the URL of the package to the registry
-convention. The registry identifier is always in the form of
-`{organization}.{repository}`. For example, to use the registry for the
-`https://github.com/pointfreeco/swift-composable-architecture` package, the
-package registry identifier would be
-`pointfreeco.swift-composable-architecture`.
+عند استخدام معرّفات سجل الحزمة في ملف `Package.swift` أو `Project.swift` ، يجب
+تحويل عنوان URL الخاص بالحزمة إلى اصطلاح السجل. يكون معرّف السجل دائمًا على شكل
+`{المنظمة}.{مستودع}`. على سبيل المثال، لاستخدام السجل للحزمة
+`https://github.com/pointfreeco/swift-composable-architecture` ، سيكون معرّف سجل
+الحزمة `pointfreeco.swift-composable-architecture`.
 
-::: info
+:::: المعلومات
 <!-- -->
-The identifier can't contain more than one dot. If the repository name contains
-a dot, it's replaced with an underscore. For example, the
-`https://github.com/groue/GRDB.swift` package would have the registry identifier
-`groue.GRDB_swift`.
+لا يمكن أن يحتوي المعرف على أكثر من نقطة واحدة. إذا كان اسم المستودع يحتوي على
+نقطة، يتم استبداله بشرطة سفلية. على سبيل المثال، سيكون للحزمة
+`https://github.com/groue/GRDB.swift https://github.com/groue/GRDB.swift` معرّف
+السجل `groue.GRDB_swift`.
 <!-- -->
 :::

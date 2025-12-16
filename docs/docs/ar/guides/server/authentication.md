@@ -5,84 +5,78 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Authentication {#authentication}
+# المصادقة {#المصادقة}
 
-To interact with the server, the CLI needs to authenticate the requests using
-[bearer
-authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-The CLI supports authenticating as a user, as an account, or using an OIDC
-token.
+للتفاعل مع الخادم، تحتاج واجهة CLI إلى مصادقة الطلبات باستخدام [مصادقة حامل]
+(https://swagger.io/docs/specification/authentication/bearer-authentication/).
+تدعم CLI المصادقة كمستخدم أو كحساب أو باستخدام رمز OIDC المميز.
 
-## As a user {#as-a-user}
+## كمستخدم {# كمستخدم}
 
-When using the CLI locally on your machine, we recommend authenticating as a
-user. To authenticate as a user, you need to run the following command:
+عند استخدام CLI محليًا على جهازك، نوصي بالمصادقة كمستخدم. للمصادقة كمستخدم،
+تحتاج إلى تشغيل الأمر التالي:
 
 ```bash
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you
-authenticate, the CLI will store a long-lived refresh token and a short-lived
-access token under `~/.config/tuist/credentials`. Each file in the directory
-represents the domain you authenticated against, which by default should be
-`tuist.dev.json`. The information stored in that directory is sensitive, so
-**make sure to keep it safe**.
+سينقلك الأمر عبر تدفق المصادقة المستند إلى الويب. بمجرد المصادقة، ستخزن CLI
+رمزًا مميزًا للتحديث طويل الأجل ورمز وصول قصير الأجل ضمن
+`~/.config/tuist/credentials`. يمثل كل ملف في الدليل المجال الذي قمت بالمصادقة
+عليه، والذي يجب أن يكون افتراضيًا `tuist.dev.json`. المعلومات المخزنة في هذا
+الدليل حساسة، لذا **تأكد من الحفاظ عليها آمنة**.
 
-The CLI will automatically look up the credentials when making requests to the
-server. If the access token is expired, the CLI will use the refresh token to
-get a new access token.
+ستبحث CLI تلقائيًا عن بيانات الاعتماد عند إجراء طلبات إلى الخادم. إذا انتهت
+صلاحية رمز الوصول، ستستخدم CLI رمز التحديث للحصول على رمز وصول جديد.
 
-## OIDC tokens {#oidc-tokens}
+## رموز OIDC {#oidc-tokens}
 
-For CI environments that support OpenID Connect (OIDC), Tuist can authenticate
-automatically without requiring you to manage long-lived secrets. When running
-in a supported CI environment, the CLI will automatically detect the OIDC token
-provider and exchange the CI-provided token for a Tuist access token.
+بالنسبة لبيئات CI التي تدعم OpenID Connect (OIDC)، يمكن ل Tuist المصادقة
+تلقائيًا دون الحاجة إلى إدارة أسرار طويلة الأمد. عند التشغيل في بيئة CI مدعومة،
+ستقوم CLI تلقائيًا باكتشاف موفر رمز OIDC المميز وتبادل الرمز المميز المقدم من CI
+برمز وصول Tuist.
 
-### Supported CI providers {#supported-ci-providers}
+### موفرو CI المدعومون {#supported-ci-providers}
 
-- GitHub Actions
-- CircleCI
-- Bitrise
+- إجراءات GitHub
+- سيركلسي
+- بيترايز
 
-### Setting up OIDC authentication {#setting-up-oidc-authentication}
+### إعداد مصادقة OIDC {#إعداد مصادقة OIDC {# setting-up-oidc-authentication}
 
-1. **Connect your repository to Tuist**: Follow the
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
-   guide</LocalizedLink> to connect your GitHub repository to your Tuist
-   project.
+1. **قم بتوصيل مستودعك بـ Tuist**: اتبع دليل
+   <LocalizedLink href="/guides/integrations/gitforge/github"> تكامل
+   GitHub</LocalizedLink> لربط مستودع GitHub الخاص بك بمشروع Tuist الخاص بك.
 
-2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
-   before any commands that require authentication. The CLI will automatically
-   detect the CI environment and authenticate using OIDC.
+2. **قم بتشغيل 'tuist auth login'**: في سير عمل CI الخاص بك، قم بتشغيل `tuist
+   auth login` قبل أي أوامر تتطلب المصادقة. ستقوم CLI تلقائيًا باكتشاف بيئة CI
+   والمصادقة باستخدام OIDC.
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for provider-specific configuration examples.
+راجع دليل <LocalizedLink href="/guides/integrations/continuous-integration">
+التكامل المستمر</LocalizedLink> للاطلاع على أمثلة التكوين الخاصة بالموفر.
 
-### OIDC token scopes {#oidc-token-scopes}
+### نطاقات الرمز المميز OIDC {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group, which provides access to all
-projects connected to the repository. See [Scope groups](#scope-groups) for
-details about what the `ci` scope includes.
+يتم منح رموز OIDC الرموز المميزة `ci` مجموعة النطاق، والتي توفر الوصول إلى جميع
+المشاريع المتصلة بالمستودع. انظر [مجموعات النطاق] (#scope-groups) للحصول على
+تفاصيل حول ما يتضمنه النطاق `ci`.
 
-::: tip SECURITY BENEFITS
+:::: إكرامية المزايا الأمنية
 <!-- -->
-OIDC authentication is more secure than long-lived tokens because:
-- No secrets to rotate or manage
-- Tokens are short-lived and scoped to individual workflow runs
-- Authentication is tied to your repository identity
+تعد مصادقة OIDC أكثر أمانًا من الرموز المميزة طويلة الأجل للأسباب التالية:
+- لا توجد أسرار للتدوير أو الإدارة
+- الرموز قصيرة الأجل ومحددة النطاق لتشغيل سير العمل الفردي
+- ترتبط المصادقة بهوية المستودع الخاص بك
 <!-- -->
 :::
 
-## Account tokens {#account-tokens}
+## الرموز المميزة للحساب {#الحساب-الرموز المميزة للحساب}
 
-For CI environments that don't support OIDC, or when you need fine-grained
-control over permissions, you can use account tokens. Account tokens allow you
-to specify exactly which scopes and projects the token can access.
+بالنسبة لبيئات CI التي لا تدعم OIDC، أو عندما تحتاج إلى تحكم دقيق في الأذونات،
+يمكنك استخدام رموز الحساب. تسمح لك الرموز المميزة للحساب بتحديد النطاقات
+والمشاريع التي يمكن للرمز المميز الوصول إليها بالضبط.
 
-### Creating an account token {#creating-an-account-token}
+### إنشاء رمز مميز للحساب {#إنشاء رمز مميز للحساب}
 
 ```bash
 tuist account tokens create my-account \
@@ -91,91 +85,90 @@ tuist account tokens create my-account \
   --expires 1y
 ```
 
-The command accepts the following options:
+يقبل الأمر الخيارات التالية:
 
-| Option       | Description                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
-| `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
-| `--expires`  | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
-| `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified.                                              |
+| الخيار           | الوصف                                                                                                                                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--النطاقات`     | مطلوب. قائمة نطاقات مفصولة بفواصل لمنح الرمز المميز.                                                                                                                       |
+| `--الاسم`        | مطلوب. معرّف فريد للرمز المميز (من 1-32 حرفاً، أبجدي رقمي وواصلات وشرطات سفلية فقط).                                                                                       |
+| `-تنتهي صلاحيته` | اختياري. متى يجب أن تنتهي صلاحية الرمز المميز. استخدم التنسيق مثل `30d` (أيام)، أو `6m` (أشهر)، أو `1y` (سنوات). إذا لم يتم تحديد ذلك، لا تنتهي صلاحية الرمز المميز أبدًا. |
+| `-المشاريع`      | قصر الرمز المميز على مقابض مشاريع محددة. يمكن للرمز المميز الوصول إلى جميع المشاريع إذا لم يتم تحديده.                                                                     |
 
-### Available scopes {#available-scopes}
+### النطاقات المتاحة {#النطاقات المتاحة}
 
-| Scope                    | Description                           |
-| ------------------------ | ------------------------------------- |
-| `account:members:read`   | Read account members                  |
-| `account:members:write`  | Manage account members                |
-| `account:registry:read`  | Read from the Swift package registry  |
-| `account:registry:write` | Publish to the Swift package registry |
-| `project:previews:read`  | Download previews                     |
-| `project:previews:write` | Upload previews                       |
-| `project:admin:read`     | Read project settings                 |
-| `project:admin:write`    | Manage project settings               |
-| `project:cache:read`     | Download cached binaries              |
-| `project:cache:write`    | Upload cached binaries                |
-| `project:bundles:read`   | View bundles                          |
-| `project:bundles:write`  | Upload bundles                        |
-| `project:tests:read`     | Read test results                     |
-| `project:tests:write`    | Upload test results                   |
-| `project:builds:read`    | Read build analytics                  |
-| `project:builds:write`   | Upload build analytics                |
-| `project:runs:read`      | Read command runs                     |
-| `project:runs:write`     | Create and update command runs        |
+| النطاق                             | الوصف                             |
+| ---------------------------------- | --------------------------------- |
+| `الحساب: الأعضاء: قراءة`           | قراءة أعضاء الحساب                |
+| `الحساب: الأعضاء: الكتابة`         | إدارة أعضاء الحساب                |
+| `الحساب: السجل: قراءة`             | القراءة من سجل حزمة سويفت         |
+| `الحساب: السجل: الكتابة`           | النشر في سجل حزم سويفت            |
+| `المشروع:معاينات:قراءة`            | تنزيل المعاينات                   |
+| `المشروع:معاينات:كتابة`            | تحميل المعاينات                   |
+| `المشروع:المشرف:قراءة`             | قراءة إعدادات المشروع             |
+| `المشروع:المشرف:كتابة`             | إدارة إعدادات المشروع             |
+| `مشروع:ذاكرة التخزين المؤقت:قراءة` | تنزيل الثنائيات المخزنة مؤقتاً    |
+| `مشروع:ذاكرة التخزين المؤقت:كتابة` | تحميل الثنائيات المخزنة مؤقتاً    |
+| `المشروع:الحزم:قراءة`              | عرض الحزم                         |
+| `المشروع:الحزم:كتابة`              | تحميل الحزم                       |
+| `المشروع:الاختبارات:قراءة`         | قراءة نتائج الاختبار              |
+| `المشروع:الاختبارات:الكتابة`       | تحميل نتائج الاختبار              |
+| `المشروع:يبني:قراءة`               | قراءة تحليلات البناء              |
+| `المشروع:يبني:اكتب`                | تحميل تحليلات بناء التحميل        |
+| `المشروع:يعمل:قراءة`               | تشغيل أمر القراءة                 |
+| `المشروع:يعمل:يكتب`                | إنشاء وتحديث عمليات تشغيل الأوامر |
 
-### Scope groups {#scope-groups}
+### مجموعات النطاق {#مجموعات النطاق}
 
-Scope groups provide a convenient way to grant multiple related scopes with a
-single identifier. When you use a scope group, it automatically expands to
-include all the individual scopes it contains.
+توفر مجموعات النطاقات طريقة ملائمة لمنح نطاقات متعددة ذات صلة بمعرف واحد. عند
+استخدام مجموعة نطاقات، يتم توسيعها تلقائيًا لتشمل جميع النطاقات الفردية التي
+تحتويها.
 
-| Scope Group | Included Scopes                                                                                                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+| مجموعة النطاق | النطاقات المضمنة                                                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci`          | `المشروع:ذاكرة التخزين المؤقت:الكتابة` ، `المشروع:المعاينات:الكتابة` ، `المشروع:الحزم:الكتابة` ، `المشروع:الاختبارات:الكتابة` ، `المشروع:الإنشاءات:الكتابة` ، `المشروع:التشغيل:الكتابة` |
 
-### Continuous Integration {#continuous-integration}
+### التكامل المستمر {# التكامل المستمر}
 
-For CI environments that don't support OIDC, you can create an account token
-with the `ci` scope group to authenticate your CI workflows:
+بالنسبة لبيئات CI التي لا تدعم OIDC، يمكنك إنشاء رمز مميز للحساب باستخدام مجموعة
+النطاق `ci` لمصادقة عمليات سير عمل CI الخاصة بك:
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
 ```
 
-This creates a token with all the scopes needed for typical CI operations
-(cache, previews, bundles, tests, builds, and runs). Store the generated token
-as a secret in your CI environment and set it as the `TUIST_TOKEN` environment
-variable.
+يؤدي هذا إلى إنشاء رمز مميز مع جميع النطاقات اللازمة لعمليات CI النموذجية
+(التخزين المؤقت، والمعاينات، والحزم، والاختبارات، والبناء، والتشغيل). قم بتخزين
+الرمز المميز الذي تم إنشاؤه كسر في بيئة CI الخاصة بك وقم بتعيينه كمتغير البيئة
+`TUIST_TOKEN`.
 
-### Managing account tokens {#managing-account-tokens}
+### إدارة الرموز المميزة للحساب {#إدارة الرموز المميزة للحساب}
 
-To list all tokens for an account:
+لسرد جميع الرموز المميزة لحساب ما:
 
 ```bash
 tuist account tokens list my-account
 ```
 
-To revoke a token by name:
+لإلغاء رمز مميز بالاسم:
 
 ```bash
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### Using account tokens {#using-account-tokens}
+### استخدام الرموز المميزة للحساب {# استخدام الرموز المميزة للحساب}
 
-Account tokens are expected to be defined as the environment variable
-`TUIST_TOKEN`:
+من المتوقع أن يتم تعريف رموز الحساب كمتغير البيئة `TUIST_TOKEN`:
 
 ```bash
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip WHEN TO USE ACCOUNT TOKENS
+:::: نصيحة متى يجب استخدام رموز الحساب
 <!-- -->
-Use account tokens when you need:
-- Authentication in CI environments that don't support OIDC
-- Fine-grained control over which operations the token can perform
-- A token that can access multiple projects within an account
-- Time-limited tokens that automatically expire
+استخدم الرموز المميزة للحساب عند الحاجة:
+- المصادقة في بيئات CI التي لا تدعم OIDC
+- تحكم دقيق في العمليات التي يمكن أن يقوم بها الرمز المميز
+- رمز مميز يمكنه الوصول إلى مشاريع متعددة داخل الحساب
+- الرموز المميزة المحدودة زمنياً التي تنتهي صلاحيتها تلقائياً
 <!-- -->
 :::

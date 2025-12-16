@@ -5,45 +5,41 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# Xcode project {#xcode-project}
+# Xcode 프로젝트 {#xcode-project}
 
-::: warning REQUIREMENTS
+경고 요구 사항 ::: 경고 요구 사항
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- 1}Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
-You can run the tests of your Xcode projects selectively through the command
-line. For that, you can prepend your `xcodebuild` command with `tuist` – for
-example, `tuist xcodebuild test -scheme App`. The command hashes your project
-and on success, it persists the hashes to determine what has changed in future
-runs.
+명령줄을 통해 Xcode 프로젝트의 테스트를 선택적으로 실행할 수 있습니다. 이를 위해 `xcodebuild` 명령 앞에 `tuist` 를
+추가할 수 있습니다(예: `tuist xcodebuild test -scheme App`). 이 명령은 프로젝트를 해시하고 성공하면 해시를
+유지하여 향후 실행에서 변경된 내용을 확인합니다.
 
-In future runs `tuist xcodebuild test` transparently uses the hashes to filter
-down the tests to run only the ones that have changed since the last successful
-test run.
+향후 실행에서 `tuist xcodebuild test` 해시를 투명하게 사용하여 테스트를 필터링하여 마지막 테스트 실행 성공 이후 변경된
+테스트만 실행합니다.
 
-For example, assuming the following dependency graph:
+예를 들어 다음과 같은 종속성 그래프가 있다고 가정해 보겠습니다:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` 에는 `FeatureATests` 테스트가 있으며, `Core에 의존합니다.`
+- `FeatureB` 에는 `FeatureBTests` 테스트가 있으며, `Core에 의존합니다.`
+- `코어` 테스트 있음 `코어테스트`
 
-`tuist xcodebuild test` will behave as such:
+`튜이스트 X코드 빌드 테스트` 는 이와 같이 작동합니다:
 
-| Action                             | Description                                                         | Internal state                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated              | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist xcodebuild test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated                  | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| 액션                    | 설명                                                          | 내부 상태                                                       |
+| --------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| `튜이스트 엑스코드 빌드 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests`, `FeatureBTests`, `CoreTests` 의 해시는 유지됩니다.  |
+| `기능` 업데이트됨            | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
+| `튜이스트 엑스코드 빌드 테스트` 호출 | 해시가 변경되었으므로 `FeatureATests` 에서 테스트를 실행합니다.                  | `FeatureATests` 의 새 해시가 유지됩니다.                              |
+| `핵심` 업데이트됨            | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
+| `튜이스트 엑스코드 빌드 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
 
-To use `tuist xcodebuild test` on your CI, follow the instructions in the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-integration guide</LocalizedLink>.
+CI에서 `tuist xcodebuild test` 를 사용하려면
+<LocalizedLink href="/guides/integrations/continuous-integration">연속 통합
+가이드</LocalizedLink>의 지침을 따르세요.
 
-Check out the following video to see selective testing in action:
+다음 동영상을 통해 선택적 테스트가 실제로 작동하는 모습을 확인하세요:
 
 <iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>

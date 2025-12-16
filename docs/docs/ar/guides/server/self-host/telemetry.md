@@ -5,513 +5,496 @@
   "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# Telemetry {#telemetry}
+# القياس عن بُعد {#قياس عن بُعد}
 
-You can ingest metrics gathered by the Tuist server using
-[Prometheus](https://prometheus.io/) and a visualization tool such as
-[Grafana](https://grafana.com/) to create a custom dashboard tailored to your
-needs. The Prometheus metrics are served via the `/metrics` endpoint on port
-9091. The Prometheus'
-[scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-should be set as less than 10_000 seconds (we recommend keeping the default of
-15 seconds).
+يمكنك استيعاب المقاييس التي يجمعها خادم تويست باستخدام [Prometheus]
+(https://prometheus.io/) وأداة تصور مثل [Grafana] (https://grafana.com/) لإنشاء
+لوحة معلومات مخصصة مصممة خصيصًا لتلبية احتياجاتك. يتم تقديم مقاييس بروميثيوس عبر
+نقطة النهاية `/metrics` على المنفذ 9091. يجب تعيين [scrape_interval]
+(https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) في
+بروميثيوس على أقل من 10_000 ثانية (نوصي بالحفاظ على الإعداد الافتراضي 15 ثانية).
 
-## PostHog analytics {#posthog-analytics}
+## تحليلات بوست هوغ {#posthog-analytics}
 
-Tuist integrates with [PostHog](https://posthog.com/) for user behavior
-analytics and event tracking. This allows you to understand how users interact
-with your Tuist server, track feature usage, and gain insights into user
-behavior across the marketing site, dashboard, and API documentation.
+يتكامل تويست مع [PostHog] (https://posthog.com/) لتحليل سلوك المستخدم وتتبع
+الأحداث. يتيح لك ذلك فهم كيفية تفاعل المستخدمين مع خادم تويست الخاص بك، وتتبع
+استخدام الميزات، واكتساب رؤى حول سلوك المستخدم عبر موقع التسويق ولوحة المعلومات
+ووثائق واجهة برمجة التطبيقات.
 
-### Configuration {#posthog-configuration}
+### تهيئة {# تهيئة-بوستهوغ}
 
-PostHog integration is optional and can be enabled by setting the appropriate
-environment variables. When configured, Tuist will automatically track user
-events, page views, and user journeys.
+يعد تكامل PostHog اختياريًا ويمكن تمكينه عن طريق تعيين متغيرات البيئة المناسبة.
+عند تهيئته، سيقوم تويست تلقائيًا بتتبع أحداث المستخدم، ومشاهدات الصفحة، ورحلات
+المستخدم.
 
-| Environment variable    | Description                  | Required | Default | Example                                           |
-| ----------------------- | ---------------------------- | -------- | ------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No       |         | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | The PostHog API endpoint URL | No       |         | `https://eu.i.posthog.com`                        |
+| متغير البيئة                    | الوصف                                               | مطلوب   | افتراضي | مثال على ذلك                                                    |
+| ------------------------------- | --------------------------------------------------- | ------- | ------- | --------------------------------------------------------------- |
+| `tuist_posthog_api_key_API_key` | مفتاح واجهة برمجة التطبيقات لمشروع PostHog الخاص بك | لا يوجد |         | `phc_fpR9c0Hs5Hs5H5H5VXXUsupUsupU1I0WLWLEq366FaZH6H6HJR3lRIWVR` |
+| `tuist_posthog_url`             | عنوان URL نقطة نهاية واجهة برمجة تطبيقات PostHog    | لا يوجد |         | `https://eu.i.posthog.com`                                      |
 
-::: info ANALYTICS ENABLEMENT
+:::: معلومات عن تمكين التحليلات
 <!-- -->
-Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and
-`TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics
-events will be sent.
+يتم تمكين التحليلات فقط عندما يتم تكوين كل من `TUIST_POSTHOG_API_KEY` و
+`TUIST_POSTHOG_URL`. إذا كان أي من المتغيرين مفقودًا، فلن يتم إرسال أي أحداث
+تحليلية.
 <!-- -->
 :::
 
-### Features {#posthog-features}
+### الميزات {#ميزات المنشور}
 
-When PostHog is enabled, Tuist automatically tracks:
+عند تمكين PostHog، يتتبع تويست تلقائيًا:
 
-- **User identification**: Users are identified by their unique ID and email
-  address
-- **User aliasing**: Users are aliased by their account name for easier
-  identification
-- **Group analytics**: Users are grouped by their selected project and
-  organization for segmented analytics
-- **Page sections**: Events include super properties indicating which section of
-  the application generated them:
-  - `marketing` - Events from marketing pages and public content
-  - `dashboard` - Events from the main application dashboard and authenticated
-    areas
-  - `api-docs` - Events from API documentation pages
-- **Page views**: Automatic tracking of page navigation using Phoenix LiveView
-- **Custom events**: Application-specific events for feature usage and user
-  interactions
+- **تعريف المستخدم**: يتم التعرف على المستخدمين من خلال معرفهم الفريد وعنوان
+  بريدهم الإلكتروني
+- **تسمية المستخدم المستعار**: يتم تسمية المستخدمين بأسماء مستعارة بأسماء
+  حساباتهم لتسهيل التعرف عليهم
+- **تحليلات المجموعة**: يتم تجميع المستخدمين حسب المشروع والمؤسسة التي اختاروها
+  لإجراء تحليلات مجزأة
+- **أقسام الصفحة**: تتضمن الأحداث خصائص فائقة تشير إلى قسم التطبيق الذي أنشأها:
+  - `تسويق` - أحداث من صفحات التسويق والمحتوى العام
+  - `لوحة التحكم` - الأحداث من لوحة تحكم التطبيق الرئيسية والمناطق المصادق عليها
+  - `api-docs` - أحداث من صفحات وثائق API
+- **مشاهدات الصفحة**: التتبع التلقائي لتصفح الصفحات باستخدام فينيكس لايف فيو
+- **أحداث مخصصة**: أحداث خاصة بالتطبيق لاستخدام الميزة وتفاعلات المستخدم
 
-### Privacy considerations {#posthog-privacy}
+### اعتبارات الخصوصية {#posthog-privacy}
 
-- For authenticated users, PostHog uses the user's unique ID as the distinct
-  identifier and includes their email address
-- For anonymous users, PostHog uses memory-only persistence to avoid storing
-  data locally
-- All analytics respect user privacy and follow data protection best practices
-- PostHog data is processed according to PostHog's privacy policy and your
-  configuration
+- بالنسبة للمستخدمين الذين تمت مصادقتهم، يستخدم PostHog المعرف الفريد للمستخدم
+  كمعرف مميز ويتضمن عنوان بريده الإلكتروني
+- بالنسبة للمستخدمين مجهولي الهوية، يستخدم PostHog الثبات في الذاكرة فقط لتجنب
+  تخزين البيانات محليًا
+- تحترم جميع التحليلات خصوصية المستخدم وتتبع أفضل ممارسات حماية البيانات
+- تتم معالجة بيانات PostHog وفقًا لسياسة خصوصية PostHog وتكوينك
 
-## Elixir metrics {#elixir-metrics}
+## مقاييس إليكسير {#إليكسير-مقاييس إليكسير}
 
-By default we include metrics of the Elixir runtime, BEAM, Elixir, and some of
-the libraries we use. The following are some of the metrics you can expect to
-see:
+بشكل افتراضي، نقوم بتضمين مقاييس وقت تشغيل إليكسير و BEAM وإليكسير وبعض المكتبات
+التي نستخدمها. فيما يلي بعض المقاييس التي يمكنك توقع رؤيتها:
 
-- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
-- [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
-- [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
-- [Phoenix
-  LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
-- [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
-- [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
+- [التطبيق] (https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [بيم] (https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
+- [فينيكس] (https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
+- [فينيكس لايف فيو]
+  (https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
+- [إكتو] (https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
+- [أوبان] (https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-We recommend checking those pages to know which metrics are available and how to
-use them.
+نوصي بمراجعة تلك الصفحات لمعرفة المقاييس المتاحة وكيفية استخدامها.
 
-## Runs metrics {#runs-metrics}
+## تشغيل المقاييس {# تشغيل المقاييس}
 
-A set of metrics related to Tuist Runs.
+مجموعة من المقاييس المتعلقة بتشغيلات تويست.
 
-### `tuist_runs_total` (counter) {#tuist_runs_total-counter}
+### `tuist_runs_total` (عداد) {#tuist_runs_total_total-counter}
 
-The total number of Tuist Runs.
+إجمالي عدد مرات تشغيل تويست.
 
-#### Tags {#tuist-runs-total-tags}
+#### الوسوم {#tuist-runist-runs-total-tags}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| الوسم    | الوصف                                                           |
+| -------- | --------------------------------------------------------------- |
+| `الاسم`  | اسم الأمر `tuist` الذي تم تشغيله، مثل `بناء` ، `اختبار` ، إلخ.  |
+| `is_ci`  | قيمة منطقية تشير إلى ما إذا كان المنفِّذ مخبر سري أو جهاز مطور. |
+| `الحالة` | `0` في حالة `النجاح ،` ، `1` في حالة `الفشل`.                   |
 
-### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
+### `tuist_runs_duration_duration_milliseconds` (رسم بياني) {#tuist_runs_duration_duration_milliseconds_milliseconds-histogram}
 
-The total duration of each tuist run in milliseconds.
+المدة الإجمالية لكل تشغيل تويست بالمللي ثانية.
 
-#### Tags {#tuist-runs-duration-miliseconds-tags}
+#### العلامات {#tuist-runs-duration-duration-miliseconds-tags}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| الوسم    | الوصف                                                           |
+| -------- | --------------------------------------------------------------- |
+| `الاسم`  | اسم الأمر `tuist` الذي تم تشغيله، مثل `بناء` ، `اختبار` ، إلخ.  |
+| `is_ci`  | قيمة منطقية تشير إلى ما إذا كان المنفِّذ مخبر سري أو جهاز مطور. |
+| `الحالة` | `0` في حالة `النجاح ،` ، `1` في حالة `الفشل`.                   |
 
-## Cache metrics {#cache-metrics}
+## مقاييس ذاكرة التخزين المؤقت {#مقاييس ذاكرة التخزين المؤقت}
 
-A set of metrics related to the Tuist Cache.
+مجموعة من المقاييس المتعلقة بذاكرة التخزين المؤقت لتويست.
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+### `tuist_cache_cache_events_total` (عداد) {#tuist_cache_cache_events_total-counter}
 
-The total number of binary cache events.
+إجمالي عدد أحداث ذاكرة التخزين المؤقت الثنائية.
 
-#### Tags {#tuist-cache-events-total-tags}
+#### الوسوم {#tuist-cuist-cache-events-total-tags}
 
-| Tag          | Description                                            |
-| ------------ | ------------------------------------------------------ |
-| `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+| الوسم       | الوصف                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| `نوع_الحدث` | يمكن أن يكون إما من `إصابة محلية` أو `إصابة عن بُعد` أو `تفويت`. |
 
-### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+### `tuist_cache_cuploads_uploads_total` (عداد) {#tuist_cache_uploads_uploads_total-counter}
 
-The number of uploads to the binary cache.
+عدد عمليات التحميل إلى ذاكرة التخزين المؤقت الثنائية.
 
-### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+### `tuist_cache_cache_uploaded_bytes` (المجموع) {#tuist_cache_cache_uploaded_bytes-sum}
 
-The number of bytes uploaded to the binary cache.
+عدد وحدات البايت التي تم تحميلها إلى ذاكرة التخزين المؤقت الثنائية.
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_cdownloads_downloads_total` (عداد) {#tuist_cache_downloads_downloads_total-counter}
 
-The number of downloads to the binary cache.
+عدد التنزيلات إلى ذاكرة التخزين المؤقت الثنائية.
 
-### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_cache_downloaded_bytes` (المجموع) {#tuist_cache_cache_downloaded_bytes-sum}
 
-The number of bytes downloaded from the binary cache.
+عدد وحدات البايت التي تم تنزيلها من ذاكرة التخزين المؤقت الثنائية.
 
 ---
 
-## Previews metrics {#previews-metrics}
+## مقاييس المعاينة {#مقاييس المعاينة-المعاينة}
 
-A set of metrics related to the previews feature.
+مجموعة من المقاييس المتعلقة بميزة المعاينات.
 
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+### `tuist_previews_previews_uploads_total` (المجموع) {#tuist_previews_uploads_uploads_total-counter}
 
-The total number of previews uploaded.
+إجمالي عدد المعاينات التي تم تحميلها.
 
-### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+### `tuist_previews_previews_downloads_total` (المجموع) {#tuist_previews_downloads_total-counter}
 
-The total number of previews downloaded.
+إجمالي عدد المعاينات التي تم تنزيلها.
 
 ---
 
-## Storage metrics {#storage-metrics}
+## مقاييس التخزين {#مقاييس التخزين}
 
-A set of metrics related to the storage of artifacts in a remote storage (e.g.
-s3).
+مجموعة من المقاييس المتعلقة بتخزين القطع الأثرية في مخزن بعيد (مثل s3).
 
-::: tip
+:::: إكرامية
 <!-- -->
-These metrics are useful to understand the performance of the storage operations
-and to identify potential bottlenecks.
+هذه المقاييس مفيدة لفهم أداء عمليات التخزين وتحديد الاختناقات المحتملة.
 <!-- -->
 :::
 
-### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_get_object_size_size_size_size_bytes` (رسم بياني) {#tuist_storage_get_get_object_size_size_size_size_bytes-histogram}
 
-The size (in bytes) of an object fetched from the remote storage.
+حجم (بالبايت) الكائن الذي تم جلبه من وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-get-object-size-size-bytes-tags}
+#### العلامات {#tuist-storage-get-get-object-size-size-size-bytes-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
 
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
+### `tuist_storage_get_get_object_size_size_duration_miliseconds` (رسم بياني) {#tuist_storage_get_get_object_size_duration_miliseconds_miliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object size from the remote
-storage.
+المدة (بالمللي ثانية) لجلب حجم كائن من وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
+#### العلامات {#tuist-storage-get-get-object-size-size-duration-miliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
 
-### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_get_obget_size_size_count` (عداد) {#tuist_storage_get_get_size_size_count_count}
 
-The number of times an object size was fetched from the remote storage.
+عدد المرات التي تم فيها جلب حجم الكائن من وحدة التخزين عن بُعد.
 
-#### Tags {#tuist-storage-get-object-size-count-tags}
+#### العلامات {#tuist-storage-get-get-object-size-size-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
+### `tuist_storage_delete_all_dall_objects_duration_milliseconds_milliseconds` (رسم بياني) {#tuist_storage_delete_all_dall_objects_duration_duration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of deleting all objects from the remote storage.
+المدة (بالمللي ثانية) لحذف جميع الكائنات من وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-delete-all-objects-duration-dilliseconds-milliseconds-tags}
 
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| الوسم           | الوصف                                       |
+| --------------- | ------------------------------------------- |
+| `سبيكة_المشروع` | سبيكة المشروع للمشروع الذي يتم حذف كائناته. |
 
 
-### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_delete_all_storage_delete_all_objects_counts_count` (عداد) {#tuist_storage_delete_all_objects_counts_count}
 
-The number of times all project objects were deleted from the remote storage.
+عدد المرات التي تم فيها حذف جميع كائنات المشروع من وحدة التخزين عن بُعد.
 
-#### Tags {#tuist-storage-delete-all-objects-count-tags}
+#### العلامات {#tuist-storage-delete-all-objects-counts-count-tags}
 
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| الوسم           | الوصف                                       |
+| --------------- | ------------------------------------------- |
+| `سبيكة_المشروع` | سبيكة المشروع للمشروع الذي يتم حذف كائناته. |
 
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_start_start_upart_upart_upart_upload_duration_milliseconds` (رسم بياني) {#tuist_storage_multipart_start_upload_duration_duration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of starting an upload to the remote storage.
+المدة (بالمللي ثانية) لبدء التحميل إلى وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-multipart-start-start-up-up-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}
+### `tuist_storage_multipart_start_start_upart_upload_dupuration_duration_count` (عداد) {#tuist_storage_multipart_start_stupload_dupload_duration_duration_count}
 
-The number of times an upload was started to the remote storage.
+عدد مرات بدء التحميل إلى وحدة التخزين عن بُعد.
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
+#### العلامات {#tuist-storage-multipart-start-start-up-up-upload-duration-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_get_object_as_string_duration_milliseconds` (رسم بياني) {#tuist_storage_get_object_as_string_duration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object as a string from the remote
-storage.
+المدة (بالمللي ثانية) لجلب كائن كسلسلة من وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-get-get-object-as-string-duration-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
+### `tuist_storage_get_get_object_as_string_count` (العد) {#tuist_storage_get_get_object_as_string_as_string_count}
 
-The number of times an object was fetched as a string from the remote storage.
+عدد المرات التي تم فيها جلب كائن كسلسلة من وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-get-object-as-string-count-tags}
+#### الوسوم {#tuist-storage-get-get-object-as-string-count-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
+### `tuist_storage_stcheck_object_existence_dexence_duration_milliseconds` (رسم بياني) {#tuist_storage_stcheck_object_existence_dexuration_dexuration_dexuration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of checking the existence of an object in the
-remote storage.
+المدة (بالمللي ثانية) للتحقق من وجود كائن في وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
+#### العلامات {#tuist-stuist-st storage-check-object-exist-exist-exence-dexuration-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
+### `tuist_storage_stecheck_object_exist_existence_count` (العد) {#tuist_storage_steccheck_object_existence_count_count}
 
-The number of times the existence of an object was checked in the remote
-storage.
+عدد المرات التي تم فيها التحقق من وجود كائن في المخزن البعيد.
 
-#### Tags {#tuist-storage-check-object-existence-count-tags}
+#### العلامات {#tuist-stouist-st storage-sthck-oist-ject-exist-exist-exist-exist-exist-ount-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_generate_download_download_presigned_url_url_durl_duration_milliseconds` (رسم بياني) {#tuist_storage_generate_download_durl_durl_durl_durl_durl_durl_duration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of generating a download presigned URL for an
-object in the remote storage.
+المدة (بالمللي ثانية) لإنشاء عنوان URL محدد مسبقاً للتنزيل لكائن في وحدة التخزين
+البعيدة.
 
-#### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-storage-generate-down download-presigned-url-durl-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_downloadate_download_presigned_url_url_count` (العد) {#tuist_storage_generate_download_presigned_url_url_url_url_count-count}
 
-The number of times a download presigned URL was generated for an object in the
-remote storage.
+عدد المرات التي تم فيها إنشاء عنوان URL محدد مسبقاً للتنزيل لكائن في وحدة
+التخزين البعيدة.
 
-#### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
+#### العلامات {#tuist-storage-storage-generate-down download-presigned-url-count-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_multipart_generate_upload_upload_part_presigned_purl_purl_purl_milliseconds_milliseconds` (رسم بياني) {#tuist_storage_multipart_generate_upload_upload_part_presigned_url_murl_duration_milliseconds_millisecram}
 
-The duration (in milliseconds) of generating a part upload presigned URL for an
-object in the remote storage.
+المدة (بالمللي ثانية) لإنشاء عنوان URL محدد مسبقاً لتحميل جزء من التحميل لكائن
+في وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-multipart-multipart-generate-upload-part-presigned-url-durl-duration-milliseconds-tags}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
+| `رقم_الجزء`    | رقم الجزء الخاص بالكائن الذي يتم تحميله.       |
+| `تحميل_معرف`   | معرف التحميل الخاص بالتحميل متعدد الأجزاء.     |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_upload_part_presigned_purl_count` (العد) {#tuist_storage_multipart_generate_upload_upload_part_presigned_url_count_count}
 
-The number of times a part upload presigned URL was generated for an object in
-the remote storage.
+عدد المرات التي تم فيها إنشاء عنوان URL محدد مسبقاً لتحميل جزء لكائن في وحدة
+التخزين البعيدة.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
+#### العلامات {#tuist-storage-multipart-multipart-generate-upload-part-presigned-part-url-count-count-tags}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
+| `رقم_الجزء`    | رقم الجزء الخاص بالكائن الذي يتم تحميله.       |
+| `تحميل_معرف`   | معرف التحميل الخاص بالتحميل متعدد الأجزاء.     |
 
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_complete_compload_uplete_upload_duration_milliseconds` (رسم بياني) {#tuist_storage_multipart_complete_upload_duration_milliseconds_milliseconds-histogram}
 
-The duration (in milliseconds) of completing an upload to the remote storage.
+المدة (بالمللي ثانية) لإكمال التحميل إلى وحدة التخزين البعيدة.
 
-#### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
+#### العلامات {#tuist-storage-multipart-complete-upload-up-up-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
+| `تحميل_معرف`   | معرف التحميل الخاص بالتحميل متعدد الأجزاء.     |
 
 
-### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_storage_multipart_complete_complete_upload_count` (العد) {#tuist_storage_multipart_complete_complete_upload_count_count}
 
-The total number of times an upload was completed to the remote storage.
+العدد الإجمالي لمرات اكتمال التحميل إلى وحدة التخزين عن بُعد.
 
-#### Tags {#tuist-storage-multipart-complete-upload-count-tags}
+#### العلامات {#tuist-storage-multipart-multipart-complete-upload-up-upount-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| الوسم          | الوصف                                          |
+| -------------- | ---------------------------------------------- |
+| `مفتاح_الكائن` | مفتاح البحث عن الكائن في وحدة التخزين البعيدة. |
+| `تحميل_معرف`   | معرف التحميل الخاص بالتحميل متعدد الأجزاء.     |
 
 ---
 
-## Authentication metrics {#authentication-metrics}
+## مقاييس المصادقة {#مقاييس المصادقة}
 
-A set of metrics related to authentication.
+مجموعة من المقاييس المتعلقة بالمصادقة.
 
-### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_authentication_token_refresh_refresh_error_total` (عداد) {#tuist_authentication_autoken_token_refresh_refresh_error_terror_total-counter}
 
-The total number of token refresh errors.
+العدد الإجمالي لأخطاء تحديث الرمز المميز.
 
-#### Tags {#tuist-authentication-token-refresh-error-total-tags}
+#### العلامات {#tuist-autuist-authentication-token-refresh-ror-total-tags}
 
-| Tag           | Description                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `cli_version` | The version of the Tuist CLI that encountered the error.                                 |
-| `reason`      | The reason for the token refresh error, such as `invalid_token_type` or `invalid_token`. |
-
----
-
-## Projects metrics {#projects-metrics}
-
-A set of metrics related to the projects.
-
-### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
-
-The total number of projects.
+| الوسم       | الوصف                                                                            |
+| ----------- | -------------------------------------------------------------------------------- |
+| `cli_إصدار` | إصدار Twist CLI الذي واجه الخطأ.                                                 |
+| `السبب`     | سبب خطأ تحديث الرمز المميز، مثل `غير صالح_رمز_مُرمز_نوع` أو `غير صالح_رمز مميز`. |
 
 ---
 
-## Accounts metrics {#accounts-metrics}
+## مقاييس المشاريع {#مقاييس المشاريع}
 
-A set of metrics related to accounts (users and organizations).
+مجموعة من المقاييس المتعلقة بالمشاريع.
 
-### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
+### `tuist_projects_projects_total` (آخر_قيمة) {#tuist_projects_total-last_value}
 
-The total number of organizations.
+العدد الإجمالي للمشاريع.
 
-### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
+---
 
-The total number of users.
+## مقاييس الحسابات {#مقاييس الحسابات}
 
+مجموعة من المقاييس المتعلقة بالحسابات (المستخدمين ومنتديات المجموعة).
 
-## Database metrics {#database-metrics}
+### `tuist_accounts_accounts_organizations_total` (آخر_قيمة) {#tuist_accounts_accounts_organizations_total-last_value}
 
-A set of metrics related to the database connection.
+إجمالي عدد المنظمات.
 
-### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
+### `tuist_accounts_accounts_accounts_users_total` (آخر_قيمة) {#tuist_accounts_accounts_accusers_total-last_value}
 
-The number of database queries that are sitting in a queue waiting to be
-assigned to a database connection.
-
-### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
-
-The number of database connections that are ready to be assigned to a database
-query.
+إجمالي عدد المستخدمين.
 
 
-### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
+## مقاييس قاعدة البيانات {#database-metrics}
 
-The number of connections that have been established to the database.
+مجموعة من المقاييس المتعلقة باتصال قاعدة البيانات.
 
-### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
+### `tuist_repo_repo_pool_checkout_queout_queue_length` (آخر_قيمة) {#tuist_repo_repo_pool_checkout_queout_queue_length_length_last_value}
 
-The number of connections that have been disconnected from the database.
+عدد استعلامات قاعدة البيانات الموجودة في قائمة الانتظار في انتظار تعيينها لاتصال
+قاعدة البيانات.
 
-## HTTP metrics {#http-metrics}
+### `tuist_repo_repo_repo_pool_ready_conn_count` (آخر_قيمة) {#tuist_repo_repo_repo_pool_ready_conn_conn_count_last_value}
 
-A set of metrics related to Tuist's interactions with other services via HTTP.
+عدد اتصالات قاعدة البيانات الجاهزة للتعيين لاستعلام قاعدة البيانات.
 
-### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
 
-The number of outgoing HTTP requests.
+### `tuist_repo_repo_dpool_dpool_db_db_connection_connconnected` (عداد) {#tuist_repo_repo_dpool_db_db_connection_connconnected-counter}
 
-### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+عدد الاتصالات التي تم إنشاؤها بقاعدة البيانات.
 
-The sum of the duration of the outgoing requests (including the time that they
-spent waiting to be assigned to a connection).
+### `tuist_repo_repo_pool_db_db_db_dconnection_disconnected` (عداد) {#tuist_repo_repo_pool_db_db_dconnection_disconnected_disconnected-counter}
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-The distribution of the duration of outgoing requests (including the time that
-they spent waiting to be assigned to a connection).
+عدد الاتصالات التي تم قطع اتصالها بقاعدة البيانات.
 
-### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
+## مقاييس HTTP {#http-metrics}
 
-The number of requests that have been retrieved from the pool.
+مجموعة من المقاييس المتعلقة بتفاعلات تويست مع الخدمات الأخرى عبر HTTP.
 
-### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
+### `tuist_http_http_request_count` (عداد) {#tuist_http_http_request_count_count-last_value}
 
-The time it takes to retrieve a connection from the pool.
+عدد طلبات HTTP الصادرة.
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+### `tuist_http_http_request_request_duration_nanosecond_nanosecond_sum` (المجموع) {#tuist_http_http_request_dquest_duration_nanosecond_sum-lanosecond_sum-last_value}
 
-The time a connection has been idle waiting to be retrieved.
+مجموع مدة الطلبات الصادرة (بما في ذلك الوقت الذي استغرقته في انتظار تعيين
+اتصال).
 
-### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_http_request_request_duration_nanosecond_nanosecond_bucket` (التوزيع) {#tuist_http_http_request_duration_nanosecond_nanosecond_bucket-distribute}
+توزيع مدة الطلبات الصادرة (بما في ذلك الوقت الذي استغرقته في انتظار تعيين
+اتصال).
 
-The time it takes to retrieve a connection from the pool.
+### `tuist_http_http_queue_count` (عداد) {#tuist_http_http_queue_queue_count-counter}
 
-### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+عدد الطلبات التي تم استردادها من المجمع.
 
-The time a connection has been idle waiting to be retrieved.
+### `tuist_http_http_queue_due_due_duration_nanoseconds_nanoseconds_sum` (المجموع) {#tuist_http_queue_due_due_duration_nanoseconds_nanoseconds_sum-sum}
 
-### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
+الوقت الذي يستغرقه استرداد اتصال من المجمع.
 
-The number of connections that have been established.
+### `tuist_http_http_quettp_queue_queue_idue_time_nanoseconds_nanoseconds_nanoseconds_sum` (المجموع) {#tuist_http_quettp_queue_idue_time_nanoseconds_nanoseconds_sum-sum}
 
-### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+الوقت الذي ظل فيه الاتصال خاملاً في انتظار الاسترداد.
 
-The time it takes to establish a connection against a host.
+### `tuist_http_http_queue_due_due_duration_nanoseconds_nanoseconds_bucket` (التوزيع) {#tuist_http_queue_due_due_duration_nanoseconds_nanoseconds_bucket-distribute}
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+الوقت الذي يستغرقه استرداد اتصال من المجمع.
 
-The distribution of the time it takes to establish a connection against a host.
+### `tuist_http_http_quettp_queue_queue_idue_idue_time_nanoseconds_nanoseconds_nanoseconds_bucket` (التوزيع) {#tuist_http_quettp_queue_idue_idue_time_nanoseconds_nanoseconds_bucket_bucket-distribute}
 
-### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+الوقت الذي ظل فيه الاتصال خاملاً في انتظار الاسترداد.
 
-The number of requests that have been sent once assigned to a connection from
-the pool.
+### `tuist_http_http_connection_count` (عداد) {#tuist_http_http_hconnection_count_count}
 
-### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
+عدد الاتصالات التي تم إنشاؤها.
 
-The time that it takes for requests to complete once assigned to a connection
-from the pool.
+### `tuist_http_http_donnection_donnection_duration_nanoseconds_nanoseconds_sum` (المجموع) {#tuist_http_http_donnection_donnection_duration_nanoseconds_nanoseconds_sum-sum}
 
-### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
+الوقت الذي يستغرقه إنشاء اتصال مقابل مضيف.
 
-The distribution of the time that it takes for requests to complete once
-assigned to a connection from the pool.
+### `tuist_http_http_donnection_dconnection_duration_nanoseconds_nanoseconds_nanoseconds_bucket` (التوزيع) {#tuist_http_http_donnection_donnection_duration_nanoseconds_nanoseconds_bucket-distribute}
 
-### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
+توزيع الوقت الذي يستغرقه إنشاء اتصال مقابل مضيف.
 
-The number of responses that have been received from sent requests.
+### `tuist_http_http_send_count` (عداد) {#tuist_http_http_send_count_count-counter}
 
-### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
+عدد الطلبات التي تم إرسالها بمجرد تعيينها إلى اتصال من مجموعة الاتصالات.
 
-The time spent receiving responses.
+### `tuist_http_http_send_send_duration_nanoseconds_nanoseconds_nanoseconds_sum` (المجموع) {#tuist_http_http_send_send_duration_nanoseconds_nanoseconds_sum-sum}
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+الوقت الذي تستغرقه الطلبات لإكمالها بمجرد تعيينها إلى اتصال من مجموعة الاتصالات.
 
-The distribution of the time spent receiving responses.
+### `tuist_http_http_send_send_duration_nanoseconds_nanoseconds_nanoseconds_bucket` (التوزيع) {#tuist_http_http_send_duration_nanoseconds_nanoseconds_bucket-distribute}
 
-### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
+توزيع الوقت الذي تستغرقه الطلبات لإكمالها بمجرد تعيينها إلى اتصال من مجموعة
+الاتصالات.
 
-The number of connections available in the queue.
+### `tuist_http_http_receive_count` (عداد) {#tuist_http_http_receive_count_count}
 
-### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
+عدد الردود التي تم استلامها من الطلبات المرسلة.
 
-The number of queue connections that are in use.
+### `tuist_http_http_receive_dreceive_duration_nanoseconds_nanoseconds_sum` (المجموع) {#tuist_http_http_receive_duration_nanoseconds_nanoseconds_sum-sum}
+
+الوقت المستغرق في تلقي الردود.
+
+### `tuist_http_http_receive_dreceive_duration_nanoseconds_nanoseconds_nanoseconds_bucket` (التوزيع) {#tuist_http_http_receive_duration_nanoseconds_nanoseconds_nanoseconds_bucket-distribute}
+
+توزيع الوقت المستغرق في تلقي الردود.
+
+### `tuist_http_http_queue_available_avconnections` (آخر_قيمة) {#tuist_http_queue_available_queue_avconnections-last_valconnections-last_value}
+
+عدد الاتصالات المتوفرة في قائمة الانتظار.
+
+### `tuist_http_http_queue_in_in_use_connections` (آخر_قيمة) {#tuist_http_queue_in_use_in_connections-last_value}
+
+عدد اتصالات قائمة الانتظار قيد الاستخدام.

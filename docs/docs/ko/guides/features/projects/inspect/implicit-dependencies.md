@@ -5,42 +5,33 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Implicit imports {#implicit-imports}
+# 암시적 가져오기 {#implicit-imports}
 
-To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
-project, Apple designed the build system in a way that allows dependencies to be
-implicitly defined. This means that a product, for example an app, can depend on
-a framework, even without declaring the dependency explicitly. At a small scale,
-this is fine, but as the project graph grows in complexity, the implicitness
-might manifest as unreliable incremental builds or editor-based features such as
-previews or code completion.
+원시 Xcode 프로젝트 그래프를 유지 관리할 때의 복잡성을 완화하기 위해 Apple은 종속성을 암시적으로 정의할 수 있는 방식으로 빌드
+시스템을 설계했습니다. 즉, 앱과 같은 제품은 종속성을 명시적으로 선언하지 않더라도 프레임워크에 종속될 수 있습니다. 작은 규모에서는 괜찮지만
+프로젝트 그래프가 복잡해지면 암시성이 불안정한 증분 빌드 또는 미리보기나 코드 완성 같은 에디터 기반 기능으로 나타날 수 있습니다.
 
-The problem is that you can't prevent implicit dependencies from happening. Any
-developer can add an `import` statement to their Swift code, and the implicit
-dependency will be created. This is where Tuist comes in. Tuist provides a
-command to inspect the implicit dependencies by statically analyzing the code in
-your project. The following command will output the implicit dependencies of
-your project:
+문제는 암시적 종속성이 발생하는 것을 막을 수 없다는 것입니다. 모든 개발자는 Swift 코드에 `import` 문을 추가하면 암시적 종속성이
+생성됩니다. 이때 Tuist가 등장합니다. Tuist는 프로젝트의 코드를 정적으로 분석하여 암시적 종속성을 검사하는 명령을 제공합니다. 다음
+명령은 프로젝트의 암시적 종속성을 출력합니다:
 
 ```bash
 tuist inspect implicit-imports
 ```
 
-If the command detects any implicit imports, it exits with an exit code other
-than zero.
+명령이 암시적 가져오기를 감지하면 0이 아닌 종료 코드를 사용하여 종료합니다.
 
-::: tip VALIDATE IN CI
+::: 팁 CI에서 유효성 검사
 <!-- -->
-We strongly recommend to run this command as part of your
-<LocalizedLink href="/guides/features/automate/continuous-integration">continuous
-integration</LocalizedLink> command every time new code is pushed upstream.
+새 코드가 업스트림에 푸시될 때마다 이 명령을
+<LocalizedLink href="/guides/features/automate/continuous-integration">연속
+통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
 <!-- -->
 :::
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
+::: 경고 모든 암시적 사례가 감지되는 것은 아닙니다.
 <!-- -->
-Since Tuist relies on static code analysis to detect implicit dependencies, it
-might not catch all cases. For example, Tuist is unable to understand
-conditional imports through compiler directives in code.
+정적 코드 분석에 의존하여 암시적 종속성을 감지하기 때문에 모든 경우를 포착하지 못할 수도 있습니다. 예를 들어, 코드의 컴파일러 지시문을 통한
+조건부 가져오기는 Tuist가 이해하지 못합니다.
 <!-- -->
 :::

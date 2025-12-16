@@ -5,70 +5,76 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# Лучшие практики {#best-practices}
 
-Over the years working with different teams and projects, we've identified a set
-of best practices that we recommend following when working with Tuist and Xcode
-projects. These practices are not mandatory, but they can help you structure
-your projects in a way that makes them easier to maintain and scale.
+За годы работы с различными командами и проектами мы выделили набор лучших
+практик, которых мы рекомендуем придерживаться при работе с проектами Tuist и
+Xcode. Эти практики не являются обязательными, но они помогут вам
+структурировать свои проекты таким образом, чтобы их было легче поддерживать и
+масштабировать.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### Нежелательные шаблоны {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### Конфигурации для моделирования удаленных сред {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote
-environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
-has some downsides:
+Многие организации используют конфигурации сборки для моделирования различных
+удаленных сред (например, `Debug-Production` или `Release-Canary`), но такой
+подход имеет ряд недостатков:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the
-  graph, the build system might end up using the wrong configuration for some
-  targets.
-- **Complexity:** Projects can end up with a long list of local configurations
-  and remote environments that are hard to reason about and maintain.
+- **Несоответствия:** Если в графе присутствуют несоответствия конфигурации,
+  система сборки может в итоге использовать неправильную конфигурацию для
+  некоторых целей.
+- **Сложность:** Проекты могут заканчиваться длинным списком локальных
+  конфигураций и удаленных сред, о которых сложно рассуждать и поддерживать.
 
-Build configurations were designed to embody different build settings, and
-projects rarely need more than just `Debug` and `Release`. The need to model
-different environments can be achieved differently:
+Конфигурации сборки были разработаны для воплощения различных настроек сборки, и
+проектам редко требуется больше, чем просто `Debug` и `Release`. Необходимость
+моделирования различных сред может быть достигнута по-разному:
 
-- **In Debug builds:** You can include all the configurations that should be
-  accessible in development in the app (e.g. endpoints), and switch them at
-  runtime. The switch can happen either using scheme launch environment
-  variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the
-  configuration that the release build is bound to, and not include the runtime
-  logic for switching configurations by using compiler directives.
+- **В отладочных сборках:** Вы можете включить в приложение все конфигурации,
+  которые должны быть доступны в разработке (например, конечные точки), и
+  переключать их во время выполнения. Переключение может происходить как с
+  помощью переменных окружения запуска схемы, так и с помощью пользовательского
+  интерфейса внутри приложения.
+- **В сборках релиза:** В случае релиза вы можете включить только ту
+  конфигурацию, к которой привязана сборка релиза, и не включать логику
+  выполнения для переключения конфигураций с помощью директив компилятора.
 
-::: info Non-standard configurations
+::: информация Нестандартные конфигурации
 <!-- -->
-While Tuist supports non-standard configurations and makes them easier to manage
-compared to vanilla Xcode projects, you'll receive warnings if configurations
-are not consistent throughout the dependency graph. This helps ensure build
-reliability and prevents configuration-related issues.
+Хотя Tuist поддерживает нестандартные конфигурации и упрощает управление ими по
+сравнению с ванильными проектами Xcode, вы будете получать предупреждения, если
+конфигурации не будут согласованы по всему графу зависимостей. Это помогает
+обеспечить надежность сборки и предотвратить проблемы, связанные с
+конфигурацией.
 <!-- -->
 :::
 
-## Generated projects
+## Сгенерированные проекты
 
-### Buildable folders
+### Строящиеся папки
 
-Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
-groups), a feature introduced in Xcode 16 to reduce merge conflicts.
+В Tuist 4.62.0 добавлена поддержка **папок для сборки** (синхронизированные
+группы Xcode), функция, появившаяся в Xcode 16 для уменьшения конфликтов
+слияния.
 
-While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
-merge conflicts in generated projects, buildable folders offer additional
-benefits:
+Хотя шаблоны подстановочных знаков Туиста (например, `Sources/**/*.swift`) уже
+устраняют конфликты слияния в генерируемых проектах, папки с возможностью сборки
+дают дополнительные преимущества:
 
-- **Automatic synchronization**: Your project structure stays in sync with the
-  file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your
-  codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit
-  file lists
+- **Автоматическая синхронизация**: Структура вашего проекта остается
+  синхронизированной с файловой системой - не требуется регенерация при
+  добавлении или удалении файлов
+- **Рабочие процессы с поддержкой искусственного интеллекта**: Ассистенты и
+  агенты по кодированию могут изменять вашу кодовую базу, не вызывая регенерации
+  проекта
+- **Более простая конфигурация**: Определение путей к папкам вместо управления
+  явными списками файлов
 
-We recommend adopting buildable folders instead of traditional `Target.sources`
-and `Target.resources` attributes for a more streamlined development experience.
+Мы рекомендуем использовать собираемые папки вместо традиционных атрибутов
+`Target.sources` и `Target.resources` для более рациональной разработки.
 
 ::: code-group
 
@@ -89,18 +95,19 @@ let target = Target(
 <!-- -->
 :::
 
-### Dependencies
+### Зависимости
 
-#### Force resolved versions on CI
+#### Принудительное включение разрешенных версий в CI
 
-When installing Swift Package Manager dependencies on CI, we recommend using the
-`--force-resolved-versions` flag to ensure deterministic builds:
+При установке зависимостей Swift Package Manager в CI мы рекомендуем
+использовать флаг `--force-resolved-versions` для обеспечения
+детерминированности сборок:
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-This flag ensures that dependencies are resolved using the exact versions pinned
-in `Package.resolved`, eliminating issues caused by non-determinism in
-dependency resolution. This is particularly important on CI where reproducible
-builds are critical.
+Этот флаг гарантирует, что зависимости будут разрешены с использованием точных
+версий, отмеченных в `Package.resolved`, устраняя проблемы, вызванные
+недетерминизмом при разрешении зависимостей. Это особенно важно для CI, где
+воспроизводимые сборки очень важны.

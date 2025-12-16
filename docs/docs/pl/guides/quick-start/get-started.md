@@ -5,10 +5,10 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# Rozpocznij {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+Najprostszym sposobem na rozpoczęcie pracy z Tuist jest umieszczenie go w
+dowolnym katalogu lub w katalogu projektu lub obszaru roboczego Xcode:
 
 ::: code-group
 
@@ -22,22 +22,23 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+Polecenie przeprowadzi Cię przez kolejne kroki
+<LocalizedLink href="/guides/features/projects">tworzenia wygenerowanego
+projektu</LocalizedLink> lub integracji istniejącego projektu Xcode lub obszaru
+roboczego. Pomaga ono połączyć konfigurację ze zdalnym serwerem, dając dostęp do
+takich funkcji jak
+<LocalizedLink href="/guides/features/selective-testing">selektywne
+testowanie</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">przeglądy</LocalizedLink> i
+<LocalizedLink href="/guides/features/registry">rejestr</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
+::: info MIGRUJ ISTNIEJĄCY PROJEKT
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+Jeśli chcesz zmigrować istniejący projekt do wygenerowanych projektów, aby
+poprawić doświadczenie programisty i skorzystać z naszej
+<LocalizedLink href="/guides/features/cache"> pamięci
+podręcznej</LocalizedLink>, zapoznaj się z naszym
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">
+przewodnikiem migracji</LocalizedLink>.
 <!-- -->
 :::
