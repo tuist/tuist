@@ -32,7 +32,7 @@ defmodule CacheWeb.Plugs.RequestContextPlug do
   defp appsignal_active? do
     case Application.get_env(:appsignal, :config) do
       nil -> false
-      config -> Keyword.get(config, :active, false)
+      config -> config[:active] || false
     end
   end
 end
