@@ -36,7 +36,7 @@ Format: `typ(zakres): opis`
 
 #### Rodzaje zobowiązań i ich wpływ
 
-| Typ              | Opis                       | Wersja Impact                     | Przykład                                                    |
+| Typ              | Opis                       | Wersja Impact                     | Przykłady                                                   |
 | ---------------- | -------------------------- | --------------------------------- | ----------------------------------------------------------- |
 | `wyczyn`         | Nowa funkcja lub możliwość | Drobna zmiana wersji (x.Y.z)      | `feat(cli): dodanie wsparcia dla Swift 6`                   |
 | `poprawka`       | Poprawka błędu             | Uderzenie wersji poprawki (x.y.Z) | `fix(app): usunięcie awarii podczas otwierania projektów`   |
