@@ -1,0 +1,20 @@
+#!/bin/sh
+# Git merge driver for PO files with fallback
+# %O = ancestor, %A = current, %B = other
+
+O="$1"
+A="$2"
+B="$3"
+
+# Try Weblate's driver first (available on Weblate servers)
+if command -v git-merge-gettext-po >/dev/null 2>&1; then
+    exec git-merge-gettext-po "$O" "$A" "$B"
+fi
+
+# Fallback to msgcat if available (brew install gettext)
+if command -v msgcat >/dev/null 2>&1; then
+    msgcat --use-first -o "$A" "$A" "$B" 2>/dev/null && exit 0
+fi
+
+# Final fallback: use Git's built-in merge
+exec git merge-file "$A" "$O" "$B"

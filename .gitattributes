@@ -1,1 +1,2 @@
 CHANGELOG merge=union
+server/priv/gettext/**/*.po merge=merge-gettext-po
