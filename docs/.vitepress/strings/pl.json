@@ -416,8 +416,15 @@
                                 }
                             },
                             "text": "Hosting własny"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Konta i projekty"
+                        },
+                        "authentication": {
+                            "text": "Uwierzytelnianie"
                         }
-                    }
+                    },
+                    "text": "Serwer"
                 }
             }
         }
