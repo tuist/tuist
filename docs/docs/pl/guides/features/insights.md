@@ -5,65 +5,66 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# Spostrzeżenia {#insights}
 
-::: warning REQUIREMENTS
+::: ostrzeżenie WYMAGANIA
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
-<!-- -->
-:::
-
-Working on large projects shouldn't feel like a chore. In fact, it should be as
-enjoyable as working on a project you started just two weeks ago. One of the
-reasons it is not is because as the project grows, the developer experience
-suffers. The build times increase and tests become slow and flaky. It's often
-easy to overlook these issues until it gets to a point where they become
-unbearable – however, at that point, it's difficult to address them. Tuist
-Insights provides you with the tools to monitor the health of your project and
-maintain a productive developer environment as your project scales.
-
-In other words, Tuist Insights helps you to answer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
-
-::: info
-<!-- -->
-Tuist Insights are in early development.
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
-## Builds {#builds}
+Praca nad dużymi projektami nie powinna być przykrym obowiązkiem. W
+rzeczywistości powinna być tak przyjemna, jak praca nad projektem rozpoczętym
+zaledwie dwa tygodnie temu. Jednym z powodów, dla których tak nie jest, jest to,
+że wraz z rozwojem projektu cierpi na tym doświadczenie programisty. Czasy
+kompilacji wydłużają się, a testy stają się powolne i zawodne. Często łatwo jest
+przeoczyć te kwestie, dopóki nie dojdzie do punktu, w którym stają się nie do
+zniesienia - jednak w tym momencie trudno jest się nimi zająć. Tuist Insights
+zapewnia narzędzia do monitorowania kondycji projektu i utrzymania produktywnego
+środowiska programistycznego w miarę skalowania projektu.
 
-While you probably have some metrics for the performance of CI workflows, you
-might not have the same visibility into the local development environment.
-However, local build times are one of the most important factors that contribute
-to the developer experience.
+Innymi słowy, Tuist Insights pomaga odpowiedzieć na pytania takie jak:
+- Czy czas kompilacji znacznie się wydłużył w ciągu ostatniego tygodnia?
+- Czy moje testy stały się wolniejsze? Które z nich?
 
-To start tracking local build times, you can leverage the `tuist inspect build`
-command by adding it to your scheme's post-action:
-
-![Post-action for inspecting
-builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
-
-::: info
+:: info
 <!-- -->
-We recommend setting the "Provide build settings from" to the executable or your
-main build target to enable Tuist to track the build configuration.
+Tuist Insights jest na wczesnym etapie rozwoju.
 <!-- -->
 :::
 
-::: info
+## Kompilacje {#builds}
+
+Chociaż prawdopodobnie masz pewne dane dotyczące wydajności przepływów pracy CI,
+możesz nie mieć takiego samego wglądu w lokalne środowisko programistyczne.
+Czasy kompilacji lokalnych są jednak jednym z najważniejszych czynników
+wpływających na wrażenia deweloperów.
+
+Aby rozpocząć śledzenie lokalnego czasu kompilacji, można wykorzystać polecenie
+`tuist inspect build`, dodając je do postakcji schematu:
+
+![Działanie po inspekcji
+kompilacji](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+
+:: info
 <!-- -->
-If you are not using <LocalizedLink href="/guides/features/projects">generated
-projects</LocalizedLink>, the post-scheme action is not executed in case the
-build fails.
+Zalecamy ustawienie opcji "Provide build settings from" na plik wykonywalny lub
+główny cel kompilacji, aby umożliwić Tuist śledzenie konfiguracji kompilacji.
+<!-- -->
+:::
+
+:: info
+<!-- -->
+Jeśli nie używasz <LocalizedLink href="/guides/features/projects">
+wygenerowanych projektów</LocalizedLink>, akcja po schemacie nie zostanie
+wykonana w przypadku niepowodzenia kompilacji.
 <!-- -->
 :::
 > 
-> An undocumented feature in Xcode allows you to execute it even in this case.
-> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> Nieudokumentowana funkcja w Xcode pozwala na wykonanie go nawet w tym
+> przypadku. Ustaw atrybut `runPostActionsOnFailure` na `YES` w schemacie
+> `BuildAction` w odpowiednim pliku `project.pbxproj` w następujący sposób:
 > 
 > ```diff
 > <BuildAction
@@ -72,98 +73,99 @@ build fails.
 > +  runPostActionsOnFailure="YES">
 > ```
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+W przypadku korzystania z [Mise](https://mise.jdx.dev/), skrypt będzie musiał
+aktywować `tuist` w środowisku post-action:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
+:: końcówka MISE & PROJECT PATHS
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
-<!-- -->
-:::
-
-
-Your local builds are now tracked as long as you are logged in to your Tuist
-account. You can now access your build times in the Tuist dashboard and see how
-they evolve over time:
-
-
-::: tip
-<!-- -->
-To quickly access the dashboard, run `tuist project show --web` from the CLI.
+Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
+dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
+instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
+celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
+$SRCROOT.
 <!-- -->
 :::
 
-![Dashboard with build
-insights](/images/guides/features/insights/builds-dashboard.png)
 
-## Tests {#tests}
+Lokalne kompilacje są teraz śledzone tak długo, jak długo jesteś zalogowany na
+swoje konto Tuist. Możesz teraz uzyskać dostęp do czasów kompilacji na pulpicie
+nawigacyjnym Tuist i zobaczyć, jak zmieniają się one w czasie:
 
-In addition to tracking builds, you can also monitor your tests. Test insights
-help you identify slow tests or quickly understand failed CI runs.
 
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
+::: napiwek
+<!-- -->
+Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project show
+--web` z CLI.
+<!-- -->
+:::
 
-![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+![Pulpit nawigacyjny z informacjami o
+kompilacji](/images/guides/features/insights/builds-dashboard.png)
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+## Testy {#tests}
+
+Oprócz śledzenia kompilacji można również monitorować testy. Wgląd w testy
+pomaga zidentyfikować powolne testy lub szybko zrozumieć nieudane uruchomienia
+CI.
+
+Aby rozpocząć śledzenie testów, można wykorzystać polecenie `tuist inspect
+test`, dodając je do testowej post-akcji schematu:
+
+![Działanie po inspekcji
+testów](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+
+W przypadku korzystania z [Mise](https://mise.jdx.dev/), skrypt będzie musiał
+aktywować `tuist` w środowisku post-action:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
+:: końcówka MISE & PROJECT PATHS
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
+dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
+instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
+celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
+$SRCROOT.
 <!-- -->
 :::
 
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
+Twoje testy są teraz śledzone tak długo, jak długo jesteś zalogowany na swoje
+konto Tuist. Możesz uzyskać dostęp do swoich spostrzeżeń z testów na pulpicie
+nawigacyjnym Tuist i zobaczyć, jak ewoluują one w czasie:
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![Pulpit nawigacyjny z wnioskami z
+testów](/images/guides/features/insights/tests-dashboard.png)
 
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
+Oprócz ogólnych trendów, można również zagłębić się w poszczególne testy, na
+przykład podczas debugowania awarii lub powolnych testów w CI:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![Szczegóły testu](/images/guides/features/insights/test-detail.png)
 
-## Generated projects {#generated-projects}
+## Wygenerowane projekty {#generated-projects}
 
-::: info
+:: info
 <!-- -->
-Auto-generated schemes automatically include both `tuist inspect build` and
-`tuist inspect test` post-actions.
+Automatycznie wygenerowane schematy automatycznie zawierają zarówno `tuist
+inspect build` jak i `tuist inspect test` post-actions.
 <!-- -->
 :::
 > 
-> If you are not interested in tracking insights in your auto-generated schemes,
-> disable them using the
+> Jeśli nie jesteś zainteresowany śledzeniem wniosków w automatycznie
+> generowanych schematach, wyłącz je za pomocą opcji generowania
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> and
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation options.
+> i
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>.
 
-If you are using generated projects with custom schemes, you can set up
-post-actions for both build and test insights:
+Jeśli korzystasz z wygenerowanych projektów z niestandardowymi schematami,
+możesz skonfigurować post-akcje zarówno dla wglądów kompilacji, jak i testów:
 
 ```swift
 let project = Project(
@@ -209,7 +211,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your scripts can be simplified to:
+Jeśli nie używasz Mise, twoje skrypty można uprościć do:
 
 ```swift
 buildAction: .buildAction(
@@ -234,17 +236,17 @@ testAction: .testAction(
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## Ciągła integracja {#continuous-integration}
 
-To track build and test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+Aby śledzić wgląd w kompilacje i testy w CI, należy upewnić się, że CI jest
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>.
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+Dodatkowo będziesz musiał
+- Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
+- Dodaj `-resultBundlePath` do wywołania `xcodebuild`.
 
-When `xcodebuild` builds or tests your project without `-resultBundlePath`, the
-required activity log and result bundle files are not generated. Both `tuist
-inspect build` and `tuist inspect test` post-actions require these files to
-analyze your builds and tests.
+Gdy `xcodebuild` buduje lub testuje projekt bez `-resultBundlePath`, wymagane
+pliki dziennika aktywności i pakietu wyników nie są generowane. Zarówno `tuist
+inspect build` jak i `tuist inspect test` postactions wymagają tych plików do
+analizy kompilacji i testów.
