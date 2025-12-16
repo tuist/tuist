@@ -359,10 +359,10 @@
                             }
                         },
                         "insights": {
-                            "text": "Insights"
+                            "text": "Análisis de builds"
                         },
                         "bundle-size": {
-                            "text": "Tamaño de bundle"
+                            "text": "Análisis de bundles"
                         },
                         "qa": {
                             "text": "QA"
@@ -416,8 +416,15 @@
                                 }
                             },
                             "text": "Autoalojamiento"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Cuentas y proyectos"
+                        },
+                        "authentication": {
+                            "text": "Autentificación"
                         }
-                    }
+                    },
+                    "text": "Servidor"
                 }
             }
         }
