@@ -6,7 +6,8 @@ let tuist = Tuist(
         generationOptions: .options(
             optionalAuthentication: true,
             disableSandbox: true,
-            enableCaching: Environment.enableCaching.getBoolean(default: false)
+            enableCaching: true
+                // enableCaching: Environment.enableCaching.getBoolean(default: false)
         ),
         installOptions: .options(
             passthroughSwiftPackageManagerArguments: [
