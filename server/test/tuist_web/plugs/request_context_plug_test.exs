@@ -6,7 +6,6 @@ defmodule TuistWeb.Plugs.RequestContextPlugTest do
 
   alias TuistWeb.Plugs.RequestContextPlug
 
-  setup :set_mimic_global
   setup :verify_on_exit!
 
   describe "call/2" do

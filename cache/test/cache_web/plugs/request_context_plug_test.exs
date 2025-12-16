@@ -6,7 +6,6 @@ defmodule CacheWeb.Plugs.RequestContextPlugTest do
 
   alias CacheWeb.Plugs.RequestContextPlug
 
-  setup :set_mimic_global
   setup :verify_on_exit!
 
   describe "call/2" do
