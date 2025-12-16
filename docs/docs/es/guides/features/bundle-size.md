@@ -45,7 +45,7 @@ del bundle o un desglose de los módulos:
 
 [Paquete analizado](/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## Integración continua {#continuous-integration}
+## Integración continua (CI) {#continuous-integration-ci}
 
 Para realizar un seguimiento del tamaño del paquete a lo largo del tiempo,
 deberá analizar el paquete en el CI. En primer lugar, tendrá que asegurarse de
