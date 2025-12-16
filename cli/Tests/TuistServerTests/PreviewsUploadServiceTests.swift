@@ -118,6 +118,8 @@ struct PreviewsUploadServiceTests {
                 .zip(name: .any)
                 .willReturn(temporaryDirectory.appending(component: "App.zip"))
 
+            precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
+
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!
             given(multipartUploadArtifactService)
@@ -194,6 +196,8 @@ struct PreviewsUploadServiceTests {
             given(fileArchiver)
                 .zip(name: .value("App2.app"))
                 .willReturn(app2ArchivePath)
+
+            precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
 
             given(multipartUploadArtifactService)
                 .multipartUploadArtifact(
@@ -280,8 +284,8 @@ struct PreviewsUploadServiceTests {
             let preview = temporaryDirectory.appending(component: "App.ipa")
             try await fileSystem.makeDirectory(at: preview)
 
-            let unzippedPath = temporaryDirectory.appending(component: "Payload")
-            let appPath = unzippedPath.appending(component: "App.app")
+            let unzippedPath = temporaryDirectory.appending(component: "unzipped")
+            let appPath = unzippedPath.appending(components: ["Payload", "App.app"])
             try await fileSystem.makeDirectory(at: appPath)
             let iconPath = appPath.appending(component: "AppIcon60x60@2x.png")
             try await fileSystem.touch(iconPath)
@@ -289,6 +293,8 @@ struct PreviewsUploadServiceTests {
             given(fileUnarchiver)
                 .unzip()
                 .willReturn(unzippedPath)
+
+            precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
 
             gitController.reset()
             given(gitController)
@@ -454,7 +460,7 @@ struct PreviewsUploadServiceTests {
             .called(1)
     }
 
-    @Test(.inTemporaryDirectory) func upload_app_bundle_with_no_uuid_passes_nil_binary_id() async throws {
+    @Test(.inTemporaryDirectory) func upload_app_bundle_throws_when_uuid_not_found() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -468,39 +474,16 @@ struct PreviewsUploadServiceTests {
 
         precompiledMetadataProvider.uuidsStub = { _ in [] }
 
-        given(multipartUploadArtifactService)
-            .multipartUploadArtifact(
-                artifactPath: .any,
-                generateUploadURL: .any,
-                updateProgress: .any
+        // When / Then
+        await #expect(throws: PreviewsUploadServiceError.binaryIdNotFound(preview.appending(component: appName))) {
+            try await subject.uploadPreview(
+                .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
+                path: temporaryDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL,
+                updateProgress: { _ in }
             )
-            .willReturn([(etag: "etag", partNumber: 1)])
-
-        // When
-        _ = try await subject.uploadPreview(
-            .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
-            path: temporaryDirectory,
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL,
-            updateProgress: { _ in }
-        )
-
-        // Then
-        verify(multipartUploadStartPreviewsService)
-            .startPreviewsMultipartUpload(
-                type: .any,
-                displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
-                supportedPlatforms: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                binaryId: .value(nil),
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .called(1)
+        }
     }
 
     @Test(.inTemporaryDirectory) func upload_ipa_extracts_binary_id() async throws {
@@ -562,52 +545,29 @@ struct PreviewsUploadServiceTests {
             .called(1)
     }
 
-    @Test(.inTemporaryDirectory) func upload_ipa_with_no_app_bundle_passes_nil_binary_id() async throws {
+    @Test(.inTemporaryDirectory) func upload_ipa_throws_when_app_bundle_not_found() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
         let preview = temporaryDirectory.appending(component: "App.ipa")
         try await fileSystem.makeDirectory(at: preview)
 
-        let unzippedPath = temporaryDirectory.appending(component: "EmptyPayload")
+        let unzippedPath = temporaryDirectory.appending(component: "unzipped")
         try await fileSystem.makeDirectory(at: unzippedPath)
 
         given(fileUnarchiver)
             .unzip()
             .willReturn(unzippedPath)
 
-        given(multipartUploadArtifactService)
-            .multipartUploadArtifact(
-                artifactPath: .any,
-                generateUploadURL: .any,
-                updateProgress: .any
+        // When / Then
+        await #expect(throws: PreviewsUploadServiceError.appBundleNotFound(preview)) {
+            try await subject.uploadPreview(
+                .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
+                path: temporaryDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL,
+                updateProgress: { _ in }
             )
-            .willReturn([(etag: "etag", partNumber: 1)])
-
-        // When
-        _ = try await subject.uploadPreview(
-            .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
-            path: temporaryDirectory,
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL,
-            updateProgress: { _ in }
-        )
-
-        // Then
-        verify(multipartUploadStartPreviewsService)
-            .startPreviewsMultipartUpload(
-                type: .value(.ipa),
-                displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
-                supportedPlatforms: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                binaryId: .value(nil),
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .called(1)
+        }
     }
 }

@@ -15,6 +15,20 @@
         case appBundles([AppBundle])
     }
 
+    public enum PreviewsUploadServiceError: LocalizedError, Equatable {
+        case appBundleNotFound(AbsolutePath)
+        case binaryIdNotFound(AbsolutePath)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .appBundleNotFound(path):
+                return "Could not find app bundle in IPA at \(path.pathString)"
+            case let .binaryIdNotFound(path):
+                return "Could not extract binary ID from \(path.pathString)"
+            }
+        }
+    }
+
     @Mockable
     public protocol PreviewsUploadServicing {
         func uploadPreview(
@@ -121,7 +135,7 @@
                     let bundleArchivePath = try await fileArchiver
                         .makeFileArchiver(for: [bundle.path])
                         .zip(name: bundle.path.basename)
-                    let binaryId = appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
+                    let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
 
                     preview = try await uploadPreview(
                         buildPath: bundleArchivePath,
@@ -154,7 +168,7 @@
             icon: AbsolutePath?,
             supportedPlatforms: [DestinationType],
             gitInfo: GitInfo,
-            binaryId: String?,
+            binaryId: String,
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
@@ -268,7 +282,7 @@
                 .awaitCompletion()
         }
 
-        private func ipaBinaryId(at path: AbsolutePath) async throws -> String? {
+        private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
             let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
             let unzippedPath = try unarchiver.unzip()
 
@@ -276,19 +290,19 @@
                 .collect()
                 .first
             else {
-                return nil
+                throw PreviewsUploadServiceError.appBundleNotFound(path)
             }
 
             let appName = appPath.basenameWithoutExt
-            return appBundleBinaryId(at: appPath, name: appName)
+            return try appBundleBinaryId(at: appPath, name: appName)
         }
 
-        private func appBundleBinaryId(at path: AbsolutePath, name: String) -> String? {
+        private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
             let executablePath = path.appending(component: name)
             guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
                   let uuid = uuids.first
             else {
-                return nil
+                throw PreviewsUploadServiceError.binaryIdNotFound(executablePath)
             }
             return uuid.uuidString
         }
