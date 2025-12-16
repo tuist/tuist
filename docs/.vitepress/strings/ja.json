@@ -416,8 +416,15 @@
                                 }
                             },
                             "text": "セルフホスティング"
+                        },
+                        "accounts-and-projects": {
+                            "text": "アカウントとプロジェクト"
+                        },
+                        "authentication": {
+                            "text": "認証"
                         }
-                    }
+                    },
+                    "text": "サーバー"
                 }
             }
         }
