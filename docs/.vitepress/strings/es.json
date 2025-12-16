@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Auto-completado en shells"
+                        },
+                        "directories": {
+                            "text": "Directorios"
                         }
                     }
                 },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "Buenas prácticas"
+                                },
+                                "metadata-tags": {
+                                    "text": "Etiquetas de metadatos"
                                 }
                             }
                         },
@@ -308,7 +314,10 @@
                                     "text": ""
                                 },
                                 "xcode-cache": {
-                                    "text": ""
+                                    "text": "Caché de Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "Módulo caché"
                                 }
                             }
                         },
@@ -373,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Integración continua"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Forjas Git"
                         }
                     }
                 },
@@ -381,6 +401,21 @@
                     "items": {
                         "previews": {
                             "text": "Previews"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetría"
+                                },
+                                "installation": {
+                                    "text": "Instalación"
+                                }
+                            },
+                            "text": "Autoalojamiento"
                         }
                     }
                 }
