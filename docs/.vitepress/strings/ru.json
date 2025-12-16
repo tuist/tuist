@@ -387,7 +387,12 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Гит формирует"
+                            "text": "Гит формирует",
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            }
                         }
                     }
                 },
@@ -411,8 +416,15 @@
                                 }
                             },
                             "text": "Самостоятельный хостинг"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Аккаунты и проекты"
+                        },
+                        "authentication": {
+                            "text": "Авторизация"
                         }
-                    }
+                    },
+                    "text": "Сервер"
                 }
             }
         }
