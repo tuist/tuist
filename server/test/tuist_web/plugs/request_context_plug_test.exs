@@ -11,8 +11,6 @@ defmodule TuistWeb.Plugs.RequestContextPlugTest do
 
   describe "call/2" do
     test "sets AppSignal sample data when error tracking is enabled" do
-      stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-
       span = %{}
       expect(Appsignal.Tracer, :root_span, fn -> span end)
 
@@ -24,22 +22,22 @@ defmodule TuistWeb.Plugs.RequestContextPlugTest do
       end)
 
       conn = conn(:get, "/api/projects?foo=bar")
-      RequestContextPlug.call(conn, [])
+      opts = RequestContextPlug.init(error_tracking_enabled_fn: fn -> true end)
+      RequestContextPlug.call(conn, opts)
     end
 
     test "does not call AppSignal when error tracking is disabled" do
-      stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
       reject(&Appsignal.Tracer.root_span/0)
 
       conn = conn(:get, "/api/projects")
-      RequestContextPlug.call(conn, [])
+      opts = RequestContextPlug.init(error_tracking_enabled_fn: fn -> false end)
+      RequestContextPlug.call(conn, opts)
     end
 
     test "returns the conn unchanged" do
-      stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
-
       conn = conn(:get, "/api/projects")
-      result = RequestContextPlug.call(conn, [])
+      opts = RequestContextPlug.init(error_tracking_enabled_fn: fn -> false end)
+      result = RequestContextPlug.call(conn, opts)
 
       assert result == conn
     end

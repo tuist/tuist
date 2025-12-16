@@ -8,10 +8,15 @@ defmodule TuistWeb.Plugs.RequestContextPlug do
 
   @behaviour Plug
 
-  def init(opts), do: opts
+  def init(opts) do
+    error_tracking_enabled_fn =
+      Keyword.get(opts, :error_tracking_enabled_fn, &Tuist.Environment.error_tracking_enabled?/0)
 
-  def call(conn, _opts) do
-    if Tuist.Environment.error_tracking_enabled?() do
+    %{error_tracking_enabled_fn: error_tracking_enabled_fn}
+  end
+
+  def call(conn, %{error_tracking_enabled_fn: error_tracking_enabled_fn}) do
+    if error_tracking_enabled_fn.() do
       span = Appsignal.Tracer.root_span()
 
       if span do
