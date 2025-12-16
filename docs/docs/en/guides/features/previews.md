@@ -121,7 +121,7 @@ The SDK checks for updates within the same **preview track**. Currently, the tra
 Add Tuist SDK as a Swift Package dependency:
 
 ```swift
-.package(url: "https://github.com/tuist/sdk", from: "0.1.0")
+.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
 ### Monitor for updates {#sdk-monitor-updates}
