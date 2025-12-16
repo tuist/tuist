@@ -1,7 +1,6 @@
 import SwiftUI
 import TuistAuthentication
 import TuistServer
-// Triggering workflows
 
 #if os(macOS)
     import FluidMenuBarExtra
