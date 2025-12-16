@@ -22,14 +22,22 @@ defmodule CacheWeb.Plugs.RequestContextPlugTest do
       end)
 
       conn = conn(:get, "/cas/abc123")
-      RequestContextPlug.call(conn, [])
+      opts = RequestContextPlug.init(appsignal_active_fn: fn -> true end)
+      RequestContextPlug.call(conn, opts)
+    end
+
+    test "does not call AppSignal when disabled" do
+      reject(&Appsignal.Tracer.root_span/0)
+
+      conn = conn(:get, "/cas/abc123")
+      opts = RequestContextPlug.init(appsignal_active_fn: fn -> false end)
+      RequestContextPlug.call(conn, opts)
     end
 
     test "returns the conn unchanged" do
-      stub(Appsignal.Tracer, :root_span, fn -> nil end)
-
       conn = conn(:get, "/cas/abc123")
-      result = RequestContextPlug.call(conn, [])
+      opts = RequestContextPlug.init(appsignal_active_fn: fn -> false end)
+      result = RequestContextPlug.call(conn, opts)
 
       assert result == conn
     end

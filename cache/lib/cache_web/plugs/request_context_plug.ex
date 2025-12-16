@@ -8,10 +8,13 @@ defmodule CacheWeb.Plugs.RequestContextPlug do
 
   @behaviour Plug
 
-  def init(opts), do: opts
+  def init(opts) do
+    appsignal_active_fn = Keyword.get(opts, :appsignal_active_fn, &appsignal_active?/0)
+    %{appsignal_active_fn: appsignal_active_fn}
+  end
 
-  def call(conn, _opts) do
-    if appsignal_active?() do
+  def call(conn, %{appsignal_active_fn: appsignal_active_fn}) do
+    if appsignal_active_fn.() do
       span = Appsignal.Tracer.root_span()
 
       if span do
