@@ -416,8 +416,15 @@
                                 }
                             },
                             "text": ""
+                        },
+                        "accounts-and-projects": {
+                            "text": "Accounts and projects"
+                        },
+                        "authentication": {
+                            "text": "Authentication"
                         }
-                    }
+                    },
+                    "text": "Server"
                 }
             }
         }
