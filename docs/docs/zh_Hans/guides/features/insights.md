@@ -5,65 +5,50 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# 见解 {#insights｝
 
-::: warning REQUIREMENTS
+警告要求
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
-<!-- -->
-:::
-
-Working on large projects shouldn't feel like a chore. In fact, it should be as
-enjoyable as working on a project you started just two weeks ago. One of the
-reasons it is not is because as the project grows, the developer experience
-suffers. The build times increase and tests become slow and flaky. It's often
-easy to overlook these issues until it gets to a point where they become
-unbearable – however, at that point, it's difficult to address them. Tuist
-Insights provides you with the tools to monitor the health of your project and
-maintain a productive developer environment as your project scales.
-
-In other words, Tuist Insights helps you to answer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
-
-::: info
-<!-- -->
-Tuist Insights are in early development.
+- <LocalizedLink href="/guides/server/accounts-and-projects">图斯特账户和项目</LocalizedLink>
 <!-- -->
 :::
 
-## Builds {#builds}
+在大型项目上工作不应该感觉是一件苦差事。事实上，它应该和两周前刚刚开始的项目一样令人愉快。但事实并非如此，原因之一是随着项目的增长，开发人员的体验会受到影响。构建时间增加，测试变得缓慢而不稳定。人们往往很容易忽视这些问题，直到它们变得难以忍受--然而，到了那个时候，就很难解决这些问题了。Tuist
+Insights 可为您提供各种工具来监控项目的健康状况，并在项目扩展过程中保持高效的开发人员环境。
 
-While you probably have some metrics for the performance of CI workflows, you
-might not have the same visibility into the local development environment.
-However, local build times are one of the most important factors that contribute
-to the developer experience.
+换句话说，Tuist Insights 可以帮助您回答以下问题：
+- 在过去一周中，建造时间是否有明显增加？
+- 我的测试速度是否变慢了？哪些变慢了？
 
-To start tracking local build times, you can leverage the `tuist inspect build`
-command by adding it to your scheme's post-action:
-
-![Post-action for inspecting
-builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
-
-::: info
+信息
 <!-- -->
-We recommend setting the "Provide build settings from" to the executable or your
-main build target to enable Tuist to track the build configuration.
+Tuist Insights 处于早期开发阶段。
 <!-- -->
 :::
 
-::: info
+## 构建 {#builds｝
+
+虽然您可能对 CI 工作流的性能有一定的衡量标准，但对本地开发环境的可视性可能不尽相同。然而，本地构建时间是影响开发人员体验的最重要因素之一。
+
+要开始跟踪本地构建时间，可以利用`tuist inspect build` 命令，将其添加到方案的后期行动中：
+
+![检查构建的后期行动](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
+
+信息
 <!-- -->
-If you are not using <LocalizedLink href="/guides/features/projects">generated
-projects</LocalizedLink>, the post-scheme action is not executed in case the
-build fails.
+我们建议将 "提供构建设置 "设置为可执行文件或主要构建目标，以便 Tuist 跟踪构建配置。
+<!-- -->
+:::
+
+信息
+<!-- -->
+如果不使用 <LocalizedLink href="/guides/features/projects">
+生成的项目</LocalizedLink>，则在构建失败的情况下不会执行方案后操作。
 <!-- -->
 :::
 > 
-> An undocumented feature in Xcode allows you to execute it even in this case.
-> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> 即使在这种情况下，Xcode 中一个未注明的功能也允许您执行它。`` 在相关的`project.pbxproj`
+> 文件中，将`runPostActionsOnFailure` 属性设置为`YES` ：
 > 
 > ```diff
 > <BuildAction
@@ -72,98 +57,77 @@ build fails.
 > +  runPostActionsOnFailure="YES">
 > ```
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+如果您使用的是 [Mise](https://mise.jdx.dev/)，您的脚本需要在行动后环境中激活`tuist` ：
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
+提示 MISE 和项目路径
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
+$SRCROOT 指向的目录运行 Mise。
 <!-- -->
 :::
 
 
-Your local builds are now tracked as long as you are logged in to your Tuist
-account. You can now access your build times in the Tuist dashboard and see how
-they evolve over time:
+现在，只要您登录 Tuist 帐户，您的本地构建就会被跟踪。您现在可以在 Tuist 面板中访问您的构建时间，并查看它们随时间的变化情况：
 
 
 ::: tip
 <!-- -->
-To quickly access the dashboard, run `tuist project show --web` from the CLI.
+要快速访问仪表板，请从 CLI 运行`tuist project show --web` 。
 <!-- -->
 :::
 
-![Dashboard with build
-insights](/images/guides/features/insights/builds-dashboard.png)
+!!!!!!!!!![仪表板，包含构建见解](/images/guides/features/insights/builds-dashboard.png)。
 
-## Tests {#tests}
+## 测试 {#tests}
 
-In addition to tracking builds, you can also monitor your tests. Test insights
-help you identify slow tests or quickly understand failed CI runs.
+除了跟踪构建，您还可以监控测试。测试洞察可帮助您识别缓慢的测试或快速了解失败的 CI 运行。
 
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
+要开始跟踪测试，可以将`tuist inspect test` 命令添加到方案的测试后操作中，从而利用该命令：
 
-![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+检查测试后的行动](/images/guides/features/insights/inspect-test-scheme-post-action.png)。
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+如果您使用的是 [Mise](https://mise.jdx.dev/)，您的脚本需要在行动后环境中激活`tuist` ：
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
+提示 MISE 和项目路径
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
+$SRCROOT 指向的目录运行 Mise。
 <!-- -->
 :::
 
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
+现在，只要您登录 Tuist 帐户，您的测试运行就会被跟踪。您可以在 Tuist 面板中访问您的测试洞察，并查看它们如何随时间演变：
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![具有测试洞察力的仪表板](/images/guides/features/insights/tests-dashboard.png)。
 
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
+除了整体趋势，您还可以深入研究每个测试，例如在调试 CI 上的失败或缓慢测试时：
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![测试细节](/images/guides/features/insights/test-detail.png)!
 
-## Generated projects {#generated-projects}
+## 生成的项目 {#generated-projects}
 
-::: info
+信息
 <!-- -->
-Auto-generated schemes automatically include both `tuist inspect build` and
-`tuist inspect test` post-actions.
+自动生成的方案会自动包含`tuist inspect build` 和`tuist inspect test` 两项后置操作。
 <!-- -->
 :::
 > 
-> If you are not interested in tracking insights in your auto-generated schemes,
-> disable them using the
+> 如果对在自动生成的方案中跟踪洞察力不感兴趣，请使用
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> and
+> 和
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation options.
+> 生成选项禁用洞察力。
 
-If you are using generated projects with custom schemes, you can set up
-post-actions for both build and test insights:
+如果使用的是带有自定义方案的生成项目，则可以为构建和测试洞察设置后置操作：
 
 ```swift
 let project = Project(
@@ -209,7 +173,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your scripts can be simplified to:
+如果不使用 Mise，脚本可简化为
 
 ```swift
 buildAction: .buildAction(
@@ -234,17 +198,17 @@ testAction: .testAction(
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## 持续集成 {#continuous-integration｝
 
-To track build and test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+要跟踪 CI 上的构建和测试洞察，您需要确保您的 CI 已通过
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+验证</LocalizedLink>。
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+此外，您还需要
+- 在调用`xcodebuild` 操作时，使用
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> 命令。
+- 在`xcodebuild` 调用中添加`-resultBundlePath` 。
 
-When `xcodebuild` builds or tests your project without `-resultBundlePath`, the
-required activity log and result bundle files are not generated. Both `tuist
-inspect build` and `tuist inspect test` post-actions require these files to
-analyze your builds and tests.
+当`xcodebuild` 在没有`-resultBundlePath` 的情况下构建或测试您的项目时，不会生成所需的活动日志和结果包文件。`tuist
+inspect build` 和`tuist inspect test` 后操作都需要这些文件来分析您的构建和测试。
