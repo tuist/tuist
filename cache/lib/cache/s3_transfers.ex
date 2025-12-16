@@ -8,6 +8,7 @@ defmodule Cache.S3Transfers do
 
   import Ecto.Query
 
+  alias Cache.CacheArtifacts
   alias Cache.Repo
   alias Cache.S3Transfer
 
@@ -38,7 +39,7 @@ defmodule Cache.S3Transfers do
   field using the format "module::category::hash::name".
   """
   def enqueue_module_upload(account_handle, project_handle, category, hash, name) do
-    artifact_id = encode_module_artifact_id(category, hash, name)
+    artifact_id = CacheArtifacts.encode_module(category, hash, name)
     enqueue(:upload, account_handle, project_handle, artifact_id)
   end
 
@@ -49,12 +50,8 @@ defmodule Cache.S3Transfers do
   field using the format "module::category::hash::name".
   """
   def enqueue_module_download(account_handle, project_handle, category, hash, name) do
-    artifact_id = encode_module_artifact_id(category, hash, name)
+    artifact_id = CacheArtifacts.encode_module(category, hash, name)
     enqueue(:download, account_handle, project_handle, artifact_id)
-  end
-
-  defp encode_module_artifact_id(category, hash, name) do
-    "module::#{category}::#{hash}::#{name}"
   end
 
   @doc """

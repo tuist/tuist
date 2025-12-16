@@ -9,14 +9,14 @@ defmodule Cache.Disk do
   require Logger
 
   @doc """
-  Checks if an artifact exists on disk.
+  Checks if a CAS artifact exists on disk.
 
   ## Examples
 
-      iex> Cache.Disk.exists?("account", "project", "abc123")
+      iex> Cache.Disk.cas_exists?("account", "project", "abc123")
       true
   """
-  def exists?(account_handle, project_handle, id) do
+  def cas_exists?(account_handle, project_handle, id) do
     account_handle
     |> cas_key(project_handle, id)
     |> artifact_path()
@@ -24,7 +24,7 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Writes data to disk for given account, project, and artifact ID.
+  Writes CAS artifact data to disk for given account, project, and artifact ID.
 
   Accepts either binary data or a file path. For file paths, file is moved
   into place without reading into memory (efficient for large uploads).
@@ -33,26 +33,21 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
+      iex> Cache.Disk.cas_put("account", "project", "abc123", <<1, 2, 3>>)
       :ok
 
-      iex> Cache.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
+      iex> Cache.Disk.cas_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-  def put(account_handle, project_handle, id, {:file, tmp_path}) do
+  def cas_put(account_handle, project_handle, id, {:file, tmp_path}) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
-    with :ok <- ensure_directory(path),
-         :ok <- move_file(tmp_path, path) do
-      :ok
-    else
-      {:error, _} = error ->
-        File.rm(tmp_path)
-        error
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
     end
   end
 
-  def put(account_handle, project_handle, id, data) when is_binary(data) do
+  def cas_put(account_handle, project_handle, id, data) when is_binary(data) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path),
@@ -103,7 +98,7 @@ defmodule Cache.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical CAS storage directory.
   """
-  def local_accel_path(account_handle, project_handle, id) do
+  def cas_local_accel_path(account_handle, project_handle, id) do
     "/internal/local/" <> cas_key(account_handle, project_handle, id)
   end
 
@@ -117,14 +112,14 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns local file path for a given account, project, and artifact ID if the file exists.
+  Returns local file path for a given CAS artifact if the file exists.
 
   ## Examples
 
-      iex> Cache.Disk.get_local_path("account", "project", "ABCD1234")
+      iex> Cache.Disk.cas_get_local_path("account", "project", "ABCD1234")
       {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
   """
-  def get_local_path(account_handle, project_handle, id) do
+  def cas_get_local_path(account_handle, project_handle, id) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     if File.exists?(path) do
@@ -135,14 +130,14 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns file stat information for an artifact.
+  Returns file stat information for a CAS artifact.
 
   ## Examples
 
-      iex> Cache.Disk.stat("account", "project", "ABCD1234")
+      iex> Cache.Disk.cas_stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  def stat(account_handle, project_handle, id) do
+  def cas_stat(account_handle, project_handle, id) do
     account_handle
     |> cas_key(project_handle, id)
     |> artifact_path()
@@ -195,13 +190,8 @@ defmodule Cache.Disk do
   def module_put(account_handle, project_handle, category, hash, name, {:file, tmp_path}) do
     path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
 
-    with :ok <- ensure_directory(path),
-         :ok <- move_file(tmp_path, path) do
-      :ok
-    else
-      {:error, _} = error ->
-        File.rm(tmp_path)
-        error
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
     end
   end
 
@@ -271,11 +261,9 @@ defmodule Cache.Disk do
       :ok
     else
       true ->
-        File.rm(tmp_path)
         {:error, :exists}
 
       {:error, reason} ->
-        File.rm(tmp_path)
         Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
         {:error, reason}
     end

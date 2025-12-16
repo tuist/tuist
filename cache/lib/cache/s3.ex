@@ -5,6 +5,8 @@ defmodule Cache.S3 do
   Isolated behind a module for easy testing without mutating global config.
   """
 
+  alias Cache.CacheArtifacts
+
   require Logger
 
   def presign_download_url(key) when is_binary(key) do
@@ -57,8 +59,17 @@ defmodule Cache.S3 do
   Supports both CAS artifacts and module cache artifacts. Module cache artifacts
   are identified by an artifact_id starting with "module::".
   """
-  def upload(account_handle, project_handle, "module::" <> rest) do
-    [category, hash, name] = String.split(rest, "::", parts: 3)
+  def upload(account_handle, project_handle, artifact_id) do
+    case CacheArtifacts.decode(artifact_id) do
+      {:module, category, hash, name} ->
+        upload_module(account_handle, project_handle, category, hash, name)
+
+      {:cas, id} ->
+        upload_cas(account_handle, project_handle, id)
+    end
+  end
+
+  defp upload_module(account_handle, project_handle, category, hash, name) do
     key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
     local_path = Cache.Disk.artifact_path(key)
 
@@ -79,7 +90,7 @@ defmodule Cache.S3 do
     end
   end
 
-  def upload(account_handle, project_handle, artifact_id) do
+  defp upload_cas(account_handle, project_handle, artifact_id) do
     key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
     local_path = Cache.Disk.artifact_path(key)
 
@@ -133,8 +144,17 @@ defmodule Cache.S3 do
   Supports both CAS artifacts and module cache artifacts. Module cache artifacts
   are identified by an artifact_id starting with "module::".
   """
-  def download(account_handle, project_handle, "module::" <> rest) do
-    [category, hash, name] = String.split(rest, "::", parts: 3)
+  def download(account_handle, project_handle, artifact_id) do
+    case CacheArtifacts.decode(artifact_id) do
+      {:module, category, hash, name} ->
+        download_module(account_handle, project_handle, category, hash, name)
+
+      {:cas, id} ->
+        download_cas(account_handle, project_handle, id)
+    end
+  end
+
+  defp download_module(account_handle, project_handle, category, hash, name) do
     key = Cache.Disk.module_key(account_handle, project_handle, category, hash, name)
     Logger.info("Starting S3 download for module artifact: #{key}")
 
@@ -183,7 +203,7 @@ defmodule Cache.S3 do
     end
   end
 
-  def download(account_handle, project_handle, artifact_id) do
+  defp download_cas(account_handle, project_handle, artifact_id) do
     key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
     Logger.info("Starting S3 download for artifact: #{key}")
 
@@ -193,7 +213,7 @@ defmodule Cache.S3 do
 
         case download_file(key, local_path) do
           :ok ->
-            {:ok, %{size: size}} = Cache.Disk.stat(account_handle, project_handle, artifact_id)
+            {:ok, %{size: size}} = Cache.Disk.cas_stat(account_handle, project_handle, artifact_id)
 
             :telemetry.execute([:cache, :cas, :download, :s3_hit], %{size: size}, %{
               cas_id: artifact_id,

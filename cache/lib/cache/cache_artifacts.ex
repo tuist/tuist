@@ -1,6 +1,10 @@
 defmodule Cache.CacheArtifacts do
   @moduledoc """
   Persists cache artifact metadata to support eviction decisions.
+
+  Also provides utilities for encoding and decoding artifact identifiers.
+  CAS artifacts use their hash directly as the ID.
+  Module artifacts are encoded as "module::category::hash::name".
   """
 
   import Ecto.Query
@@ -10,6 +14,44 @@ defmodule Cache.CacheArtifacts do
   alias Cache.Repo
 
   @default_batch_size 500
+  @module_prefix "module::"
+
+  # Artifact ID encoding/decoding
+
+  @doc """
+  Encodes module cache identifiers into a single artifact ID string.
+
+  ## Examples
+
+      iex> Cache.CacheArtifacts.encode_module("builds", "abc123", "MyModule.xcframework.zip")
+      "module::builds::abc123::MyModule.xcframework.zip"
+  """
+  def encode_module(category, hash, name) do
+    "#{@module_prefix}#{category}::#{hash}::#{name}"
+  end
+
+  @doc """
+  Decodes an artifact ID into its typed representation.
+
+  Returns `{:module, category, hash, name}` for module artifact IDs,
+  or `{:cas, id}` for CAS artifact IDs.
+
+  ## Examples
+
+      iex> Cache.CacheArtifacts.decode("module::builds::abc123::MyModule.xcframework.zip")
+      {:module, "builds", "abc123", "MyModule.xcframework.zip"}
+
+      iex> Cache.CacheArtifacts.decode("abc123def456")
+      {:cas, "abc123def456"}
+  """
+  def decode(@module_prefix <> rest) do
+    [category, hash, name] = String.split(rest, "::", parts: 3)
+    {:module, category, hash, name}
+  end
+
+  def decode(id) when is_binary(id), do: {:cas, id}
+
+  # Artifact metadata persistence
 
   @doc """
   Returns the oldest artifacts up to `limit`, ordered by last access time.

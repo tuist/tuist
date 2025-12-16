@@ -21,7 +21,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
 
   describe "POST /api/cache/module (upload)" do
     test "saves artifact successfully when authenticated", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
       body = "test artifact content"
@@ -43,7 +44,10 @@ defmodule CacheWeb.ModuleCacheControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
-          |> post("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}", body)
+          |> post(
+            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
+            body
+          )
 
         assert conn.status == 204
         assert conn.resp_body == ""
@@ -54,11 +58,12 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :upload
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
-      assert transfer.artifact_id == "module::builds::#{hash}::#{name}"
+      assert transfer.artifact_id == CacheArtifacts.encode_module("builds", hash, name)
     end
 
     test "returns 204 when artifact already exists", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
       body = "test artifact content"
@@ -75,36 +80,18 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
-        |> post("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}", body)
+        |> post(
+          "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
+          body
+        )
 
       assert conn.status == 204
       assert conn.resp_body == ""
     end
 
-    test "returns 400 when project_id is invalid format", %{conn: conn} do
-      hash = "abc123"
-      name = "MyModule.xcframework.zip"
-      body = "test artifact content"
-
-      # The auth plug parses project_id, so we need to stub the auth check
-      # for the "invalid" account (single segment means no project_handle)
-      stub(Authentication, :ensure_project_accessible, fn _conn, _account, _project ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("content-type", "application/octet-stream")
-        |> post("/api/cache/module?project_id=invalid&hash=#{hash}&name=#{name}", body)
-
-      assert conn.status == 400
-      response = json_response(conn, 400)
-      assert response["message"] == "Invalid project_id format. Expected 'account_handle/project_handle'"
-    end
-
     test "returns 500 when disk write fails", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
       body = "test artifact content"
@@ -126,7 +113,10 @@ defmodule CacheWeb.ModuleCacheControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
-          |> post("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}", body)
+          |> post(
+            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
+            body
+          )
 
         assert conn.status == 500
         response = json_response(conn, 500)
@@ -135,11 +125,12 @@ defmodule CacheWeb.ModuleCacheControllerTest do
     end
 
     test "uses cache_category parameter when provided", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
       body = "test artifact content"
-      category = "selective_tests"
+      category = "custom_category"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
         {:ok, "Bearer valid-token"}
@@ -159,7 +150,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
           |> post(
-            "/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}&cache_category=#{category}",
+            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}&cache_category=#{category}",
             body
           )
 
@@ -170,7 +161,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
 
   describe "GET /api/cache/module (download)" do
     test "returns X-Accel-Redirect to local file when on disk", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -190,7 +182,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+        |> get(
+          "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
 
       assert conn.status == 200
 
@@ -202,7 +196,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
     end
 
     test "returns X-Accel-Redirect to remote when not on disk", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -231,7 +226,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+        |> get(
+          "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
 
       assert conn.status == 200
 
@@ -244,11 +241,12 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :download
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
-      assert transfer.artifact_id == "module::builds::#{hash}::#{name}"
+      assert transfer.artifact_id == CacheArtifacts.encode_module("builds", hash, name)
     end
 
     test "returns 404 when S3 presign fails", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -276,7 +274,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         conn =
           conn
           |> put_req_header("authorization", "Bearer valid-token")
-          |> get("/api/cache/module?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+          |> get(
+            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+          )
 
         assert conn.status == 404
       end)
@@ -285,7 +285,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
 
   describe "GET /api/cache/module/exists" do
     test "returns 204 when artifact exists on disk", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -300,13 +301,16 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/module/exists?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+        |> get(
+          "/api/cache/module/exists?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
 
       assert conn.status == 204
     end
 
     test "returns 204 when artifact exists in S3", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -326,13 +330,16 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/module/exists?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+        |> get(
+          "/api/cache/module/exists?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
 
       assert conn.status == 204
     end
 
     test "returns 404 when artifact doesn't exist", %{conn: conn} do
-      project_id = "test-account/test-project"
+      account_handle = "test-account"
+      project_handle = "test-project"
       hash = "abc123"
       name = "MyModule.xcframework.zip"
 
@@ -351,7 +358,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/cache/module/exists?project_id=#{project_id}&hash=#{hash}&name=#{name}")
+        |> get(
+          "/api/cache/module/exists?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
 
       assert conn.status == 404
       response = json_response(conn, 404)
