@@ -5,46 +5,43 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# تسجيل {#تسجيل}
 
-The CLI logs messages internally to help you diagnose issues.
+يقوم CLI بتسجيل الرسائل داخلياً لمساعدتك في تشخيص المشاكل.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## تشخيص المشاكل باستخدام السجلات {#تشخيص-المشاكل-باستخدام-السجلات}
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+إذا لم ينتج عن استدعاء الأمر النتائج المرجوة، يمكنك تشخيص المشكلة من خلال فحص
+السجلات. تقوم CLI بإعادة توجيه السجلات إلى [OSLog]
+(https://developer.apple.com/documentation/os/oslog) ونظام الملفات.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a
-Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+في كل عملية تشغيل، ينشئ ملف سجل على `$ XDG_STATE_HOME/UIST/logs/{uuid}.log` حيث
+`$ XDG_STATE_HOME` يأخذ القيمة `~/.local/state` إذا لم يتم تعيين متغير البيئة.
+ويمكنك أيضًا استخدام `$ TUIST_XDG_STATE_STATE_HOME` لتعيين دليل حالة خاص بتويست،
+والذي يأخذ الأسبقية على `$ XDG_STATE_HOME`.
 
-::: tip
+:::: إكرامية
 <!-- -->
-Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories
-documentation</LocalizedLink>.
-<!-- -->
-:::
-
-By default, the CLI outputs the logs path when the execution exits unexpectedly.
-If it doesn't, you can find the logs in the path mentioned above (i.e., the most
-recent log file).
-
-::: warning
-<!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+تعرف على المزيد حول تنظيم دليل تويست وكيفية تكوين الدلائل المخصصة في وثائق
+<LocalizedLink href="/cli/directories"> الدلائل</LocalizedLink>.
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+بشكل افتراضي، يقوم CLI بإخراج مسار السجلات عند خروج التنفيذ بشكل غير متوقع. إذا
+لم يفعل ذلك، يمكنك العثور على السجلات في المسار المذكور أعلاه (أي أحدث ملف سجل).
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+:::: تحذير
+<!-- -->
+لا يتم تنقيح المعلومات الحساسة، لذا كن حذراً عند مشاركة السجلات.
+<!-- -->
+:::
+
+### التكامل المستمر {#تشخيص-المشكلات-باستخدام-سجلات-سي}
+
+في CI، حيث تكون البيئات قابلة للتصرف، قد ترغب في تكوين خط أنابيب CI لتصدير سجلات
+Tuist. تصدير القطع الأثرية هي إمكانية مشتركة عبر خدمات CI، ويعتمد التكوين على
+الخدمة التي تستخدمها. على سبيل المثال، في GitHub Actions، يمكنك استخدام الإجراء
+`actions/upload-artifact` لتحميل السجلات كقطعة أثرية:
 
 ```yaml
 name: Node CI
@@ -71,17 +68,16 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### تصحيح أخطاء البرنامج الخفي للتخزين المؤقت {#cache-daemon-debugging}
 
-For debugging cache-related issues, Tuist logs cache daemon operations using
-`os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in
-real-time using:
+لتصحيح المشاكل المتعلقة بذاكرة التخزين المؤقت، يسجل تويست عمليات البرنامج الخفي
+لذاكرة التخزين المؤقت باستخدام `os_log` مع النظام الفرعي `dev.tuist.cache`.
+يمكنك بث هذه السجلات في الوقت الفعلي باستخدام:
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
-These logs are also visible in Console.app by filtering for the
-`dev.tuist.cache` subsystem. This provides detailed information about cache
-operations, which can help diagnose cache upload, download, and communication
-issues.
+تظهر هذه السجلات أيضًا في Console.app عن طريق التصفية للنظام الفرعي
+`.tuist.cache`. يوفر هذا معلومات مفصلة حول عمليات ذاكرة التخزين المؤقت، والتي
+يمكن أن تساعد في تشخيص مشاكل التحميل والتنزيل والاتصال في ذاكرة التخزين المؤقت.
