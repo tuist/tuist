@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
+### 🐛 Bug Fixes
+
+* add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.0
 
