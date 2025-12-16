@@ -240,7 +240,7 @@ testAction: .testAction(
 )
 ```
 
-## Integración continua {#continuous-integration}
+## Integración continua (CI) {#continuous-integration-ci}
 
 Para realizar un seguimiento de la creación y las pruebas en CI, deberá
 asegurarse de que su CI está
