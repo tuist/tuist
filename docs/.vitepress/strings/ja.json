@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell completions"
+                        },
+                        "directories": {
+                            "text": "ディレクトリ"
                         }
                     }
                 },
@@ -140,7 +143,7 @@
                     }
                 },
                 "releases": {
-                    "text": ""
+                    "text": "リリース"
                 }
             }
         },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "ベストプラクティス"
+                                },
+                                "metadata-tags": {
+                                    "text": "メタデータ・タグ"
                                 }
                             }
                         },
@@ -308,7 +314,10 @@
                                     "text": ""
                                 },
                                 "xcode-cache": {
-                                    "text": ""
+                                    "text": "Xcodeキャッシュ"
+                                },
+                                "module-cache": {
+                                    "text": "モジュールキャッシュ"
                                 }
                             }
                         },
@@ -350,13 +359,13 @@
                             }
                         },
                         "insights": {
-                            "text": "Insights"
+                            "text": "インサイトを構築する"
                         },
                         "bundle-size": {
-                            "text": "Bundle size"
+                            "text": "バンドル・インサイト"
                         },
                         "qa": {
-                            "text": ""
+                            "text": "品質保証"
                         }
                     }
                 },
@@ -373,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "継続的インテグレーション"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "ギットハブ"
+                                }
+                            },
+                            "text": "ギットの鍛造"
                         }
                     }
                 },
@@ -381,6 +401,21 @@
                     "items": {
                         "previews": {
                             "text": "プレビュー機能"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "テレメトリー"
+                                },
+                                "installation": {
+                                    "text": "インストール"
+                                }
+                            },
+                            "text": "セルフホスティング"
                         }
                     }
                 }
