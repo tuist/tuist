@@ -74,16 +74,16 @@ let plugin = Plugin(name: "MyPlugin")
 
 模板名称是资源类型的 [camel case](https://en.wikipedia.org/wiki/Camel_case) 版本：
 
-| 资源类型  | 模板文件名称                   |
-| ----- | ------------------------ |
-| 弦乐    | 字符串模板                    |
-| 资产    | Assets.stencil           |
-| 财产清单  | Plists.stencil           |
-| 字体    | 字体模板                     |
-| 核心数据  | CoreData.stencil         |
-| 界面生成器 | InterfaceBuilder.stencil |
-| JSON  | JSON.stencil             |
-| YAML  | YAML.stencil             |
+| 资源类型  | 模板文件名称                     |
+| ----- | -------------------------- |
+| 弦乐    | `字符串模板`                    |
+| 资产    | `Assets.stencil`           |
+| 财产清单  | `Plists.stencil`           |
+| 字体    | `字体模板`                     |
+| 核心数据  | `CoreData.stencil`         |
+| 界面生成器 | `InterfaceBuilder.stencil` |
+| JSON  | `JSON.stencil`             |
+| YAML  | `YAML.stencil`             |
 
 在项目中定义资源合成器时，可以指定插件名称，以便使用插件中的模板：
 
