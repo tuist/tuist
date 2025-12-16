@@ -5,77 +5,60 @@
   "description": "Learn about synthesized files in Tuist projects."
 }
 ---
-# Synthesized files {#synthesized-files}
+# 합성된 파 {#synthesized-files}
 
-Tuist can generate files and code at generation-time to bring some convenience
-to managing and working with Xcode projects. In this page you'll learn about
-this functionality, and how you can use it in your projects.
+Tuist는 생성할 때 프로젝트를 관리하고 작업하기 위한 몇 가지 규칙을 파일과 코드를 생성할 수 있습니다. 이 페이지에서 이러한 기능에 대해
+배우면 여러분의 프로젝트에서 사용할 수 있게 될 것 입니다.
 
-## Target resources {#target-resources}
+## Target 리소스 {#target-resources}
 
-Xcode projects support adding resources to targets. However, they present teams
-with a few challenges, specially when working with a modular project where
-sources and resources are often moved around:
+Xcode 프로젝트는 Target에 리소스 추가를 지원하지만, 팀에게 몇 가지 문제를 안겨줍니다, 특히 소스와 리소스가 종종 옮겨지는 모듈화된
+프로젝트를 가지고 작업할 때 발생 합니다:
 
-- **Inconsistent runtime access**: Where the resources end up in the final
-  product and how you access them depends on the target product. For example, if
-  your target represents an application, the resources are copied to the
-  application bundle. This leads to code accessing the resources that makes
-  assumptions on the bundle structure, which is not ideal because it makes the
-  code harder to reason about and the resources to move around.
-- **Products that don't support resources**: There are certain products like
-  static libraries that are not bundles and therefore don't support resources.
-  Because of that, you either have to resort to a different product type, for
-  example frameworks, that might add some overhead on your project or app. For
-  example, static frameworks will be linked statically to the final product, and
-  a build phase is required to only copy the resources to the final product. Or
-  dynamic frameworks, where Xcode will copy both the binary and the resources
-  into the final product, but it'll increase the startup time of your app
-  because the framework needs to be loaded dynamically.
-- **Prone to runtime errors**: Resources are identified by their name and
-  extension (strings). Therefore, a typo in any of those will lead to a runtime
-  error when trying to access the resource. This is not ideal because it's not
-  caught at compile time and might lead to crashes in release.
+- **비일관적인 실행 중 접근**: 최종 제품에 있는 Resource의 위치와 거기에 어떻게 접근하는 지는 Target 제품에 달렸습니다.
+  예를 들어, 여러분의 Target이 어플리케이션을 나타낸다면, Resource는 어플리케이션 Bundle에 복제 됩니다. 이러면 코드가
+  Bundle 구조를 가정하는 Resource에 접근할 수 있게 되는데, 이상적이진 않습니다, 이렇게 하면 코드를 분석하기 어렵게 만들고
+  Resource를 멀리 이동하지 못하게 만들기 때문 입니다.
+- **Resource를 지원하지 않는 제품**: 번들화 되지 않아서 Resource를 지원하지 못하는 Static 라이브러리 같은 제품이
+  있습니다. 그런 이유로, 여러분은 다른 제품 Type으로 변경 해야 하던지 해야 합니다, 예를 들어서 여러분의 프로젝트나 앱에 몇 가지
+  과도한 작업이 추가될 수도 있는 Framework로 말이죠. 예를 들어서, Static Framework는 고정적으로 최종 제품에 연결 될
+  것 이고 Build Phase는 Resource를 최종 제품에 복사하는데만 필요로 합니다. 아니면 Xcode가 Binary와 Resource
+  둘 다 최종 제품으로 복사할 동적 Framework, 하지만 그것은 앱의 시작 시간을 증가 시킵니다, Framework가 동적으로 불러와질
+  필요가 있기 때문입니다.
+- **런타임 오류가 발생하기 쉽습니다**: 리소스는 이름과 확장자(문자열)로 식별됩니다. 따라서 이 중 하나라도 오타가 있으면 리소스에
+  액세스하려고 할 때 런타임 오류가 발생합니다. 이는 컴파일 시점에 포착되지 않고 릴리스에서 충돌을 일으킬 수 있으므로 이상적이지 않습니다.
 
-Tuist solves the problems above by **synthesizing a unified interface to access
-bundles and resources** that abstracts away the implementation details.
+Tuist는 위의 문제를 해결하기 위해 **구현 세부 사항을 추상화한 번들 및 리소스(** )에 액세스할 수 있는 통합 인터페이스를 합성하여
+해결합니다.
 
-::: warning RECOMMENDED
+::: 경고 추천
 <!-- -->
-Even though accessing resources through the Tuist-synthesized interface is not
-mandatory, we recommend it because it makes the code easier to reason about and
-the resources to move around.
+튜이스트 통합 인터페이스를 통해 리소스에 액세스하는 것이 필수는 아니지만, 코드를 더 쉽게 추론하고 리소스를 이동하기 쉽기 때문에 권장합니다.
 <!-- -->
 :::
 
-## Resources {#resources}
+## 리소스 {#자원}
 
-Tuist provides interfaces to declare the content of files such as `Info.plist`
-or entitlements in Swift. This is useful to ensure consistency across targets
-and projects, and leverage the compiler to catch issues at compile time. You can
-also come up with your own abstractions to model the content and share it across
-targets and projects.
+Tuist는 `Info.plist` 또는 자격과 같은 파일의 내용을 Swift로 선언하는 인터페이스를 제공합니다. 이는 타깃과 프로젝트 전반에서
+일관성을 보장하고 컴파일 시 컴파일러를 활용하여 문제를 파악하는 데 유용합니다. 또한 콘텐츠를 모델링하고 여러 대상과 프로젝트에서 공유하기 위해
+자체 추상화를 만들 수도 있습니다.
 
-When your project is generated, Tuist will synthesize the content of those files
-and write them into the `Derived` directory relative to the directory containing
-the project that defines them.
+프로젝트가 생성되면 Tuist는 해당 파일의 콘텐츠를 합성하여 해당 파일을 정의하는 프로젝트가 포함된 디렉터리를 기준으로 `Derived`
+디렉터리에 작성합니다.
 
-::: tip GITIGNORE THE DERIVED DIRECTORY
+::: 팁 파생된 디렉토리를 무시하세요.
 <!-- -->
-We recommend adding the `Derived` directory to the `.gitignore` file of your
-project.
+프로젝트의 `.gitignore` 파일에 `파생` 디렉터리를 추가하는 것이 좋습니다.
 <!-- -->
 :::
 
-## Bundle accessors {#bundle-accessors}
+## 번들 액세스자 {#번들-액세서}
 
-Tuist synthesizes an interface to access the bundle that contains the target
-resources.
+Tuist는 대상 리소스가 포함된 번들에 액세스할 수 있는 인터페이스를 합성합니다.
 
 ### Swift {#swift}
 
-The target will contain an extension of the `Bundle` type that exposes the
-bundle:
+대상에는 번들을 노출하는 `번들` 유형의 확장자가 포함됩니다:
 
 ```swift
 let bundle = Bundle.module
@@ -83,88 +66,77 @@ let bundle = Bundle.module
 
 ### Objective-C {#objectivec}
 
-In Objective-C, you'll get an interface `{Target}Resources` to access the
-bundle:
+Objective-C에서는 번들에 액세스할 수 있는 `{Target}Resources` 인터페이스가 제공됩니다:
 
 ```objc
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning LIMITATION WITH INTERNAL TARGETS
+::: 경고 내부 타겟 제한
 <!-- -->
-Currently, Tuist does not generate resource bundle accessors for internal
-targets that contain only Objective-C sources. This is a known limitation
-tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
-<!-- -->
-:::
-
-::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-<!-- -->
-If a target product, for example a library, doesn't support resources, Tuist
-will include the resources in a target of product type `bundle` ensuring that it
-ends up in the final product and that the interface points to the right bundle.
+현재 튜이스트는 Objective-C 소스만 포함된 내부 대상에 대한 리소스 번들 접근자를 생성하지 않습니다. 이는 [이슈
+#6456](https://github.com/tuist/tuist/issues/6456)에서 추적된 알려진 제한 사항입니다.
 <!-- -->
 :::
 
-## Resource accessors {#resource-accessors}
+::: 팁 번들을 통한 라이브러리 리소스 지원
+<!-- -->
+예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, Tuist는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
+가리키도록 하기 위해 `번들` 제품 유형 대상에 리소스를 포함시킵니다.
+<!-- -->
+:::
 
-Resources are identified by their name and extension using strings. This is not
-ideal because it's not caught at compile time and might lead to crashes in
-release. To prevent that, Tuist integrates
-[SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation
-process to synthesize an interface to access the resources. Thanks to that, you
-can confidently access the resources leveraging the compiler to catch any
-issues.
+## 리소스 액세스자 {#자원-액세스자}
 
-Tuist includes
-[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
-to synthesize accessors for the following resource types by default:
+리소스는 문자열을 사용하여 이름과 확장자로 식별됩니다. 이는 컴파일 시 포착되지 않고 릴리스 시 충돌을 일으킬 수 있으므로 이상적이지 않습니다.
+이를 방지하기 위해 Tuist는 프로젝트 생성 프로세스에
+[SwiftGen](https://github.com/SwiftGen/SwiftGen)을 통합하여 리소스에 액세스할 수 있는 인터페이스를
+합성합니다. 덕분에 컴파일러를 활용하여 리소스에 자신 있게 액세스하여 문제를 포착할 수 있습니다.
 
-| Resource type     | Synthesized file         |
-| ----------------- | ------------------------ |
-| Images and colors | `Assets+{Target}.swift`  |
-| Strings           | `Strings+{Target}.swift` |
-| Plists            | `{NameOfPlist}.swift`    |
-| Fonts             | `Fonts+{Target}.swift`   |
-| Files             | `Files+{Target}.swift`   |
+Tuist에는 기본적으로 다음 리소스 유형에 대한 접근자를 합성하는
+[템플릿](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)이
+포함되어 있습니다:
 
-> Note: You can disable the synthesizing of resource accessors on a per-project
-> basis by passing the `disableSynthesizedResourceAccessors` option to the
-> project options.
+| 리소스 유형   | 합성된 파일                  |
+| -------- | ----------------------- |
+| 이미지 및 색상 | `Assets+{Target}.swift` |
+| 문자열      | `문자열+{Target}.swift`    |
+| 목록       | `{NameOfPlist}.swift`   |
+| 글꼴       | `Fonts+{Target}.swift`  |
+| 파일       | `Files+{Target}.swift`  |
 
-#### Custom templates {#custom-templates}
+> 참고: 프로젝트별 리소스 접근자 합성을 비활성화하려면 프로젝트 옵션에 `disableSynthesizedResourceAccessors`
+> 옵션을 전달하여 프로젝트별로 리소스 접근자 합성을 비활성화할 수 있습니다.
 
-If you want to provide your own templates to synthesize accessors to other
-resource types, which must be supported by
-[SwiftGen](https://github.com/SwiftGen/SwiftGen), you can create them at
-`Tuist/ResourceSynthesizers/{name}.stencil`, where the name is the camel-case
-version of the resource.
+#### 사용자 지정 템플릿 {#custom-templates}
 
-| Resource         | Template name              |
-| ---------------- | -------------------------- |
-| strings          | `Strings.stencil`          |
-| assets           | `Assets.stencil`           |
-| plists           | `Plists.stencil`           |
-| fonts            | `Fonts.stencil`            |
-| coreData         | `CoreData.stencil`         |
-| interfaceBuilder | `InterfaceBuilder.stencil` |
-| json             | `JSON.stencil`             |
-| yaml             | `YAML.stencil`             |
-| files            | `Files.stencil`            |
+SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른 리소스 유형에 대한 접근자를
+합성하기 위해 자체 템플릿을 제공하려는 경우 `Tuist/ResourceSynthesizers/{name}.stencil` 에서 만들 수
+있으며, 여기서 이름은 리소스의 대소문자 버전입니다.
 
-If you want to configure the list of resource types to synthesize accessors for,
-you can use the `Project.resourceSynthesizers` property passing the list of
-resource synthesizers you want to use:
+| 참고자료     | 템플릿 이름             |
+| -------- | ------------------ |
+| 문자열      | `문자열.스텐실`          |
+| 자산       | `Assets.stencil`   |
+| 목록       | `Plists.stencil`   |
+| 글꼴       | `Fonts.stencil`    |
+| 핵심 데이터   | `CoreData.stencil` |
+| 인터페이스 빌더 | `인터페이스 빌더 스텐실`     |
+| json     | `JSON.stencil`     |
+| yaml     | `YAML.stencil`     |
+| 파일       | `Files.stencil`    |
+
+접근자를 합성할 리소스 유형 목록을 구성하려면 `Project.resourceSynthesizers` 프로퍼티에 사용하려는 리소스 합성기 목록을
+전달하면 됩니다:
 
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info REFERENCE
+정보 참조 ::: 정보 참조
 <!-- -->
-You can check out [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-to see an example of how to use custom templates to synthesize accessors to
-resources.
+사용자 지정 템플릿을 사용하여 리소스에 대한 액세스자를 합성하는 방법의 예는 [이 수정
+사항](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)에서
+확인할 수 있습니다.
 <!-- -->
 :::
