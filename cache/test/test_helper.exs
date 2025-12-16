@@ -1,4 +1,6 @@
 Mimic.copy(Appsignal)
+Mimic.copy(Appsignal.Span)
+Mimic.copy(Appsignal.Tracer)
 Mimic.copy(Cache.Authentication)
 Mimic.copy(Cache.Disk)
 Mimic.copy(Cache.CASArtifacts)
