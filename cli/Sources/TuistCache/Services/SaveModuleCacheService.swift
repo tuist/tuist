@@ -7,9 +7,10 @@ import TuistServer
 
 @Mockable
 public protocol SaveModuleCacheServicing: Sendable {
-    func saveModuleCache(
+    func uploadModuleCacheArtifact(
         _ data: Data,
-        fullHandle: String,
+        accountHandle: String,
+        projectHandle: String,
         hash: String,
         name: String,
         cacheCategory: String,
@@ -43,12 +44,13 @@ public enum SaveModuleCacheServiceError: LocalizedError {
     }
 }
 
-public final class SaveModuleCacheService: SaveModuleCacheServicing {
+public struct SaveModuleCacheService: SaveModuleCacheServicing {
     public init() {}
 
-    public func saveModuleCache(
+    public func uploadModuleCacheArtifact(
         _ data: Data,
-        fullHandle: String,
+        accountHandle: String,
+        projectHandle: String,
         hash: String,
         name: String,
         cacheCategory: String,
@@ -65,7 +67,8 @@ public final class SaveModuleCacheService: SaveModuleCacheServicing {
         let response = try await client.uploadModuleCacheArtifact(
             .init(
                 query: .init(
-                    project_id: fullHandle,
+                    account_handle: accountHandle,
+                    project_handle: projectHandle,
                     hash: hash,
                     name: name,
                     cache_category: cacheCategory

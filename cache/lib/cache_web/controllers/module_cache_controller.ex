@@ -13,17 +13,25 @@ defmodule CacheWeb.ModuleCacheController do
 
   plug OpenApiSpex.Plug.CastAndValidate, json_render_error_v2: true
 
+  action_fallback CacheWeb.FallbackController
+
   tags(["ModuleCache"])
 
   operation(:download,
     summary: "Download a module cache artifact",
     operation_id: "downloadModuleCacheArtifact",
     parameters: [
-      project_id: [
+      account_handle: [
         in: :query,
         type: :string,
         required: true,
-        description: "Project ID (account_handle/project_handle)"
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
       ],
       hash: [
         in: :query,
@@ -41,7 +49,7 @@ defmodule CacheWeb.ModuleCacheController do
         in: :query,
         type: :string,
         required: false,
-        description: "Cache category (builds, selective_tests)"
+        description: "Cache category (builds)"
       ]
     ],
     responses: %{
@@ -53,61 +61,52 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def download(conn, params) do
-    with {:ok, {account_handle, project_handle}} <- parse_project_id(params),
-         {:ok, hash} <- fetch_param(params, :hash),
-         {:ok, name} <- fetch_param(params, :name) do
-      category = Map.get(params, :cache_category, "builds")
-      key = Disk.module_key(account_handle, project_handle, category, hash, name)
+  def download(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+    category = Map.get(params, :cache_category, "builds")
+    key = Disk.module_key(account_handle, project_handle, category, hash, name)
 
-      :telemetry.execute([:cache, :module, :download, :hit], %{}, %{})
-      :ok = CacheArtifacts.track_artifact_access(key)
+    :telemetry.execute([:cache, :module, :download, :hit], %{}, %{})
+    :ok = CacheArtifacts.track_artifact_access(key)
 
-      case Disk.module_stat(account_handle, project_handle, category, hash, name) do
-        {:ok, %File.Stat{size: size}} ->
-          local_path = Disk.module_local_accel_path(account_handle, project_handle, category, hash, name)
+    case Disk.module_stat(account_handle, project_handle, category, hash, name) do
+      {:ok, %File.Stat{size: size}} ->
+        local_path = Disk.module_local_accel_path(account_handle, project_handle, category, hash, name)
 
-          :telemetry.execute([:cache, :module, :download, :disk_hit], %{size: size}, %{
-            category: category,
-            hash: hash,
-            name: name,
-            account_handle: account_handle,
-            project_handle: project_handle
-          })
+        :telemetry.execute([:cache, :module, :download, :disk_hit], %{size: size}, %{
+          category: category,
+          hash: hash,
+          name: name,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
 
-          conn
-          |> put_resp_content_type("application/octet-stream")
-          |> put_resp_header("x-accel-redirect", local_path)
-          |> send_resp(:ok, "")
-
-        {:error, _} ->
-          :telemetry.execute([:cache, :module, :download, :disk_miss], %{}, %{})
-
-          if S3.exists?(key) do
-            S3Transfers.enqueue_module_download(account_handle, project_handle, category, hash, name)
-
-            case S3.presign_download_url(key) do
-              {:ok, url} ->
-                conn
-                |> put_resp_content_type("application/octet-stream")
-                |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
-                |> send_resp(:ok, "")
-
-              {:error, reason} ->
-                Logger.error("Failed to presign S3 URL for module artifact: #{inspect(reason)}")
-                :telemetry.execute([:cache, :module, :download, :error], %{}, %{reason: inspect(reason)})
-                send_not_found(conn)
-            end
-          else
-            :telemetry.execute([:cache, :module, :download, :s3_miss], %{}, %{})
-            send_not_found(conn)
-          end
-      end
-    else
-      {:error, message} ->
         conn
-        |> put_status(:bad_request)
-        |> json(%{message: message})
+        |> put_resp_content_type("application/octet-stream")
+        |> put_resp_header("x-accel-redirect", local_path)
+        |> send_resp(:ok, "")
+
+      {:error, _} ->
+        :telemetry.execute([:cache, :module, :download, :disk_miss], %{}, %{})
+
+        if S3.exists?(key) do
+          S3Transfers.enqueue_module_download(account_handle, project_handle, category, hash, name)
+
+          case S3.presign_download_url(key) do
+            {:ok, url} ->
+              conn
+              |> put_resp_content_type("application/octet-stream")
+              |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+              |> send_resp(:ok, "")
+
+            {:error, reason} ->
+              Logger.error("Failed to presign S3 URL for module artifact: #{inspect(reason)}")
+              :telemetry.execute([:cache, :module, :download, :error], %{}, %{reason: inspect(reason)})
+              {:error, :not_found}
+          end
+        else
+          :telemetry.execute([:cache, :module, :download, :s3_miss], %{}, %{})
+          {:error, :not_found}
+        end
     end
   end
 
@@ -115,11 +114,17 @@ defmodule CacheWeb.ModuleCacheController do
     summary: "Upload a module cache artifact",
     operation_id: "uploadModuleCacheArtifact",
     parameters: [
-      project_id: [
+      account_handle: [
         in: :query,
         type: :string,
         required: true,
-        description: "Project ID (account_handle/project_handle)"
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
       ],
       hash: [
         in: :query,
@@ -137,7 +142,7 @@ defmodule CacheWeb.ModuleCacheController do
         in: :query,
         type: :string,
         required: false,
-        description: "Cache category (builds, selective_tests)"
+        description: "Cache category (builds)"
       ]
     ],
     request_body: {"The artifact data", "application/octet-stream", nil, required: true},
@@ -152,22 +157,13 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def upload(conn, params) do
-    with {:ok, {account_handle, project_handle}} <- parse_project_id(params),
-         {:ok, hash} <- fetch_param(params, :hash),
-         {:ok, name} <- fetch_param(params, :name) do
-      category = Map.get(params, :cache_category, "builds")
+  def upload(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+    category = Map.get(params, :cache_category, "builds")
 
-      if Disk.module_exists?(account_handle, project_handle, category, hash, name) do
-        handle_existing_artifact(conn)
-      else
-        save_new_artifact(conn, account_handle, project_handle, category, hash, name)
-      end
+    if Disk.module_exists?(account_handle, project_handle, category, hash, name) do
+      handle_existing_artifact(conn)
     else
-      {:error, message} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: message})
+      save_new_artifact(conn, account_handle, project_handle, category, hash, name)
     end
   end
 
@@ -175,11 +171,17 @@ defmodule CacheWeb.ModuleCacheController do
     summary: "Check if a module cache artifact exists",
     operation_id: "moduleCacheArtifactExists",
     parameters: [
-      project_id: [
+      account_handle: [
         in: :query,
         type: :string,
         required: true,
-        description: "Project ID (account_handle/project_handle)"
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
       ],
       hash: [
         in: :query,
@@ -197,7 +199,7 @@ defmodule CacheWeb.ModuleCacheController do
         in: :query,
         type: :string,
         required: false,
-        description: "Cache category (builds, selective_tests)"
+        description: "Cache category (builds)"
       ]
     ],
     responses: %{
@@ -209,41 +211,14 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def exists(conn, params) do
-    with {:ok, {account_handle, project_handle}} <- parse_project_id(params),
-         {:ok, hash} <- fetch_param(params, :hash),
-         {:ok, name} <- fetch_param(params, :name) do
-      category = Map.get(params, :cache_category, "builds")
-      key = Disk.module_key(account_handle, project_handle, category, hash, name)
+  def exists(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+    category = Map.get(params, :cache_category, "builds")
+    key = Disk.module_key(account_handle, project_handle, category, hash, name)
 
-      if Disk.module_exists?(account_handle, project_handle, category, hash, name) or S3.exists?(key) do
-        send_resp(conn, :no_content, "")
-      else
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "Artifact not found"})
-      end
+    if Disk.module_exists?(account_handle, project_handle, category, hash, name) or S3.exists?(key) do
+      send_resp(conn, :no_content, "")
     else
-      {:error, message} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: message})
-    end
-  end
-
-  defp parse_project_id(%{project_id: project_id}) when is_binary(project_id) do
-    case String.split(project_id, "/") do
-      [account_handle, project_handle] -> {:ok, {account_handle, project_handle}}
-      _ -> {:error, "Invalid project_id format. Expected 'account_handle/project_handle'"}
-    end
-  end
-
-  defp parse_project_id(_), do: {:error, "Missing required parameter: project_id"}
-
-  defp fetch_param(params, key) do
-    case Map.get(params, key) do
-      nil -> {:error, "Missing required parameter: #{key}"}
-      value -> {:ok, value}
+      {:error, :not_found}
     end
   end
 
@@ -263,21 +238,21 @@ defmodule CacheWeb.ModuleCacheController do
         :telemetry.execute([:cache, :module, :upload, :attempt], %{size: size}, %{})
         persist_artifact(conn_after, account_handle, project_handle, category, hash, name, data, size)
 
-      {:error, :too_large, conn_after} ->
+      {:error, :too_large, _conn_after} ->
         :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :too_large})
-        send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
+        {:error, :too_large}
 
-      {:error, :timeout, conn_after} ->
+      {:error, :timeout, _conn_after} ->
         :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :timeout})
-        send_error(conn_after, :request_timeout, "Request body read timed out")
+        {:error, :timeout}
 
       {:error, :cancelled, conn_after} ->
         :telemetry.execute([:cache, :module, :upload, :cancelled], %{count: 1}, %{})
         send_resp(conn_after, :no_content, "")
 
-      {:error, _reason, conn_after} ->
+      {:error, _reason, _conn_after} ->
         :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :read_error})
-        send_error(conn_after, :internal_server_error, "Failed to persist artifact")
+        {:error, :persist_error}
     end
   end
 
@@ -308,24 +283,17 @@ defmodule CacheWeb.ModuleCacheController do
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->
+        cleanup_tmp_file(data)
         :telemetry.execute([:cache, :module, :upload, :exists], %{count: 1}, %{})
         send_resp(conn, :no_content, "")
 
       {:error, _reason} ->
+        cleanup_tmp_file(data)
         :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :persist_error})
-        send_error(conn, :internal_server_error, "Failed to persist artifact")
+        {:error, :persist_error}
     end
   end
 
-  defp send_error(conn, status, message) do
-    conn
-    |> put_status(status)
-    |> json(%{message: message})
-  end
-
-  defp send_not_found(conn) do
-    conn
-    |> put_status(:not_found)
-    |> json(%{message: "Artifact not found"})
-  end
+  defp cleanup_tmp_file({:file, tmp_path}), do: File.rm(tmp_path)
+  defp cleanup_tmp_file(_binary_data), do: :ok
 end
