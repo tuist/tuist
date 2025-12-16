@@ -5,18 +5,17 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# إضافة تبعيات {# إضافة تبعيات}
 
-It's common for projects to depend on third-party libraries to provide
-additional functionality. To do so, run the following command to have the best
-experience editing your project:
+من الشائع أن تعتمد المشاريع على مكتبات الطرف الثالث لتوفير وظائف إضافية. للقيام
+بذلك، قم بتشغيل الأمر التالي للحصول على أفضل تجربة لتحرير مشروعك:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the
-`Package.swift` and add the
+سيتم فتح مشروع Xcode يحتوي على ملفات مشروعك. قم بتحرير ملف `Package.swift.swift`
+وأضف
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,8 +43,7 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a
-dependency:
+ثم قم بتحرير هدف التطبيق في مشروعك للإعلان عن `Kingfisher` كتبعية:
 
 ```swift
 import ProjectDescription
@@ -85,33 +83,33 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift
-Package Manager](https://www.swift.org/documentation/package-manager/).
+ثم قم بتشغيل `tuist install` لحل وسحب التبعيات باستخدام [Swift Package Manager]
+(https://www.swift.org/documentation/package-manager/).
 
-::: info SPM AS A DEPENDENCY RESOLVER
+::::: معلومات SPM كمحلل اعتماد
 <!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
-only to resolve dependencies. Tuist then converts them into Xcode projects and
-targets for maximum configurability and control.
+النهج الموصى به من تويست للتبعيات يستخدم مدير حزم سويفت (SPM) فقط لحل التبعيات.
+ثم يقوم تويست بتحويلها إلى مشاريع وأهداف Xcode لتحقيق أقصى قدر من التهيئة
+والتحكم.
 <!-- -->
 :::
 
-## Visualize the project {#visualize-the-project}
+## تصوّر المشروع {#تصوّر المشروع}
 
-You can visualize the project structure by running:
+يمكنك تصور بنية المشروع من خلال تشغيل:
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+سيقوم الأمر بإخراج وفتح ملف `graph.png.png` في دليل المشروع:
 
-![Project graph](/images/guides/quick-start/graph.png)
+![الرسم البياني للمشروع] (/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## استخدم التبعية {# استخدم التبعية}
 
-Run `tuist generate` to open the project in Xcode, and make the following
-changes to the `ContentView.swift` file:
+قم بتشغيل `tuist توليد` لفتح المشروع في Xcode، وقم بإجراء التغييرات التالية على
+ملف `ContentView.swift.swift`
 
 ```swift
 import SwiftUI
@@ -135,4 +133,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+شغِّل التطبيق من Xcode، وسترى الصورة محمَّلة من عنوان URL.
