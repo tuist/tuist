@@ -58,7 +58,7 @@ struct SetupCacheCommandService {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let tuistBinaryPath = try determineTuistBinaryPath()
+        let tuistBinaryPath = try await determineTuistBinaryPath()
         let launchDaemonPlistPath = try await createLaunchDaemonPlist(
             fullHandle: fullHandle,
             url: serverURL.absoluteString,
@@ -233,18 +233,29 @@ struct SetupCacheCommandService {
         }
     }
 
-    private func determineTuistBinaryPath() throws -> AbsolutePath {
+    private func determineTuistBinaryPath() async throws -> AbsolutePath {
         guard let currentPath = Environment.current.currentExecutablePath() else {
             throw SetupCacheCommandServiceError.missingExecutablePath
         }
 
         // Check if the current executable is mise-managed
         if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            // Use the latest symlink for mise-managed installations
             let homeDir = Environment.current.homeDirectory
-            return homeDir.appending(
+
+            let misePath = homeDir.appending(
+                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
+            )
+            if try await fileSystem.exists(misePath) {
+                return misePath
+            }
+
+            // Check old mise path (with bin directory)
+            let oldMisePath = homeDir.appending(
                 components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
             )
+            if try await fileSystem.exists(oldMisePath) {
+                return oldMisePath
+            }
         }
 
         return currentPath
