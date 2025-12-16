@@ -31,7 +31,7 @@ odpowiednich zmiennych środowiskowych. Po skonfigurowaniu Tuist będzie
 automatycznie śledzić zdarzenia użytkowników, wyświetlenia stron i podróże
 użytkowników.
 
-| Zmienna środowiskowa    | Opis                                              | Wymagane | Domyślne | Przykład                                          |
+| Zmienna środowiskowa    | Opis                                              | Wymagane | Domyślne | Przykłady                                         |
 | ----------------------- | ------------------------------------------------- | -------- | -------- | ------------------------------------------------- |
 | `TUIST_POSTHOG_API_KEY` | Klucz API projektu PostHog                        | Nie      |          | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | Adres URL punktu końcowego interfejsu API PostHog | Nie      |          | `https://eu.i.posthog.com`                        |
