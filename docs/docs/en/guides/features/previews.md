@@ -74,8 +74,6 @@ When you share a preview with a track, it becomes part of that track's distribut
 - **In-app updates**: The Tuist SDK uses tracks to determine which updates to notify users about
 - **Filtering**: Easily find and manage previews by track in the Tuist dashboard
 
-If no track is specified, previews are associated only with their git branch.
-
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
 Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
