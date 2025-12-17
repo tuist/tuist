@@ -872,11 +872,12 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
-  describe "latest_preview_for_binary_id/3" do
+  describe "latest_preview_for_binary_id/4" do
     test "returns the latest preview on the same track" do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "1"
 
       preview_one =
         AppBuildsFixtures.preview_fixture(
@@ -887,7 +888,7 @@ defmodule Tuist.AppBuildsTest do
         )
 
       _app_build_one =
-        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
 
       preview_two =
         AppBuildsFixtures.preview_fixture(
@@ -900,7 +901,7 @@ defmodule Tuist.AppBuildsTest do
       _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_two.id
@@ -910,6 +911,7 @@ defmodule Tuist.AppBuildsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440001"
+      build_version = "1"
 
       preview =
         AppBuildsFixtures.preview_fixture(
@@ -918,10 +920,11 @@ defmodule Tuist.AppBuildsTest do
           git_branch: "main"
         )
 
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+      app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project, preload: [:app_builds])
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project, preload: [:app_builds])
 
       # Then
       assert result.id == preview.id
@@ -933,6 +936,7 @@ defmodule Tuist.AppBuildsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440002"
+      build_version = "1"
 
       preview_main =
         AppBuildsFixtures.preview_fixture(
@@ -943,7 +947,7 @@ defmodule Tuist.AppBuildsTest do
         )
 
       _app_build_main =
-        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id, build_version: build_version)
 
       _preview_feature =
         AppBuildsFixtures.preview_fixture(
@@ -954,7 +958,7 @@ defmodule Tuist.AppBuildsTest do
         )
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_main.id
@@ -965,9 +969,10 @@ defmodule Tuist.AppBuildsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "nonexistent-binary-id"
+      build_version = "1"
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
 
       # Then
       assert result == {:error, :not_found}
@@ -977,6 +982,7 @@ defmodule Tuist.AppBuildsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440003"
+      build_version = "1"
 
       preview =
         AppBuildsFixtures.preview_fixture(
@@ -985,10 +991,11 @@ defmodule Tuist.AppBuildsTest do
           git_branch: "main"
         )
 
-      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
 
       # Then
       assert result == {:error, :not_found}
@@ -999,6 +1006,7 @@ defmodule Tuist.AppBuildsTest do
       project_one = ProjectsFixtures.project_fixture()
       project_two = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440004"
+      build_version = "1"
 
       preview =
         AppBuildsFixtures.preview_fixture(
@@ -1007,10 +1015,11 @@ defmodule Tuist.AppBuildsTest do
           git_branch: "main"
         )
 
-      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, project_two)
+      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project_two)
 
       # Then
       assert result == {:error, :not_found}
@@ -1031,7 +1040,7 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      app_build = AppBuilds.create_app_build(attrs)
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
 
       # Then
       assert app_build.preview_id == preview.id
@@ -1052,10 +1061,98 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      app_build = AppBuilds.create_app_build(attrs)
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
 
       # Then
       assert app_build.type == :ipa
+    end
+
+    test "creates an app build with binary_id and build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      attrs = %{
+        preview_id: preview.id,
+        type: :app_bundle,
+        built_by_account_id: project.account.id,
+        supported_platforms: [:ios],
+        binary_id: binary_id,
+        build_version: build_version
+      }
+
+      # When
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
+
+      # Then
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == build_version
+    end
+
+    test "returns error when creating app build with duplicate binary_id and build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview_one = AppBuildsFixtures.preview_fixture(project: project)
+      preview_two = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      {:ok, _existing_app_build} =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_one.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: build_version
+        })
+
+      # When
+      result =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_two.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: build_version
+        })
+
+      # Then
+      assert {:error, changeset} = result
+      assert Keyword.has_key?(changeset.errors, :binary_id)
+    end
+
+    test "allows creating app build with same binary_id but different build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview_one = AppBuildsFixtures.preview_fixture(project: project)
+      preview_two = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      {:ok, _existing_app_build} =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_one.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: "123"
+        })
+
+      # When
+      result =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_two.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: "124"
+        })
+
+      # Then
+      assert {:ok, app_build} = result
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == "124"
     end
   end
 

@@ -393,7 +393,7 @@ struct ShareCommandService {
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(displayName)",
             successMessage: "\(displayName) uploaded",
-            errorMessage: "Failed to upload the preview"
+            errorMessage: "Failed to upload \(displayName)"
         ) { updateProgress in
             try await previewsUploadService.uploadPreview(
                 previewUploadType,

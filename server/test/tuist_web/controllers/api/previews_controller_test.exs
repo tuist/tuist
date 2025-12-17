@@ -217,6 +217,124 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.binary_id == binary_id
     end
 
+    test "starts multipart upload with binary_id and build_version", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == build_version
+    end
+
+    test "returns 409 conflict when uploading duplicate app build with same binary_id and build_version", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      _existing_app_build =
+        AppBuildsFixtures.app_build_fixture(
+          project: project,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      # Then
+      response = json_response(conn, :conflict)
+      assert response["status"] == "error"
+      assert response["code"] == "duplicate_app_build"
+
+      assert response["message"] ==
+               "An app build with binary_id '#{binary_id}' and build_version '#{build_version}' already exists."
+    end
+
+    test "allows uploading app build with same binary_id but different build_version", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version_one = "123"
+      build_version_two = "124"
+
+      _existing_app_build =
+        AppBuildsFixtures.app_build_fixture(
+          project: project,
+          binary_id: binary_id,
+          build_version: build_version_one
+        )
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          binary_id: binary_id,
+          build_version: build_version_two
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == build_version_two
+    end
+
     test "returns error when project doesn't exist", %{
       conn: conn,
       user: user,

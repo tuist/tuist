@@ -142,7 +142,7 @@ public protocol APIProtocol: Sendable {
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
     /// Get the latest preview for a binary.
     ///
-    /// Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
@@ -742,7 +742,7 @@ extension APIProtocol {
     }
     /// Get the latest preview for a binary.
     ///
-    /// Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
@@ -4125,6 +4125,49 @@ public enum Components {
                     self.size = size
                 }
                 typealias CodingKeys = Components.Schemas.BundleArtifact.CodingKeys
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError`.
+        public struct DuplicateAppBuildError: Codable, Hashable, Sendable {
+            /// Error code
+            ///
+            /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError/code`.
+            @frozen public enum codePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case duplicate_app_build = "duplicate_app_build"
+            }
+            /// Error code
+            ///
+            /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError/code`.
+            public var code: Components.Schemas.DuplicateAppBuildError.codePayload
+            /// A human-readable error message
+            ///
+            /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError/message`.
+            public var message: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case error = "error"
+            }
+            /// - Remark: Generated from `#/components/schemas/DuplicateAppBuildError/status`.
+            public var status: Components.Schemas.DuplicateAppBuildError.statusPayload
+            /// Creates a new `DuplicateAppBuildError`.
+            ///
+            /// - Parameters:
+            ///   - code: Error code
+            ///   - message: A human-readable error message
+            ///   - status:
+            public init(
+                code: Components.Schemas.DuplicateAppBuildError.codePayload,
+                message: Swift.String,
+                status: Components.Schemas.DuplicateAppBuildError.statusPayload
+            ) {
+                self.code = code
+                self.message = message
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case code
+                case message
+                case status
             }
         }
         /// Represents a single build run.
@@ -7626,6 +7669,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
                     public var binary_id: Swift.String?
+                    /// The CFBundleVersion of the app.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/build_version`.
+                    public var build_version: Swift.String?
                     /// The bundle identifier of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/bundle_identifier`.
@@ -7669,6 +7716,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - binary_id: The Mach-O UUID of the binary.
+                    ///   - build_version: The CFBundleVersion of the app.
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
@@ -7679,6 +7727,7 @@ public enum Operations {
                     ///   - version: The version of the preview.
                     public init(
                         binary_id: Swift.String? = nil,
+                        build_version: Swift.String? = nil,
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
@@ -7689,6 +7738,7 @@ public enum Operations {
                         version: Swift.String? = nil
                     ) {
                         self.binary_id = binary_id
+                        self.build_version = build_version
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
                         self.git_branch = git_branch
@@ -7700,6 +7750,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case binary_id
+                        case build_version
                         case bundle_identifier
                         case display_name
                         case git_branch
@@ -7999,6 +8050,100 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Error code
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json/code`.
+                        @frozen public enum codePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case duplicate_app_build = "duplicate_app_build"
+                        }
+                        /// Error code
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json/code`.
+                        public var code: Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload.codePayload
+                        /// A human-readable error message
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json/message`.
+                        public var message: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case error = "error"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/json/status`.
+                        public var status: Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload.statusPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - code: Error code
+                        ///   - message: A human-readable error message
+                        ///   - status:
+                        public init(
+                            code: Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload.codePayload,
+                            message: Swift.String,
+                            status: Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload.statusPayload
+                        ) {
+                            self.code = code
+                            self.message = message
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case code
+                            case message
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/application\/json`.
+                    case json(Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startPreviewsMultipartUpload.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// An app build with the same binary_id and build_version already exists
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.startPreviewsMultipartUpload.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.startPreviewsMultipartUpload.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -13353,7 +13498,7 @@ public enum Operations {
     }
     /// Get the latest preview for a binary.
     ///
-    /// Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
@@ -13390,12 +13535,21 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query/binary_id`.
                 public var binary_id: Swift.String
+                /// The CFBundleVersion of the running app.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query/build_version`.
+                public var build_version: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - binary_id: The Mach-O UUID of the running binary.
-                public init(binary_id: Swift.String) {
+                ///   - build_version: The CFBundleVersion of the running app.
+                public init(
+                    binary_id: Swift.String,
+                    build_version: Swift.String? = nil
+                ) {
                     self.binary_id = binary_id
+                    self.build_version = build_version
                 }
             }
             public var query: Operations.getLatestPreview.Input.Query
