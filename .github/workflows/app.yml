@@ -9,6 +9,8 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +18,8 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
 
 permissions:
   id-token: write
