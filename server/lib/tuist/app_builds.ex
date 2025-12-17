@@ -104,6 +104,11 @@ defmodule Tuist.AppBuilds do
     end
   end
 
+  defp app_build_by_binary_id_and_build_version(binary_id, build_version, _opts)
+       when is_nil(binary_id) or is_nil(build_version) do
+    {:error, :not_found}
+  end
+
   defp app_build_by_binary_id_and_build_version(binary_id, build_version, opts) do
     preload = Keyword.get(opts, :preload, [])
 

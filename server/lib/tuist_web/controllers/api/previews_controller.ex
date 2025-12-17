@@ -631,6 +631,7 @@ defmodule TuistWeb.API.PreviewsController do
       build_version: [
         in: :query,
         type: :string,
+        required: true,
         description: "The CFBundleVersion of the running app."
       ]
     ],

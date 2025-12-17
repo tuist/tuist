@@ -288,7 +288,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["code"] == "duplicate_app_build"
 
       assert response["message"] ==
-               "An app build with binary_id '#{binary_id}' and build_version '#{build_version}' already exists."
+               "An app build with the same binary ID '#{binary_id}' and build version '#{build_version}' already exists."
     end
 
     test "allows uploading app build with same binary_id but different build_version", %{
@@ -969,7 +969,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                      "supported_platforms" => ["ios"],
                      "url" => "https://mocked-url.com",
                      "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at),
-                     "binary_id" => nil
+                     "binary_id" => nil,
+                     "build_version" => nil
                    }
                  ],
                  "supported_platforms" => [],
@@ -1404,6 +1405,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
 
       preview_one =
         AppBuildsFixtures.preview_fixture(
@@ -1415,7 +1417,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       _app_build_one =
-        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
 
       preview_two =
         AppBuildsFixtures.preview_fixture(
@@ -1436,7 +1438,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}&build_version=#{build_version}"
         )
 
       # Then
@@ -1468,7 +1470,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=nonexistent-id"
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=nonexistent-id&build_version=123"
         )
 
       # Then
@@ -1485,6 +1487,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       binary_id = "550E8400-E29B-41D4-A716-446655440001"
+      build_version = "123"
 
       preview_main =
         AppBuildsFixtures.preview_fixture(
@@ -1496,7 +1499,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       _app_build_main =
-        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id, build_version: build_version)
 
       _preview_feature =
         AppBuildsFixtures.preview_fixture(
@@ -1515,7 +1518,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}&build_version=#{build_version}"
         )
 
       # Then
@@ -1533,6 +1536,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       binary_id = "550E8400-E29B-41D4-A716-446655440002"
+      build_version = "123"
 
       preview =
         AppBuildsFixtures.preview_fixture(
@@ -1542,7 +1546,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id)
+      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -1550,7 +1554,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}"
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}&build_version=#{build_version}"
         )
 
       # Then
@@ -1574,7 +1578,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=some-id"
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=some-id&build_version=123"
         )
 
       # Then
