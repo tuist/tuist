@@ -5,58 +5,58 @@
   "description": "Learn how to use Tuist's MCP server to have a language-based interface for your app development environment."
 }
 ---
-# بروتوكول السياق النموذجي (MCP)
+# Model Context Protocol (MCP)
 
-[بروتوكول سياق النموذج (MCP)] (https://www.claudemcp.com) هو معيار اقترحه [كلود]
-(https://claude.ai) لتفاعل الآلات ذات السقف المنخفض مع بيئات التطوير. يمكنك
-التفكير فيه على أنه USB-C الخاص بـ LLMs. مثل حاويات الشحن، التي جعلت الشحن
-والنقل أكثر قابلية للتشغيل البيني، أو بروتوكولات مثل TCP، التي فصلت طبقة التطبيق
-عن طبقة النقل، يجعل MCP التطبيقات التي تعمل بنظام LLM مثل
-[Claude](https://claude.ai/) و [Claude
-Code](https://docs.anthropic.com/en/docs/claude-code) والمحررين مثل
-[Zed](https://zed.dev) و [Cursor](https://www.cursor.com) و [VS
-Code](https://code.visualstudio.com) قابلة للتشغيل البيني مع المجالات الأخرى.
+[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard proposed
+by [Claude](https://claude.ai) for LLMs to interact with development
+environments. You can think of it as the USB-C of LLMs. Like shipping
+containers, which made cargo and transportation more interoperable, or protocols
+like TCP, which decoupled the application layer from the transport layer, MCP
+makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude
+Code](https://docs.anthropic.com/en/docs/claude-code), and editors like
+[Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS
+Code](https://code.visualstudio.com) interoperable with other domains.
 
-يوفر Tuist خادمًا محليًا من خلال CLI الخاص به حتى تتمكن من التفاعل مع بيئة تطوير
-تطبيقاتك **** . من خلال ربط تطبيقات العميل الخاصة بك به، يمكنك استخدام اللغة
-للتفاعل مع مشاريعك.
+Tuist provides a local server through its CLI so that you can interact with your
+**app development environment**. By connecting your client apps to it, you can
+use language to interact with your projects.
 
-ستتعرف في هذه الصفحة على كيفية إعداده وإمكانياته.
+In this page you'll learn about how to set it up and its capabilities.
 
-:::: المعلومات
+::: info
 <!-- -->
-يستخدم خادم تويست MCP أحدث مشاريع Xcode كمصدر للحقيقة للمشاريع التي تريد التفاعل
-معها.
+Tuist MCP server uses Xcode's most-recent projects as the source of truth for
+projects you want to interact with.
 <!-- -->
 :::
 
-## قم بإعداده
+## Set it up
 
-يوفر Tuist أوامر الإعداد التلقائي للعملاء المشهورين المتوافقين مع MCP. ما عليك
-سوى تشغيل الأمر المناسب لعميلك:
+Tuist provides automated setup commands for popular MCP-compatible clients.
+Simply run the appropriate command for your client:
 
-### [كلود] (https://claude.ai)
+### [Claude](https://claude.ai)
 
-بالنسبة لـ [كلود سطح المكتب] (https://claude.ai/download)، قم بتشغيل:
+For [Claude desktop](https://claude.ai/download), run:
 ```bash
 tuist mcp setup claude
 ```
 
-سيؤدي هذا إلى تكوين الملف في `~ ~/مكتبة/دعم
-التطبيقات/كلود/كلود_desktop_config.json`.
+This will configure the file at `~/Library/Application
+Support/Claude/claude_desktop_config.json`.
 
-### [كلود كود] (https://docs.anthropic.com/en/docs/claude-code)
+### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
-بالنسبة لرمز كلود كود، قم بتشغيل:
+For Claude Code, run:
 ```bash
 tuist mcp setup claude-code
 ```
 
-سيؤدي ذلك إلى تكوين نفس ملف كلود لسطح المكتب.
+This will configure the same file as Claude desktop.
 
-### [المؤشر] (https://www.cursor.com)
+### [Cursor](https://www.cursor.com)
 
-بالنسبة إلى Cursor IDE، يمكنك تكوينه عالميًا أو محليًا:
+For Cursor IDE, you can configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup cursor --global
@@ -68,9 +68,9 @@ tuist mcp setup cursor
 tuist mcp setup cursor --path /path/to/project
 ```
 
-### [زيد] (https://zed.dev)
+### [Zed](https://zed.dev)
 
-بالنسبة لمحرر Zed، يمكنك أيضًا تكوينه عالميًا أو محليًا:
+For Zed editor, you can also configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup zed --global
@@ -82,9 +82,9 @@ tuist mcp setup zed
 tuist mcp setup zed --path /path/to/project
 ```
 
-### [رمز VS] (https://code.visualstudio.com)
+### [VS Code](https://code.visualstudio.com)
 
-بالنسبة لرمز VS Code مع امتداد MCP، قم بتكوينه عالميًا أو محليًا:
+For VS Code with MCP extension, configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup vscode --global
@@ -96,12 +96,12 @@ tuist mcp setup vscode
 tuist mcp setup vscode --path /path/to/project
 ```
 
-### التكوين اليدوي
+### Manual Configuration
 
-إذا كنت تفضل التهيئة يدويًا أو كنت تستخدم عميل MCP مختلف، أضف خادم Tuist MCP إلى
-تهيئة العميل:
+If you prefer to configure manually or are using a different MCP client, add the
+Tuist MCP server to your client's configuration:
 
-:::: مجموعة الرموز
+::: code-group
 
 ```json [Global Tuist installation (e.g. Homebrew)]
 {
@@ -127,36 +127,38 @@ tuist mcp setup vscode --path /path/to/project
 <!-- -->
 :::
 
-## الإمكانيات
+## Capabilities
 
-ستتعرف في الأقسام التالية على إمكانيات خادم تويست MCP.
+In the following sections you'll learn about the capabilities of the Tuist MCP
+server.
 
-### الموارد
+### Resources
 
-#### أحدث المشاريع ومساحات العمل
+#### Recent projects and workspaces
 
-يحتفظ تويست بسجل لمشاريع Xcode ومساحات العمل التي عملت عليها مؤخرًا، مما يتيح
-لتطبيقك الوصول إلى الرسوم البيانية للتبعية الخاصة بها للحصول على رؤى قوية. يمكنك
-الاستعلام عن هذه البيانات للكشف عن تفاصيل حول بنية مشروعك وعلاقاته، مثل:
+Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked
+with, giving your application access to their dependency graphs for powerful
+insights. You can query this data to uncover details about your project
+structure and relationships, such as:
 
-- ما هي التبعيات المباشرة والمتعدية لهدف معين؟
-- ما هو الهدف الذي يحتوي على أكبر عدد من الملفات المصدر، وكم عدد الملفات التي
-  يتضمنها؟
-- ما هي جميع المنتجات الثابتة (مثل المكتبات الثابتة أو الأطر الثابتة) في الرسم
-  البياني؟
-- هل يمكنك سرد جميع الأهداف، مرتبة أبجديًا، مع ذكر أسمائها وأنواع المنتجات (على
-  سبيل المثال، تطبيق، إطار عمل، اختبار وحدة)؟
-- ما هي الأهداف التي تعتمد على إطار عمل معين أو تبعية خارجية معينة؟
-- ما هو إجمالي عدد الملفات المصدر في جميع الأهداف في المشروع؟
-- هل توجد أي تبعيات دائرية بين الأهداف، وإذا كان الأمر كذلك، فأين؟
-- ما هي الأهداف التي تستخدم مورداً محدداً (مثل صورة أو ملف plist)؟
-- ما هي أعمق سلسلة تبعية في الرسم البياني، وما هي الأهداف المتضمنة؟
-- هل يمكنك أن تريني جميع أهداف الاختبار وأهداف التطبيق أو إطار العمل المرتبطة
-  بها؟
-- ما هي الأهداف التي لديها أطول أوقات بناء بناءً على التفاعلات الأخيرة؟
-- ما هي الاختلافات في التبعيات بين هدفين محددين؟
-- هل هناك أي ملفات مصدر أو موارد غير مستخدمة في المشروع؟
-- ما هي الأهداف التي تشترك في التبعيات المشتركة، وما هي هذه التبعيات؟
+- What are the direct and transitive dependencies of a specific target?
+- Which target has the most source files, and how many does it include?
+- What are all the static products (e.g., static libraries or frameworks) in the
+  graph?
+- Can you list all targets, sorted alphabetically, along with their names and
+  product types (e.g., app, framework, unit test)?
+- Which targets depend on a particular framework or external dependency?
+- What’s the total number of source files across all targets in the project?
+- Are there any circular dependencies between targets, and if so, where?
+- Which targets use a specific resource (e.g., an image or plist file)?
+- What’s the deepest dependency chain in the graph, and which targets are
+  involved?
+- Can you show me all the test targets and their associated app or framework
+  targets?
+- Which targets have the longest build times based on recent interactions?
+- What are the differences in dependencies between two specific targets?
+- Are there any unused source files or resources in the project?
+- Which targets share common dependencies, and what are they?
 
-مع Tuist، يمكنك التعمق في مشاريع Xcode الخاصة بك كما لم يحدث من قبل، مما يسهل
-عليك فهم وتحسين وإدارة حتى أكثر الإعدادات تعقيدًا!
+With Tuist, you can dig into your Xcode projects like never before, making it
+easier to understand, optimize, and manage even the most complex setups!

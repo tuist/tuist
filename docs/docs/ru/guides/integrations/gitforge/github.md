@@ -5,52 +5,51 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# Интеграция с GitHub {#github}
+# GitHub integration {#github}
 
-Git-репозитории являются центральным элементом подавляющего большинства
-программных проектов. Мы интегрируемся с GitHub, чтобы предоставлять информацию
-о Tuist прямо в ваших запросах на внесение изменений и избавить вас от некоторых
-настроек, таких как синхронизация ветки по умолчанию.
+Git repositories are the centerpiece of the vast majority of software projects
+out there. We integrate with GitHub to provide Tuist insights right in your pull
+requests and to save you some configuration such as syncing your default branch.
 
-## Настройка {#setup}
+## Setup {#setup}
 
-Вам нужно установить приложение Tuist GitHub на вкладке `Integrations` вашей
-организации: ![Изображение, показывающее вкладку
-интеграций](/images/guides/integrations/gitforge/github/integrations.png)
+You will need to install the Tuist GitHub app in the `Integrations` tab of your
+organization: ![An image that shows the integrations
+tab](/images/guides/integrations/gitforge/github/integrations.png)
 
-После этого вы можете добавить проектную связь между вашим репозиторием GitHub и
-проектом Tuist:
+After that, you can add a project connection between your GitHub repository and
+your Tuist project:
 
-![Изображение, показывающее добавление связи с
-проектом](/images/guides/integrations/gitforge/github/add-project-connection.png)
+![An image that shows adding the project
+connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## Комментарии к Pull/merge-запросам {#pull-merge-request-comments}
+## Pull/merge request comments {#pull-merge-request-comments}
 
-Приложение GitHub публикует отчет о выполнении Tuist, который содержит краткую
-информацию о PR, включая ссылки на последние
-<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">превью</LocalizedLink>
-или
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">тесты</LocalizedLink>:
+The GitHub app posts a Tuist run report, which includes a summary of the PR,
+including links to the latest
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
+or
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>:
 
-![Изображение, показывающее комментарий к запросу на вытягивание]
-(/images/guides/integrations/gitforge/github/pull-request-comment.png)
+![An image that shows the pull request
+comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: инфо РЕКВИЗИТЫ
+::: info REQUIREMENTS
 <!-- -->
-Комментарий будет опубликован только в том случае, если ваши CI-запуски
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">аутентифицированы</LocalizedLink>.
+The comment is only posted when your CI runs are
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 <!-- -->
 :::
 
 ::: info GITHUB_REF
 <!-- -->
-Если у вас есть собственный рабочий процесс, который запускается не на
-PR-коммит, а, например, на комментарий GitHub, вам может понадобиться убедиться,
-что переменная `GITHUB_REF` установлена либо на `refs/pull/<pr_number>/merge`,
-либо на `refs/pull/<pr_number>/head`.</pr_number></pr_number>
+If you have a custom workflow that's not triggered on a PR commit, but for
+example, a GitHub comment, you might need to ensure that the `GITHUB_REF`
+variable is set to either `refs/pull/<PR_NUMBER>/merge` or
+`refs/pull/<PR_NUMBER>/head`.
 
-Вы можете выполнить соответствующую команду, например `tuist share`, с префиксом
-`GITHUB_REF` переменной окружения: <code v-pre>GITHUB_REF="refs/pull/${{
+You can run the relevant command, like `tuist share`, with the prefixed
+`GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{
 github.event.issue.number }}/head" tuist share</code>
 <!-- -->
 :::

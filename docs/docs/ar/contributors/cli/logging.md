@@ -5,30 +5,31 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# تسجيل {#تسجيل}
+# Logging {#logging}
 
-تتبنى واجهة CLI واجهة [swift-log] (https://github.com/apple/swift-log) للتسجيل.
-تلخّص الحزمة تفاصيل تنفيذ التسجيل، مما يسمح لواجهة CLI أن تكون غير مرتبطة
-بالواجهة الخلفية للتسجيل. يتم حقن المسجِّل بالتبعية باستخدام المهام المحلية
-ويمكن الوصول إليه في أي مكان باستخدام:
+The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface
+for logging. The package abstracts away the implementation details of logging,
+allowing the CLI to be agnostic to the logging backend. The logger is
+dependency-injected using task locals and can be accessed anywhere using:
 
 ```bash
 Logger.current
 ```
 
-:::: المعلومات
+::: info
 <!-- -->
-لا تقوم المهام المحلية للمهام بنشر القيمة عند استخدام `الإرسال` أو المهام
-المنفصلة، لذا إذا كنت تستخدمها، ستحتاج إلى الحصول عليها وتمريرها إلى العملية غير
-المتزامنة.
+Task locals don't propagate the value when using `Dispatch` or detached tasks,
+so if you use them, you'll need to get it and pass it to the asynchronous
+operation.
 <!-- -->
 :::
 
-## ما يجب تسجيله {#ما يجب تسجيله}
+## What to log {#what-to-log}
 
-السجلات ليست واجهة مستخدم CLI. إنها أداة لتشخيص المشاكل عند ظهورها. لذلك، كلما
-زادت المعلومات التي تقدمها، كان ذلك أفضل. عند إنشاء ميزات جديدة، ضع نفسك مكان
-مطور يصادف سلوكًا غير متوقع، وفكر في المعلومات التي ستكون مفيدة له. تأكد من أنك
-تستخدم [مستوى السجل]
-(https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
-الصحيح. وإلا فلن يتمكن المطورون من تصفية الضوضاء.
+Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
+Therefore, the more information you provide, the better. When building new
+features, put yourself in the shoes of a developer coming across unexpected
+behavior, and think about what information would be helpful to them. Ensure you
+you use the right [log
+level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
+Otherwise developers won't be able to filter out the noise.

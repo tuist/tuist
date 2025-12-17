@@ -120,7 +120,7 @@ Tuist includes
 [templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
 to synthesize accessors for the following resource types by default:
 
-| Resource type     | Synthesized files        |
+| Resource type     | Synthesized file         |
 | ----------------- | ------------------------ |
 | Images and colors | `Assets+{Target}.swift`  |
 | Strings           | `Strings+{Target}.swift` |
@@ -140,7 +140,7 @@ resource types, which must be supported by
 `Tuist/ResourceSynthesizers/{name}.stencil`, where the name is the camel-case
 version of the resource.
 
-| Resources        | Template name              |
+| Resource         | Template name              |
 | ---------------- | -------------------------- |
 | strings          | `Strings.stencil`          |
 | assets           | `Assets.stencil`           |

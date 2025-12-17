@@ -5,15 +5,18 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 依存関係の追加 {#add-dependencies}
+# Add dependencies {#add-dependencies}
 
-追加機能を提供するために、プロジェクトがサードパーティのライブラリに依存することはよくあることです。そのためには、以下のコマンドを実行すると、プロジェクトの編集がより快適になります：
+It's common for projects to depend on third-party libraries to provide
+additional functionality. To do so, run the following command to have the best
+experience editing your project:
 
 ```bash
 tuist edit
 ```
 
-プロジェクト・ファイルを含むXcodeプロジェクトが開きます。`Package.swift` 。
+An Xcode project will open containing your project files. Edit the
+`Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +44,8 @@ let package = Package(
 )
 ```
 
-次に、プロジェクトのアプリケーション・ターゲットを編集して、`Kingfisher` を依存関係として宣言します：
+Then edit the application target in your project to declare `Kingfisher` as a
+dependency:
 
 ```swift
 import ProjectDescription
@@ -81,31 +85,33 @@ let project = Project(
 )
 ```
 
-それから`tuist install` を実行し、[Swift Package
-Manager](https://www.swift.org/documentation/package-manager/)を使って依存関係を解決し、取り出します。
+Then run `tuist install` to resolve and pull the dependencies using the [Swift
+Package Manager](https://www.swift.org/documentation/package-manager/).
 
-::: info ディペンダント・リゾルバとしてのSPM
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-依存関係に対するTuistの推奨アプローチは、依存関係を解決するためにSwift Package Manager
-(SPM)のみを使用する。そしてTuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定と制御を可能にする。
+Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
+only to resolve dependencies. Tuist then converts them into Xcode projects and
+targets for maximum configurability and control.
 <!-- -->
 :::
 
-## プロジェクトを可視化する{#visualize-the-project}。
+## Visualize the project {#visualize-the-project}
 
-を実行することで、プロジェクトの構造を可視化することができる：
+You can visualize the project structure by running:
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリにある`graph.png` ファイルを出力し、開きます：
+The command will output and open a `graph.png` file in the project's directory:
 
-プロジェクトグラフ
+![Project graph](/images/guides/quick-start/graph.png)
 
-## 依存関係を使う {#use-the-dependency} 。
+## Use the dependency {#use-the-dependency}
 
-`tuist generate` を実行して Xcode でプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます：
+Run `tuist generate` to open the project in Xcode, and make the following
+changes to the `ContentView.swift` file:
 
 ```swift
 import SwiftUI
@@ -129,4 +135,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcodeからアプリを実行すると、URLから読み込まれた画像が表示されるはずです。
+Run the app from Xcode, and you should see the image loaded from the URL.

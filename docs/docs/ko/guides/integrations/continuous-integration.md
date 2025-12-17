@@ -5,23 +5,25 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# 지속적 통합(CI) {#continuous-integration-ci}
+# Continuous Integration (CI) {#continuous-integration-ci}
 
-지속적 통합](https://en.wikipedia.org/wiki/Continuous_integration) 워크플로에서 Tuist 명령을
-실행하려면 CI 환경에 설치해야 합니다.
+To run Tuist commands in your [continuous
+integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows,
+you'll need to install it in your CI environment.
 
-인증은 선택 사항이지만 <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>와
-같은 서버 측 기능을 사용하려는 경우 필수입니다.
+Authentication is optional but required if you want to use server-side features
+like <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>.
 
-다음 섹션에서는 다양한 CI 플랫폼에서 이 작업을 수행하는 방법에 대한 예를 제공합니다.
+The following sections provide examples of how to do this on different CI
+platforms.
 
-## 예제 {#example}
+## Examples {#examples}
 
-### GitHub 액션 {#github-actions}
+### GitHub Actions {#github-actions}
 
-GitHub 작업](https://docs.github.com/en/actions)에서
+On [GitHub Actions](https://docs.github.com/en/actions) you can use
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 안전하고 비밀 없는 인증을 할 수 있습니다:
+authentication</LocalizedLink> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -115,29 +117,32 @@ jobs:
 <!-- -->
 :::
 
-::: 정보 OIDC 설정
+::: info OIDC SETUP
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
-저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id-token: write` 권한이
-필요합니다. 또는 `TUIST_TOKEN` 시크릿과 함께
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
+write` is required for OIDC to work. Alternatively, you can use a
+<LocalizedLink href="/guides/server/authentication#project-tokens">project
+token</LocalizedLink> with the `TUIST_TOKEN` secret.
 <!-- -->
 :::
 
 ::: tip
 <!-- -->
-여러 환경에 걸쳐 Tuist 버전을 고정하려면 Tuist 프로젝트에서 `mise use --pin` 을 사용하는 것이 좋습니다. 이 명령은
-Tuist의 버전이 포함된 `.tool-versions` 파일을 생성합니다.
+We recommend using `mise use --pin` in your Tuist projects to pin the version of
+Tuist across environments. The command will create a `.tool-versions` file
+containing the version of Tuist.
 <!-- -->
 :::
 
-### Xcode 클라우드 {#xcode-cloud}
+### Xcode Cloud {#xcode-cloud}
 
-Xcode 프로젝트를 소스로 사용하는 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)에서
+In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
+projects as the source of truth, you'll need to add a
 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-스크립트를 추가하여 Tuist를 설치하고 필요한 명령(예: `tuist generate`)을 실행해야 합니다:
+script to install Tuist and run the commands you need, for example `tuist
+generate`:
 
 ::: code-group
 
@@ -163,18 +168,19 @@ tuist generate
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
-설정합니다.
+Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project
+token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
+Xcode Cloud workflow settings.
 <!-- -->
 :::
 
 ### CircleCI {#circleci}
 
-CircleCI](https://circleci.com)에서는
+On [CircleCI](https://circleci.com) you can use
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+authentication</LocalizedLink> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -225,22 +231,23 @@ jobs:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use a
+<LocalizedLink href="/guides/server/authentication#project-tokens">project
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
 ### Bitrise {#bitrise}
 
-Bitrise](https://bitrise.io)에서는
+On [Bitrise](https://bitrise.io) you can use
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+authentication</LocalizedLink> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -293,20 +300,22 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use a
+<LocalizedLink href="/guides/server/authentication#project-tokens">project
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
-### 코드매직 {#코드매직}
+### Codemagic {#codemagic}
 
-코드매직](https://codemagic.io)에서 워크플로에 추가 단계를 추가하여 Tuist를 설치할 수 있습니다:
+In [Codemagic](https://codemagic.io), you can add an additional step to your
+workflow to install Tuist:
 
 ::: code-group
 ```yaml [Mise]
@@ -345,8 +354,11 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+Create a
+<LocalizedLink href="/guides/server/authentication#project-tokens">project
+token</LocalizedLink> and add it as a secret environment variable named
+`TUIST_TOKEN`.
 <!-- -->
 :::

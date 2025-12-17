@@ -5,77 +5,81 @@
   "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
 }
 ---
-# تجزئة {# تجزئة}
+# Hashing {#hashing}
 
-تتطلب ميزات مثل <LocalizedLink href="/guides/features/cache"> التخزين المؤقت
-</LocalizedLink> أو تنفيذ الاختبار الانتقائي طريقة لتحديد ما إذا كان الهدف قد
-تغير. يقوم تويست بحساب تجزئة لكل هدف في الرسم البياني التبعي لتحديد ما إذا كان
-الهدف قد تغير. يتم حساب التجزئة بناءً على السمات التالية:
+Features like
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or
+selective test execution require a way to determine whether a target has
+changed. Tuist calculates a hash for each target in the dependency graph to
+determine if a target has changed. The hash is calculated based on the following
+attributes:
 
-- سمات الهدف (مثل الاسم والمنصة والمنتج وما إلى ذلك)
-- ملفات الهدف
-- تجزئة تبعيات الهدف
+- The target's attributes (e.g., name, platform, product, etc.)
+- The target's files
+- The hash of the target's dependencies
 
-### سمات ذاكرة التخزين المؤقت {# سمات ذاكرة التخزين المؤقت}
+### Cache attributes {#cache-attributes}
 
-بالإضافة إلى ذلك، عند حساب التجزئة لـ
-<LocalizedLink href="/guides/features/cache">التخزين المؤقت</LocalizedLink>،
-نقوم أيضًا بتجزئة السمات التالية.
+Additionally, when calculating the hash for
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also
+hash the following attributes.
 
-#### إصدار سويفت {#إصدار سويفت}
+#### Swift version {#swift-version}
 
-نقوم بتجزئة إصدار Swift الذي تم الحصول عليه من تشغيل الأمر `/usr/bin/xcrun swift
--- الإصدار` لمنع أخطاء التحويل البرمجي بسبب عدم تطابق إصدار Swift بين الأهداف
-والثنائيات.
+We hash the Swift version obtained from running the command `/usr/bin/xcrun
+swift --version` to prevent compilation errors due to Swift version mismatches
+between the targets and the binaries.
 
-:::: معلومات استقرار الوحدة النمطية
+::: info MODULE STABILITY
 <!-- -->
-اعتمدت الإصدارات السابقة من التخزين المؤقت الثنائي على إعداد البناء
-`BUILD_LIBRARY_FOR_DISTRIBUTION` لتمكين [استقرار الوحدة النمطية]
-(https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-وتمكين استخدام الثنائيات مع أي إصدار من المحول البرمجي. ومع ذلك، تسبب ذلك في
-حدوث مشكلات في التجميع في المشاريع ذات الأهداف التي لا تدعم استقرار الوحدة
-النمطية. الثنائيات التي تم إنشاؤها مرتبطة بإصدار Swift المستخدم لتجميعها، ويجب
-أن يتطابق إصدار Swift مع الإصدار المستخدم لتجميع المشروع.
+Previous versions of binary caching relied on the
+`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
+stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+and enable using binaries with any compiler version. However, it caused
+compilation issues in projects with targets that don't support module stability.
+Generated binaries are bound to the Swift version used to compile them, and the
+Swift version must match the one used to compile the project.
 <!-- -->
 :::
 
-#### التكوين {#التكوين}
+#### Configuration {#configuration}
 
-كانت الفكرة من وراء العلم `-التكوين` هي ضمان عدم استخدام ثنائيات التصحيح في
-إنشاءات الإصدار والعكس صحيح. ومع ذلك، ما زلنا نفتقد آلية لإزالة التكوينات الأخرى
-من المشاريع لمنع استخدامها.
+The idea behind the flag `-configuration` was to ensure debug binaries were not
+used in release builds and viceversa. However, we are still missing a mechanism
+to remove the other configurations from the projects to prevent them from being
+used.
 
-## تصحيح الأخطاء {#تصحيح الأخطاء}
+## Debugging {#debugging}
 
-إذا لاحظت وجود سلوكيات غير محددة عند استخدام التخزين المؤقت عبر البيئات أو
-عمليات الاستدعاء، فقد يكون ذلك مرتبطًا بالاختلافات بين البيئات أو خطأ في منطق
-التجزئة. نوصي باتباع هذه الخطوات لتصحيح المشكلة:
+If you notice non-deterministic behaviors when using the caching across
+environments or invocations, it might be related to differences across the
+environments or a bug in the hashing logic. We recommend following these steps
+to debug the issue:
 
-1. قم بتشغيل `تويست` أو `تويست تجزئة الاختبار الانتقائي` (تجزئات لـ
-   <LocalizedLink href="/guides/features/cache"> تخزين مؤقت
-   ثنائي</LocalizedLink> أو
-   <LocalizedLink href="/guides/features/selective-testing"> اختبار
-   انتقائي</LocalizedLink>)، انسخ التجزئات، وأعد تسمية دليل المشروع، ثم قم
-   بتشغيل الأمر مرة أخرى. يجب أن تتطابق التجزئات.
-2. إذا كانت التجزئات غير متطابقة، فمن المحتمل أن المشروع الذي تم إنشاؤه يعتمد
-   على البيئة. قم بتشغيل `tuist graph --format json` في كلتا الحالتين وقارن
-   الرسوم البيانية. أو بدلاً من ذلك، أنشئ المشروعين وقارن بين ملفيهما
-   `project.pbxproj` باستخدام أداة فرق مثل [Diffchecker]
-   (https://www.diffchecker.com).
-3. إذا كانت التجزئات هي نفسها ولكن تختلف عبر البيئات (على سبيل المثال، CI
-   والمحلي)، تأكد من استخدام نفس [التكوين] (#configuration) و [إصدار سويفت]
-   (#swift-version) في كل مكان. إصدار Swift مرتبط بإصدار Xcode، لذا تأكد من
-   تطابق إصدارات Xcode.
+1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
+   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
+   or <LocalizedLink href="/guides/features/selective-testing">selective
+   testing</LocalizedLink>), copy the hashes, rename the project directory, and
+   run the command again. The hashes should match.
+2. If the hashes don't match, it's likely that the generated project depends on
+   the environment. Run `tuist graph --format json` in both cases and compare
+   the graphs. Alternatively, generate the projects and compare their
+   `project.pbxproj` files with a diff tool such as
+   [Diffchecker](https://www.diffchecker.com).
+3. If the hashes are the same but differ across environments (for example, CI
+   and local), make sure the same [configuration](#configuration) and [Swift
+   version](#swift-version) are used everywhere. The Swift version is tied to
+   the Xcode version, so confirm the Xcode versions match.
 
-إذا كانت التجزئات لا تزال غير محددة، فأخبرنا بذلك ويمكننا المساعدة في تصحيح
-الأخطاء.
+If the hashes are still non-deterministic, let us know and we can help with the
+debugging.
 
 
-:::: معلومات تم تخطيط تجربة أفضل للتحقق من المعلومات
+::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
-تحسين تجربة تصحيح الأخطاء في خارطة طريقنا. سيتم استبدال أمر طباعة التجزئة، الذي
-يفتقر إلى السياق لفهم الاختلافات، بأمر أكثر سهولة في الاستخدام يستخدم بنية شبيهة
-بالشجرة لإظهار الاختلافات بين التجزئات.
+Improving our debugging experience is in our roadmap. The print-hashes command,
+which lacks the context to understand the differences, will be replaced by a
+more user-friendly command that uses a tree-like structure to show the
+differences between the hashes.
 <!-- -->
 :::

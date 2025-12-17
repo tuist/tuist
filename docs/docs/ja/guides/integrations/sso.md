@@ -7,50 +7,68 @@
 ---
 # SSO {#sso}
 
-## グーグル
+## Google {#google}
 
-Google Workspace組織を持っていて、同じGoogleホストドメインでサインインした開発者をTuist組織に追加したい場合は、次のように設定します：
+If you have a Google Workspace organization and you want any developer who signs
+in with the same Google hosted domain to be added to your Tuist organization,
+you can set it up with:
 ```bash
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: 警告
+::: warning
 <!-- -->
-設定するドメインの組織に関連付けられた電子メールを使用してGoogleで認証する必要があります。
+You must be authenticated with Google using an email tied to the organization
+whose domain you are setting up.
 <!-- -->
 :::
 
 ## Okta {#okta}
 
-Oktaを使用したSSOは、企業のお客様のみご利用いただけます。設定にご興味のある方は、[contact@tuist.dev](mailto:contact@tuist.dev)までご連絡ください。
+SSO with Okta is available only for enterprise customers. If you are interested
+in setting it up, please contact us at
+[contact@tuist.dev](mailto:contact@tuist.dev).
 
-プロセス中に、Okta SSOの設定をサポートする担当者が割り当てられます。
+During the process, you will be assigned a point of contact to help you set up
+the Okta SSO.
 
-まず、Oktaアプリケーションを作成し、Tuistで動作するように設定する必要があります：
-1. Oktaの管理ダッシュボードにアクセスする
-2. アプリケーション > アプリケーション > アプリの統合を作成
-3. OIDC - OpenID Connect "と "Webアプリケーション "を選択する。
-4. アプリケーションの表示名、例えば "Tuist
-   "を入力してください。このURL](https://tuist.dev/images/tuist_dashboard.png)にあるTuistのロゴをアップロードしてください。
-5. サインインのリダイレクトURIは今のところそのままにしておく。
-6. Assignments "でSSOアプリケーションへのアクセスコントロールを選択し、保存します。
-7. 保存後、アプリケーションの一般設定が利用可能になります。クライアントID "と "クライアントシークレット "をコピーしてください。
-8. Tuistチームは提供されたクライアントIDとシークレットでTuistサーバーを再デプロイする必要があります。これには最大1営業日かかります。
-9. サーバーがデプロイされたら、General Settingsの "Edit "ボタンをクリックします。
-10. 以下のリダイレクトURLを貼り付ける：`https://tuist.dev/users/auth/okta/callback`
-13. Login initiated by」を「Either Okta or App」に変更します。
-14. ユーザーにアプリケーションのアイコンを表示する」を選択する
-15. Initiate login URL "を`https://tuist.dev/users/auth/okta?organization_id=1`
-    で更新します。`organization_id` は、担当者から提供されます。
-16. 保存」をクリックする。
-17. OktaダッシュボードからTuistログインを開始する。
-18. 以下のコマンドを実行して、Oktaドメインから署名したユーザーにTuist組織へのアクセスを自動的に与えます：
+Firstly, you will need to create an Okta application and configure it to work
+with Tuist:
+1. Go to Okta admin dashboard
+2. Applications > Applications > Create App Integration
+3. Select "OIDC - OpenID Connect" and "Web Application"
+4. Enter the display name for the application, for example, "Tuist". Upload a
+   Tuist logo located at [this
+   URL](https://tuist.dev/images/tuist_dashboard.png).
+5. Leave sign-in redirect URIs as it is for now
+6. Under "Assignments" choose the desired access control to the SSO Application
+   and save.
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret" – you will need to safely share this
+   with your point of contact.
+8. The Tuist team will need to redeploy the Tuist server with the provided
+   client ID and secret. This may take up to one business day.
+9. Once the server is deployed, click on General Settings "Edit" button.
+10. Paste the following redirect URL:
+    `https://tuist.dev/users/auth/okta/callback`
+13. Change "Login initiated by" to "Either Okta or App".
+14. Select "Display application icon to users"
+15. Update the "Initiate login URL" with
+    `https://tuist.dev/users/auth/okta?organization_id=1`. The `organization_id`
+    will be supplied by your point of contact.
+16. Click "Save".
+17. Initiate Tuist login from your Okta dashboard.
+18. Give automatically access to your Tuist organization to users signed from
+    your Okta domain by running the following command:
 ```bash
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: 警告
+::: warning
 <!-- -->
-Tuistは現在、Okta組織からのユーザーの自動プロビジョニングとデプロビジョニングをサポートしていないため、ユーザーは最初にOktaダッシュボードからサインインする必要があります。一度Oktaダッシュボードからサインインすると、自動的にTuist組織に追加されます。
+Users need to initially sign in via their Okta dashboard as Tuist currently
+doesn't support automatic provisioning and deprovisioning of users from your
+Okta organization. Once they sign in via their Okta dashboard, they will be
+automatically added to your Tuist organization.
 <!-- -->
 :::

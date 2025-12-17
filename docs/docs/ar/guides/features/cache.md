@@ -5,59 +5,61 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# ذاكرة التخزين المؤقت {#ذاكرة التخزين المؤقت}
+# Cache {#cache}
 
-يوفر نظام البناء الخاص ب Xcode [إنشاءات تدريجية]
-(https://en.wikipedia.org/wiki/Incremental_build_model)، مما يعزز الكفاءة على
-جهاز واحد. ومع ذلك، لا تتم مشاركة القطع الأثرية الإنشائية عبر بيئات مختلفة، مما
-يجبرك على إعادة بناء نفس الشيفرة مرارًا وتكرارًا - سواء في بيئات [التكامل
-المستمر (CI)] (https://en.wikipedia.org/wiki/Continuous_integration) أو بيئات
-التطوير المحلية (جهاز Mac الخاص بك).
+Xcode's build system provides [incremental
+builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
+efficiency on a single machine. However, build artifacts are not shared across
+different environments, forcing you to rebuild the same code over and over –
+either in your [Continuous Integration (CI)
+environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
+development environments (your Mac).
 
-يعالج Tuist هذه التحديات من خلال ميزة التخزين المؤقت، مما يقلل بشكل كبير من
-أوقات الإنشاء في بيئات التطوير المحلية وبيئات التخزين المؤقت. لا يعمل هذا النهج
-على تسريع حلقات التغذية الراجعة فحسب، بل يقلل أيضًا من الحاجة إلى تبديل السياق،
-مما يعزز الإنتاجية في نهاية المطاف.
+Tuist addresses these challenges with its caching feature, significantly
+reducing build times both in local development and CI environments. This
+approach not only accelerates feedback loops but also minimizes the need for
+context switching, ultimately boosting productivity.
 
-نحن نقدم نوعين من التخزين المؤقت:
-- <LocalizedLink href="/guides/features/cache/module-cache">ذاكرة التخزين المؤقت
-  للوحدة</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">ذاكرة التخزين المؤقت
-  لـ Xcode</LocalizedLink>
+We offer two types of caching:
+- <LocalizedLink href="/guides/features/cache/module-cache">Module
+  cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
+  cache</LocalizedLink>
 
-## ذاكرة التخزين المؤقت للوحدة النمطية {#وحدة-ذاكرة التخزين المؤقت}
+## Module cache {#module-cache}
 
-بالنسبة للمشاريع التي تستخدم قدرات توليد المشاريع
-<LocalizedLink href="/guides/features/projects"> الخاصة بـ
-<LocalizedLink href="/guides/features/projects"> مشروع تويست </LocalizedLink>،
-نوفر نظام تخزين مؤقت قوي، يقوم بتخزين الوحدات الفردية كثنائيات ومشاركتها عبر
-فريقك وبيئات التخزين المؤقت.
+For projects that use Tuist's
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities, we provide a powerful caching system,
+which caches individual modules as binaries and shares them across your team and
+CI environments.
 
-في حين يمكنك أيضًا استخدام ذاكرة التخزين المؤقت الجديدة في Xcode، إلا أن هذه
-الميزة مُحسَّنة حاليًا للبنيات المحلية ومن المحتمل أن يكون معدل الوصول إلى ذاكرة
-التخزين المؤقت أقل مقارنةً بالتخزين المؤقت للمشروع الذي تم إنشاؤه. ومع ذلك،
-يعتمد قرار حل التخزين المؤقت الذي يجب استخدامه على احتياجاتك وتفضيلاتك الخاصة.
-يمكنك أيضًا الجمع بين كلا حلي التخزين المؤقت لتحقيق أفضل النتائج.
+While you can also use the new Xcode cache, this feature is currently optimized
+for local builds and you will likely have a lower cache hit rate compared to the
+generated project caching. However, the decision for which caching solution to
+use depends on your specific needs and preferences. You may also combine both
+caching solutions to achieve the best results.
 
-<LocalizedLink href="/guides/features/cache/module-cache">تعرف على المزيد حول
-ذاكرة التخزين المؤقت للوحدة →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
+Module cache →</LocalizedLink>
 
-## ذاكرة تخزين Xcode المؤقتة {#xcode-cache}
+## Xcode cache {#xcode-cache}
 
-:::: تحذير حالة الكاش في XCODE
+::: warning STATE OF CACHE IN XCODE
 <!-- -->
-تم تحسين التخزين المؤقت لـ Xcode حاليًا للبناء الإضافي المحلي، كما أن مجموعة
-كاملة من مهام البناء ليست مستقلة عن المسار بعد. لا يزال بإمكانك تجربة الفوائد من
-خلال توصيل ذاكرة التخزين المؤقت عن بُعد في Tuist، ونتوقع أن تتحسن أوقات الإنشاء
-بمرور الوقت مع استمرار تحسن قدرات نظام الإنشاء.
+Xcode caching is currently optimized for local incremental builds and the whole
+spectrum of build tasks is not yet path-independent. Still you can experience
+benefits by plugging Tuist's remote cache, and we expect build times to improve
+over time as the build system's capability keeps improving.
 <!-- -->
 :::
 
-تعمل Apple على حل جديد للتخزين المؤقت على مستوى الإنشاء، على غرار أنظمة الإنشاء
-الأخرى مثل Bazel وBack. تتوفر إمكانية التخزين المؤقت الجديدة منذ Xcode 26،
-ويتكامل Tuist الآن بسلاسة معها - بغض النظر عما إذا كنت تستخدم إمكانيات توليد
-المشاريع <LocalizedLink href="/guides/features/projects"> الخاصة بـ Tuist
-</LocalizedLink> أم لا.
+Apple has been working on a new caching solution at the build level, similar to
+other build systems like Bazel and Buck. The new caching capability is available
+since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
+whether you are using Tuist's
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities or not.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">تعرف على المزيد حول
-ذاكرة التخزين المؤقت ل Xcode →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
+cache →</LocalizedLink>

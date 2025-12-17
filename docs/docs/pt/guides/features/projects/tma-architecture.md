@@ -52,7 +52,7 @@ enforce in your project thanks to Tuist's DSL.
 
 | Target             | Dependencies                | Content                     |
 | ------------------ | --------------------------- | --------------------------- |
-| Recursos           | `FeatureInterface`          | Source code and resources   |
+| `Feature`          | `FeatureInterface`          | Source code and resources   |
 | `FeatureInterface` | -                           | Public interface and models |
 | `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
 | `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |

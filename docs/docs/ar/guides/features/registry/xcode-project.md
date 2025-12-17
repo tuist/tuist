@@ -5,20 +5,20 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# مشروع Xcode {#xxcode-project}
+# Xcode project {#xcode-project}
 
-لإضافة حزم باستخدام السجل في مشروع Xcode الخاص بك، استخدم واجهة مستخدم Xcode
-الافتراضية. يمكنك البحث عن الحزم في السجل عن طريق النقر على الزر `+` في علامة
-التبويب `تبعيات الحزمة` في Xcode. إذا كانت الحزمة متوفرة في السجل، سترى سجل
-`tuist.dev` في أعلى اليمين:
+To add packages using the registry in your Xcode project, use the default Xcode
+UI. You can search for packages in the registry by clicking on the `+` button in
+the `Package Dependencies` tab in Xcode. If the package is available in the
+registry, you will see the `tuist.dev` registry in the top right:
 
-![إضافة تبعيات الحزمة المضافة]
-(/images/guides/features/build/registry/registry-add-package.png)
+![Adding package
+dependencies](/images/guides/features/build/registry/registry-add-package.png)
 
-:::: المعلومات
+::: info
 <!-- -->
-لا يدعم Xcode حاليًا استبدال حزم التحكم بالمصدر تلقائيًا بمكافئاتها في السجل.
-سيتعين عليك إزالة حزمة التحكم بالمصدر يدويًا وإضافة حزمة السجل لتسريع عملية
-الاستبدال.
+Xcode currently doesn't support automatically replacing source control packages
+with their registry equivalents. You will need to manually remove the source
+control package and add the registry package to speed up the resolution.
 <!-- -->
 :::

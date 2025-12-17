@@ -5,16 +5,18 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 종속성 추가 {#add-dependencies}
+# Add dependencies {#add-dependencies}
 
-프로젝트에서 추가 기능을 제공하기 위해 타사 라이브러리에 의존하는 것이 일반적입니다. 이렇게 하려면 다음 명령을 실행하여 프로젝트를 가장 잘
-편집할 수 있도록 하세요:
+It's common for projects to depend on third-party libraries to provide
+additional functionality. To do so, run the following command to have the best
+experience editing your project:
 
 ```bash
 tuist edit
 ```
 
-프로젝트 파일이 포함된 Xcode 프로젝트가 열립니다. ` Package.swift` 파일을 편집하고
+An Xcode project will open containing your project files. Edit the
+`Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -42,7 +44,8 @@ let package = Package(
 )
 ```
 
-그런 다음 프로젝트에서 애플리케이션 대상을 편집하여 `Kingfisher` 을 종속성으로 선언합니다:
+Then edit the application target in your project to declare `Kingfisher` as a
+dependency:
 
 ```swift
 import ProjectDescription
@@ -82,32 +85,33 @@ let project = Project(
 )
 ```
 
-그런 다음 `tuist install` 을 실행하여 [Swift 패키지
-관리자](https://www.swift.org/documentation/package-manager/)를 사용하여 종속성을 해결하고
-가져옵니다.
+Then run `tuist install` to resolve and pull the dependencies using the [Swift
+Package Manager](https://www.swift.org/documentation/package-manager/).
 
-::: 정보 종속성 해결사로서의 SPM
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-종속성에 대한 Tuist의 권장 접근 방식은 종속성을 해결할 때만 Swift 패키지 관리자(SPM)를 사용합니다. 그런 다음 Tuist는
-종속성을 Xcode 프로젝트와 타깃으로 변환하여 구성 및 제어를 극대화합니다.
+Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
+only to resolve dependencies. Tuist then converts them into Xcode projects and
+targets for maximum configurability and control.
 <!-- -->
 :::
 
-## 프로젝트 시각화 {#visualize-the-project}
+## Visualize the project {#visualize-the-project}
 
-실행하여 프로젝트 구조를 시각화할 수 있습니다:
+You can visualize the project structure by running:
 
 ```bash
 tuist graph
 ```
 
-이 명령은 프로젝트 디렉토리에 `graph.png` 파일을 출력하고 엽니다:
+The command will output and open a `graph.png` file in the project's directory:
 
-![프로젝트 그래프](/images/guides/quick-start/graph.png)
+![Project graph](/images/guides/quick-start/graph.png)
 
-## 종속성 {#사용-종속성} 사용
+## Use the dependency {#use-the-dependency}
 
-`tuist generate` 을 실행하여 Xcode에서 프로젝트를 열고 `ContentView.swift` 파일을 다음과 같이 변경합니다:
+Run `tuist generate` to open the project in Xcode, and make the following
+changes to the `ContentView.swift` file:
 
 ```swift
 import SwiftUI
@@ -131,4 +135,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcode에서 앱을 실행하면 URL에서 이미지가 로드되는 것을 볼 수 있습니다.
+Run the app from Xcode, and you should see the image loaded from the URL.

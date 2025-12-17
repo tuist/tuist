@@ -7,82 +7,79 @@
 ---
 # Hashing {#hashing}
 
-Características como
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> o la
-ejecución selectiva de pruebas requieren una forma de determinar si un objetivo
-ha cambiado. Tuist calcula un hash para cada objetivo en el grafo de dependencia
-para determinar si un objetivo ha cambiado. El hash se calcula basándose en los
-siguientes atributos:
+Features like
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or
+selective test execution require a way to determine whether a target has
+changed. Tuist calculates a hash for each target in the dependency graph to
+determine if a target has changed. The hash is calculated based on the following
+attributes:
 
-- Los atributos del objetivo (por ejemplo, nombre, plataforma, producto, etc.)
-- Los archivos del objetivo
-- El hash de las dependencias del objetivo
+- The target's attributes (e.g., name, platform, product, etc.)
+- The target's files
+- The hash of the target's dependencies
 
-### Atributos de caché {#cache-attributes}
+### Cache attributes {#cache-attributes}
 
-Además, al calcular el hash para
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, también
-hacemos hash de los siguientes atributos.
+Additionally, when calculating the hash for
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also
+hash the following attributes.
 
-#### Versión de Swift {#swift-version}
+#### Swift version {#swift-version}
 
-Hacemos hash de la versión de Swift obtenida al ejecutar el comando
-`/usr/bin/xcrun swift --version` para evitar errores de compilación debidos a
-desajustes de versión de Swift entre los objetivos y los binarios.
+We hash the Swift version obtained from running the command `/usr/bin/xcrun
+swift --version` to prevent compilation errors due to Swift version mismatches
+between the targets and the binaries.
 
-::: info ESTABILIDAD DEL MÓDULO
+::: info MODULE STABILITY
 <!-- -->
-Las versiones anteriores del almacenamiento en caché de binarios se basaban en
-el ajuste de compilación` ` BUILD_LIBRARY_FOR_DISTRIBUTION para habilitar
-[module
+Previous versions of binary caching relied on the
+`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
 stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-y permitir el uso de binarios con cualquier versión del compilador. Sin embargo,
-causaba problemas de compilación en proyectos con objetivos que no soportan la
-estabilidad de módulos. Los binarios generados están vinculados a la versión de
-Swift utilizada para compilarlos, y la versión de Swift debe coincidir con la
-utilizada para compilar el proyecto.
+and enable using binaries with any compiler version. However, it caused
+compilation issues in projects with targets that don't support module stability.
+Generated binaries are bound to the Swift version used to compile them, and the
+Swift version must match the one used to compile the project.
 <!-- -->
 :::
 
-#### Configuración {#configuration}
+#### Configuration {#configuration}
 
-La idea detrás de la bandera `-configuration` era asegurar que los binarios de
-depuración no se utilizaran en las compilaciones de lanzamiento y viceversa. Sin
-embargo, todavía nos falta un mecanismo para eliminar las otras configuraciones
-de los proyectos para evitar que se utilicen.
+The idea behind the flag `-configuration` was to ensure debug binaries were not
+used in release builds and viceversa. However, we are still missing a mechanism
+to remove the other configurations from the projects to prevent them from being
+used.
 
-## Depuración {#debugging}
+## Debugging {#debugging}
 
-Si observas comportamientos no deterministas al utilizar la caché en distintos
-entornos o invocaciones, puede estar relacionado con diferencias entre los
-entornos o con un error en la lógica de hash. Te recomendamos que sigas estos
-pasos para depurar el problema:
+If you notice non-deterministic behaviors when using the caching across
+environments or invocations, it might be related to differences across the
+environments or a bug in the hashing logic. We recommend following these steps
+to debug the issue:
 
-1. Ejecute `tuist hash cache` o `tuist hash selective-testing` (hashes para
-   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> o
-   <LocalizedLink href="/guides/features/selective-testing">selective
-   testing</LocalizedLink>), copie los hashes, cambie el nombre del directorio
-   del proyecto y vuelva a ejecutar el comando. Los hashes deben coincidir.
-2. Si los hashes no coinciden, es probable que el proyecto generado dependa del
-   entorno. Ejecute `tuist graph --format json` en ambos casos y compare los
-   gráficos. Alternativamente, genere los proyectos y compare sus archivos
-   `project.pbxproj` con una herramienta de diferencias como
+1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
+   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
+   or <LocalizedLink href="/guides/features/selective-testing">selective
+   testing</LocalizedLink>), copy the hashes, rename the project directory, and
+   run the command again. The hashes should match.
+2. If the hashes don't match, it's likely that the generated project depends on
+   the environment. Run `tuist graph --format json` in both cases and compare
+   the graphs. Alternatively, generate the projects and compare their
+   `project.pbxproj` files with a diff tool such as
    [Diffchecker](https://www.diffchecker.com).
-3. Si los hashes son los mismos pero difieren entre entornos (por ejemplo, CI y
-   local), asegúrese de que se utiliza la misma [configuración](#configuration)
-   y [versión Swift](#swift-version) en todas partes. La versión de Swift está
-   vinculada a la versión de Xcode, así que confirme que las versiones de Xcode
-   coinciden.
+3. If the hashes are the same but differ across environments (for example, CI
+   and local), make sure the same [configuration](#configuration) and [Swift
+   version](#swift-version) are used everywhere. The Swift version is tied to
+   the Xcode version, so confirm the Xcode versions match.
 
-Si los hashes siguen siendo no deterministas, háznoslo saber y podremos ayudarte
-con la depuración.
+If the hashes are still non-deterministic, let us know and we can help with the
+debugging.
 
 
-::: info PLANIFICADA UNA MEJOR EXPERIENCIA DE DEBUGGING
+::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
-Mejorar la experiencia de depuración está en nuestra hoja de ruta. El comando
-print-hashes, que carece de contexto para entender las diferencias, será
-sustituido por un comando más fácil de usar que utilice una estructura en forma
-de árbol para mostrar las diferencias entre los hashes.
+Improving our debugging experience is in our roadmap. The print-hashes command,
+which lacks the context to understand the differences, will be replaced by a
+more user-friendly command that uses a tree-like structure to show the
+differences between the hashes.
 <!-- -->
 :::

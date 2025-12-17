@@ -5,27 +5,35 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# 模板 {#templates}
+# Templates {#templates}
 
-在具有既定架构的项目中，开发人员可能希望引导与项目一致的新组件或功能。通过`tuist scaffold`
-，您可以从模板生成文件。您可以定义自己的模板，也可以使用 Tuist 提供的模板。这些是脚手架可能有用的一些情况：
+In projects with an established architecture, developers might want to bootstrap
+new components or features that are consistent with the project. With `tuist
+scaffold` you can generate files from a template. You can define your own
+templates or use the ones that are vendored with Tuist. These are some scenarios
+where scaffolding might be useful:
 
-- 创建遵循给定架构的新功能：`tuist scaffold viper --name MyFeature` 。
-- 创建新项目：`tuist scaffold feature-project --name Home`
+- Create a new feature that follows a given architecture: `tuist scaffold viper
+  --name MyFeature`.
+- Create new projects: `tuist scaffold feature-project --name Home`
 
-::: 信息 非观点性的
+::: info NON-OPINIONATED
 <!-- -->
-Tuist 对模板的内容和用途没有任何意见。它们只被要求放在特定的目录中。
+Tuist is not opinionated about the content of your templates, and what you use
+them for. They are only required to be in a specific directory.
 <!-- -->
 :::
 
-## 定义模板 {#defining-a-template}
+## Defining a template {#defining-a-template}
 
-要定义模板，可以运行 <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink>，然后在`Tuist/Templates` 下创建一个名为`name_of_template`
-的目录，代表你的模板。模板需要一个清单文件`name_of_template.swift` 来描述模板。因此，如果您要创建一个名为`framework`
-的模板，则应在`Tuist/Templates` 下创建一个新目录`framework` ，并创建一个名为`framework.swift`
-的清单文件，该文件可以如下所示：
+To define templates, you can run
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> and then create a directory called `name_of_template`
+under `Tuist/Templates` that represents your template. Templates need a manifest
+file, `name_of_template.swift` that describes the template. So if you are
+creating a template called `framework`, you should create a new directory
+`framework` at `Tuist/Templates` with a manifest file called `framework.swift`
+that could look like this:
 
 
 ```swift
@@ -56,32 +64,38 @@ let template = Template(
 )
 ```
 
-## 使用模板 {#using-a-template}
+## Using a template {#using-a-template}
 
-定义模板后，我们可以通过`scaffold` 命令使用它：
+After defining the template, we can use it from the `scaffold` command:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-信息
+::: info
 <!-- -->
-由于平台是一个可选参数，我们也可以调用该命令而不使用`--platform macos` 参数。
+Since platform is an optional argument, we can also call the command without the
+`--platform macos` argument.
 <!-- -->
 :::
 
-如果`.string` 和`.files` 的灵活性不够，您可以通过`.file` 使用
-[Stencil](https://stencil.fuller.li/en/latest/) 模板语言。除此之外，您还可以使用此处定义的其他过滤器。
+If `.string` and `.files` don't provide enough flexibility, you can leverage the
+[Stencil](https://stencil.fuller.li/en/latest/) templating language via the
+`.file` case. Besides that, you can also use additional filters defined here.
 
-使用字符串插值法，上述`\(nameAttribute)` 将解析为`{{ name }}` 。如果想在模板定义中使用 Stencil
-过滤器，可以手动使用插值法并添加任何过滤器。例如，您可以使用`{ { name | 小写 }}}` 而不是`\(nameAttribute)` 来获取 name
-属性的小写值。
+Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name
+}}`. If you'd like to use Stencil filters in the template definition, you can
+use that interpolation manually and add any filters you like. For example, you
+might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the
+lowercased value of the name attribute.
 
-您还可以使用`.directory` 将整个文件夹复制到指定路径。
+You can also use `.directory` which gives the possibility to copy entire folders
+to a given path.
 
-提示项目说明帮助者
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing">
-项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
+Templates support the use of
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> to reuse code across templates.
 <!-- -->
 :::

@@ -7,52 +7,50 @@
 ---
 # Releases
 
-Tuist utiliza un sistema de publicación continua que publica automáticamente
-nuevas versiones cada vez que se incorporan cambios significativos a la rama
-principal. Este enfoque garantiza que las mejoras lleguen rápidamente a los
-usuarios sin intervención manual de los mantenedores.
+Tuist uses a continuous release system that automatically publishes new versions
+whenever meaningful changes are merged to the main branch. This approach ensures
+that improvements reach users quickly without manual intervention from
+maintainers.
 
-## Visión general
+## Overview
 
-Lanzamos continuamente tres componentes principales:
-- **Tuist CLI** - La herramienta de línea de comandos
-- **Tuist Server** - Los servicios backend
-- **Tuist App** - Las aplicaciones macOS e iOS (la aplicación iOS sólo se
-  despliega continuamente en TestFlight, más información
-  [aquí](#app-store-release)
+We continuously release three main components:
+- **Tuist CLI** - The command-line tool
+- **Tuist Server** - The backend services
+- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed
+  to TestFlight, see more [here](#app-store-release)
 
-Cada componente tiene su propio proceso de publicación que se ejecuta
-automáticamente cada vez que se envía a la rama principal.
+Each component has its own release pipeline that runs automatically on every
+push to the main branch.
 
-## Cómo funciona
+## How it works
 
-### 1. Comprometer convenios
+### 1. Commit conventions
 
-Utilizamos [Conventional Commits](https://www.conventionalcommits.org/) para
-estructurar nuestros mensajes de confirmación. Esto permite a nuestras
-herramientas comprender la naturaleza de los cambios, determinar los saltos de
-versión y generar los registros de cambios adecuados.
+We use [Conventional Commits](https://www.conventionalcommits.org/) to structure
+our commit messages. This allows our tooling to understand the nature of
+changes, determine version bumps, and generate appropriate changelogs.
 
-Formato: `tipo(ámbito): descripción`
+Format: `type(scope): description`
 
-#### Tipos de compromiso y su impacto
+#### Commit types and their impact
 
-| Tipo           | Descripción                     | Versión Impacto                   | Ejemplo                                                    |
-| -------------- | ------------------------------- | --------------------------------- | ---------------------------------------------------------- |
-| `feat`         | Nueva función o capacidad       | Pequeño cambio de versión (x.Y.z) | `feat(cli): añadir compatibilidad con Swift 6`             |
-| `fije`         | Corrección de errores           | Parche versión bump (x.y.Z)       | `fix(app): resolver el bloqueo al abrir proyectos`         |
-| `docs`         | Cambios en la documentación     | Ningún comunicado                 | `docs: guía de instalación de actualizaciones`             |
-| `estilo`       | Cambios en el estilo del código | Ningún comunicado                 | `estilo: formatear código con swiftformat`                 |
-| `refactorizar` | Refactorización del código      | Ningún comunicado                 | `refactor(server): simplificar la lógica de autenticación` |
-| `perf`         | Mejoras de rendimiento          | Aumento de la versión del parche  | `perf(cli): optimizar la resolución de dependencias`       |
-| `prueba`       | Pruebas adiciones/cambios       | Ningún comunicado                 | `test: añadir pruebas unitarias para la caché`             |
-| `tarea`        | Tareas de mantenimiento         | Ningún comunicado                 | `tarea: actualizar dependencias`                           |
-| `ci`           | Cambios CI/CD                   | Ningún comunicado                 | `ci: añadir flujo de trabajo para liberaciones`            |
+| Type       | Description               | Version Impact             | Example                                         |
+| ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
+| `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
+| `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
+| `docs`     | Documentation changes     | No release                 | `docs: update installation guide`               |
+| `style`    | Code style changes        | No release                 | `style: format code with swiftformat`           |
+| `refactor` | Code refactoring          | No release                 | `refactor(server): simplify auth logic`         |
+| `perf`     | Performance improvements  | Patch version bump         | `perf(cli): optimize dependency resolution`     |
+| `test`     | Test additions/changes    | No release                 | `test: add unit tests for cache`                |
+| `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
+| `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
 
-#### Cambios de última hora
+#### Breaking changes
 
-Los cambios de ruptura provocan un salto de versión mayor (X.0.0) y deben
-indicarse en el cuerpo de la confirmación:
+Breaking changes trigger a major version bump (X.0.0) and should be indicated in
+the commit body:
 
 ```
 feat(cli): change default cache location
@@ -61,57 +59,53 @@ BREAKING CHANGE: The cache is now stored in ~/.tuist/cache instead of .tuist-cac
 Users will need to clear their old cache directory.
 ```
 
-### 2. Detección de cambios
+### 2. Change detection
 
-Cada componente utiliza [git cliff](https://git-cliff.org/) para:
-- Analizar los commits desde la última versión
-- Filtrar commits por ámbito (cli, app, servidor)
-- Determinar si hay cambios liberables
-- Generación automática de registros de cambios
+Each component uses [git cliff](https://git-cliff.org/) to:
+- Analyze commits since the last release
+- Filter commits by scope (cli, app, server)
+- Determine if there are releasable changes
+- Generate changelogs automatically
 
-### 3. Liberación de tuberías
+### 3. Release pipeline
 
-Cuando se detectan cambios liberables:
+When releasable changes are detected:
 
-1. **Cálculo de la versión**: El pipeline determina el siguiente número de
-   versión
-2. **Changelog generation**: git cliff crea un changelog a partir de los
-   mensajes de commit
-3. **Proceso de construcción**: El componente se construye y se prueba
-4. **Creación de versiones**: Se crea una versión GitHub con artefactos
-5. **Distribución**: Las actualizaciones se envían a los gestores de paquetes
-   (por ejemplo, Homebrew para CLI)
+1. **Version calculation**: The pipeline determines the next version number
+2. **Changelog generation**: git cliff creates a changelog from commit messages
+3. **Build process**: The component is built and tested
+4. **Release creation**: A GitHub release is created with artifacts
+5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for
+   CLI)
 
-### 4. Filtrado de alcance
+### 4. Scope filtering
 
-Cada componente sólo se libera cuando tiene cambios relevantes:
+Each component only releases when it has relevant changes:
 
-- **CLI**: Commits con alcance `(cli)` o sin alcance
-- **App**: Commits con `(app)` scope
-- **Servidor**: Commits con `(servidor)` ámbito
+- **CLI**: Commits with `(cli)` scope or no scope
+- **App**: Commits with `(app)` scope
+- **Server**: Commits with `(server)` scope
 
-## Redactar buenos mensajes de confirmación
+## Writing good commit messages
 
-Dado que los mensajes de confirmación influyen directamente en las notas de
-publicación, es importante escribir mensajes claros y descriptivos:
+Since commit messages directly influence release notes, it's important to write
+clear, descriptive messages:
 
-### Hazlo:
-- Utiliza el presente: "añade una función", no "añade una función".
-- Sea conciso pero descriptivo
-- Incluir el ámbito de aplicación cuando los cambios sean específicos de un
-  componente
-- Cuestiones de referencia cuando proceda: `fix(cli): resolver el problema de la
-  caché de compilación (#1234)`
+### Do:
+- Use present tense: "add feature" not "added feature"
+- Be concise but descriptive
+- Include the scope when changes are component-specific
+- Reference issues when applicable: `fix(cli): resolve build cache issue
+  (#1234)`
 
-### No lo hagas:
-- Utilizar mensajes vagos como "corregir error" o "actualizar código".
-- Mezclar varios cambios no relacionados en una sola confirmación
-- Olvidar incluir la información sobre los cambios de última hora
+### Don't:
+- Use vague messages like "fix bug" or "update code"
+- Mix multiple unrelated changes in one commit
+- Forget to include breaking change information
 
-### Cambios de última hora
+### Breaking changes
 
-Para cambios de última hora, incluya `BREAKING CHANGE:` en el cuerpo de la
-confirmación:
+For breaking changes, include `BREAKING CHANGE:` in the commit body:
 
 ```
 feat(cli): change cache directory structure
@@ -120,71 +114,65 @@ BREAKING CHANGE: Cache files are now stored in a new directory structure.
 Users need to clear their cache after updating.
 ```
 
-## Flujos de trabajo de liberación
+## Release workflows
 
-Los flujos de trabajo de liberación se definen en:
-- `.github/workflows/cli-release.yml` - Versiones CLI
-- `.github/workflows/app-release.yml` - Lanzamientos de aplicaciones
-- `.github/workflows/server-release.yml` - Versiones del servidor
+The release workflows are defined in:
+- `.github/workflows/cli-release.yml` - CLI releases
+- `.github/workflows/app-release.yml` - App releases
+- `.github/workflows/server-release.yml` - Server releases
 
-Cada flujo de trabajo:
-- Se ejecuta en empuja a la principal
-- Puede activarse manualmente
-- Utiliza git cliff para la detección de cambios
-- Gestiona todo el proceso de liberación
+Each workflow:
+- Runs on pushes to main
+- Can be triggered manually
+- Uses git cliff for change detection
+- Handles the entire release process
 
-## Seguimiento de las liberaciones
+## Monitoring releases
 
-Puede supervisar las liberaciones a través de:
-- [Página de versiones de GitHub](https://github.com/tuist/tuist/releases)
-- Pestaña Acciones de GitHub para las ejecuciones del flujo de trabajo
-- Archivos Changelog en cada directorio de componentes
+You can monitor releases through:
+- [GitHub Releases page](https://github.com/tuist/tuist/releases)
+- GitHub Actions tab for workflow runs
+- Changelog files in each component directory
 
-## Beneficios
+## Benefits
 
-Este enfoque de liberación continua proporciona:
+This continuous release approach provides:
 
-- **Entrega rápida**: Los cambios llegan a los usuarios inmediatamente después
-  de la fusión
-- **Reducción de los cuellos de botella**: No hay que esperar a las
-  publicaciones manuales
-- **Comunicación clara**: Registros de cambios automatizados a partir de
-  mensajes de confirmación
-- **Proceso coherente**: El mismo flujo de liberación para todos los componentes
-- **Garantía de calidad**: Sólo se publican los cambios probados
+- **Fast delivery**: Changes reach users immediately after merging
+- **Reduced bottlenecks**: No waiting for manual releases
+- **Clear communication**: Automated changelogs from commit messages
+- **Consistent process**: Same release flow for all components
+- **Quality assurance**: Only tested changes are released
 
-## Solución de problemas
+## Troubleshooting
 
-Si falla una liberación:
+If a release fails:
 
-1. Comprueba los registros de acciones de GitHub para el flujo de trabajo
-   fallido
-2. Asegúrese de que sus mensajes de confirmación siguen el formato convencional
-3. Verificar que todas las pruebas se superan
-4. Compruebe que el componente se compila correctamente
+1. Check the GitHub Actions logs for the failed workflow
+2. Ensure your commit messages follow the conventional format
+3. Verify that all tests pass
+4. Check that the component builds successfully
 
-Para correcciones urgentes que requieren una liberación inmediata:
-1. Asegúrese de que su compromiso tiene un alcance claro
-2. Tras la fusión, supervise el flujo de trabajo de liberación
-3. Si es necesario, activa un desbloqueo manual
+For urgent fixes that need immediate release:
+1. Ensure your commit has a clear scope
+2. After merging, monitor the release workflow
+3. If needed, trigger a manual release
 
-## Lanzamiento en App Store
+## App Store release
 
-Mientras que la CLI y el servidor siguen el proceso de publicación continua
-descrito anteriormente, la aplicación **iOS** es una excepción debido al proceso
-de revisión de la App Store de Apple:
+While the CLI and Server follow the continuous release process described above,
+the **iOS app** is an exception due to Apple's App Store review process:
 
-- **Lanzamientos manuales**: Los lanzamientos de aplicaciones iOS requieren un
-  envío manual a la App Store.
-- **Retrasos en la revisión**: Cada versión debe pasar por el proceso de
-  revisión de Apple, que puede tardar entre 1 y 7 días.
-- **Cambios agrupados**: Los cambios múltiples suelen agruparse en cada versión
-  de iOS
-- **TestFlight**: Las versiones beta pueden distribuirse a través de TestFlight
-  antes de su lanzamiento en el App Store.
-- **Notas de la versión**: Debe estar escrito específicamente para las
-  directrices de la App Store
+- **Manual releases**: iOS app releases require manual submission to the App
+  Store
+- **Review delays**: Each release must go through Apple's review process, which
+  can take 1-7 days
+- **Batched changes**: Multiple changes are typically bundled together in each
+  iOS release
+- **TestFlight**: Beta versions may be distributed via TestFlight before App
+  Store release
+- **Release notes**: Must be written specifically for App Store guidelines
 
-La aplicación para iOS sigue las mismas convenciones de confirmación y utiliza
-git cliff para generar el registro de cambios, pero la publicación real para los
-usuarios se realiza de forma menos frecuente y manual.
+The iOS app still follows the same commit conventions and uses git cliff for
+changelog generation, but the actual release to users happens on a less
+frequent, manual schedule.

@@ -5,55 +5,59 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# ترجمة {#الترجمة}
+# Translate {#translate}
 
-يمكن أن تكون اللغات عائقاً أمام الفهم. نريد التأكد من أن تويست متاح لأكبر عدد
-ممكن من الأشخاص. إذا كنت تتحدث لغة لا تدعمها تويست، فيمكنك مساعدتنا من خلال
-ترجمة الأسطح المختلفة لتويست.
+Languages can be barriers to understanding. We want to make sure that Tuist is
+accessible to as many people as possible. If you speak a language that Tuist
+doesn't support, you can help us by translating the various surfaces of Tuist.
 
-نظرًا لأن الحفاظ على الترجمات هو جهد مستمر، فإننا نضيف لغات كلما وجدنا مساهمين
-على استعداد لمساعدتنا في الحفاظ عليها. اللغات التالية مدعومة حاليًا:
+Since maintaining translations is a continuous effort, we add languages as we
+see contributors willing to help us maintain them. The following languages are
+currently supported:
 
-- اللغة الإنجليزية
-- كوري
-- ياباني
-- الروسية
-- صيني
-- الإسبانية
-- البرتغالية
+- English
+- Korean
+- Japanese
+- Russian
+- Chinese
+- Spanish
+- Portuguese
 
-:::: إكرامية طلب لغة جديدة
+::: tip REQUEST A NEW LANGUAGE
 <!-- -->
-إذا كنت تعتقد أن تويست ستستفيد من دعم لغة جديدة، يرجى إنشاء [موضوع جديد في منتدى
-المجتمع] (https://community.tuist.io/c/general/4) لمناقشته مع المجتمع.
-<!-- -->
-:::
-
-## كيف تترجم {#كيف تترجم}
-
-لدينا نسخة من [Weblate] (https://weblate.org/en-gb/) تعمل على
-[translate.tuist.dev] (https://translate.tuist.dev). يمكنك التوجه إلى
-[المشروع](https://translate.tuist.dev/engage/tuist/)، وإنشاء حساب، وبدء الترجمة.
-
-تتم مزامنة الترجمات مرة أخرى إلى المستودع المصدر باستخدام طلبات سحب GitHub التي
-سيقوم المشرفون بمراجعتها ودمجها.
-
-:::: تحذير عدم تعديل الموارد في اللغة المستهدفة
-<!-- -->
-يقوم Weblate بتقسيم الملفات لربط اللغة المصدر واللغة الهدف. إذا قمت بتعديل اللغة
-المصدر، فسوف تكسر الربط، وقد تسفر التسوية عن نتائج غير متوقعة.
+If you believe Tuist would benefit from supporting a new language, please create
+a new [topic in the community forum](https://community.tuist.io/c/general/4) to
+discuss it with the community.
 <!-- -->
 :::
 
-## إرشادات {#إرشادات}
+## How to translate {#how-to-translate}
 
-فيما يلي الإرشادات التي نتبعها عند الترجمة.
+We have an instance of [Weblate](https://weblate.org/en-gb/) running at
+[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
+project](https://translate.tuist.dev/engage/tuist/), create an account, and
+start translating.
 
-### تنبيهات الحاويات المخصصة وتنبيهات GitHub {#custom-containers-and-github-alerts}
+Translations are synchronized back to the source repository using GitHub pull
+requests which maintainers will review and merge.
 
-عند ترجمة [الحاويات المخصصة]
-(https://vitepress.dev/guide/markdown#custom-containers) فقط ترجمة العنوان
-والمحتوى **ولكن ليس نوع التنبيه**.
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+<!-- -->
+Weblate segments the files to bind source and target languages. If you modify
+the source language, you'll break the binding, and the reconciliation might
+yield unexpected results.
+<!-- -->
+:::
+
+## Guidelines {#guidelines}
+
+The following are the guidelines we follow when translating.
+
+### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+
+When translating [custom
+containers](https://vitepress.dev/guide/markdown#custom-containers) only
+translate the title and the content **but not the type of alert**.
 
 ```markdown
 <!-- -->
@@ -64,16 +68,16 @@
 :::
 ```
 
-### عناوين العناوين {# عناوين العناوين}
+### Heading titles {#heading-titles}
 
-عند ترجمة العناوين، قم بترجمة العنوان فقط وليس المعرف. على سبيل المثال، عند
-ترجمة العنوان التالي:
+When translating headings, only translate tht title but not the id. For example,
+when translating the following heading:
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-يجب ترجمتها على النحو التالي (لاحظ أن المعرف غير مترجم):
+It should be translated as (note the id is not translated):
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

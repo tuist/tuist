@@ -5,14 +5,12 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj}
+# Generated project with the Xcode package integration {#generated-project-with-xcode-based-integration}
 
-إذا كنت تستخدم التكامل الافتراضي
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">
-لـ
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode</LocalizedLink>
-للحزم مع مشاريع تويست، فأنت بحاجة إلى استخدام معرّف السجل بدلاً من عنوان URL عند
-إضافة حزمة:
+If you are using the
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode's
+default integration</LocalizedLink> of packages with Tuist Projects, you need to
+use the registry identifier instead of a URL when adding a package:
 ```swift
 import ProjectDescription
 

@@ -5,64 +5,67 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# الاختبار الانتقائي {#الاختبار الانتقائي}
+# Selective testing {#selective-testing}
 
-مع نمو مشروعك، تزداد كمية الاختبارات الخاصة بك. لوقت طويل، يستغرق تشغيل جميع
-الاختبارات على كل العلاقات العامة أو الدفع إلى `الرئيسي` عشرات الثواني. لكن هذا
-الحل لا يتسع لآلاف الاختبارات التي قد يمتلكها فريقك.
+As your project grows, so does the amount of your tests. For a long time,
+running all tests on every PR or push to `main` takes tens of seconds. But this
+solution does not scale to thousands of tests your team might have.
 
-في كل اختبار يتم تشغيله على CI، من المرجح أن تعيد تشغيل جميع الاختبارات، بغض
-النظر عن التغييرات. يساعدك اختبار تويست الانتقائي على تسريع تشغيل الاختبارات
-نفسها بشكل كبير من خلال تشغيل الاختبارات التي تغيرت فقط منذ آخر تشغيل اختبار
-ناجح استنادًا إلى خوارزمية
-<LocalizedLink href="/guides/features/projects/hashing"> التجزئة</LocalizedLink>
-الخاصة بنا.
+On every test run on the CI, you most likely re-run all the tests, regardless of
+the changes. Tuist's selective testing helps you to drastically speed up running
+the tests themselves by running only the tests that have changed since the last
+successful test run based on our
+<LocalizedLink href="/guides/features/projects/hashing">hashing
+algorithm</LocalizedLink>.
 
-يعمل الاختبار الانتقائي مع `xcodebuild` ، الذي يدعم أي مشروع Xcode، أو إذا كنت
-تنشئ مشاريعك باستخدام Tuist، يمكنك استخدام الأمر `tuist test` بدلاً من ذلك الذي
-يوفر بعض الراحة الإضافية مثل التكامل مع ذاكرة التخزين المؤقت الثنائية
-<LocalizedLink href="/guides/features/cache"> الثنائية</LocalizedLink>. للبدء في
-الاختبار الانتقائي، اتبع التعليمات بناءً على إعداد مشروعك:
+Selective testing works with `xcodebuild`, which supports any Xcode project, or
+if you generate your projects with Tuist, you can use the `tuist test` command
+instead that provides some extra convenience such as integration with the
+<LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To
+get started with selective testing, follow the instructions based on your
+project setup:
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">إكس
-  كودبيلد</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">المشروع
-  المُنشأ</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
+  project</LocalizedLink>
 
-:::: تحذير وحدة نمطية مقابل مستوى الملف
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-نظرًا لاستحالة اكتشاف التبعيات داخل التعليمات البرمجية بين الاختبارات والمصادر،
-فإن الحد الأقصى من دقة الاختبار الانتقائي يكون على مستوى الهدف. لذلك، نوصي
-بإبقاء أهدافك صغيرة ومركزة لتحقيق أقصى قدر من فوائد الاختبار الانتقائي.
-<!-- -->
-:::
-
-:::: تحذير تغطية الاختبار
-<!-- -->
-تفترض أدوات تغطية الاختبار أن مجموعة الاختبار بأكملها تعمل مرة واحدة، مما يجعلها
-غير متوافقة مع عمليات تشغيل الاختبار الانتقائية - وهذا يعني أن بيانات التغطية قد
-لا تعكس الواقع عند استخدام اختيار الاختبار. هذا قيد معروف، وهذا لا يعني أنك تقوم
-بأي شيء خاطئ. نحن نشجع الفرق على التفكير فيما إذا كانت التغطية لا تزال تجلب رؤى
-مفيدة في هذا السياق، وإذا كانت كذلك، فكن مطمئنًا أننا نفكر بالفعل في كيفية جعل
-التغطية تعمل بشكل صحيح مع عمليات التشغيل الانتقائية في المستقبل.
+Due to the impossibility of detecting the in-code dependencies between tests and
+sources, the maximum granularity of selective testing is at the target level.
+Therefore, we recommend keeping your targets small and focused to maximize the
+benefits of selective testing.
 <!-- -->
 :::
 
-
-## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
-
-:::: تحذير التكامل مع منصة GIT مطلوب
+::: warning TEST COVERAGE
 <!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-مع <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>منصة
-<LocalizedLink href="/guides/server/authentication">Git.
+Test coverage tools assume that the whole test suite runs at once, which makes
+them incompatible with selective test runs—this means the coverage data might
+not reflect reality when using test selection. That’s a known limitation, and it
+doesn’t mean you’re doing anything wrong. We encourage teams to reflect on
+whether coverage is still bringing meaningful insights in this context, and if
+it is, rest assured that we’re already thinking about how to make coverage work
+properly with selective runs in the future.
 <!-- -->
 :::
 
-بمجرد اتصال مشروع Tuist الخاص بك مع منصة Git الخاصة بك مثل [GitHub]
-(https://github.com)، وبدء استخدام `tuist xcodebuild test` أو `tuist test` كجزء
-من سير عمل CI wortkflow الخاص بك، سوف ينشر Tuist تعليقًا مباشرة في طلبات
-السحب/الدمج الخاصة بك، بما في ذلك الاختبارات التي تم تشغيلها وأيها تم تخطيها:
-![تعليق تطبيق GitHub مع رابط معاينة Tuist]
-(/images/guides/features/selective-testing/github-app-comment.png)
+
+## Pull/merge request comments {#pullmerge-request-comments}
+
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+<!-- -->
+To get automatic pull/merge request comments, integrate your
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git
+platform</LocalizedLink>.
+<!-- -->
+:::
+
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), and you start using `tuist xcodebuild test` or
+`tuist test` as part of your CI wortkflow, Tuist will post a comment directly in
+your pull/merge requests, including which tests were run and which skipped:
+![GitHub app comment with a Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png)

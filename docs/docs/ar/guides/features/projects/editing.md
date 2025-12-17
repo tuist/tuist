@@ -5,46 +5,50 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# تحرير {#تحرير}
+# Editing {#editing}
 
-على عكس مشاريع Xcode التقليدية أو حزم سويفت، حيث تتم التغييرات من خلال واجهة
-مستخدم Xcode، يتم تعريف المشاريع التي تدار بواسطة تويست في كود سويفت الموجود في
-ملفات البيان **** . إذا كنت على دراية بحزم Swift Packages وملف `Package.swift` ،
-فإن النهج مشابه جدًا.
+Unlike traditional Xcode projects or Swift Packages, where changes are done
+through Xcode's UI, Tuist-managed projects are defined in Swift code contained
+in **manifest files**. If you're familiar with Swift Packages and the
+`Package.swift` file, the approach is very similar.
 
-يمكنك تحرير هذه الملفات باستخدام أي محرر نصوص، ولكننا نوصي باستخدام سير العمل
-الذي يوفره تويست لذلك، `tuist edit`. ينشئ سير العمل مشروع Xcode يحتوي على جميع
-ملفات البيان ويسمح لك بتحريرها وتجميعها. وبفضل استخدام Xcode، ستحصل على جميع
-مزايا إكمال التعليمات البرمجية **، وتمييز بناء الجملة، والتحقق من الأخطاء**.
+You could edit these files using any text editor, but we recommend to use
+Tuist-provided workflow for that, `tuist edit`. The workflow creates an Xcode
+project that contains all manifest files and allows you to edit and compile
+them. Thanks to using Xcode, you get all the benefits of **code completion,
+syntax highlighting, and error checking**.
 
-## تحرير المشروع {#تحرير المشروع}
+## Edit the project {#edit-the-project}
 
-لتحرير مشروعك، يمكنك تشغيل الأمر التالي في دليل مشروع Tuist أو في دليل مشروع
-فرعي:
+To edit your project, you can run the following command in a Tuist project
+directory or a sub-directory:
 
 ```bash
 tuist edit
 ```
 
-ينشئ الأمر مشروع Xcode في دليل عام ويفتحه في Xcode. يتضمن المشروع دليل
-`Manifests` الذي يمكنك إنشاؤه للتأكد من صلاحية جميع بياناتك.
+The command creates an Xcode project in a global directory and opens it in
+Xcode. The project includes a `Manifests` directory that you can build to ensure
+all your manifests are valid.
 
-::::: معلومات عن المنظومات التي تم حلها عالمياً
+::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
-`تحرير تويست` يحل المظاهر المراد تضمينها باستخدام glob `**/{Manifest}.swift` من
-الدليل الجذر للمشروع (الذي يحتوي على ملف `Tuist.swift.` ). تأكد من وجود
-`Tuist.swift.swift` صالح في جذر المشروع.
+`tuist edit` resolves the manifests to be included by using the glob
+`**/{Manifest}.swift` from the project's root directory (the one containing the
+`Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the
+project.
 <!-- -->
 :::
 
-### تجاهل ملفات البيان {#تجاهل ملفات البيان {#تجاهل ملفات البيان}
+### Ignoring manifest files {#ignoring-manifest-files}
 
-إذا كان مشروعك يحتوي على ملفات سويفت بنفس اسم ملفات البيان (على سبيل المثال،
-`Project.swift.`) في دلائل فرعية ليست بيانات تويست الفعلية، يمكنك إنشاء ملف
-`.tuistignore` في جذر مشروعك لاستبعادها من مشروع التحرير.
+If your project contains Swift files with the same name as manifest files (e.g.,
+`Project.swift`) in subdirectories that are not actual Tuist manifests, you can
+create a `.tuistignore` file at the root of your project to exclude them from
+the editing project.
 
-يستخدم ملف .tuistignore` ` .tuistignore أنماطًا كروية لتحديد الملفات التي يجب
-تجاهلها:
+The `.tuistignore` file uses glob patterns to specify which files should be
+ignored:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -54,14 +58,16 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-يكون هذا مفيدًا بشكل خاص عندما يكون لديك تركيبات اختبار أو أمثلة برمجية تصادف
-أنها تستخدم نفس اصطلاح التسمية كملفات بيان تويست.
+This is particularly useful when you have test fixtures or example code that
+happens to use the same naming convention as Tuist manifest files.
 
-## تحرير وإنشاء سير العمل {# تحرير وإنشاء سير العمل}
+## Edit and generate workflow {#edit-and-generate-workflow}
 
-كما لاحظت، لا يمكن إجراء التحرير من مشروع Xcode الذي تم إنشاؤه. هذا حسب التصميم
-لمنع المشروع الذي تم إنشاؤه من الاعتماد على Tuist، مما يضمن لك الانتقال من Tuist
-في المستقبل بأقل جهد ممكن.
+As you might have noticed, the editing can't be done from the generated Xcode
+project. That's by design to prevent the generated project from having a
+dependency on Tuist, ensuring you can move from Tuist in the future with little
+effort.
 
-عند تكرار مشروع ما، نوصي بتشغيل `tuist edit` من جلسة طرفية للحصول على مشروع
-Xcode لتحرير المشروع، واستخدام جلسة طرفية أخرى لتشغيل `tuist gener`.
+When iterating on a project, we recommend running `tuist edit` from a terminal
+session to get an Xcode project to edit the project, and use another terminal
+session to run `tuist generate`.

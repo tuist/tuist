@@ -5,88 +5,84 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Аутентификация {#authentication}
+# Authentication {#authentication}
 
-Чтобы взаимодействовать с сервером, CLI должен аутентифицировать запросы с
-помощью [bearer
+To interact with the server, the CLI needs to authenticate the requests using
+[bearer
 authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-CLI поддерживает аутентификацию как пользователя, как учетной записи или с
-помощью маркера OIDC.
+The CLI supports authenticating as a user, as an account, or using an OIDC
+token.
 
-## Как пользователь {#as-a-user}
+## As a user {#as-a-user}
 
-При использовании CLI локально на вашем компьютере мы рекомендуем
-аутентифицироваться как пользователь. Чтобы пройти аутентификацию в качестве
-пользователя, необходимо выполнить следующую команду:
+When using the CLI locally on your machine, we recommend authenticating as a
+user. To authenticate as a user, you need to run the following command:
 
 ```bash
 tuist auth login
 ```
 
-Команда проведет вас через веб-поток аутентификации. После аутентификации CLI
-будет хранить долгоживущий токен обновления и короткоживущий токен доступа в
-каталоге `~/.config/tuist/credentials`. Каждый файл в этой директории
-представляет домен, на котором вы аутентифицировались, по умолчанию это
-`tuist.dev.json`. Информация, хранящаяся в этом каталоге, является
-конфиденциальной, поэтому **позаботьтесь о ее сохранности**.
+The command will take you through a web-based authentication flow. Once you
+authenticate, the CLI will store a long-lived refresh token and a short-lived
+access token under `~/.config/tuist/credentials`. Each file in the directory
+represents the domain you authenticated against, which by default should be
+`tuist.dev.json`. The information stored in that directory is sensitive, so
+**make sure to keep it safe**.
 
-CLI будет автоматически искать учетные данные при выполнении запросов к серверу.
-Если срок действия маркера доступа истек, CLI будет использовать маркер
-обновления для получения нового маркера доступа.
+The CLI will automatically look up the credentials when making requests to the
+server. If the access token is expired, the CLI will use the refresh token to
+get a new access token.
 
-## Токены OIDC {#oidc-tokens}
+## OIDC tokens {#oidc-tokens}
 
-В средах CI, поддерживающих OpenID Connect (OIDC), Tuist может выполнять
-аутентификацию автоматически, не требуя от вас управления долговременными
-секретами. При работе в поддерживаемой среде CI CLI автоматически определяет
-поставщика токенов OIDC и обменивает предоставленный CI токен на токен доступа
-Tuist.
+For CI environments that support OpenID Connect (OIDC), Tuist can authenticate
+automatically without requiring you to manage long-lived secrets. When running
+in a supported CI environment, the CLI will automatically detect the OIDC token
+provider and exchange the CI-provided token for a Tuist access token.
 
-### Поддерживаемые поставщики CI {#supported-ci-providers}
+### Supported CI providers {#supported-ci-providers}
 
-- Действия GitHub
+- GitHub Actions
 - CircleCI
 - Bitrise
 
-### Настройка аутентификации OIDC {#setting-up-oidc-authentication}
+### Setting up OIDC authentication {#setting-up-oidc-authentication}
 
-1. **Подключите свой репозиторий к Tuist**: Следуйте руководству
+1. **Connect your repository to Tuist**: Follow the
    <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
-   guide</LocalizedLink>, чтобы подключить свой репозиторий GitHub к проекту
-   Tuist.
+   guide</LocalizedLink> to connect your GitHub repository to your Tuist
+   project.
 
-2. **Выполните команду `tuist auth login`**: В рабочем процессе CI выполните
-   `tuist auth login` перед любыми командами, требующими аутентификации. CLI
-   автоматически определит среду CI и выполнит аутентификацию с помощью OIDC.
+2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
+   before any commands that require authentication. The CLI will automatically
+   detect the CI environment and authenticate using OIDC.
 
-Примеры конфигурации для конкретного поставщика см. в руководстве
+See the
 <LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink>.
+Integration guide</LocalizedLink> for provider-specific configuration examples.
 
-### Области применения токенов OIDC {#oidc-token-scopes}
+### OIDC token scopes {#oidc-token-scopes}
 
-Токены OIDC получают группу охвата `ci`, которая предоставляет доступ ко всем
-проектам, подключенным к репозиторию. Подробную информацию о том, что включает в
-себя область видимости `ci`, см. в разделе [Группы областей
-видимости](#scope-groups).
+OIDC tokens are granted the `ci` scope group, which provides access to all
+projects connected to the repository. See [Scope groups](#scope-groups) for
+details about what the `ci` scope includes.
 
-::: чаевые БЕЗОПАСНЫЕ БЕНЕФИТЫ
+::: tip SECURITY BENEFITS
 <!-- -->
-Аутентификация OIDC более безопасна, чем долгоживущие токены, потому что:
-- Никаких секретов для ротации или управления
-- Токены недолговечны и привязаны к отдельным рабочим процессам
-- Аутентификация привязана к идентификатору хранилища.
+OIDC authentication is more secure than long-lived tokens because:
+- No secrets to rotate or manage
+- Tokens are short-lived and scoped to individual workflow runs
+- Authentication is tied to your repository identity
 <!-- -->
 :::
 
-## Токены учетных записей {#account-tokens}
+## Account tokens {#account-tokens}
 
-Для сред CI, которые не поддерживают OIDC, или когда вам нужен тонкий контроль
-над разрешениями, вы можете использовать токены учетных записей. Токены учетных
-записей позволяют точно указать, к каким областям и проектам может получить
-доступ токен.
+For CI environments that don't support OIDC, or when you need fine-grained
+control over permissions, you can use account tokens. Account tokens allow you
+to specify exactly which scopes and projects the token can access.
 
-### Создание токена учетной записи {#creating-an-account-token}
+### Creating an account token {#creating-an-account-token}
 
 ```bash
 tuist account tokens create my-account \
@@ -95,93 +91,91 @@ tuist account tokens create my-account \
   --expires 1y
 ```
 
-Команда принимает следующие параметры:
+The command accepts the following options:
 
-| Вариант     | Описание                                                                                                                                                                   |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-области`  | Требуется. Список областей, разделенных запятыми, для предоставления токена.                                                                                               |
-| `--имя`     | Требуется. Уникальный идентификатор токена (1-32 символа, только буквенно-цифровые символы, дефисы и подчеркивания).                                                       |
-| `-истекает` | Необязательно. Когда срок действия токена должен истечь. Используйте формат `30d` (дни), `6m` (месяцы) или `1y` (годы). Если не указано, срок действия токена не истекает. |
-| `-проекты`  | Ограничьте доступ токена к определенным дескрипторам проектов. Если не указано, токен имеет доступ ко всем проектам.                                                       |
+| Option       | Description                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
+| `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
+| `--expires`  | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
+| `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified.                                              |
 
-### Доступные области {#available-scopes}
+### Available scopes {#available-scopes}
 
-| Область применения            | Описание                                 |
-| ----------------------------- | ---------------------------------------- |
-| `счет:члены:читать`           | Читать членов учетной записи             |
-| `счет:члены:писать`           | Управление членами учетной записи        |
-| `счет:реестр:читать`          | Чтение из реестра пакетов Swift          |
-| `счет:реестр:запись`          | Публикация в реестре пакетов Swift       |
-| `проект:превью:читать`        | Скачать предварительные просмотры        |
-| `проект:превьюшки:писать`     | Загружайте предварительные просмотры     |
-| `проект:администратор:читать` | Чтение настроек проекта                  |
-| `проект:администратор:писать` | Управление настройками проекта           |
-| `проект:кэш:читать`           | Загрузите кэшированные двоичные файлы    |
-| `проект:кэш:запись`           | Загрузите кэшированные двоичные файлы    |
-| `проект:комплекты:читать`     | Посмотреть комплекты                     |
-| `проект:комплекты:писать`     | Загрузка пакетов                         |
-| `проект:тесты:читать`         | Прочитать результаты тестирования        |
-| `проект:тесты:писать`         | Загрузите результаты тестирования        |
-| `проект:сборки:читать`        | Читайте аналитику сборки                 |
-| `проект:сборки:писать`        | Загрузите аналитику сборки               |
-| `проект:бегает:читает`        | Выполнение команды чтения                |
-| `проект:бегает:пишет`         | Создание и обновление командных запусков |
+| Scope                    | Description                           |
+| ------------------------ | ------------------------------------- |
+| `account:members:read`   | Read account members                  |
+| `account:members:write`  | Manage account members                |
+| `account:registry:read`  | Read from the Swift package registry  |
+| `account:registry:write` | Publish to the Swift package registry |
+| `project:previews:read`  | Download previews                     |
+| `project:previews:write` | Upload previews                       |
+| `project:admin:read`     | Read project settings                 |
+| `project:admin:write`    | Manage project settings               |
+| `project:cache:read`     | Download cached binaries              |
+| `project:cache:write`    | Upload cached binaries                |
+| `project:bundles:read`   | View bundles                          |
+| `project:bundles:write`  | Upload bundles                        |
+| `project:tests:read`     | Read test results                     |
+| `project:tests:write`    | Upload test results                   |
+| `project:builds:read`    | Read build analytics                  |
+| `project:builds:write`   | Upload build analytics                |
+| `project:runs:read`      | Read command runs                     |
+| `project:runs:write`     | Create and update command runs        |
 
-### Группы диапазонов {#scope-groups}
+### Scope groups {#scope-groups}
 
-Группы диапазонов обеспечивают удобный способ предоставления нескольких
-связанных диапазонов с одним идентификатором. Когда вы используете группу
-диапазонов, она автоматически расширяется и включает все отдельные диапазоны,
-которые она содержит.
+Scope groups provide a convenient way to grant multiple related scopes with a
+single identifier. When you use a scope group, it automatically expands to
+include all the individual scopes it contains.
 
-| Scope Group | Входящие в комплект прицелы                                                                                                                   |
+| Scope Group | Included Scopes                                                                                                                               |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
 
-### Непрерывная интеграция {#continuous-integration}
+### Continuous Integration {#continuous-integration}
 
-Для сред CI, не поддерживающих OIDC, можно создать маркер учетной записи с
-группой охвата `ci` для аутентификации рабочих процессов CI:
+For CI environments that don't support OIDC, you can create an account token
+with the `ci` scope group to authenticate your CI workflows:
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
 ```
 
-В результате создается токен со всеми областями, необходимыми для типичных
-операций CI (кэш, предварительные просмотры, пакеты, тесты, сборки и запуски).
-Сохраните созданный токен как секрет в вашей среде CI и задайте его в качестве
-переменной окружения `TUIST_TOKEN`.
+This creates a token with all the scopes needed for typical CI operations
+(cache, previews, bundles, tests, builds, and runs). Store the generated token
+as a secret in your CI environment and set it as the `TUIST_TOKEN` environment
+variable.
 
-### Управление токенами учетных записей {#managing-account-tokens}
+### Managing account tokens {#managing-account-tokens}
 
-Чтобы перечислить все токены для учетной записи:
+To list all tokens for an account:
 
 ```bash
 tuist account tokens list my-account
 ```
 
-Чтобы отозвать маркер по имени:
+To revoke a token by name:
 
 ```bash
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### Использование токенов учетных записей {#using-account-tokens}
+### Using account tokens {#using-account-tokens}
 
-Токены учетных записей должны быть определены как переменная среды
+Account tokens are expected to be defined as the environment variable
 `TUIST_TOKEN`:
 
 ```bash
 export TUIST_TOKEN=your-account-token
 ```
 
-::: совет КОГДА ИСПОЛЬЗОВАТЬ ТОКЕНЫ АККАУНТА
+::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
-Используйте жетоны счета, когда вам это необходимо:
-- Аутентификация в средах CI, не поддерживающих OIDC
-- Тонкий контроль над операциями, которые может выполнять токен
-- Токен, с помощью которого можно получить доступ к нескольким проектам в рамках
-  учетной записи
-- Ограниченные по времени токены, срок действия которых автоматически истекает
+Use account tokens when you need:
+- Authentication in CI environments that don't support OIDC
+- Fine-grained control over which operations the token can perform
+- A token that can access multiple projects within an account
+- Time-limited tokens that automatically expire
 <!-- -->
 :::

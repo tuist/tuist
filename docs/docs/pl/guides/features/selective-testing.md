@@ -5,69 +5,67 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# Testowanie selektywne {#selective-testing}
+# Selective testing {#selective-testing}
 
-Wraz z rozwojem projektu rośnie liczba testów. Przez długi czas uruchamianie
-wszystkich testów przy każdym PR lub push na `main` zajmowało dziesiątki sekund.
-Ale to rozwiązanie nie skaluje się do tysięcy testów, które może mieć Twój
-zespół.
+As your project grows, so does the amount of your tests. For a long time,
+running all tests on every PR or push to `main` takes tens of seconds. But this
+solution does not scale to thousands of tests your team might have.
 
-Przy każdym uruchomieniu testów w CI najprawdopodobniej ponownie uruchamiasz
-wszystkie testy, niezależnie od zmian. Selektywne testowanie Tuist pomaga
-drastycznie przyspieszyć uruchamianie samych testów, uruchamiając tylko te
-testy, które zmieniły się od ostatniego udanego uruchomienia testowego w oparciu
-o nasz algorytm
-<LocalizedLink href="/guides/features/projects/hashing">hashing</LocalizedLink>.
+On every test run on the CI, you most likely re-run all the tests, regardless of
+the changes. Tuist's selective testing helps you to drastically speed up running
+the tests themselves by running only the tests that have changed since the last
+successful test run based on our
+<LocalizedLink href="/guides/features/projects/hashing">hashing
+algorithm</LocalizedLink>.
 
-Testowanie selektywne działa z `xcodebuild`, który obsługuje dowolny projekt
-Xcode, lub jeśli generujesz swoje projekty za pomocą Tuist, możesz zamiast tego
-użyć polecenia `tuist test`, które zapewnia dodatkowe udogodnienia, takie jak
-integracja z <LocalizedLink href="/guides/features/cache">binary
-cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
-instrukcjami opartymi na konfiguracji projektu:
+Selective testing works with `xcodebuild`, which supports any Xcode project, or
+if you generate your projects with Tuist, you can use the `tuist test` command
+instead that provides some extra convenience such as integration with the
+<LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To
+get started with selective testing, follow the instructions based on your
+project setup:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany
-  projekt</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
+  project</LocalizedLink>
 
-::: ostrzeżenie GRANULARNOŚĆ MODUŁOWA A GRANULARNOŚĆ NA POZIOMIE PLIKU
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
-testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
-na poziomie celu. Dlatego zalecamy, aby cele były małe i skoncentrowane, aby
-zmaksymalizować korzyści płynące z testowania selektywnego.
-<!-- -->
-:::
-
-::: ostrzeżenie OBJĘTOŚĆ TESTOWA
-<!-- -->
-Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
-jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
-oznacza to, że dane pokrycia mogą nie odzwierciedlać rzeczywistości podczas
-korzystania z selekcji testów. Jest to znane ograniczenie i nie oznacza, że
-robisz coś źle. Zachęcamy zespoły do zastanowienia się nad tym, czy pokrycie
-nadal przynosi znaczące informacje w tym kontekście, a jeśli tak, to zapewniamy,
-że już myślimy o tym, jak sprawić, by pokrycie działało poprawnie z selektywnymi
-przebiegami w przyszłości.
+Due to the impossibility of detecting the in-code dependencies between tests and
+sources, the maximum granularity of selective testing is at the target level.
+Therefore, we recommend keeping your targets small and focused to maximize the
+benefits of selective testing.
 <!-- -->
 :::
 
-
-## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
-
-::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning TEST COVERAGE
 <!-- -->
-Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-z platformą
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+Test coverage tools assume that the whole test suite runs at once, which makes
+them incompatible with selective test runs—this means the coverage data might
+not reflect reality when using test selection. That’s a known limitation, and it
+doesn’t mean you’re doing anything wrong. We encourage teams to reflect on
+whether coverage is still bringing meaningful insights in this context, and if
+it is, rest assured that we’re already thinking about how to make coverage work
+properly with selective runs in the future.
 <!-- -->
 :::
 
-Po połączeniu projektu Tuist z platformą Git, taką jak
-[GitHub](https://github.com), i rozpoczęciu korzystania z `tuist xcodebuild
-test` lub `tuist test` jako części przepływu CI, Tuist opublikuje komentarz
-bezpośrednio w żądaniach ściągnięcia/łączenia, w tym informacje o tym, które
-testy zostały uruchomione, a które pominięte: ![Komentarz aplikacji GitHub z
-linkiem do podglądu
-Tuist](/images/guides/features/selective-testing/github-app-comment.png).
+
+## Pull/merge request comments {#pullmerge-request-comments}
+
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+<!-- -->
+To get automatic pull/merge request comments, integrate your
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git
+platform</LocalizedLink>.
+<!-- -->
+:::
+
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), and you start using `tuist xcodebuild test` or
+`tuist test` as part of your CI wortkflow, Tuist will post a comment directly in
+your pull/merge requests, including which tests were run and which skipped:
+![GitHub app comment with a Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png)

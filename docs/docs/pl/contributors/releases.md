@@ -5,53 +5,52 @@
   "description": "Learn how Tuist's continuous release process works"
 }
 ---
-# Wydania
+# Releases
 
-Tuist korzysta z systemu ciągłego wydawania, który automatycznie publikuje nowe
-wersje za każdym razem, gdy znaczące zmiany zostaną scalone z główną gałęzią.
-Takie podejście zapewnia, że ulepszenia szybko docierają do użytkowników bez
-ręcznej interwencji opiekunów.
+Tuist uses a continuous release system that automatically publishes new versions
+whenever meaningful changes are merged to the main branch. This approach ensures
+that improvements reach users quickly without manual intervention from
+maintainers.
 
-## Przegląd
+## Overview
 
-Stale wydajemy trzy główne komponenty:
-- **Tuist CLI** - Narzędzie wiersza poleceń
-- **Serwer Tuist** - Usługi zaplecza
-- **Tuist App** - Aplikacje macOS i iOS (aplikacja iOS jest stale wdrażana tylko
-  w TestFlight, zobacz więcej [tutaj](#app-store-release).
+We continuously release three main components:
+- **Tuist CLI** - The command-line tool
+- **Tuist Server** - The backend services
+- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed
+  to TestFlight, see more [here](#app-store-release)
 
-Każdy komponent ma swój własny potok wydań, który działa automatycznie przy
-każdym wypchnięciu do głównej gałęzi.
+Each component has its own release pipeline that runs automatically on every
+push to the main branch.
 
-## Jak to działa
+## How it works
 
-### 1. Konwencje zobowiązań
+### 1. Commit conventions
 
-Używamy [Conventional Commits](https://www.conventionalcommits.org/) do
-strukturyzowania naszych komunikatów commit. Pozwala to naszym narzędziom
-zrozumieć naturę zmian, określić skoki wersji i wygenerować odpowiednie
-dzienniki zmian.
+We use [Conventional Commits](https://www.conventionalcommits.org/) to structure
+our commit messages. This allows our tooling to understand the nature of
+changes, determine version bumps, and generate appropriate changelogs.
 
-Format: `typ(zakres): opis`
+Format: `type(scope): description`
 
-#### Rodzaje zobowiązań i ich wpływ
+#### Commit types and their impact
 
-| Typ              | Opis                       | Wersja Impact                     | Przykłady                                                   |
-| ---------------- | -------------------------- | --------------------------------- | ----------------------------------------------------------- |
-| `wyczyn`         | Nowa funkcja lub możliwość | Drobna zmiana wersji (x.Y.z)      | `feat(cli): dodanie wsparcia dla Swift 6`                   |
-| `poprawka`       | Poprawka błędu             | Uderzenie wersji poprawki (x.y.Z) | `fix(app): usunięcie awarii podczas otwierania projektów`   |
-| `dokumenty`      | Zmiany w dokumentacji      | Brak wydania                      | `dokumenty: instrukcja instalacji aktualizacji`             |
-| `styl`           | Zmiany w stylu kodu        | Brak wydania                      | `style: formatowanie kodu za pomocą swiftformat`            |
-| `refaktoryzacja` | Refaktoryzacja kodu        | Brak wydania                      | `refactor(server): uproszczenie logiki autoryzacji`         |
-| `perf`           | Ulepszenia wydajności      | Ulepszenie wersji łatki           | `perf(cli): optymalizacja rozdzielczości zależności`        |
-| `test`           | Dodatki/zmiany testowe     | Brak wydania                      | `test: dodanie testów jednostkowych dla pamięci podręcznej` |
-| `chore`          | Zadania konserwacyjne      | Brak wydania                      | `chore: aktualizacja zależności`                            |
-| `ci`             | Zmiany CI/CD               | Brak wydania                      | `ci: dodanie przepływu pracy dla wydań`                     |
+| Type       | Opis                      | Version Impact             | Example                                         |
+| ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
+| `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
+| `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
+| `docs`     | Documentation changes     | No release                 | `docs: update installation guide`               |
+| `style`    | Code style changes        | No release                 | `style: format code with swiftformat`           |
+| `refactor` | Code refactoring          | No release                 | `refactor(server): simplify auth logic`         |
+| `perf`     | Performance improvements  | Patch version bump         | `perf(cli): optimize dependency resolution`     |
+| `test`     | Test additions/changes    | No release                 | `test: add unit tests for cache`                |
+| `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
+| `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
 
-#### Przełomowe zmiany
+#### Breaking changes
 
-Zmiany przełomowe powodują zwiększenie wersji (X.0.0) i powinny być wskazane w
-treści zatwierdzenia:
+Breaking changes trigger a major version bump (X.0.0) and should be indicated in
+the commit body:
 
 ```
 feat(cli): change default cache location
@@ -60,55 +59,53 @@ BREAKING CHANGE: The cache is now stored in ~/.tuist/cache instead of .tuist-cac
 Users will need to clear their old cache directory.
 ```
 
-### 2. Wykrywanie zmian
+### 2. Change detection
 
-Każdy komponent używa [git cliff](https://git-cliff.org/) do:
-- Analiza zatwierdzeń od ostatniego wydania
-- Filtrowanie zatwierdzeń według zakresu (cli, aplikacja, serwer)
-- Określenie, czy istnieją zmiany, które można zwolnić
-- Automatyczne generowanie dzienników zmian
+Each component uses [git cliff](https://git-cliff.org/) to:
+- Analyze commits since the last release
+- Filter commits by scope (cli, app, server)
+- Determine if there are releasable changes
+- Generate changelogs automatically
 
-### 3. Rurociąg zwalniający
+### 3. Release pipeline
 
-Po wykryciu zmian, które można zwolnić:
+When releasable changes are detected:
 
-1. **Obliczanie wersji**: Potok określa następny numer wersji
-2. **Generowanie dziennika zmian**: git cliff tworzy dziennik zmian z wiadomości
-   o zatwierdzeniu
-3. **Proces kompilacji**: Komponent jest budowany i testowany
-4. **Tworzenie wydania**: Wydanie GitHub jest tworzone z artefaktami
-5. **Dystrybucja**: Aktualizacje są przekazywane do menedżerów pakietów (np.
-   Homebrew dla CLI).
+1. **Version calculation**: The pipeline determines the next version number
+2. **Changelog generation**: git cliff creates a changelog from commit messages
+3. **Build process**: The component is built and tested
+4. **Release creation**: A GitHub release is created with artifacts
+5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for
+   CLI)
 
-### 4. Filtrowanie zakresu
+### 4. Scope filtering
 
-Każdy komponent jest wydawany tylko wtedy, gdy wprowadzi odpowiednie zmiany:
+Each component only releases when it has relevant changes:
 
-- **CLI**: zatwierdzenia z zakresem `(cli)` lub bez zakresu
-- **Aplikacja**: Zatwierdzenia z zakresem `(aplikacja)`
-- **Serwer**: Zatwierdzenia z zakresem `(serwer)`
+- **CLI**: Commits with `(cli)` scope or no scope
+- **App**: Commits with `(app)` scope
+- **Server**: Commits with `(server)` scope
 
-## Pisanie dobrych wiadomości commit
+## Writing good commit messages
 
-Ponieważ komunikaty o zatwierdzeniach mają bezpośredni wpływ na informacje o
-wydaniu, ważne jest, aby pisać jasne, opisowe komunikaty:
+Since commit messages directly influence release notes, it's important to write
+clear, descriptive messages:
 
 ### Do:
-- Używaj czasu teraźniejszego: "dodaj funkcję", a nie "dodano funkcję".
-- Bądź zwięzły, ale opisowy
-- Uwzględnienie zakresu, gdy zmiany są specyficzne dla komponentów
-- Zagadnienia referencyjne, jeśli mają zastosowanie: `fix(cli): rozwiązanie
-  problemu z pamięcią podręczną kompilacji (#1234)`
+- Use present tense: "add feature" not "added feature"
+- Be concise but descriptive
+- Include the scope when changes are component-specific
+- Reference issues when applicable: `fix(cli): resolve build cache issue
+  (#1234)`
 
-### Nie rób tego:
-- Używaj niejasnych komunikatów, takich jak "napraw błąd" lub "zaktualizuj kod".
-- Łączenie wielu niepowiązanych zmian w jednym zatwierdzeniu
-- Zapomnij dołączyć informacje o zmianach awaryjnych
+### Don't:
+- Use vague messages like "fix bug" or "update code"
+- Mix multiple unrelated changes in one commit
+- Forget to include breaking change information
 
-### Przełomowe zmiany
+### Breaking changes
 
-W przypadku zmian przełomowych należy dołączyć `BREAKING CHANGE:` w treści
-zatwierdzenia:
+For breaking changes, include `BREAKING CHANGE:` in the commit body:
 
 ```
 feat(cli): change cache directory structure
@@ -117,67 +114,65 @@ BREAKING CHANGE: Cache files are now stored in a new directory structure.
 Users need to clear their cache after updating.
 ```
 
-## Przepływy pracy wydania
+## Release workflows
 
-Przepływy pracy wydania są zdefiniowane w:
-- `.github/workflows/cli-release.yml` - wydania CLI
-- `.github/workflows/app-release.yml` - Wydania aplikacji
-- `.github/workflows/server-release.yml` - Wydania serwera
+The release workflows are defined in:
+- `.github/workflows/cli-release.yml` - CLI releases
+- `.github/workflows/app-release.yml` - App releases
+- `.github/workflows/server-release.yml` - Server releases
 
-Każdy przepływ pracy:
-- Działa po naciśnięciu przycisku głównego
-- Może być wyzwalany ręcznie
-- Używa git cliff do wykrywania zmian
-- Obsługuje cały proces wydania
+Each workflow:
+- Runs on pushes to main
+- Can be triggered manually
+- Uses git cliff for change detection
+- Handles the entire release process
 
-## Monitorowanie wydań
+## Monitoring releases
 
-Możesz monitorować wydania poprzez:
-- [strona GitHub Releases](https://github.com/tuist/tuist/releases).
-- Karta GitHub Actions dla przepływów pracy
-- Pliki dziennika zmian w każdym katalogu komponentów
+You can monitor releases through:
+- [GitHub Releases page](https://github.com/tuist/tuist/releases)
+- GitHub Actions tab for workflow runs
+- Changelog files in each component directory
 
-## Korzyści
+## Benefits
 
-Podejście ciągłego wydawania zapewnia:
+This continuous release approach provides:
 
-- **Szybka dostawa**: Zmiany docierają do użytkowników natychmiast po scaleniu
-- **Redukcja wąskich gardeł**: Brak oczekiwania na ręczne wydania
-- **Przejrzysta komunikacja**: Zautomatyzowane dzienniki zmian z wiadomości
-  commit
-- **Spójny proces**: Ten sam przepływ wersji dla wszystkich komponentów
-- **Zapewnienie jakości**: Wydawane są tylko przetestowane zmiany
+- **Fast delivery**: Changes reach users immediately after merging
+- **Reduced bottlenecks**: No waiting for manual releases
+- **Clear communication**: Automated changelogs from commit messages
+- **Consistent process**: Same release flow for all components
+- **Quality assurance**: Only tested changes are released
 
-## Rozwiązywanie problemów
+## Troubleshooting
 
-Jeśli zwolnienie nie powiedzie się:
+If a release fails:
 
-1. Sprawdź dzienniki GitHub Actions pod kątem nieudanego przepływu pracy
-2. Upewnij się, że wiadomości commit są zgodne z konwencjonalnym formatem
-3. Sprawdź, czy wszystkie testy zakończyły się pomyślnie
-4. Sprawdź, czy komponent został pomyślnie skompilowany
+1. Check the GitHub Actions logs for the failed workflow
+2. Ensure your commit messages follow the conventional format
+3. Verify that all tests pass
+4. Check that the component builds successfully
 
-Dla pilnych poprawek, które wymagają natychmiastowego wydania:
-1. Upewnij się, że Twój commit ma jasny zakres
-2. Po scaleniu monitoruj przepływ pracy wydania
-3. W razie potrzeby uruchom zwolnienie ręczne
+For urgent fixes that need immediate release:
+1. Ensure your commit has a clear scope
+2. After merging, monitor the release workflow
+3. If needed, trigger a manual release
 
-## Wydanie App Store
+## App Store release
 
-Podczas gdy CLI i Server są zgodne z opisanym powyżej procesem ciągłego
-wydawania, aplikacja **iOS** jest wyjątkiem ze względu na proces weryfikacji App
-Store firmy Apple:
+While the CLI and Server follow the continuous release process described above,
+the **iOS app** is an exception due to Apple's App Store review process:
 
-- **Ręczne wersje**: Wersje aplikacji iOS wymagają ręcznego przesłania do App
-  Store.
-- **Opóźnienia w przeglądzie**: Każda wersja musi przejść przez proces
-  weryfikacji Apple, który może potrwać od 1 do 7 dni.
-- **Zmiany zbiorcze**: Wiele zmian jest zazwyczaj łączonych w każdym wydaniu
-  iOS.
-- **TestFlight**: Wersje beta mogą być dystrybuowane za pośrednictwem TestFlight
-  przed wydaniem w App Store.
-- **Informacje o wersji**: Musi być napisana specjalnie dla wytycznych App Store
+- **Manual releases**: iOS app releases require manual submission to the App
+  Store
+- **Review delays**: Each release must go through Apple's review process, which
+  can take 1-7 days
+- **Batched changes**: Multiple changes are typically bundled together in each
+  iOS release
+- **TestFlight**: Beta versions may be distributed via TestFlight before App
+  Store release
+- **Release notes**: Must be written specifically for App Store guidelines
 
-Aplikacja na iOS nadal przestrzega tych samych konwencji zatwierdzania i używa
-git cliff do generowania dziennika zmian, ale faktyczne wydanie dla użytkowników
-odbywa się w rzadszym, ręcznym harmonogramie.
+The iOS app still follows the same commit conventions and uses git cliff for
+changelog generation, but the actual release to users happens on a less
+frequent, manual schedule.

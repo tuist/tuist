@@ -64,8 +64,8 @@ let project = Project(
 <!-- -->
 :::
 
-Вот еще один пример, но уже сравнения того, как определять модульные тесты в
-Bazel и Tuist:
+Here's another example but comparing how to define unit tests in Bazel and
+Tuist:
 
 ::: code-group
 ```txt [BUILD (Bazel)]
