@@ -5155,7 +5155,7 @@ paths:
         - description: The CFBundleVersion of the running app.
           in: query
           name: build_version
-          required: false
+          required: true
           schema:
             type: string
             x-struct:

@@ -13452,7 +13452,7 @@ public enum Operations {
                 /// The CFBundleVersion of the running app.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query/build_version`.
-                public var build_version: Swift.String?
+                public var build_version: Swift.String
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -13460,7 +13460,7 @@ public enum Operations {
                 ///   - build_version: The CFBundleVersion of the running app.
                 public init(
                     binary_id: Swift.String,
-                    build_version: Swift.String? = nil
+                    build_version: Swift.String
                 ) {
                     self.binary_id = binary_id
                     self.build_version = build_version
