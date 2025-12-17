@@ -5,35 +5,38 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# التكوين الديناميكي {#التكوين الديناميكي}
+# Dynamic configuration {#dynamic-configuration}
 
-هناك سيناريوهات معينة قد تحتاج فيها إلى تكوين مشروعك ديناميكيًا في وقت الإنشاء.
-على سبيل المثال، قد ترغب في تغيير اسم التطبيق أو معرّف الحزمة أو هدف النشر بناءً
-على البيئة التي يتم فيها إنشاء المشروع. يدعم تويست ذلك عبر متغيرات البيئة، والتي
-يمكن الوصول إليها من ملفات البيان.
+There are certain scenarios where you might need to dynamically configure your
+project at generation time. For example, you might want to change the name of
+the app, the bundle identifier, or the deployment target based on the
+environment where the project is being generated. Tuist supports that via
+environment variables, which can be accessed from the manifest files.
 
-## التكوين من خلال متغيرات البيئة {# التكوين من خلال متغيرات البيئة}
+## Configuration through environment variables {#configuration-through-environment-variables}
 
-يسمح تويست بتمرير التكوين من خلال متغيرات البيئة التي يمكن الوصول إليها من ملفات
-البيان. على سبيل المثال:
+Tuist allows passing configuration through environment variables that can be
+accessed from the manifest files. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-إذا أردت تمرير عدة متغيرات بيئة فقط افصل بينها بمسافة. على سبيل المثال:
+If you want to pass multiple environment variables just separate them with a
+space. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## قراءة متغيرات البيئة من القوائم {#قراءة متغيرات البيئة من القوائم}
+## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
 
-يمكن الوصول إلى المتغيرات باستخدام النوع
-<LocalizedLink href="/references/project-description/enums/environment">`البيئة`</LocalizedLink>.
-أي متغيرات تتبع الاصطلاح `TUIST_XXX` المحددة في البيئة أو التي يتم تمريرها إلى
-تويست عند تشغيل الأوامر يمكن الوصول إليها باستخدام النوع `بيئة`. يوضح المثال
-التالي كيفية الوصول إلى المتغير `TUIST_APP_NAME`:
+Variables can be accessed using the
+<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>
+type. Any variables following the convention `TUIST_XXX` defined in the
+environment or passed to Tuist when running commands will be accessible using
+the `Environment` type. The following example shows how we access the
+`TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {
@@ -45,19 +48,19 @@ func appName() -> String {
 }
 ```
 
-يؤدي الوصول إلى المتغيرات إلى إرجاع مثيل من النوع `Environment.Value?` والذي
-يمكن أن يأخذ أيًا من القيم التالية:
+Accessing variables returns an instance of type `Environment.Value?` which can
+take any of the following values:
 
-| الحالة          | الوصف                             |
-| --------------- | --------------------------------- |
-| `سلسلة (سلسلة)` | يُستخدم عندما يمثل المتغير سلسلة. |
+| Case              | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `.string(String)` | Used when the variable represents a string. |
 
-يمكنك أيضًا استرداد السلسلة أو المتغير المنطقي `البيئة` باستخدام أي من الطريقتين
-المساعدتين المحددتين أدناه، وتتطلب هاتان الطريقتان تمرير قيمة افتراضية لضمان
-حصول المستخدم على نتائج متسقة في كل مرة. هذا يجنبك الحاجة إلى تعريف الدالة
-appName() المحددة أعلاه.
+You can also retrieve the string or boolean `Environment` variable using either
+of the helper methods defined below, these methods require a default value to be
+passed to ensure the user gets consistent results each time. This avoids the
+need to define the function appName() defined above.
 
-:::: مجموعة الرموز
+::: code-group
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")

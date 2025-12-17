@@ -5,21 +5,27 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# バンドル・インサイト {#bundle-size}
+# Bundle insights {#bundle-size}
 
-警告 要件
+::: warning REQUIREMENTS
 <!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
-アプリに機能を追加していくと、アプリのバンドルサイズはどんどん大きくなっていきます。より多くのコードやアセットを出荷するため、バンドルサイズの増加は避けられない部分もありますが、バンドル間でアセットが重複しないようにしたり、未使用のバイナリシンボルを削除したりするなど、その増加を最小限に抑える方法はたくさんあります。Tuistは、アプリのサイズを小さく保つためのツールとインサイトを提供し、アプリのサイズを長期的に監視します。
+As you add more features to your app, your app bundle size keeps growing. While
+some of the bundle size growth is inevitable as you ship more code and assets,
+there are many ways to minimze that growth, such as by ensuring your assets are
+not duplicated across your bundles or stripping unused binary symbols. Tuist
+provides you with tools and insights to help your app size stay small – and we
+also monitor your app size over time.
 
-## 使用法 {#usage}
+## Usage {#usage}
 
-バンドルを分析するには、`tuist inspect bundle` コマンドを使います：
+To analyze a bundle, you can use the `tuist inspect bundle` command:
 
-コードグループ
+::: code-group
 ```bash [Analyze an .ipa]
 tuist inspect bundle App.ipa
 ```
@@ -32,16 +38,19 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
-`tuist inspect bundle`
-コマンドはバンドルを分析し、バンドルの内容のスキャンやモジュールの内訳を含むバンドルの詳細な概要を見るためのリンクを提供します：
+The `tuist inspect bundle` command analyzes the bundle and provides you with a
+link to see a detailed overview of the bundle including a scan of the contents
+of the bundle or a module breakdown:
 
-分析されたバンドル](/images/guides/features/bundle-size/analyzed-bundle.png)。
+![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## 継続的インテグレーション{#continuous-integration}。
+## Continuous integration {#continuous-integration}
 
-バンドルのサイズを経時的に追跡するには、CI上のバンドルを分析する必要があります。まず、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります：
+To track bundle size over time, you will need to analyze the bundle on the CI.
+First, you will need to ensure that your CI is
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>:
 
-GitHub Actions のワークフローの例は次のようになります：
+An example workflow for GitHub Actions could then look like this:
 
 ```yaml
 name: Build
@@ -56,18 +65,24 @@ jobs:
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 ```
 
-一度設定すれば、時間の経過とともにバンドルサイズがどのように変化していくかを確認することができる：
+Once set up, you will be able to see how your bundle size evolves over time:
 
-![バンドルサイズグラフ](/images/guides/features/bundle-size/bundle-size-graph.png)。
+![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## プル/マージリクエストのコメント {#pullmerge-request-comments}
+## Pull/merge request comments {#pullmerge-request-comments}
 
-GITプラットフォームとの統合が必要です。
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
+To get automatic pull/merge request comments, integrate your
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git
+platform</LocalizedLink>.
 <!-- -->
 :::
 
-Tuistプロジェクトが[GitHub](https://github.com)のようなGitプラットフォームと接続されると、`tuist inspect
-bundle`: ![GitHub app comment with inspected
-bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)を実行するたびに、Tuistはプル/マージリクエストに直接コメントを投稿します。
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), Tuist will post a comment directly in your
+pull/merge requests whenever you run `tuist inspect bundle`: ![GitHub app
+comment with inspected
+bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)

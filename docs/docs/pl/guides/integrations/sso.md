@@ -9,67 +9,66 @@
 
 ## Google {#google}
 
-Jeśli masz organizację Google Workspace i chcesz, aby każdy programista, który
-zaloguje się za pomocą tej samej domeny hostowanej przez Google, został dodany
-do Twojej organizacji Tuist, możesz to skonfigurować za pomocą:
+If you have a Google Workspace organization and you want any developer who signs
+in with the same Google hosted domain to be added to your Tuist organization,
+you can set it up with:
 ```bash
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: ostrzeżenie
+::: warning
 <!-- -->
-Musisz być uwierzytelniony w Google przy użyciu adresu e-mail powiązanego z
-organizacją, której domenę konfigurujesz.
+You must be authenticated with Google using an email tied to the organization
+whose domain you are setting up.
 <!-- -->
 :::
 
 ## Okta {#okta}
 
-SSO z Okta jest dostępne tylko dla klientów korporacyjnych. Jeśli jesteś
-zainteresowany jego konfiguracją, skontaktuj się z nami pod adresem
+SSO with Okta is available only for enterprise customers. If you are interested
+in setting it up, please contact us at
 [contact@tuist.dev](mailto:contact@tuist.dev).
 
-W trakcie tego procesu zostanie ci przydzielony punkt kontaktowy, który pomoże
-ci skonfigurować Okta SSO.
+During the process, you will be assigned a point of contact to help you set up
+the Okta SSO.
 
-Po pierwsze, należy utworzyć aplikację Okta i skonfigurować ją do pracy z Tuist:
-1. Przejdź do panelu administracyjnego Okta
-2. Aplikacje > Aplikacje > Utwórz integrację aplikacji
-3. Wybierz "OIDC - OpenID Connect" i "Aplikacja internetowa".
-4. Wprowadź nazwę wyświetlaną aplikacji, na przykład "Tuist". Prześlij logo
-   Tuist znajdujące się pod adresem [ten
+Firstly, you will need to create an Okta application and configure it to work
+with Tuist:
+1. Go to Okta admin dashboard
+2. Applications > Applications > Create App Integration
+3. Select "OIDC - OpenID Connect" and "Web Application"
+4. Enter the display name for the application, for example, "Tuist". Upload a
+   Tuist logo located at [this
    URL](https://tuist.dev/images/tuist_dashboard.png).
-5. URI przekierowania logowania należy na razie pozostawić bez zmian.
-6. W sekcji "Przypisania" wybierz żądaną kontrolę dostępu do aplikacji SSO i
-   zapisz.
-7. Po zapisaniu dostępne będą ogólne ustawienia aplikacji. Skopiuj
-   "Identyfikator klienta" i "Sekret klienta" - będziesz musiał bezpiecznie
-   udostępnić je swojemu punktowi kontaktowemu.
-8. Zespół Tuist będzie musiał ponownie wdrożyć serwer Tuist z dostarczonym
-   identyfikatorem klienta i kluczem tajnym. Może to potrwać do jednego dnia
-   roboczego.
-9. Po wdrożeniu serwera kliknij przycisk "Edytuj" w ustawieniach ogólnych.
-10. Wklej następujący adres URL przekierowania:
+5. Leave sign-in redirect URIs as it is for now
+6. Under "Assignments" choose the desired access control to the SSO Application
+   and save.
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret" – you will need to safely share this
+   with your point of contact.
+8. The Tuist team will need to redeploy the Tuist server with the provided
+   client ID and secret. This may take up to one business day.
+9. Once the server is deployed, click on General Settings "Edit" button.
+10. Paste the following redirect URL:
     `https://tuist.dev/users/auth/okta/callback`
-13. Zmień "Login initiated by" na "Either Okta or App".
-14. Wybierz opcję "Wyświetl ikonę aplikacji użytkownikom"
-15. Zaktualizuj "Initiate login URL" za pomocą
-    `https://tuist.dev/users/auth/okta?organization_id=1`. Identyfikator
-    `organization_id` zostanie dostarczony przez punkt kontaktowy.
-16. Kliknij "Zapisz".
-17. Zainicjuj logowanie Tuist z pulpitu nawigacyjnego Okta.
-18. Udziel automatycznego dostępu do organizacji Tuist użytkownikom podpisanym z
-    domeny Okta, uruchamiając następujące polecenie:
+13. Change "Login initiated by" to "Either Okta or App".
+14. Select "Display application icon to users"
+15. Update the "Initiate login URL" with
+    `https://tuist.dev/users/auth/okta?organization_id=1`. The `organization_id`
+    will be supplied by your point of contact.
+16. Click "Save".
+17. Initiate Tuist login from your Okta dashboard.
+18. Give automatically access to your Tuist organization to users signed from
+    your Okta domain by running the following command:
 ```bash
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: ostrzeżenie
+::: warning
 <!-- -->
-Użytkownicy muszą początkowo zalogować się za pośrednictwem pulpitu
-nawigacyjnego Okta, ponieważ Tuist obecnie nie obsługuje automatycznego
-przydzielania i usuwania użytkowników z organizacji Okta. Po zalogowaniu się za
-pośrednictwem pulpitu nawigacyjnego Okta zostaną oni automatycznie dodani do
-organizacji Tuist.
+Users need to initially sign in via their Okta dashboard as Tuist currently
+doesn't support automatic provisioning and deprovisioning of users from your
+Okta organization. Once they sign in via their Okta dashboard, they will be
+automatically added to your Tuist organization.
 <!-- -->
 :::

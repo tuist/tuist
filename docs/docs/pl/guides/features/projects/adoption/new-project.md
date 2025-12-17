@@ -5,19 +5,19 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# Utwórz nowy projekt {#create-a-new-project}.
+# Create a new project {#create-a-new-project}
 
-Najprostszym sposobem na rozpoczęcie nowego projektu z Tuist jest użycie
-polecenia `tuist init`. Polecenie to uruchamia interaktywny interfejs CLI, który
-prowadzi użytkownika przez proces konfiguracji projektu. Po wyświetleniu monitu
-należy wybrać opcję utworzenia "wygenerowanego projektu".
+The most straightforward way to start a new project with Tuist is to use the
+`tuist init` command. This command launches an interactive CLI that guides you
+through setting up your project. When prompted, make sure to select the option
+to create a "generated project".
 
-Następnie można <LocalizedLink href="/guides/features/projects/editing">
-edytować projekt</LocalizedLink> uruchamiając `tuist edit`, a Xcode otworzy
-projekt, w którym można go edytować. Jednym z generowanych plików jest
-`Project.swift`, który zawiera definicję projektu. Jeśli jesteś zaznajomiony z
-menedżerem pakietów Swift, pomyśl o nim jak o `Package.swift`, ale z językiem
-projektów Xcode.
+You can then <LocalizedLink href="/guides/features/projects/editing">edit the
+project</LocalizedLink> running `tuist edit`, and Xcode will open a project
+where you can edit the project. One of the files that are generated is the
+`Project.swift`, which contains the definition of your project. If you are
+familiar with the Swift Package Manager, think of it as the `Package.swift` but
+with the lingo of Xcode projects.
 
 ::: code-group
 ```swift [Project.swift]
@@ -59,29 +59,29 @@ let project = Project(
 <!-- -->
 :::
 
-:: info
+::: info
 <!-- -->
-Celowo utrzymujemy listę dostępnych szablonów krótką, aby zminimalizować koszty
-utrzymania. Jeśli chcesz utworzyć projekt, który nie reprezentuje aplikacji, na
-przykład framework, możesz użyć `tuist init` jako punktu wyjścia, a następnie
-zmodyfikować wygenerowany projekt do swoich potrzeb.
+We intentionally keep the list of available templates short to minimize
+maintenance overhead. If you want to create a project that doesn't represent an
+application, for example a framework, you can use `tuist init` as a starting
+point and then modify the generated project to suit your needs.
 <!-- -->
 :::
 
-## Ręczne tworzenie projektu {#manually-creating-a-project}
+## Manually creating a project {#manually-creating-a-project}
 
-Alternatywnie można utworzyć projekt ręcznie. Zalecamy to zrobić tylko wtedy,
-gdy jesteś już zaznajomiony z Tuist i jego koncepcjami. Pierwszą rzeczą, którą
-musisz zrobić, jest utworzenie dodatkowych katalogów dla struktury projektu:
+Alternatively, you can create the project manually. We recommend doing this only
+if you're already familiar with Tuist and its concepts. The first thing that
+you'll need to do is to create additional directories for the project structure:
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-Następnie utwórz plik `Tuist.swift`, który skonfiguruje Tuist i będzie używany
-przez Tuist do określenia katalogu głównego projektu, oraz plik `Project.swift`,
-w którym zostanie zadeklarowany projekt:
+Then create a `Tuist.swift` file, which will configure Tuist and is used by
+Tuist to determine the root directory of the project, and a `Project.swift`,
+where your project will be declared:
 
 ::: code-group
 ```swift [Project.swift]
@@ -109,11 +109,11 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-::: ostrzeżenie
+::: warning
 <!-- -->
-Tuist używa katalogu `Tuist/` do określenia katalogu głównego projektu, a
-następnie szuka innych plików manifestu globalizujących katalogi. Zalecamy
-utworzenie tych plików w wybranym edytorze i od tego momentu można użyć `tuist
-edit` do edycji projektu za pomocą Xcode.
+Tuist uses the `Tuist/` directory to determine the root of your project, and
+from there it looks for other manifest files globbing the directories. We
+recommend creating those files with your editor of choice, and from that point
+on, you can use `tuist edit` to edit the project with Xcode.
 <!-- -->
 :::

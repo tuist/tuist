@@ -5,43 +5,41 @@
   "description": "Learn how to install Tuist on your infrastructure."
 }
 ---
-# Самостоятельная установка {#self-host-installation}
+# Self-host installation {#self-host-installation}
 
-Мы предлагаем версию сервера Tuist с возможностью самостоятельного размещения
-для организаций, которым требуется больший контроль над своей инфраструктурой.
-Эта версия позволяет размещать Tuist на собственной инфраструктуре, обеспечивая
-безопасность и конфиденциальность данных.
+We offer a self-hosted version of the Tuist server for organizations that
+require more control over their infrastructure. This version allows you to host
+Tuist on your own infrastructure, ensuring that your data remains secure and
+private.
 
-::: предупреждение Требуется ЛИЦЕНЗИЯ
+::: warning LICENSE REQUIRED
 <!-- -->
-Для самостоятельного размещения Tuist требуется действующая платная лицензия.
-Местная версия Tuist доступна только для организаций на тарифном плане
-Enterprise. Если вы заинтересованы в этой версии, пожалуйста, свяжитесь с нами
-по адресу [contact@tuist.dev](mailto:contact@tuist.dev).
+Self-hosting Tuist requires a legally valid paid license. The on-premise version
+of Tuist is available only for organizations on the Enterprise plan. If you are
+interested in this version, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
-## Каденция выпуска {#release-cadence}
+## Release cadence {#release-cadence}
 
-Мы выпускаем новые версии Tuist постоянно, по мере того как новые изменения,
-которые можно выпустить, появляются на главной. Мы следуем [семантическому
-версионированию](https://semver.org/), чтобы обеспечить предсказуемое
-версионирование и совместимость.
+We release new versions of Tuist continuously as new releasable changes land on
+main. We follow [semantic versioning](https://semver.org/) to ensure predictable
+versioning and compatibility.
 
-Основной компонент используется для того, чтобы отмечать изменения в сервере
-Tuist, которые потребуют согласования с локальными пользователями. Не стоит
-ожидать, что мы будем его использовать, а если вдруг понадобится, будьте
-уверены, мы будем работать с вами, чтобы сделать переход плавным.
+The major component is used to flag breaking changes in the Tuist server that
+will require coordination with the on-premise users. You should not expect us to
+use it, and in case we needed, rest assured we'll work with you in making the
+transition smooth.
 
-## Непрерывное развертывание {#continuous-deployment}
+## Continuous deployment {#continuous-deployment}
 
-Мы настоятельно рекомендуем настроить конвейер непрерывного развертывания,
-который будет автоматически развертывать последнюю версию Tuist каждый день. Это
-гарантирует, что вы всегда будете иметь доступ к последним функциям, улучшениям
-и обновлениям безопасности.
+We strongly recommend setting up a continuous deployment pipeline that
+automatically deploys the latest version of Tuist every day. This ensures you
+always have access to the latest features, improvements, and security updates.
 
-Вот пример рабочего процесса GitHub Actions, который ежедневно проверяет наличие
-и развертывает новые версии:
+Here's an example GitHub Actions workflow that checks for and deploys new
+versions daily:
 
 ```yaml
 name: Update Tuist Server
@@ -61,376 +59,361 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## Требования времени выполнения {#runtime-requirements}
+## Runtime requirements {#runtime-requirements}
 
-В этом разделе описаны требования к размещению сервера Tuist на вашей
-инфраструктуре.
+This section outlines the requirements for hosting the Tuist server on your
+infrastructure.
 
-### Матрица совместимости {#compatibility-matrix}
+### Compatibility matrix {#compatibility-matrix}
 
-Сервер Tuist протестирован и совместим со следующими минимальными версиями:
+Tuist server has been tested and is compatible with the following minimum
+versions:
 
-| Компонент   | Минимальная версия | Примечания                                     |
-| ----------- | ------------------ | ---------------------------------------------- |
-| PostgreSQL  | 15                 | С расширением TimescaleDB                      |
-| TimescaleDB | 2.16.1             | Необходимое расширение PostgreSQL (устаревшее) |
-| ClickHouse  | 25                 | Требуется для аналитики                        |
+| Component   | Minimum Version | Notes                                      |
+| ----------- | --------------- | ------------------------------------------ |
+| PostgreSQL  | 15              | With TimescaleDB extension                 |
+| TimescaleDB | 2.16.1          | Required PostgreSQL extension (deprecated) |
+| ClickHouse  | 25              | Required for analytics                     |
 
-::: предупреждение TIMESCALEDB DEPRECATION
+::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB в настоящее время является необходимым расширением PostgreSQL для
-сервера Tuist, используемым для хранения и запроса данных временных рядов.
-Однако **TimescaleDB устарел** и будет исключен из числа необходимых
-зависимостей в ближайшем будущем, когда мы перенесем всю функциональность
-временных рядов на ClickHouse. Пока же убедитесь, что на вашем экземпляре
-PostgreSQL установлена и включена TimescaleDB.
+TimescaleDB is currently a required PostgreSQL extension for Tuist server, used
+for time-series data storage and querying. However, **TimescaleDB is
+deprecated** and will be dropped as a required dependency in the near future as
+we migrate all time-series functionality to ClickHouse. For now, ensure your
+PostgreSQL instance has TimescaleDB installed and enabled.
 <!-- -->
 :::
 
-### Запуск виртуализированных образов Docker {#running-dockervirtualized-images}
+### Running Docker-virtualized images {#running-dockervirtualized-images}
 
-Мы распространяем сервер в виде образа [Docker](https://www.docker.com/) через
-[GitHub's Container
+We distribute the server as a [Docker](https://www.docker.com/) image via
+[GitHub’s Container
 Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-Чтобы запустить его, ваша инфраструктура должна поддерживать запуск образов
-Docker. Обратите внимание, что большинство поставщиков инфраструктуры
-поддерживают его, поскольку он стал стандартным контейнером для распространения
-и запуска программного обеспечения в производственных средах.
+To run it, your infrastructure must support running Docker images. Note that
+most infrastructure providers support it because it’s become the standard
+container for distributing and running software in production environments.
 
-### База данных Postgres {#postgres-database}
+### Postgres database {#postgres-database}
 
-Помимо запуска образов Docker, вам понадобится база данных
-[Postgres](https://www.postgresql.org/) с расширением
-[TimescaleDB](https://www.timescale.com/) для хранения реляционных данных и
-временных рядов. Большинство поставщиков инфраструктуры включают базы данных
-Postgres в свои предложения (например,
-[AWS](https://aws.amazon.com/rds/postgresql/) и [Google
+In addition to running the Docker images, you'll need a [Postgres
+database](https://www.postgresql.org/) with the [TimescaleDB
+extension](https://www.timescale.com/) to store relational and time-series data.
+Most infrastructure providers include Postgres databases in their offering
+(e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google
 Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-**Требуется расширение TimescaleDB:** Tuist требует расширения TimescaleDB для
-эффективного хранения и запроса данных временных рядов. Это расширение
-используется для командных событий, аналитики и других функций, основанных на
-времени. Перед запуском Tuist убедитесь, что на вашем экземпляре PostgreSQL
-установлено и включено расширение TimescaleDB.
+**TimescaleDB Extension Required:** Tuist requires the TimescaleDB extension for
+efficient time-series data storage and querying. This extension is used for
+command events, analytics, and other time-based features. Ensure your PostgreSQL
+instance has TimescaleDB installed and enabled before running Tuist.
 
-::: info МИГРАЦИИ
+::: info MIGRATIONS
 <!-- -->
-Точка входа образа Docker автоматически запускает все ожидающие миграции схемы
-перед запуском службы. Если миграция не удалась из-за отсутствия расширения
-TimescaleDB, вам нужно будет сначала установить его в свою базу данных.
-<!-- -->
-:::
-
-### База данных ClickHouse {#clickhouse-database}
-
-Tuist использует [ClickHouse](https://clickhouse.com/) для хранения и запроса
-больших объемов аналитических данных. ClickHouse - это **, необходимый** для
-таких функций, как build insights, и он станет основной базой данных временных
-рядов, когда мы откажемся от TimescaleDB. Вы можете выбрать, размещать
-ClickHouse самостоятельно или использовать их хостинговый сервис.
-
-::: info МИГРАЦИИ
-<!-- -->
-Точка входа образа Docker автоматически запускает все предстоящие миграции схемы
-ClickHouse перед запуском службы.
+The Docker image's entrypoint automatically runs any pending schema migrations
+before starting the service. If migrations fail due to a missing TimescaleDB
+extension, you'll need to install it in your database first.
 <!-- -->
 :::
 
-### Хранение {#storage}
+### ClickHouse database {#clickhouse-database}
 
-Вам также понадобится решение для хранения файлов (например, двоичных файлов
-фреймворков и библиотек). В настоящее время мы поддерживаем любое хранилище,
-совместимое с S3.
+Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large
+amounts of analytics data. ClickHouse is **required** for features like build
+insights and will be the primary time-series database as we phase out
+TimescaleDB. You can choose whether to self-host ClickHouse or use their hosted
+service.
 
-## Конфигурация {#configuration}
+::: info MIGRATIONS
+<!-- -->
+The Docker image's entrypoint automatically runs any pending ClickHouse schema
+migrations before starting the service.
+<!-- -->
+:::
 
-Конфигурация службы выполняется во время выполнения с помощью переменных
-окружения. Учитывая конфиденциальный характер этих переменных, мы рекомендуем
-шифровать и хранить их в надежных решениях для управления паролями. Будьте
-уверены, Tuist работает с этими переменными очень осторожно, гарантируя, что они
-никогда не будут отображаться в логах.
+### Storage {#storage}
+
+You’ll also need a solution to store files (e.g. framework and library
+binaries). Currently we support any storage that's S3-compliant.
+
+## Configuration {#configuration}
+
+The configuration of the service is done at runtime through environment
+variables. Given the sensitive nature of these variables, we advise encrypting
+and storing them in secure password management solutions. Rest assured, Tuist
+handles these variables with utmost care, ensuring they are never displayed in
+logs.
 
 ::: info LAUNCH CHECKS
 <!-- -->
-При запуске проверяются все необходимые переменные. Если какие-либо из них
-отсутствуют, запуск завершится неудачей, а в сообщении об ошибке будут подробно
-указаны отсутствующие переменные.
+The necessary variables are verified at startup. If any are missing, the launch
+will fail and the error message will detail the absent variables.
 <!-- -->
 :::
 
-### Конфигурация лицензии {#license-configuration}
+### License configuration {#license-configuration}
 
-Как пользователь локального сервиса, вы получите лицензионный ключ, который
-нужно будет указать в качестве переменной окружения. Этот ключ используется для
-проверки лицензии и обеспечения работы службы в соответствии с условиями
-соглашения.
+As an on-premise user, you'll receive a license key that you'll need to expose
+as an environment variable. This key is used to validate the license and ensure
+that the service is running within the terms of the agreement.
 
-| Переменная среды                   | Описание                                                                                                                                                                                                                                                                                       | Требуется | По умолчанию | Пример                                    |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------ | ----------------------------------------- |
-| `TUIST_LICENSE`                    | Лицензия, предоставляемая после подписания соглашения об уровне обслуживания                                                                                                                                                                                                                   | Да*       |              | `******`                                  |
-| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Исключительная альтернатива `TUIST_LICENSE`**. Публичный сертификат в кодировке Base64 для автономной проверки лицензии в средах с воздушной завесой, где сервер не может связаться с внешними службами. Используется только в тех случаях, когда `TUIST_LICENSE` не может быть использован. | Да*       |              | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
+| Environment variable               | Description                                                                                                                                                                                                                                 | Required | Default | Example                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ----------------------------------------- |
+| `TUIST_LICENSE`                    | The license provided after signing the service level agreement                                                                                                                                                                              | Yes*     |         | `******`                                  |
+| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes*     |         | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
 
-\* Должны быть указаны либо `TUIST_LICENSE`, либо
-`TUIST_LICENSE_CERTIFICATE_BASE64`, но не оба. Используйте `TUIST_LICENSE` для
-стандартных развертываний.
+\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be
+provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
-::: предупреждение ДАТА ИСПОЛНЕНИЯ
+::: warning EXPIRATION DATE
 <!-- -->
-Лицензии имеют срок действия. Пользователи получат предупреждение при
-использовании команд Tuist, взаимодействующих с сервером, если срок действия
-лицензии истекает менее чем через 30 дней. Если вы заинтересованы в продлении
-лицензии, пожалуйста, свяжитесь с [contact@tuist.dev](mailto:contact@tuist.dev).
+Licenses have an expiration date. Users will receive a warning while using Tuist
+commands that interact with the server if the license expires in less than 30
+days. If you are interested in renewing your license, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
-### Базовая конфигурация среды {#base-environment-configuration}
+### Base environment configuration {#base-environment-configuration}
 
-| Переменная среды                      | Описание                                                                                                                                                                                                                                                      | Требуется | По умолчанию                       | Пример                                                                       |                                                                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `TUIST_APP_URL`                       | Базовый URL-адрес для доступа к экземпляру из Интернета                                                                                                                                                                                                       | Да        |                                    | https://tuist.dev                                                            |                                                                                                                                    |
-| `TUIST_SECRET_KEY_BASE`               | Ключ, используемый для шифрования информации (например, сеансов в файле cookie).                                                                                                                                                                              | Да        |                                    |                                                                              | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD`           | Перец для генерации хэшированных паролей                                                                                                                                                                                                                      | Нет       | `$TUIST_SECRET_KEY_BASE`           |                                                                              |                                                                                                                                    |
-| `TUIST_SECRET_KEY_TOKENS`             | Секретный ключ для генерации случайных жетонов                                                                                                                                                                                                                | Нет       | `$TUIST_SECRET_KEY_BASE`           |                                                                              |                                                                                                                                    |
-| `TUIST_SECRET_KEY_ENCRYPTION`         | 32-байтный ключ для шифрования конфиденциальных данных по алгоритму AES-GCM                                                                                                                                                                                   | Нет       | `$TUIST_SECRET_KEY_BASE`           |                                                                              |                                                                                                                                    |
-| `TUIST_USE_IPV6`                      | Когда `1`, он настраивает приложение на использование IPv6-адресов.                                                                                                                                                                                           | Нет       | `0`                                | `1`                                                                          |                                                                                                                                    |
-| `TUIST_LOG_LEVEL`                     | Уровень журнала, который будет использоваться для приложения                                                                                                                                                                                                  | Нет       | `информация`                       | [Уровни журнала](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
-| `TUIST_GITHUB_APP_NAME`               | URL-версия имени вашего приложения на GitHub                                                                                                                                                                                                                  | Нет       |                                    | `my-app`                                                                     |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | Закрытый ключ в кодировке base64, используемый в приложении GitHub для разблокировки дополнительных функций, таких как автоматическая публикация комментариев к PR.                                                                                           | Нет       | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                              |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY`        | Закрытый ключ, используемый в приложении GitHub для разблокировки дополнительных функций, таких как автоматическая публикация комментариев к PR. **Мы рекомендуем использовать base64-кодированную версию, чтобы избежать проблем со специальными символами** | Нет       | `-----BEGIN RSA...`                |                                                                              |                                                                                                                                    |
-| `TUIST_OPS_USER_HANDLES`              | Список дескрипторов пользователей, имеющих доступ к URL-адресам операций, разделенный запятыми                                                                                                                                                                | Нет       |                                    | `пользователь1,пользователь2`                                                |                                                                                                                                    |
-| `TUIST_WEB`                           | Включите конечную точку веб-сервера                                                                                                                                                                                                                           | Нет       | `1`                                | `1` или `0`                                                                  |                                                                                                                                    |
+| Environment variable                  | Description                                                                                                                                                                                                    | Required | Default                            | Example                                                                  |                                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                       | The base URL to access the instance from the Internet                                                                                                                                                          | Yes      |                                    | https://tuist.dev                                                        |                                                                                                                                    |
+| `TUIST_SECRET_KEY_BASE`               | The key to use to encrypt information (e.g. sessions in a cookie)                                                                                                                                              | Yes      |                                    |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_PASSWORD`           | Pepper to generate hashed passwords                                                                                                                                                                            | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
+| `TUIST_SECRET_KEY_TOKENS`             | Secret key to generate random tokens                                                                                                                                                                           | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
+| `TUIST_SECRET_KEY_ENCRYPTION`         | 32-byte key for AES-GCM encryption of sensitive data                                                                                                                                                           | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
+| `TUIST_USE_IPV6`                      | When `1` it configures the app to use IPv6 addresses                                                                                                                                                           | No       | `0`                                | `1`                                                                      |                                                                                                                                    |
+| `TUIST_LOG_LEVEL`                     | The log level to use for the app                                                                                                                                                                               | No       | `info`                             | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
+| `TUIST_GITHUB_APP_NAME`               | The URL version of your GitHub app name                                                                                                                                                                        | No       |                                    | `my-app`                                                                 |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments                                                                                     | No       | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                          |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY`        | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No       | `-----BEGIN RSA...`                |                                                                          |                                                                                                                                    |
+| `TUIST_OPS_USER_HANDLES`              | A comma-separated list of user handles that have access to the operations URLs                                                                                                                                 | No       |                                    | `user1,user2`                                                            |                                                                                                                                    |
+| `TUIST_WEB`                           | Enable the web server endpoint                                                                                                                                                                                 | No       | `1`                                | `1` or `0`                                                               |                                                                                                                                    |
 
-### Конфигурация базы данных {#database-configuration}
+### Database configuration {#database-configuration}
 
-Для настройки подключения к базе данных используются следующие переменные
-окружения:
+The following environment variables are used to configure the database
+connection:
 
-| Переменная среды                     | Описание                                                                                                                                                                                                                                                | Требуется | По умолчанию | Пример                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------ | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                       | URL-адрес для доступа к базе данных Postgres. Обратите внимание, что URL должен содержать информацию об аутентификации                                                                                                                                  | Да        |              | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`               | URL-адрес для доступа к базе данных ClickHouse. Обратите внимание, что URL должен содержать информацию об аутентификации                                                                                                                                | Нет       |              | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
-| `TUIST_USE_SSL_FOR_DATABASE`         | Если значение равно true, то для подключения к базе данных используется [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security).                                                                                                                  | Нет       | `1`          | `1`                                                                    |
-| `TUIST_DATABASE_POOL_SIZE`           | Количество соединений, которые необходимо держать открытыми в пуле соединений                                                                                                                                                                           | Нет       | `10`         | `10`                                                                   |
-| `TUIST_DATABASE_QUEUE_TARGET`        | Интервал (в милисекундах) для проверки того, что все соединения, извлеченные из пула, заняли больше интервала очереди [(Дополнительная информация)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)                       | Нет       | `300`        | `300`                                                                  |
-| `TUIST_DATABASE_QUEUE_INTERVAL`      | Пороговое время (в милисекундах) в очереди, которое пул использует для определения того, следует ли ему начать отбрасывать новые соединения [(Дополнительная информация)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | Нет       | `1000`       | `1000`                                                                 |
-| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Интервал времени в миллисекундах между очистками буфера ClickHouse                                                                                                                                                                                      | Нет       | `5000`       | `5000`                                                                 |
-| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Максимальный размер буфера ClickHouse в байтах перед принудительной очисткой                                                                                                                                                                            | Нет       | `1000000`    | `1000000`                                                              |
-| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Количество запускаемых буферных процессов ClickHouse                                                                                                                                                                                                    | Нет       | `5`          | `5`                                                                    |
+| Environment variable                 | Description                                                                                                                                                                                                                      | Required | Default   | Example                                                                |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                       | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                         | Yes      |           | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_CLICKHOUSE_URL`               | The URL to access the ClickHouse database. Note that the URL should contain the authentication information                                                                                                                       | No       |           | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `TUIST_USE_SSL_FOR_DATABASE`         | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                      | No       | `1`       | `1`                                                                    |
+| `TUIST_DATABASE_POOL_SIZE`           | The number of connections to keep open in the connection pool                                                                                                                                                                    | No       | `10`      | `10`                                                                   |
+| `TUIST_DATABASE_QUEUE_TARGET`        | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`     | `300`                                                                  |
+| `TUIST_DATABASE_QUEUE_INTERVAL`      | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`    | `1000`                                                                 |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes                                                                                                                                                                  | No       | `5000`    | `5000`                                                                 |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Maximum ClickHouse buffer size in bytes before forcing a flush                                                                                                                                                                   | No       | `1000000` | `1000000`                                                              |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Number of ClickHouse buffer processes to run                                                                                                                                                                                     | No       | `5`       | `5`                                                                    |
 
-### Конфигурация среды аутентификации {#authentication-environment-configuration}
+### Authentication environment configuration {#authentication-environment-configuration}
 
-Мы поддерживаем аутентификацию через [провайдеров идентификации
-(IdP)](https://en.wikipedia.org/wiki/Identity_provider). Чтобы воспользоваться
-этим, убедитесь, что все необходимые переменные окружения для выбранного
-провайдера присутствуют в окружении сервера. **Отсутствие переменных** приведет
-к тому, что Tuist обойдет этого провайдера.
+We facilitate authentication through [identity providers
+(IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure
+all necessary environment variables for the chosen provider are present in the
+server's environment. **Missing variables** will result in Tuist bypassing that
+provider.
 
 #### GitHub {#github}
 
-Мы рекомендуем аутентифицироваться с помощью [GitHub
-App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps),
-но вы также можете использовать [OAuth
+We recommend authenticating using a [GitHub
+App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
+but you can also use the [OAuth
 App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
-Убедитесь, что в окружение сервера включены все необходимые переменные
-окружения, указанные GitHub. Отсутствие переменных приведет к тому, что Tuist не
-примет во внимание аутентификацию GitHub. Чтобы правильно настроить приложение
-GitHub:
-- В общих настройках приложения GitHub:
-    - Скопируйте идентификатор клиента `` и установите его как
-      `TUIST_GITHUB_APP_CLIENT_ID.`
-    - Создайте и скопируйте новый клиентский секрет `` и установите его как
-      `TUIST_GITHUB_APP_CLIENT_SECRET.`
-    - Установите URL-адрес обратного вызова `` как
-      `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` также
-      может быть IP-адресом вашего сервера.
-- Требуются следующие разрешения:
-  - Репозитории:
-    - Заявки на перетяжку: Чтение и запись
-  - Счета:
-    - Адреса электронной почты: Только для чтения
+Make sure to include all essential environment variables specified by GitHub in
+the server environment. Absent variables will cause Tuist to overlook the GitHub
+authentication. To properly set up the GitHub app:
+- In the GitHub app's general settings:
+    - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
+    - Create and copy a new `client secret` and set it as
+      `TUIST_GITHUB_APP_CLIENT_SECRET`
+    - Set the `Callback URL` as
+      `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also
+      be your server's IP address.
+- The following permissions are required:
+  - Repositories:
+    - Pull requests: Read and write
+  - Accounts:
+    - Email addresses: Read-only
 
-В разделе `Разрешения и события`'s `Account permissions` установите для
-разрешения `Email addresses` значение `Read-only`.
+In the `Permissions and events`'s `Account permissions` section, set the `Email
+addresses` permission to `Read-only`.
 
-Затем вам нужно будет выставить следующие переменные окружения в среде, в
-которой запущен сервер Tuist:
+You'll then need to expose the following environment variables in the
+environment where the Tuist server runs:
 
-| Переменная среды                 | Описание                                | Требуется | По умолчанию | Пример                                     |
-| -------------------------------- | --------------------------------------- | --------- | ------------ | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | Идентификатор клиента приложения GitHub | Да        |              | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | Секрет клиента приложения               | Да        |              | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| Environment variable             | Description                             | Required | Default | Example                                    |
+| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
-Вы можете настроить аутентификацию в Google с помощью [OAuth
-2](https://developers.google.com/identity/protocols/oauth2). Для этого вам нужно
-будет создать новый мандат типа OAuth client ID. При создании учетных данных
-выберите тип приложения "Веб-приложение", назовите его `Tuist`, а URI
-перенаправления установите на `{base_url}/users/auth/google/callback`, где
-`base_url` - это URL, на котором работает ваш хостинг-сервис. После создания
-приложения скопируйте идентификатор и секрет клиента и установите их в качестве
-переменных окружения `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` соответственно.
+You can set up authentication with Google using [OAuth
+2](https://developers.google.com/identity/protocols/oauth2). For that, you'll
+need to create a new credential of type OAuth client ID. When creating the
+credentials, select "Web Application" as application type, name it `Tuist`, and
+set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url`
+is the URL your hosted-service is running at. Once you create the app, copy the
+client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID`
+and `GOOGLE_CLIENT_SECRET` respectively.
 
-::: инфо СКОПЫ СОГЛАСИЯ
+::: info CONSENT SCREEN SCOPES
 <!-- -->
-Возможно, вам потребуется создать экран согласия. При этом обязательно добавьте
-диапазоны `userinfo.email` и `openid` и отметьте приложение как внутреннее.
+You might need to create a consent screen. When you do so, make sure to add the
+`userinfo.email` and `openid` scopes and mark the app as internal.
 <!-- -->
 :::
 
 #### Okta {#okta}
 
-Вы можете включить аутентификацию с помощью Okta по протоколу [OAuth
-2.0](https://oauth.net/2/). Вам нужно будет [создать
-приложение](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-на Okta, следуя <LocalizedLink href="/guides/integrations/sso#okta">этим
-инструкциям</LocalizedLink>.
+You can enable authentication with Okta through the [OAuth
+2.0](https://oauth.net/2/) protocol. You'll have to [create an
+app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
+on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these
+instructions</LocalizedLink>.
 
-После получения идентификатора и секрета клиента в процессе настройки приложения
-Okta вам нужно будет установить следующие переменные окружения:
+You will need to set the following environment variables once you obtain the
+client id and secret during the set up of the Okta application:
 
-| Переменная среды             | Описание                                                                                             | Требуется | По умолчанию | Пример |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- | --------- | ------------ | ------ |
-| `TUIST_OKTA_1_CLIENT_ID`     | Идентификатор клиента для аутентификации в Okta. Номер должен быть идентификатором вашей организации | Да        |              |        |
-| `TUIST_OKTA_1_CLIENT_SECRET` | Секрет клиента для аутентификации в Okta                                                             | Да        |              |        |
+| Environment variable         | Description                                                                           | Required | Default | Example |
+| ---------------------------- | ------------------------------------------------------------------------------------- | -------- | ------- | ------- |
+| `TUIST_OKTA_1_CLIENT_ID`     | The client ID to authenticate against Okta. The number should be your organization ID | Yes      |         |         |
+| `TUIST_OKTA_1_CLIENT_SECRET` | The client secret to authenticate against Okta                                        | Yes      |         |         |
 
-Число `1` необходимо заменить на идентификатор вашей организации. Обычно это 1,
-но проверьте в своей базе данных.
+The number `1` needs to be replaced with your organization ID. This will
+typically be 1, but check in your database.
 
-### Конфигурация среды хранения {#storage-environment-configuration}
+### Storage environment configuration {#storage-environment-configuration}
 
-Tuist нуждается в хранилище для хранения артефактов, загружаемых через API. Для
-эффективной работы Tuist необходимо **настроить одно из поддерживаемых решений
-для хранения**.
+Tuist needs storage to house artifacts uploaded through the API. It's
+**essential to configure one of the supported storage solutions** for Tuist to
+operate effectively.
 
-#### S3-совместимые хранилища {#s3compliant-storages}
+#### S3-compliant storages {#s3compliant-storages}
 
-Для хранения артефактов можно использовать любого поставщика услуг хранения,
-совместимого с S3. Для аутентификации и настройки интеграции с поставщиком
-хранилища необходимы следующие переменные среды:
+You can use any S3-compliant storage provider to store artifacts. The following
+environment variables are required to authenticate and configure the integration
+with the storage provider:
 
-| Переменная среды                                         | Описание                                                                                                                                                                     | Требуется | По умолчанию                       | Пример                                                        |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------- | ------------------------------------------------------------- |
-| `TUIST_S3_ACCESS_KEY_ID` или `AWS_ACCESS_KEY_ID`         | Идентификатор ключа доступа для аутентификации у поставщика услуг хранения данных                                                                                            | Да        |                                    | `AKIAIOSFOD`                                                  |
-| `TUIST_S3_SECRET_ACCESS_KEY` или `AWS_SECRET_ACCESS_KEY` | Секретный ключ доступа для аутентификации у поставщика услуг хранения данных                                                                                                 | Да        |                                    | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
-| `TUIST_S3_REGION` или `AWS_REGION`                       | Регион, в котором находится ведро                                                                                                                                            | Нет       | `авто`                             | `запад-2`                                                     |
-| `TUIST_S3_ENDPOINT` или `AWS_ENDPOINT`                   | Конечная точка поставщика услуг хранения                                                                                                                                     | Да        |                                    | `https://s3.us-west-2.amazonaws.com`                          |
-| `TUIST_S3_BUCKET_NAME`                                   | Имя ведра, в котором будут храниться артефакты                                                                                                                               | Да        |                                    | `tuist-artifacts`                                             |
-| `TUIST_S3_CA_CERT_PEM`                                   | Сертификат ЦС в кодировке PEM для проверки HTTPS-соединений S3. Полезно для сред с воздушной завесой с самоподписанными сертификатами или внутренними центрами сертификации. | Нет       | Пакет системного ЦС                | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
-| `TUIST_S3_CONNECT_TIMEOUT`                               | Таймаут (в миллисекундах) для установления соединения с провайдером хранилища                                                                                                | Нет       | `3000`                             | `3000`                                                        |
-| `TUIST_S3_RECEIVE_TIMEOUT`                               | Таймаут (в миллисекундах) для получения данных от провайдера хранилища                                                                                                       | Нет       | `5000`                             | `5000`                                                        |
-| `TUIST_S3_POOL_TIMEOUT`                                  | Таймаут (в миллисекундах) для пула соединений с провайдером хранилища. Используйте `infinity` для отсутствия таймаута.                                                       | Нет       | `5000`                             | `5000`                                                        |
-| `TUIST_S3_POOL_MAX_IDLE_TIME`                            | Максимальное время простоя (в миллисекундах) для соединений в пуле. Используйте `infinity`, чтобы поддерживать соединения неограниченное время.                              | Нет       | `Бесконечность`                    | `60000`                                                       |
-| `TUIST_S3_POOL_SIZE`                                     | Максимальное количество соединений в одном пуле                                                                                                                              | Нет       | `500`                              | `500`                                                         |
-| `TUIST_S3_POOL_COUNT`                                    | Количество используемых пулов соединений                                                                                                                                     | Нет       | Количество системных планировщиков | `4`                                                           |
-| `TUIST_S3_PROTOCOL`                                      | Протокол, используемый при подключении к провайдеру хранилища (`http1` или `http2`).                                                                                         | Нет       | `http1`                            | `http1`                                                       |
-| `TUIST_S3_VIRTUAL_HOST`                                  | Следует ли строить URL с именем ведра в качестве поддомена (виртуального хоста).                                                                                             | Нет       | `ложь`                             | `1`                                                           |
+| Environment variable                                    | Description                                                                                                                                                          | Required | Default                     | Example                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------- | ------------------------------------------------------------- |
+| `TUIST_S3_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                                                                                       | Yes      |                             | `AKIAIOSFOD`                                                  |
+| `TUIST_S3_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                                                                                   | Yes      |                             | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
+| `TUIST_S3_REGION` or `AWS_REGION`                       | The region where the bucket is located                                                                                                                               | No       | `auto`                      | `us-west-2`                                                   |
+| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                   | The endpoint of the storage provider                                                                                                                                 | Yes      |                             | `https://s3.us-west-2.amazonaws.com`                          |
+| `TUIST_S3_BUCKET_NAME`                                  | The name of the bucket where the artifacts will be stored                                                                                                            | Yes      |                             | `tuist-artifacts`                                             |
+| `TUIST_S3_CA_CERT_PEM`                                  | PEM-encoded CA certificate for verifying S3 HTTPS connections. Useful for air-gapped environments with self-signed certificates or internal Certificate Authorities. | No       | System CA bundle            | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
+| `TUIST_S3_CONNECT_TIMEOUT`                              | The timeout (in milliseconds) for establishing a connection to the storage provider                                                                                  | No       | `3000`                      | `3000`                                                        |
+| `TUIST_S3_RECEIVE_TIMEOUT`                              | The timeout (in milliseconds) for receiving data from the storage provider                                                                                           | No       | `5000`                      | `5000`                                                        |
+| `TUIST_S3_POOL_TIMEOUT`                                 | The timeout (in milliseconds) for the connection pool to the storage provider. Use `infinity` for no timeout                                                         | No       | `5000`                      | `5000`                                                        |
+| `TUIST_S3_POOL_MAX_IDLE_TIME`                           | The maximum idle time (in milliseconds) for connections in the pool. Use `infinity` to keep connections alive indefinitely                                           | No       | `infinity`                  | `60000`                                                       |
+| `TUIST_S3_POOL_SIZE`                                    | The maximum number of connections per pool                                                                                                                           | No       | `500`                       | `500`                                                         |
+| `TUIST_S3_POOL_COUNT`                                   | The number of connection pools to use                                                                                                                                | No       | Number of system schedulers | `4`                                                           |
+| `TUIST_S3_PROTOCOL`                                     | The protocol to use when connecting to the storage provider (`http1` or `http2`)                                                                                     | No       | `http1`                     | `http1`                                                       |
+| `TUIST_S3_VIRTUAL_HOST`                                 | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host)                                                                            | No       | `false`                     | `1`                                                           |
 
-::: Информация AWS аутентификация с помощью Web Identity Token из переменных
-окружения
+::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
-Если ваш поставщик хранилища - AWS и вы хотите аутентифицироваться с помощью
-токена веб-идентификации, вы можете установить переменную окружения
-`TUIST_S3_AUTHENTICATION_METHOD` на `aws_web_identity_token_from_env_vars`, и
-Tuist будет использовать этот метод, используя обычные переменные окружения AWS.
+If your storage provider is AWS and you'd like to authenticate using a web
+identity token, you can set the environment variable
+`TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
+Tuist will use that method using the conventional AWS environment variables.
 <!-- -->
 :::
 
-#### Облачное хранилище Google {#google-cloud-storage}
-Для Google Cloud Storage следуйте [этим
-документам](https://cloud.google.com/storage/docs/authentication/managing-hmackeys),
-чтобы получить пару `AWS_ACCESS_KEY_ID` и `AWS_SECRET_ACCESS_KEY`. Переменная
-`AWS_ENDPOINT` должна быть установлена на `https://storage.googleapis.com`.
-Остальные переменные окружения такие же, как и для любого другого
-S3-совместимого хранилища.
+#### Google Cloud Storage {#google-cloud-storage}
+For Google Cloud Storage, follow [these
+docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to
+get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT`
+should be set to `https://storage.googleapis.com`. Other environment variables
+are the same as for any other S3-compliant storage.
 
-### Конфигурация электронной почты {#email-configuration}
+### Email configuration {#email-configuration}
 
-Tuist требует функциональности электронной почты для аутентификации
-пользователей и транзакционных уведомлений (например, сброс пароля, уведомления
-об учетной записи). В настоящее время **поддерживает только Mailgun** в качестве
-почтового провайдера.
+Tuist requires email functionality for user authentication and transactional
+notifications (e.g., password resets, account notifications). Currently, **only
+Mailgun is supported** as the email provider.
 
-| Переменная среды                 | Описание                                                                                                                                                                                                        | Требуется | По умолчанию                                                                            | Пример                    |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------- | ------------------------- |
-| `TUIST_MAILGUN_API_KEY`          | Ключ API для аутентификации в Mailgun                                                                                                                                                                           | Да*       |                                                                                         | `ключ-1234567890abcdef`   |
-| `TUIST_MAILING_DOMAIN`           | Домен, с которого будут отправляться электронные письма                                                                                                                                                         | Да*       |                                                                                         | `mg.tuist.io`             |
-| `TUIST_MAILING_FROM_ADDRESS`     | Адрес электронной почты, который будет отображаться в поле "От".                                                                                                                                                | Да*       |                                                                                         | `noreply@tuist.io`        |
-| `TUIST_MAILING_REPLY_TO_ADDRESS` | Необязательный адрес для ответов пользователей                                                                                                                                                                  | Нет       |                                                                                         | `support@tuist.dev`       |
-| `TUIST_SKIP_EMAIL_CONFIRMATION`  | Пропускать подтверждение по электронной почте при регистрации новых пользователей. Если эта функция включена, пользователи автоматически получают подтверждение и могут войти в систему сразу после регистрации | Нет       | `true`, если электронная почта не настроена, `false`, если электронная почта настроена. | `true`, `false`, `1`, `0` |
+| Environment variable             | Description                                                                                                                                       | Required | Default                                                        | Example                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ------------------------- |
+| `TUIST_MAILGUN_API_KEY`          | The API key for authenticating with Mailgun                                                                                                       | Yes*     |                                                                | `key-1234567890abcdef`    |
+| `TUIST_MAILING_DOMAIN`           | The domain from which emails will be sent                                                                                                         | Yes*     |                                                                | `mg.tuist.io`             |
+| `TUIST_MAILING_FROM_ADDRESS`     | The email address that will appear in the "From" field                                                                                            | Yes*     |                                                                | `noreply@tuist.io`        |
+| `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies                                                                                                        | No       |                                                                | `support@tuist.dev`       |
+| `TUIST_SKIP_EMAIL_CONFIRMATION`  | Skip email confirmation for new user registrations. When enabled, users are automatically confirmed and can log in immediately after registration | No       | `true` if email not configured, `false` if email is configured | `true`, `false`, `1`, `0` |
 
-\* Переменные конфигурации электронной почты необходимы только в том случае,
-если вы хотите отправлять электронные письма. Если они не настроены,
-подтверждение электронной почты автоматически пропускается
+\* Email configuration variables are required only if you want to send emails.
+If not configured, email confirmation is automatically skipped
 
 ::: info SMTP SUPPORT
 <!-- -->
-Поддержка общего SMTP в настоящее время недоступна. Если вам нужна поддержка
-SMTP для вашего локального развертывания, свяжитесь с
-[contact@tuist.dev](mailto:contact@tuist.dev), чтобы обсудить ваши требования.
+Generic SMTP support is not currently available. If you need SMTP support for
+your on-premise deployment, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 <!-- -->
 :::
 
-::: инфо Развертывания с воздушной завесой
+::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
-Для локальных установок, не имеющих доступа в Интернет или настроек почтового
-провайдера, подтверждение по электронной почте автоматически пропускается по
-умолчанию. Пользователи могут войти в систему сразу после регистрации. Если у
-вас настроена электронная почта, но вы хотите пропустить подтверждение,
-установите `TUIST_SKIP_EMAIL_CONFIRMATION=true`. Чтобы потребовать подтверждения
-электронной почты, если она настроена, установите
+For on-premise installations without internet access or email provider
+configuration, email confirmation is automatically skipped by default. Users can
+log in immediately after registration. If you have email configured but still
+want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require
+email confirmation when email is configured, set
 `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 <!-- -->
 :::
 
-### Конфигурация платформы Git {#git-platform-configuration}
+### Git platform configuration {#git-platform-configuration}
 
-Tuist может <LocalizedLink href="/guides/server/authentication">интегрироваться
-с Git-платформами</LocalizedLink>, чтобы предоставить дополнительные
-возможности, такие как автоматическая публикация комментариев в ваших запросах
-на вытягивание.
+Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git
+platforms</LocalizedLink> to provide extra features such as automatically
+posting comments in your pull requests.
 
 #### GitHub {#platform-github}
 
-Вам нужно будет [создать приложение
-GitHub](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps).
-Вы можете использовать созданное вами приложение для аутентификации, если вы не
-создали приложение GitHub с OAuth. В разделе `Разрешения и события`'s
-`Repository permissions` вам нужно дополнительно установить разрешение `Pull
-requests` на `Read and write`.
+You will need to [create a GitHub
+app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps).
+You can reuse the one you created for authentication, unless you created an
+OAuth GitHub app. In the `Permissions and events`'s `Repository permissions`
+section, you will need to additionally set the `Pull requests` permission to
+`Read and write`.
 
-Помимо `TUIST_GITHUB_APP_CLIENT_ID` и `TUIST_GITHUB_APP_CLIENT_SECRET`, вам
-понадобятся следующие переменные окружения:
+On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
+you will need the following environment variables:
 
-| Переменная среды               | Описание                        | Требуется | По умолчанию | Пример                                |
-| ------------------------------ | ------------------------------- | --------- | ------------ | ------------------------------------- |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | Закрытый ключ приложения GitHub | Да        |              | `----- BEGIN RSA PRIVATE KEY-----...` |
+| Environment variable           | Description                               | Required | Default | Example                              |
+| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-## Тестирование локально {#testing-locally}
+## Testing Locally {#testing-locally}
 
-Мы предоставляем комплексную конфигурацию Docker Compose, включающую все
-необходимые зависимости для тестирования сервера Tuist на локальной машине перед
-развертыванием в вашей инфраструктуре:
+We provide a comprehensive Docker Compose configuration that includes all
+required dependencies for testing Tuist server on your local machine before
+deploying to your infrastructure:
 
-- PostgreSQL 15 с расширением TimescaleDB 2.16 (устаревшее)
-- ClickHouse 25 для аналитики
-- ClickHouse Keeper для координации
-- MinIO для S3-совместимого хранилища
-- Redis для постоянного хранения KV во всех развертываниях (необязательно).
-- pgweb для администрирования баз данных
+- PostgreSQL 15 with TimescaleDB 2.16 extension (deprecated)
+- ClickHouse 25 for analytics
+- ClickHouse Keeper for coordination
+- MinIO for S3-compatible storage
+- Redis for persistent KV storage across deploys (optional)
+- pgweb for database administration
 
-::: опасность Требуется ЛИЦЕНЗИЯ
+::: danger LICENSE REQUIRED
 <!-- -->
-Для запуска сервера Tuist, включая локальные экземпляры разработки, требуется
-действительная переменная окружения `TUIST_LICENSE`. Если вам нужна лицензия,
-пожалуйста, свяжитесь с [contact@tuist.dev](mailto:contact@tuist.dev).
+A valid `TUIST_LICENSE` environment variable is legally required to run the
+Tuist server, including local development instances. If you need a license,
+please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
-**Быстрый старт:**
+**Quick Start:**
 
-1. Загрузите файлы конфигурации:
+1. Download the configuration files:
    ```bash
    curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
    curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
@@ -438,106 +421,104 @@ requests` на `Read and write`.
    curl -O https://docs.tuist.io/server/self-host/.env.example
    ```
 
-2. Настройте переменные окружения:
+2. Configure environment variables:
    ```bash
    cp .env.example .env
    # Edit .env and add your TUIST_LICENSE and authentication credentials
    ```
 
-3. Запустите все службы:
+3. Start all services:
    ```bash
    docker compose up -d
    # or with podman:
    podman compose up -d
    ```
 
-4. Зайдите на сервер по адресу http://localhost:8080.
+4. Access the server at http://localhost:8080
 
-**Конечные точки обслуживания:**
-- Сервер Tuist: http://localhost:8080
-- Консоль MinIO: http://localhost:9003 (учетные данные: `tuist` /
+**Service Endpoints:**
+- Tuist Server: http://localhost:8080
+- MinIO Console: http://localhost:9003 (credentials: `tuist` /
   `tuist_dev_password`)
-- API MinIO: http://localhost:9002
-- pgweb (пользовательский интерфейс PostgreSQL): http://localhost:8081
-- Метрика "Прометея": http://localhost:9091/metrics
+- MinIO API: http://localhost:9002
+- pgweb (PostgreSQL UI): http://localhost:8081
+- Prometheus Metrics: http://localhost:9091/metrics
 - ClickHouse HTTP: http://localhost:8124
 
-**Общие команды:**
+**Common Commands:**
 
-Проверьте состояние обслуживания:
+Check service status:
 ```bash
 docker compose ps
 # or: podman compose ps
 ```
 
-Просмотр журналов:
+View logs:
 ```bash
 docker compose logs -f tuist
 ```
 
-Услуги по остановке:
+Stop services:
 ```bash
 docker compose down
 ```
 
-Сброс всех настроек (удаление всех данных):
+Reset everything (deletes all data):
 ```bash
 docker compose down -v
 ```
 
-**Файлы конфигурации:**
-- [docker-compose.yml](/server/self-host/docker-compose.yml) - Полная
-  конфигурация Docker Compose
-- [clickhouse-config.xml](/server/self-host/clickhouse-config.xml) -
-  Конфигурация ClickHouse
+**Configuration Files:**
+- [docker-compose.yml](/server/self-host/docker-compose.yml) - Complete Docker
+  Compose configuration
+- [clickhouse-config.xml](/server/self-host/clickhouse-config.xml) - ClickHouse
+  configuration
 - [clickhouse-keeper-config.xml](/server/self-host/clickhouse-keeper-config.xml)
-  - Конфигурация ClickHouse Keeper
-- [.env.example](/server/self-host/.env.example) - Пример файла переменных
-  окружения
+  - ClickHouse Keeper configuration
+- [.env.example](/server/self-host/.env.example) - Example environment variables
+  file
 
-## Развертывание {#deployment}
+## Deployment {#deployment}
 
-Официальный образ Tuist Docker доступен по адресу:
+The official Tuist Docker image is available at:
 ```
 ghcr.io/tuist/tuist
 ```
 
-### Извлечение образа Docker {#pulling-the-docker-image}
+### Pulling the Docker image {#pulling-the-docker-image}
 
-Вы можете получить изображение, выполнив следующую команду:
+You can retrieve the image by executing the following command:
 
 ```bash
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-Или выберите конкретную версию:
+Or pull a specific version:
 ```bash
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### Развертывание образа Docker {#deploying-the-docker-image}
+### Deploying the Docker image {#deploying-the-docker-image}
 
-Процесс развертывания образа Docker будет отличаться в зависимости от выбранного
-вами облачного провайдера и подхода к непрерывному развертыванию в вашей
-организации. Поскольку большинство облачных решений и инструментов, таких как
-[Kubernetes](https://kubernetes.io/), используют образы Docker в качестве
-фундаментальных единиц, примеры, приведенные в этом разделе, должны хорошо
-сочетаться с существующими настройками.
+The deployment process for the Docker image will differ based on your chosen
+cloud provider and your organization's continuous deployment approach. Since
+most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/),
+utilize Docker images as fundamental units, the examples in this section should
+align well with your existing setup.
 
 ::: warning
 <!-- -->
-Если вашему конвейеру развертывания необходимо подтвердить, что сервер работает,
-вы можете отправить HTTP-запрос `GET` по адресу `/ready` и подтвердить код
-состояния `200` в ответе.
+If your deployment pipeline needs to validate that the server is up and running,
+you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
+the response.
 <!-- -->
 :::
 
-#### Летите {#fly}
+#### Fly {#fly}
 
-Чтобы развернуть приложение на [Fly](https://fly.io/), вам потребуется
-конфигурационный файл `fly.toml`. Рассмотрите возможность его динамической
-генерации в рамках конвейера непрерывного развертывания (CD). Ниже приведен
-эталонный пример для использования:
+To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml`
+configuration file. Consider generating it dynamically within your Continuous
+Deployment (CD) pipeline. Below is a reference example for your use:
 
 ```toml
 app = "tuist"
@@ -591,96 +572,94 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Затем вы можете выполнить `fly launch --local-only --no-deploy` для запуска
-приложения. При последующих развертываниях вместо `fly launch --local-only`
-нужно будет выполнить `fly deploy --local-only`. Fly.io не позволяет получать
-приватные Docker-образы, поэтому нам нужно использовать флаг `--local-only`.
+Then you can run `fly launch --local-only --no-deploy` to launch the app. On
+subsequent deploys, instead of running `fly launch --local-only`, you will need
+to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker
+images, which is why we need to use the `--local-only` flag.
 
 
-## Метрики Прометея {#prometheus-metrics}
+## Prometheus metrics {#prometheus-metrics}
 
-Tuist предоставляет метрики Prometheus по адресу `/metrics`, чтобы помочь вам
-следить за вашим самораспространяющимся экземпляром. Эти метрики включают в
-себя:
+Tuist exposes Prometheus metrics at `/metrics` to help you monitor your
+self-hosted instance. These metrics include:
 
-### Метрики HTTP-клиента Finch {#finch-metrics}
+### Finch HTTP client metrics {#finch-metrics}
 
-Tuist использует [Finch](https://github.com/sneako/finch) в качестве
-HTTP-клиента и выдает подробные метрики о HTTP-запросах:
+Tuist uses [Finch](https://github.com/sneako/finch) as its HTTP client and
+exposes detailed metrics about HTTP requests:
 
-#### Метрики запроса
-- `tuist_prom_ex_finch_request_count_total` - Общее количество запросов Finch
-  (счетчик).
-  - Метки: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
-- `tuist_prom_ex_finch_request_duration_milliseconds` - Продолжительность
-  HTTP-запросов (гистограмма).
-  - Метки: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
-  - Ведра: 10 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с, 2,5 с, 5 с, 10 с
-- `tuist_prom_ex_finch_request_exception_count_total` - Общее количество
-  исключений из запросов Finch (счетчик).
-  - Ярлыки: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
+#### Request metrics
+- `tuist_prom_ex_finch_request_count_total` - Total number of Finch requests
+  (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - Duration of HTTP
+  requests (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Total number of Finch
+  request exceptions (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
 
-#### Метрики очереди пула подключений
-- `tuist_prom_ex_finch_queue_duration_milliseconds` - Время ожидания в очереди
-  пула соединений (гистограмма).
-  - Метки: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Ведра: 1 мс, 5 мс, 10 мс, 25 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с
-- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Время, в течение которого
-  соединение простаивало перед использованием (гистограмма).
-  - Метки: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Ведра: 10 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с, 5 с, 10 с
-- `tuist_prom_ex_finch_queue_exception_count_total` - Общее количество
-  исключений из очереди Finch (счетчик).
-  - Ярлыки: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+#### Connection pool queue metrics
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Time spent waiting in the
+  connection pool queue (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Time the connection spent
+  idle before being used (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Total number of Finch
+  queue exceptions (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
 
-#### Метрики подключения
-- `tuist_prom_ex_finch_connect_duration_milliseconds` - Время установления
-  соединения (гистограмма).
-  - Ярлыки: `finch_name`, `scheme`, `host`, `port`, `error`
-  - Ведра: 10 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с, 2,5 с, 5 с
-- `tuist_prom_ex_finch_connect_count_total` - Общее количество попыток
-  соединения (счетчик).
-  - Ярлыки: `finch_name`, `scheme`, `host`, `port`
+#### Connection metrics
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Time spent establishing
+  a connection (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Total number of connection
+  attempts (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`
 
-#### Отправить метрики
-- `tuist_prom_ex_finch_send_duration_milliseconds` - Время, затраченное на
-  отправку запроса (гистограмма).
-  - Метки: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
-  - Ведра: 1 мс, 5 мс, 10 мс, 25 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с
-- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Время простоя соединения
-  перед отправкой (гистограмма).
-  - Метки: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
-  - Ведра: 1 мс, 5 мс, 10 мс, 25 мс, 50 мс, 100 мс, 250 мс, 500 мс
+#### Send metrics
+- `tuist_prom_ex_finch_send_duration_milliseconds` - Time spent sending the
+  request (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Time the connection spent
+  idle before sending (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
 
-Все метрики гистограмм предоставляют варианты `_bucket`, `_sum`, и `_count` для
-детального анализа.
+All histogram metrics provide `_bucket`, `_sum`, and `_count` variants for
+detailed analysis.
 
-### Другие показатели
+### Other metrics
 
-В дополнение к метрикам Finch, Tuist предоставляет метрики для:
-- Производительность виртуальной машины BEAM
-- Пользовательские метрики бизнес-логики (хранилища, учетные записи, проекты и
-  т. д.)
-- Производительность базы данных (при использовании инфраструктуры Tuist-hosted)
+In addition to Finch metrics, Tuist exposes metrics for:
+- BEAM virtual machine performance
+- Custom business logic metrics (storage, accounts, projects, etc.)
+- Database performance (when using Tuist-hosted infrastructure)
 
-## Операции {#operations}
+## Operations {#operations}
 
-Tuist предоставляет набор утилит по адресу `/ops/`, которые вы можете
-использовать для управления своим экземпляром.
+Tuist provides a set of utilities under `/ops/` that you can use to manage your
+instance.
 
-::: предупреждение Авторизация
+::: warning Authorization
 <!-- -->
-Доступ к конечным точкам `/ops/` могут получить только те, чьи дескрипторы
-указаны в переменной окружения `TUIST_OPS_USER_HANDLES`.
+Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
+variable can access the `/ops/` endpoints.
 <!-- -->
 :::
 
-- **Ошибки (`/ops/errors`):** Вы можете просмотреть неожиданные ошибки,
-  возникшие в приложении. Это полезно для отладки и понимания того, что пошло не
-  так, и мы можем попросить вас поделиться этой информацией с нами, если вы
-  столкнулись с проблемами.
-- **Приборная панель (`/ops/dashboard`):** Вы можете просмотреть приборную
-  панель, которая дает представление о производительности и состоянии приложения
-  (например, потребление памяти, запущенные процессы, количество запросов). Эта
-  панель может быть очень полезна, чтобы понять, достаточно ли используемого
-  вами оборудования для дескриптора нагрузки.
+- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the
+  application. This is useful for debugging and understanding what went wrong
+  and we might ask you to share this information with us if you're facing
+  issues.
+- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides
+  insights into the application's performance and health (e.g. memory
+  consumption, processes running, number of requests). This dashboard can be
+  quite useful to understand if the hardware you're using is enough to handle
+  the load.

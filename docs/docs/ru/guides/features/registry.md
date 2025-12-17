@@ -5,41 +5,40 @@
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Реестр {#registry}
+# Registry {#registry}
 
-С ростом числа зависимостей увеличивается и время на их устранение. В то время
-как другие менеджеры пакетов, такие как [CocoaPods](https://cocoapods.org/) или
-[npm](https://www.npmjs.com/), являются централизованными, менеджер пакетов
-Swift таковым не является. Из-за этого SwiftPM приходится разрешать зависимости
-путем глубокого клонирования каждого репозитория, что может занимать больше
-времени и памяти, чем при централизованном подходе. Чтобы решить эту проблему,
-Tuist предоставляет реализацию [Package
+As the number of dependencies grows, so does the time to resolve them. While
+other package managers like [CocoaPods](https://cocoapods.org/) or
+[npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not.
+Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of
+each repository, which can be time-consuming and takes up more memory than a
+centralized approach would. To address this, Tuist provides an implementation of
+the [Package
 Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
-чтобы вы могли загружать только те коммиты, которые вам _действительно нужны_.
-Пакеты в реестре основаны на [Swift Package
-Index](https://swiftpackageindex.com/) - если вы можете найти пакет там, то он
-также доступен в реестре Tuist. Кроме того, пакеты распределены по всему миру с
-использованием пограничного хранилища для минимальной задержки при их
-разрешении.
+so you can download only the commits you _actually need_. The packages in the
+registry are based on the [Swift Package Index](https://swiftpackageindex.com/)
+– if you can find a package there, the package is also available in the Tuist
+Registry. Additionally, the packages are distributed across the globe using an
+edge storage for minimum latency when resolving them.
 
-## Использование {#usage}
+## Usage {#usage}
 
-Чтобы настроить реестр, выполните следующую команду в каталоге вашего проекта:
+To set up the registry, run the following command in your project's directory:
 
 ```bash
 tuist registry setup
 ```
 
-Эта команда генерирует файл конфигурации реестра, который включает реестр для
-вашего проекта. Убедитесь, что этот файл зафиксирован, чтобы ваша команда также
-могла воспользоваться преимуществами реестра.
+This command generates a registry configuration file that enables the registry
+for your project. Ensure this file is committed so your team can also benefit
+from the registry.
 
-### Аутентификация (необязательно) {#authentication}
+### Authentication (optional) {#authentication}
 
-Аутентификация **является необязательной**. Без аутентификации вы можете
-использовать реестр с ограничением скорости **1 000 запросов в минуту** на один
-IP-адрес. Чтобы получить более высокий предел скорости **20 000 запросов в
-минуту**, можно пройти аутентификацию, выполнив команду:
+Authentication is **optional**. Without authentication, you can use the registry
+with a rate limit of **1,000 requests per minute** per IP address. To get a
+higher rate limit of **20,000 requests per minute**, you can authenticate by
+running:
 
 ```bash
 tuist registry login
@@ -47,43 +46,44 @@ tuist registry login
 
 ::: info
 <!-- -->
-Для аутентификации требуется учетная запись
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist и
-проект</LocalizedLink>.
+Authentication requires a
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+project</LocalizedLink>.
 <!-- -->
 :::
 
-### Разрешение зависимостей {#resolving-dependencies}
+### Resolving dependencies {#resolving-dependencies}
 
-Чтобы разрешить зависимости из реестра, а не из контроля исходных текстов,
-продолжайте читать в зависимости от настроек вашего проекта:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Проект
-  Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Сгенерированный
-  проект с интеграцией пакета Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Сгенерированный
-  проект с интеграцией пакетов на основе XcodeProj</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Пакет
-  Swift</LocalizedLink>
+To resolve dependencies from the registry instead of from source control,
+continue reading based on your project setup:
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Generated
+  project with the Xcode package integration</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated
+  project with the XcodeProj-based package integration</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift
+  package</LocalizedLink>
 
-Чтобы настроить реестр в CI, следуйте этому руководству:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Непрерывная
-интеграция</LocalizedLink>.
+To set up the registry on the CI, follow this guide:
+<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
+integration</LocalizedLink>.
 
-### Идентификаторы реестра пакетов {#package-registry-identifiers}
+### Package registry identifiers {#package-registry-identifiers}
 
-При использовании идентификаторов реестра пакетов в файле `Package.swift` или
-`Project.swift` необходимо преобразовать URL-адрес пакета к соглашению реестра.
-Идентификатор реестра всегда имеет вид `{organization}.{repository}`. Например,
-чтобы использовать реестр для пакета
-`https://github.com/pointfreeco/swift-composable-architecture`, идентификатор
-реестра пакета будет `pointfreeco.swift-composable-architecture`.
+When you use package registry identifiers in a `Package.swift` or
+`Project.swift` file, you need to convert the URL of the package to the registry
+convention. The registry identifier is always in the form of
+`{organization}.{repository}`. For example, to use the registry for the
+`https://github.com/pointfreeco/swift-composable-architecture` package, the
+package registry identifier would be
+`pointfreeco.swift-composable-architecture`.
 
 ::: info
 <!-- -->
-Идентификатор не может содержать более одной точки. Если имя репозитория
-содержит точку, она заменяется знаком подчеркивания. Например, пакет
-`https://github.com/groue/GRDB.swift` будет иметь идентификатор реестра
+The identifier can't contain more than one dot. If the repository name contains
+a dot, it's replaced with an underscore. For example, the
+`https://github.com/groue/GRDB.swift` package would have the registry identifier
 `groue.GRDB_swift`.
 <!-- -->
 :::

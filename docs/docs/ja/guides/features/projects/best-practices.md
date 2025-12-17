@@ -5,55 +5,72 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# ベストプラクティス{#best-practices}。
+# Best practices {#best-practices}
 
-長年、さまざまなチームやプロジェクトと作業する中で、私たちはTuistやXcodeプロジェクトで作業する際に従うことを推奨する一連のベストプラクティスを特定しました。これらのプラクティスは強制的なものではありませんが、維持と拡張を容易にする方法でプロジェクトを構造化するのに役立ちます。
+Over the years working with different teams and projects, we've identified a set
+of best practices that we recommend following when working with Tuist and Xcode
+projects. These practices are not mandatory, but they can help you structure
+your projects in a way that makes them easier to maintain and scale.
 
 ## Xcode {#xcode}
 
-### 落胆パターン{#discouraged-patterns}。
+### Discouraged patterns {#discouraged-patterns}
 
-#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}。
+#### Configurations to model remote environments {#configurations-to-model-remote-environments}
 
-多くの組織では、異なるリモート環境をモデル化するためにビルド構成を使用している（例：`Debug-Production` や`Release-Canary`
-）が、この方法にはいくつかの欠点がある：
+Many organizations use build configurations to model different remote
+environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
+has some downsides:
 
-- **不整合：**
-  グラフ全体にコンフィギュレーションの不整合があると、ビルドシステムはターゲットによっては間違ったコンフィギュレーションを使用してしまうかもしれない。
-- **複雑さ：** プロジェクトは、推論や保守が困難なローカル設定やリモート環境の長いリストを抱えることになりかねない。
+- **Inconsistencies:** If there are configuration inconsistencies throughout the
+  graph, the build system might end up using the wrong configuration for some
+  targets.
+- **Complexity:** Projects can end up with a long list of local configurations
+  and remote environments that are hard to reason about and maintain.
 
-ビルド構成は、さまざまなビルド設定を具現化するために設計されており、プロジェクトが`Debug` と`Release`
-以上のものを必要とすることはほとんどない。異なる環境をモデル化する必要性は、さまざまな方法で達成できる：
+Build configurations were designed to embody different build settings, and
+projects rarely need more than just `Debug` and `Release`. The need to model
+different environments can be achieved differently:
 
-- **デバッグビルドでは**
-  開発時にアクセス可能なすべてのコンフィギュレーションをアプリに含めることができます（エンドポイントなど）。切り替えは、スキーム起動環境変数を使用するか、アプリ内のUIで行うことができます。
-- **リリースビルドの場合：**
-  リリースの場合、リリースビルドがバインドしているコンフィギュレーションのみを含めることができ、コンパイラディレクティブを使用してコンフィギュレーションを切り替えるためのランタイムロジックを含めることはできません。
+- **In Debug builds:** You can include all the configurations that should be
+  accessible in development in the app (e.g. endpoints), and switch them at
+  runtime. The switch can happen either using scheme launch environment
+  variables, or with a UI within the app.
+- **In Release builds:** In case of release, you can only include the
+  configuration that the release build is bound to, and not include the runtime
+  logic for switching configurations by using compiler directives.
 
-::: 情報 非標準のコンフィギュレーション
+::: info Non-standard configurations
 <!-- -->
-Tuistは非標準のコンフィギュレーションをサポートし、バニラXcodeプロジェクトと比較してそれらを管理しやすくしていますが、コンフィギュレーションが依存関係グラフ全体で一貫していない場合は警告が表示されます。これは、ビルドの信頼性を確保し、構成に関連する問題を防ぐのに役立ちます。
+While Tuist supports non-standard configurations and makes them easier to manage
+compared to vanilla Xcode projects, you'll receive warnings if configurations
+are not consistent throughout the dependency graph. This helps ensure build
+reliability and prevents configuration-related issues.
 <!-- -->
 :::
 
-## プロジェクト
+## Generated projects
 
-### 構築可能なフォルダ
+### Buildable folders
 
-Tuist 4.62.0は、**ビルド可能なフォルダ** (Xcodeの同期グループ)のサポートを追加した。これはXcode
-16で導入された機能で、マージの衝突を減らすことができる。
+Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
+groups), a feature introduced in Xcode 16 to reduce merge conflicts.
 
-Tuistのワイルドカードパターン（例えば、`Sources/**/*.swift`
-）は、すでに生成されたプロジェクトにおけるマージ競合を排除しているが、ビルド可能なフォルダにはさらなる利点がある：
+While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
+merge conflicts in generated projects, buildable folders offer additional
+benefits:
 
-- **自動同期** ：プロジェクト構造はファイルシステムと同期したまま-ファイルの追加や削除時に再生成は不要
-- **AIフレンドリーなワークフロー** ：コーディングアシスタントやエージェントは、プロジェクトの再生をトリガーすることなくコードベースを修正できる
-- **よりシンプルなコンフィギュレーション** ：明示的なファイルリストを管理する代わりにフォルダパスを定義する
+- **Automatic synchronization**: Your project structure stays in sync with the
+  file system—no regeneration needed when adding or removing files
+- **AI-friendly workflows**: Coding assistants and agents can modify your
+  codebase without triggering project regeneration
+- **Simpler configuration**: Define folder paths instead of managing explicit
+  file lists
 
-より合理的な開発体験のために、従来の`Target.sources` および`Target.resources`
-属性の代わりに、ビルド可能なフォルダを採用することを推奨する。
+We recommend adopting buildable folders instead of traditional `Target.sources`
+and `Target.resources` attributes for a more streamlined development experience.
 
-コードグループ
+::: code-group
 
 ```swift [With buildable folders]
 let target = Target(
@@ -72,17 +89,18 @@ let target = Target(
 <!-- -->
 :::
 
-### 依存関係
+### Dependencies
 
-#### CIで解決済みバージョンを強制する
+#### Force resolved versions on CI
 
-Swift Package Manager の依存関係を CI
-にインストールするとき、決定論的なビルドを保証するために`--force-resolved-versions` フラグを使うことを推奨します：
+When installing Swift Package Manager dependencies on CI, we recommend using the
+`--force-resolved-versions` flag to ensure deterministic builds:
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-このフラグは、`Package.resolved`
-で固定されている正確なバージョンを使って依存関係が解決されることを保証し、依存関係の解決における非決定性によって引き起こされる問題を排除します。これは、再現可能なビルドが重要な
-CI において特に重要です。
+This flag ensures that dependencies are resolved using the exact versions pinned
+in `Package.resolved`, eliminating issues caused by non-determinism in
+dependency resolution. This is particularly important on CI where reproducible
+builds are critical.

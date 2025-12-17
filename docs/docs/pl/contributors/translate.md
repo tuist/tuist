@@ -5,59 +5,59 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Przetłumacz {#translate}
+# Translate {#translate}
 
-Języki mogą stanowić barierę w zrozumieniu. Chcemy mieć pewność, że Tuist jest
-dostępny dla jak największej liczby osób. Jeśli mówisz w języku, którego Tuist
-nie obsługuje, możesz nam pomóc, tłumacząc różne powierzchnie Tuist.
+Languages can be barriers to understanding. We want to make sure that Tuist is
+accessible to as many people as possible. If you speak a language that Tuist
+doesn't support, you can help us by translating the various surfaces of Tuist.
 
-Ponieważ utrzymywanie tłumaczeń jest ciągłym wysiłkiem, dodajemy języki, gdy
-widzimy współpracowników chętnych do pomocy w ich utrzymaniu. Obecnie
-obsługiwane są następujące języki:
+Since maintaining translations is a continuous effort, we add languages as we
+see contributors willing to help us maintain them. The following languages are
+currently supported:
 
-- Angielski
-- Koreański
-- Japoński
-- Rosyjski
-- Chiński
-- Hiszpański
-- Portugalski
+- English
+- Korean
+- Japanese
+- Russian
+- Chinese
+- Spanish
+- Portuguese
 
-::: tip ZAPYTAJ O NOWY JĘZYK
+::: tip REQUEST A NEW LANGUAGE
 <!-- -->
-Jeśli uważasz, że Tuist skorzystałby na wsparciu nowego języka, utwórz nowy
-[temat na forum społeczności](https://community.tuist.io/c/general/4), aby
-omówić go ze społecznością.
-<!-- -->
-:::
-
-## Jak przetłumaczyć {#how-to-translate}
-
-Mamy instancję [Weblate](https://weblate.org/en-gb/) działającą pod adresem
-[translate.tuist.dev](https://translate.tuist.dev). Możesz udać się do
-[projektu](https://translate.tuist.dev/engage/tuist/), utworzyć konto i
-rozpocząć tłumaczenie.
-
-Tłumaczenia są synchronizowane z powrotem do repozytorium źródłowego za pomocą
-żądań ściągnięcia GitHub, które opiekunowie sprawdzają i scalają.
-
-::: ostrzeżenie NIE MODYFIKUJ ZASOBÓW W JĘZYKU DOCELOWYM
-<!-- -->
-Weblate segmentuje pliki w celu powiązania języka źródłowego i docelowego. Jeśli
-zmodyfikujesz język źródłowy, przerwiesz powiązanie, a uzgodnienie może
-przynieść nieoczekiwane rezultaty.
+If you believe Tuist would benefit from supporting a new language, please create
+a new [topic in the community forum](https://community.tuist.io/c/general/4) to
+discuss it with the community.
 <!-- -->
 :::
 
-## Wytyczne {#guidelines}
+## How to translate {#how-to-translate}
 
-Poniżej znajdują się wytyczne, których przestrzegamy podczas tłumaczenia.
+We have an instance of [Weblate](https://weblate.org/en-gb/) running at
+[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
+project](https://translate.tuist.dev/engage/tuist/), create an account, and
+start translating.
 
-### Kontenery niestandardowe i alerty GitHub {#custom-containers-and-github-alerts}.
+Translations are synchronized back to the source repository using GitHub pull
+requests which maintainers will review and merge.
 
-Podczas tłumaczenia [custom
-containers](https://vitepress.dev/guide/markdown#custom-containers) tłumaczony
-jest tylko tytuł i treść **, ale nie typ alertu**.
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+<!-- -->
+Weblate segments the files to bind source and target languages. If you modify
+the source language, you'll break the binding, and the reconciliation might
+yield unexpected results.
+<!-- -->
+:::
+
+## Guidelines {#guidelines}
+
+The following are the guidelines we follow when translating.
+
+### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+
+When translating [custom
+containers](https://vitepress.dev/guide/markdown#custom-containers) only
+translate the title and the content **but not the type of alert**.
 
 ```markdown
 <!-- -->
@@ -68,17 +68,16 @@ jest tylko tytuł i treść **, ale nie typ alertu**.
 :::
 ```
 
-### Tytuły nagłówków {#heading-titles}
+### Heading titles {#heading-titles}
 
-Podczas tłumaczenia nagłówków należy przetłumaczyć tylko tytuł, ale nie
-identyfikator. Na przykład podczas tłumaczenia następującego nagłówka:
+When translating headings, only translate tht title but not the id. For example,
+when translating the following heading:
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-Powinno być przetłumaczone jako (zauważ, że identyfikator nie jest
-przetłumaczony):
+It should be translated as (note the id is not translated):
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

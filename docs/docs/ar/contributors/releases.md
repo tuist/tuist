@@ -5,50 +5,52 @@
   "description": "Learn how Tuist's continuous release process works"
 }
 ---
-# الإصدارات
+# Releases
 
-يستخدم تويست نظام الإصدار المستمر الذي ينشر تلقائيًا إصدارات جديدة كلما تم دمج
-تغييرات ذات مغزى في الفرع الرئيسي. يضمن هذا النهج وصول التحسينات إلى المستخدمين
-بسرعة دون تدخل يدوي من المشرفين.
+Tuist uses a continuous release system that automatically publishes new versions
+whenever meaningful changes are merged to the main branch. This approach ensures
+that improvements reach users quickly without manual intervention from
+maintainers.
 
-## لمحة عامة
+## Overview
 
-نطلق باستمرار ثلاثة مكونات رئيسية:
-- **تويست CLI** - أداة سطر الأوامر - أداة سطر الأوامر
-- **خادم تويست** - الخدمات الخلفية - الخدمات الخلفية
-- **تطبيق تويست** - تطبيقا macOS و iOS (يتم نشر تطبيق iOS فقط بشكل مستمر على
-  TestFlight، انظر المزيد [هنا] (#app-store-release)
+We continuously release three main components:
+- **Tuist CLI** - The command-line tool
+- **Tuist Server** - The backend services
+- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed
+  to TestFlight, see more [here](#app-store-release)
 
-كل مكوّن لديه خط إصدار خاص به يعمل تلقائيًا عند كل دفعة إلى الفرع الرئيسي.
+Each component has its own release pipeline that runs automatically on every
+push to the main branch.
 
-## كيف تعمل
+## How it works
 
-### 1. الالتزام بالاصطلاحات
+### 1. Commit conventions
 
-نحن نستخدم [الالتزامات التقليدية] (https://www.conventionalcommits.org/) لهيكلة
-رسائل الالتزام الخاصة بنا. وهذا يسمح لأدواتنا بفهم طبيعة التغييرات، وتحديد
-نتوءات الإصدار، وإنشاء سجلات التغيير المناسبة.
+We use [Conventional Commits](https://www.conventionalcommits.org/) to structure
+our commit messages. This allows our tooling to understand the nature of
+changes, determine version bumps, and generate appropriate changelogs.
 
-التنسيق: `النوع (النطاق): الوصف`
+Format: `type(scope): description`
 
-#### أنواع الالتزامات وتأثيرها
+#### Commit types and their impact
 
-| النوع            | الوصف                          | تأثير الإصدار               | مثال على ذلك                                        |
-| ---------------- | ------------------------------ | --------------------------- | --------------------------------------------------- |
-| `الفذ`           | ميزة أو قدرة جديدة             | نتوء الإصدار البسيط (x.Y.z) | `الميزة (cli): إضافة دعم ل Swift 6`                 |
-| `إصلاح`          | إصلاح الخلل                    | نتوء إصدار التصحيح (x.y.Z)  | `إصلاح (التطبيق): حل مشكلة التعطل عند فتح المشاريع` |
-| `المستندات`      | تغييرات التوثيق                | لا يوجد إصدار               | `المستندات: دليل تثبيت التحديث`                     |
-| `النمط`          | تغييرات نمط الكود              | لا يوجد إصدار               | `النمط: تنسيق الرمز باستخدام سويفت فورمات`          |
-| `إعادة البناء`   | إعادة هيكلة التعليمات البرمجية | لا يوجد إصدار               | `إعادة هيكلة (الخادم): تبسيط منطق المصادقة`         |
-| `الكمال`         | تحسينات الأداء                 | نتوء إصدار التصحيح          | `بيرف(cli): تحسين دقة التبعية`                      |
-| `الاختبار`       | اختبار الإضافات/التغييرات      | لا يوجد إصدار               | `الاختبار: إضافة اختبارات الوحدة للتخزين المؤقت`    |
-| `العمل الروتيني` | مهام الصيانة                   | لا يوجد إصدار               | `العمل الروتيني: تحديث التبعيات`                    |
-| `ci`             | تغييرات CI/CDD                 | لا يوجد إصدار               | `ci: إضافة سير عمل للإصدارات`                       |
+| Type       | Description               | Version Impact             | Example                                         |
+| ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
+| `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
+| `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
+| `docs`     | Documentation changes     | No release                 | `docs: update installation guide`               |
+| `style`    | Code style changes        | No release                 | `style: format code with swiftformat`           |
+| `refactor` | Code refactoring          | No release                 | `refactor(server): simplify auth logic`         |
+| `perf`     | Performance improvements  | Patch version bump         | `perf(cli): optimize dependency resolution`     |
+| `test`     | Test additions/changes    | No release                 | `test: add unit tests for cache`                |
+| `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
+| `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
 
-#### التغييرات العاجلة
+#### Breaking changes
 
-تؤدي التغييرات الخارقة إلى رفع الإصدار الرئيسي (X.0.0) ويجب الإشارة إليها في نص
-الالتزام:
+Breaking changes trigger a major version bump (X.0.0) and should be indicated in
+the commit body:
 
 ```
 feat(cli): change default cache location
@@ -57,53 +59,53 @@ BREAKING CHANGE: The cache is now stored in ~/.tuist/cache instead of .tuist-cac
 Users will need to clear their old cache directory.
 ```
 
-### 2. اكتشاف التغيير
+### 2. Change detection
 
-يستخدم كل مكوّن [git cliff] (https://git-cliff.org/) لـ
-- تحليل الالتزامات منذ الإصدار الأخير
-- تصفية الالتزامات حسب النطاق (cli، التطبيق، الخادم)
-- تحديد ما إذا كانت هناك تغييرات قابلة للإصدار
-- إنشاء سجلات التغيير تلقائياً
+Each component uses [git cliff](https://git-cliff.org/) to:
+- Analyze commits since the last release
+- Filter commits by scope (cli, app, server)
+- Determine if there are releasable changes
+- Generate changelogs automatically
 
-### 3. خط أنابيب الإصدار
+### 3. Release pipeline
 
-عندما يتم اكتشاف تغييرات قابلة للإزالة:
+When releasable changes are detected:
 
-1. **حساب الإصدار**: يحدد خط الأنابيب رقم الإصدار التالي
-2. **إنشاء سجل التغييرات**: يقوم git cliff بإنشاء سجل تغييرات من رسائل الالتزام
-3. **عملية البناء**: تم بناء المكون واختباره
-4. **إنشاء الإصدار**: يتم إنشاء إصدار GitHub مع القطع الأثرية
-5. **التوزيع**: يتم دفع التحديثات إلى مديري الحزم (على سبيل المثال، Homebrew لـ
+1. **Version calculation**: The pipeline determines the next version number
+2. **Changelog generation**: git cliff creates a changelog from commit messages
+3. **Build process**: The component is built and tested
+4. **Release creation**: A GitHub release is created with artifacts
+5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for
    CLI)
 
-### 4. تصفية النطاق
+### 4. Scope filtering
 
-لا يصدر كل مكون إلا عندما يكون لديه تغييرات ذات صلة:
+Each component only releases when it has relevant changes:
 
-- **CLI**: الالتزامات مع `(cli)` النطاق أو بدون نطاق
-- **التطبيق**: الالتزامات مع `(التطبيق)` النطاق
-- **الخادم**: الالتزامات مع `(الخادم)` النطاق
+- **CLI**: Commits with `(cli)` scope or no scope
+- **App**: Commits with `(app)` scope
+- **Server**: Commits with `(server)` scope
 
-## كتابة رسائل التزام جيدة
+## Writing good commit messages
 
-نظرًا لأن رسائل الالتزام تؤثر بشكل مباشر على ملاحظات الإصدار، فمن المهم كتابة
-رسائل واضحة ووصفية:
+Since commit messages directly influence release notes, it's important to write
+clear, descriptive messages:
 
-### افعل ذلك:
-- استخدم الفعل المضارع: "إضافة ميزة" وليس "إضافة ميزة"
-- كن موجزًا ولكن وصفيًا
-- قم بتضمين النطاق عندما تكون التغييرات خاصة بالمكونات
-- المشكلات المرجعية عند الاقتضاء: `إصلاح (cli): حل مشكلة إنشاء ذاكرة التخزين
-  المؤقت (#1234)`
+### Do:
+- Use present tense: "add feature" not "added feature"
+- Be concise but descriptive
+- Include the scope when changes are component-specific
+- Reference issues when applicable: `fix(cli): resolve build cache issue
+  (#1234)`
 
-### لا تفعل
-- استخدم رسائل غامضة مثل "إصلاح الخلل" أو "تحديث الكود"
-- مزج عدة تغييرات غير مرتبطة في التزام واحد
-- نسيت تضمين معلومات التغييرات الفورية
+### Don't:
+- Use vague messages like "fix bug" or "update code"
+- Mix multiple unrelated changes in one commit
+- Forget to include breaking change information
 
-### التغييرات العاجلة
+### Breaking changes
 
-بالنسبة للتغييرات القاطعة، قم بتضمين `BREAKING CHANGE:` في نص الالتزام:
+For breaking changes, include `BREAKING CHANGE:` in the commit body:
 
 ```
 feat(cli): change cache directory structure
@@ -112,64 +114,65 @@ BREAKING CHANGE: Cache files are now stored in a new directory structure.
 Users need to clear their cache after updating.
 ```
 
-## عمليات سير عمل الإصدار
+## Release workflows
 
-يتم تعريف سير عمل الإصدار في:
-- `.github/workflows/cli-release.yml` - إصدارات CLI
-- `.github/workflows/app-release.yml` - إصدارات التطبيق
-- `.github/workflows/server-release.yml` - إصدارات الخادم
+The release workflows are defined in:
+- `.github/workflows/cli-release.yml` - CLI releases
+- `.github/workflows/app-release.yml` - App releases
+- `.github/workflows/server-release.yml` - Server releases
 
-كل سير عمل:
-- يعمل على الدفع إلى الرئيسي
-- يمكن تشغيله يدوياً
-- يستخدم جرف git كليف لاكتشاف التغييرات
-- يتعامل مع عملية الإصدار بالكامل
+Each workflow:
+- Runs on pushes to main
+- Can be triggered manually
+- Uses git cliff for change detection
+- Handles the entire release process
 
-## مراقبة الإصدارات
+## Monitoring releases
 
-يمكنك مراقبة الإصدارات من خلال:
-- [صفحة إصدارات GitHub](https://github.com/tuist/tuist/releases)
-- علامة تبويب إجراءات GitHub لتشغيل سير العمل
-- ملفات Changelog في كل دليل مكون
+You can monitor releases through:
+- [GitHub Releases page](https://github.com/tuist/tuist/releases)
+- GitHub Actions tab for workflow runs
+- Changelog files in each component directory
 
-## المزايا
+## Benefits
 
-يوفر نهج الإصدار المستمر هذا:
+This continuous release approach provides:
 
-- **تسليم سريع**: تصل التغييرات إلى المستخدمين مباشرة بعد الدمج
-- **تقليل الاختناقات**: لا انتظار للإصدارات اليدوية
-- **اتصال واضح**: سجلات التغيير التلقائية من رسائل الالتزام
-- **عملية متسقة**: تدفق الإصدار نفسه لجميع المكونات
-- **ضمان الجودة**: يتم إصدار التغييرات التي تم اختبارها فقط
+- **Fast delivery**: Changes reach users immediately after merging
+- **Reduced bottlenecks**: No waiting for manual releases
+- **Clear communication**: Automated changelogs from commit messages
+- **Consistent process**: Same release flow for all components
+- **Quality assurance**: Only tested changes are released
 
-## استكشاف الأخطاء وإصلاحها
+## Troubleshooting
 
-إذا فشل الإصدار
+If a release fails:
 
-1. تحقّق من سجلات إجراءات GitHub لسير العمل الفاشل
-2. تأكد من أن رسائل الالتزام الخاصة بك تتبع التنسيق التقليدي
-3. التحقق من اجتياز جميع الاختبارات
-4. تحقق من بناء المكوّن بنجاح
+1. Check the GitHub Actions logs for the failed workflow
+2. Ensure your commit messages follow the conventional format
+3. Verify that all tests pass
+4. Check that the component builds successfully
 
-بالنسبة للإصلاحات العاجلة التي تحتاج إلى إصدار فوري:
-1. تأكد من أن التزامك له نطاق واضح
-2. بعد الدمج، راقب سير عمل الإصدار بعد الدمج
-3. إذا لزم الأمر، قم بتشغيل الإصدار اليدوي
+For urgent fixes that need immediate release:
+1. Ensure your commit has a clear scope
+2. After merging, monitor the release workflow
+3. If needed, trigger a manual release
 
-## إصدار متجر التطبيقات
+## App Store release
 
-في حين أن CLI والخادم يتبعان عملية الإصدار المستمر الموضحة أعلاه، فإن تطبيق
-**iOS** هو استثناء بسبب عملية مراجعة متجر تطبيقات Apple App Store:
+While the CLI and Server follow the continuous release process described above,
+the **iOS app** is an exception due to Apple's App Store review process:
 
-- **الإصدارات اليدوية**: تتطلب إصدارات تطبيقات iOS إرسالها يدويًا إلى متجر
-  التطبيقات
-- **تتأخر المراجعة**: يجب أن يخضع كل إصدار لعملية مراجعة Apple، والتي قد تستغرق
-  من يوم إلى 7 أيام
-- **التغييرات المجمعة**: عادةً ما يتم تجميع تغييرات متعددة معًا في كل إصدار من
-  إصدارات iOS
-- **TestFlight**: قد يتم توزيع الإصدارات التجريبية عبر TestFlight قبل إصدار App
+- **Manual releases**: iOS app releases require manual submission to the App
   Store
-- **ملاحظات الإصدار**: يجب أن تكون مكتوبة خصيصًا لإرشادات متجر التطبيقات
+- **Review delays**: Each release must go through Apple's review process, which
+  can take 1-7 days
+- **Batched changes**: Multiple changes are typically bundled together in each
+  iOS release
+- **TestFlight**: Beta versions may be distributed via TestFlight before App
+  Store release
+- **Release notes**: Must be written specifically for App Store guidelines
 
-لا يزال تطبيق iOS يتبع نفس اصطلاحات الالتزام ويستخدم git cliff لإنشاء سجل
-التغيير، ولكن الإصدار الفعلي للمستخدمين يحدث وفق جدول زمني يدوي أقل تواتراً.
+The iOS app still follows the same commit conventions and uses git cliff for
+changelog generation, but the actual release to users happens on a less
+frequent, manual schedule.

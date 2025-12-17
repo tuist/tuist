@@ -5,30 +5,38 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# ダイナミック・コンフィギュレーション {#dynamic-configuration}
+# Dynamic configuration {#dynamic-configuration}
 
-生成時にプロジェクトを動的に設定する必要があるシナリオがあります。たとえば、プロジェクトが生成される環境に基づいて、アプリの名前、バンドル識別子、またはデプロイメントターゲットを変更したい場合があります。Tuist
-は、マニフェストファイルからアクセス可能な環境変数によってこれをサポートします。
+There are certain scenarios where you might need to dynamically configure your
+project at generation time. For example, you might want to change the name of
+the app, the bundle identifier, or the deployment target based on the
+environment where the project is being generated. Tuist supports that via
+environment variables, which can be accessed from the manifest files.
 
-## 環境変数による設定 {#configuration-through-environment-variables}。
+## Configuration through environment variables {#configuration-through-environment-variables}
 
-Tuistでは、マニフェストファイルからアクセス可能な環境変数を通して設定を渡すことができます。例えば
+Tuist allows passing configuration through environment variables that can be
+accessed from the manifest files. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-複数の環境変数を渡したい場合は、スペースで区切ってください。例えば
+If you want to pass multiple environment variables just separate them with a
+space. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## マニフェストから環境変数を読む {#reading-the-environment-variables-from-manifests}.
+## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
 
-変数は<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>型を使ってアクセスできる。`TUIST_XXX`
-環境で定義された、あるいはコマンド実行時にTuistに渡された規約に従った変数は、`Environment`
-型を使ってアクセスできる。次の例は`TUIST_APP_NAME` 変数にアクセスする方法を示している：
+Variables can be accessed using the
+<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>
+type. Any variables following the convention `TUIST_XXX` defined in the
+environment or passed to Tuist when running commands will be accessible using
+the `Environment` type. The following example shows how we access the
+`TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {
@@ -40,17 +48,19 @@ func appName() -> String {
 }
 ```
 
-変数にアクセスすると、`Environment.Value?` 、以下のいずれかの値を取ることができる型のインスタンスが返される：
+Accessing variables returns an instance of type `Environment.Value?` which can
+take any of the following values:
 
-| ケース               | 説明                |
-| ----------------- | ----------------- |
-| `.string(String)` | 変数が文字列を表す場合に使用する。 |
+| Case              | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `.string(String)` | Used when the variable represents a string. |
 
-以下に定義するヘルパー・メソッドのいずれかを使用して、文字列またはブーリアン`環境`
-変数を取得することもできます。これらのメソッドでは、ユーザーが毎回一貫した結果を得られるように、デフォルト値を渡す必要があります。これにより、上で定義した関数
-appName() を定義する必要がなくなります。
+You can also retrieve the string or boolean `Environment` variable using either
+of the helper methods defined below, these methods require a default value to be
+passed to ensure the user gets consistent results each time. This avoids the
+need to define the function appName() defined above.
 
-コードグループ
+::: code-group
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")

@@ -8,11 +8,11 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# فريق منصة افتراضية للمطورين الذين يشحنون
+# A virtual platform team for developers who ship
 
-**يعمل Tuist على توسيع نطاق سلسلة أدوات Apple لمساعدة الفرق على التوسع والتركيز
-على بناء التطبيقات** - تحويل تطوير منصة Apple من تعقيدات محبطة إلى تجربة سلسة
-ومنتجة تنمو مع فريقك.
+**Tuist extends Apple's toolchain to help teams scale and focus on building
+apps** – transforming Apple platform development from frustrating complexity
+into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -65,18 +65,18 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## انضم إلى الآلاف من المطورين الذين قاموا بالتبديل
+## Join thousands of developers who've made the switch
 
-**قامت فرق العمل في [Trendyol](https://www.trendyol.com/) و
-[Etsy](https://www.etsy.com/) و [Bumble](https://bumble.com/) و
-[Monzo](https://monzo.com/) و [Bending Spoons](https://bendingspoons.com/) وأكثر
-من 100 شركة أخرى** بتحويل تطوير منصة Apple الخاصة بهم باستخدام Tuist. إليك ما
-يختبرونه:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
+[Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
+Spoons](https://bendingspoons.com/), and 100+ other companies** have already
+transformed their Apple platform development with Tuist. Here's what they're
+experiencing:
 
-- **إنشاءات أسرع بنسبة 65% أسرع** مع التخزين المؤقت الذكي
-- **تعارضات الدمج الصفرية** في مشاريع Xcode
-- **دقائق إلى ثوانٍ** دقة الحزمة
-- **المطورون السعداء** الذين يمكنهم التركيز على بناء الميزات
+- **65% faster builds** with intelligent caching
+- **Zero merge conflicts** in Xcode projects
+- **Minutes to seconds** package resolution
+- **Happy developers** who can focus on building features
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -99,17 +99,18 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 </HomeCards>
 
 
-## شاهد تويست أثناء العمل
+## See Tuist in action
 
-**تعلم من التطبيقات الحقيقية** واستلهم ما هو ممكن عندما تعمل سلسلة الأدوات
-الخاصة بك فقط.
+**Learn from real implementations** and get inspired by what's possible when
+your toolchain just works.
 
 <HomeVideos/>
 
-## انضم إلى مجتمع مزدهر
+## Join a thriving community
 
-**تواصل مع الآلاف من مطوري منصات Apple** الذين يشحنون تطبيقات أفضل باستخدام
-Tuist. احصل على المساعدة وشارك المكاسب وشكل مستقبل تطوير منصة Apple.
+**Connect with thousands of Apple platform developers** who are shipping better
+apps with Tuist. Get help, share wins, and shape the future of Apple platform
+development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

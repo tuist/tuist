@@ -5,105 +5,155 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# 원칙 {#principles}
+# Principles {#principles}
 
-이 페이지에서는 튜이스트의 설계와 개발의 기둥이 되는 원칙에 대해 설명합니다. 이 원칙은 프로젝트와 함께 진화하며 프로젝트 기반과 잘 부합하는
-지속 가능한 성장을 보장하기 위한 것입니다.
+This page describes principles that are pillars to the design and development of
+Tuist. They evolve with the project and are meant to ensure a sustainable growth
+that is well-aligned with the project foundation.
 
-## 기본 규칙 {#default-to-conventions}으로 기본 설정
+## Default to conventions {#default-to-conventions}
 
-Tuist가 존재하는 이유 중 하나는 Xcode가 규칙이 약하고 확장 및 유지 관리가 어려운 복잡한 프로젝트로 이어지기 때문입니다. 이러한
-이유로 Tuist는 단순하고 철저하게 설계된 규칙을 기본으로 하여 다른 접근 방식을 취합니다. **개발자는 이러한 규칙을 거부할 수 있지만,
-이는 자연스럽지 않은 의식적인 결정입니다.**
+One of the reasons why Tuist exists is because Xcode is weak in conventions and
+that leads to complex projects that are hard to scale up and maintain. For that
+reason, Tuist takes a different approach by defaulting to simple and thoroughly
+designed conventions. **Developers can opt-out from the conventions, but that’s
+a conscious decision that doesn’t feel natural.**
 
-예를 들어, 제공된 공용 인터페이스를 사용하여 대상 간의 종속성을 정의하는 규칙이 있습니다. 이렇게 함으로써 Tuist는 프로젝트가 작업 연결에
-적합한 구성으로 생성되도록 보장합니다. 개발자는 빌드 설정을 통해 종속성을 정의할 수 있지만, 이렇게 하면 암시적으로 종속성을 정의하게 되므로
-일부 규칙을 따르는 `tuist 그래프` 또는 `tuist 캐시` 같은 Tuist 기능이 손상될 수 있습니다.
+For example, there’s a convention for defining dependencies between targets by
+using the provided public interface. By doing that, Tuist ensures that the
+projects are generated with the right configurations for the linking to work.
+Developers have the option to define the dependencies through build settings,
+but they’d be doing it implicitly and therefore breaking Tuist features such as
+`tuist graph` or `tuist cache` that rely on some conventions being followed.
 
-우리가 규칙을 기본으로 하는 이유는 개발자를 대신하여 더 많은 결정을 내릴 수 있을수록 개발자가 앱의 기능을 만드는 데 더 집중할 수 있기
-때문입니다. 많은 프로젝트에서와 같이 규칙이 없으면 다른 결정과 일관성이 없는 결정을 내려야 하고, 결과적으로 관리하기 어려운 우발적인 복잡성이
-발생할 수 있습니다.
+The reason why we default to conventions is that the more decision we can make
+on behalf of the developers, the more focus they’ll have crafting features for
+their apps. When we are left with no conventions like it’s the case in many
+projects, we have to make decisions that will end up not being consistent with
+other decisions and as a consequence, there’ll be an accidental complexity that
+will be hard to manage.
 
-## 매니페스트는 진실의 원천입니다 {#manifests-are-the-source-of-truth}
+## Manifests are the source of truth {#manifests-are-the-source-of-truth}
 
-여러 계층의 구성과 그 사이에 계약이 있으면 프로젝트 설정이 추론하고 유지 관리하기 어렵습니다. 일반적인 프로젝트를 잠시 생각해 보세요.
-프로젝트의 정의는 `.xcodeproj` 디렉터리, 스크립트의 CLI(예: `Fastfiles`), 파이프라인의 CI 로직에 존재합니다. 이 세
-가지 계층은 우리가 유지 관리해야 하는 계약이 있는 계층입니다. *프로젝트에서 무언가를 변경했다가 일주일 후에 릴리스 스크립트가 깨진 것을 알게
-된 적이 얼마나 자주 있었나요?*
+Having many layers of configurations and contracts between them results in a
+project setup that is hard to reason about and maintain. Think for a second on
+an average project. The definition of the project lives in the `.xcodeproj`
+directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in
+pipelines. Those are three layers with contracts between them that we need to
+maintain. *How often have you been in a situation where you changed something in
+your projects, and then a week later you realized that the release scripts
+broke?*
 
-단일 소스인 매니페스트 파일을 사용하면 이 과정을 간소화할 수 있습니다. 이러한 파일은 개발자가 파일을 편집하는 데 사용할 수 있는 Xcode
-프로젝트를 생성하는 데 필요한 정보를 Tuist에 제공합니다. 또한 로컬 또는 CI 환경에서 프로젝트를 빌드하기 위한 표준 명령을 사용할 수
-있습니다.
+We can simplify this by having a single source of truth, the manifest files.
+Those files provide Tuist with the information that it needs to generate Xcode
+projects that developers can use to edit their files. Moreover, it allows having
+standard commands for building projects from a local or CI environment.
 
-**튜이스트는 프로젝트를 최대한 명확하게 설명할 수 있도록 복잡성을 줄이고 간단하고 안전하며 즐거운 인터페이스를 노출해야 합니다.**
+**Tuist should own the complexity and expose a simple, safe, and enjoyable
+interface to describe their projects as explicitly as possible.**
 
-## 암시를 명시적으로 만들기 {#make-the-implicit-explicit}
+## Make the implicit explicit {#make-the-implicit-explicit}
 
-Xcode는 암시적 구성을 지원합니다. 그 좋은 예가 암시적으로 정의된 종속성을 추론하는 것입니다. 암시적 구성은 구성이 단순한 소규모
-프로젝트에서는 괜찮지만, 프로젝트 규모가 커지면 속도가 느려지거나 이상한 동작이 발생할 수 있습니다.
+Xcode supports implicit configurations. A good example of that is inferring the
+implicitly defined dependencies. While implicitness is fine for small projects,
+where configurations are simple, as projects get larger it might cause slowness
+or odd behaviors.
 
-튜이스트는 암시적 Xcode 동작을 위한 명시적 API를 제공해야 합니다. 또한 Xcode 암시성 정의를 지원하되 개발자가 명시적 접근 방식을
-선택하도록 장려하는 방식으로 구현해야 합니다. Xcode 암시성과 복잡성을 지원하면 Tuist를 쉽게 채택할 수 있으며, 그 후에는 팀이
-암시성을 없애는 데 시간이 걸릴 수 있습니다.
+Tuist should provide explicit APIs for implicit Xcode behaviors. It should also
+support defining Xcode implicitness but implemented in such a way that
+encourages developers to opt for the explicit approach. Supporting Xcode
+implicitness and intricacies facilitates the adoption of Tuist, after which
+teams can take some time to get rid of the implicitness.
 
-종속성 정의가 그 좋은 예입니다. 개발자는 빌드 설정 및 단계를 통해 종속성을 정의할 수 있지만, Tuist는 이를 채택하도록 장려하는 멋진
-API를 제공합니다.
+The definition of dependencies is a good example of that. While developers can
+define dependencies through build settings and phases, Tuist provides a
+beautiful API that encourages its adoption.
 
-**API를 명시적으로 설계하면 다른 방법으로는 불가능했을 프로젝트에 대한 일부 검사 및 최적화를 실행할 수 있습니다.** 또한 종속성 그래프를
-내보내는 `tuist 그래프` 또는 모든 대상을 바이너리로 캐시하는 `tuist 캐시` 와 같은 기능을 사용할 수 있습니다.
+**Designing the API to be explicit allows Tuist to run some checks and
+optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
+it enables features like `tuist graph`, which exports a representation of the
+dependency graph, or `tuist cache`, which caches all the targets as binaries.
 
 ::: tip
 <!-- -->
-Xcode에서 기능을 이식하라는 요청을 받을 때마다 간단하고 명시적인 API로 개념을 단순화할 수 있는 기회로 삼아야 합니다.
+We should treat each request to port features from Xcode as an opportunity to
+simplify concepts with simple and explicit APIs.
 <!-- -->
 :::
 
-## 단순하게 유지 {#keep-it-simple}
+## Keep it simple {#keep-it-simple}
 
-Xcode 프로젝트를 확장할 때 가장 큰 어려움 중 하나는 **Xcode가 사용자에게 많은 복잡성을 노출한다는 사실에서 비롯됩니다.** 이로
-인해 팀의 버스 팩터가 높고 팀 내 소수의 사람만이 프로젝트와 빌드 시스템에서 발생하는 오류를 이해하고 있습니다. 팀이 소수의 사람에게 의존하기
-때문에 좋지 않은 상황입니다.
+One of the main challenges when scaling Xcode projects comes from the fact that
+**Xcode exposes a lot of complexity to the users.** Due to that, teams have a
+high bus factor and only a few people in the team understand the project and the
+errors that the build system throws. That’s a bad situation to be in because the
+team relies on a few people.
 
-Xcode는 훌륭한 도구이지만 수년간의 개선 사항과 새로운 플랫폼, 프로그래밍 언어가 반영되어 있어 단순함을 유지하기가 어려웠습니다.
+Xcode is a great tool, but so many years of improvements, new platforms, and
+programming languages, are reflected on their surface, which struggled to remain
+simple.
 
-단순한 일을 하는 것이 재미있고 동기부여가 되기 때문에 튜이스트는 일을 단순하게 처리할 기회를 가져야 합니다. 컴파일 과정의 맨 마지막에
-발생하는 오류를 디버깅하거나 기기에서 앱을 실행할 수 없는 이유를 이해하는 데 시간을 소비하고 싶어하는 사람은 아무도 없습니다. Xcode는
-기본 빌드 시스템에 작업을 위임하며, 경우에 따라 오류를 실행 가능한 항목으로 변환하는 작업을 매우 부실하게 수행합니다. * "프레임워크 X를
-찾을 수 없음"* 오류가 발생했는데 어떻게 해야 할지 몰랐던 적이 있나요? 버그의 잠재적인 근본 원인 목록이 있다고 상상해 보세요.
+Tuist should take the opportunity to keep things simple because working on
+simple things is fun and motivates us. No one wants to spend time trying to
+debug an error that happens at the very end of the compilation process, or
+understanding why they are not able to run the app on their devices. Xcode
+delegates the tasks to its underlying build system and in some cases it does a
+very poor job translating errors into actionable items. Have you ever got a
+*“framework X not found”* error and you didn’t know what to do? Imagine if we
+got a list of potential root causes for the bug.
 
-## 개발자의 경험에서 시작하기 {#start-from-the-developers-experience}
+## Start from the developer’s experience {#start-from-the-developers-experience}
 
-Xcode에 대한 혁신이 부족한 이유 중 하나는 다른 프로그래밍 환경에 비해 혁신이 부족하거나 다르게 말하면, 기존 솔루션에서 문제를 분석하기
-시작하는 경우가 많기 때문입니다 **.** 그 결과 오늘날 우리가 찾는 대부분의 솔루션은 동일한 아이디어와 워크플로를 중심으로 전개됩니다. 기존
-솔루션을 방정식에 포함시키는 것은 좋지만, 그것이 우리의 창의성을 제한해서는 안 됩니다.
+Part of the reason why there is a lack of innovation around Xcode, or put
+differently, not as much as in other programming environments, is because **we
+often start analyzing problems from existing solutions.** As a consequence, most
+of the solutions that we find nowadays revolve around the same ideas and
+workflows. While it’s good to include existing solutions in the equations, we
+should not let them constrain our creativity.
 
-우리는 [이 팟캐스트](https://tom.preston-werner.com/)에서 [Tom
-Preston](https://tom.preston-werner.com/)이 말한 것처럼 생각합니다: *"머릿속에 있는 것이 무엇이든, 우주의
-제약 내에서 가능한 한 코드로 구현할 수 있는 것이라면 대부분 달성할 수 있습니다."* **개발자 경험에서 문제를 분석하기 시작하면 사용자가
-좋아할 만한 솔루션을 도출할 수 있는 독특한 관점을 얻을 수 있기 때문에**, 이를 실현하는 것은 시간 문제일 뿐입니다.
+We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in
+[this podcast](https://tom.preston-werner.com/): *“Most things can be achieved,
+whatever you have in your head you can probably pull off with code as long as is
+possible within the constrains of the universe”.* If **we imagine how we’d like
+the developer experience to be**, it’s just a matter of time to pull it off — by
+starting to analyze the problems from the developer experience gives us a unique
+point of view that will lead us to solutions that users will love to use.
 
-모두가 계속 불평하는 불편함을 감수하고서라도 모두가 하는 대로 따라가고 싶은 유혹을 느낄 수도 있습니다. 그러지 마세요. 앱 아카이빙은 어떻게
-상상할 수 있나요? 코드 서명은 어떻게 하면 좋을까요? 튜이스트에서 어떤 프로세스를 간소화할 수 있을까요? 예를 들어,
-[Fastlane](https://fastlane.tools/)에 대한 지원을 추가하는 것은 우리가 먼저 이해해야 할 문제에 대한 해결책입니다.
-"왜"라는 질문을 통해 문제의 근원을 파악할 수 있습니다. 동기가 어디에서 비롯되었는지 파악한 다음에는 어떻게 하면 Tuist가 가장 잘 도울
-수 있을지 생각해 볼 수 있습니다. 해결책은 Fastlane과의 통합일 수도 있지만, 절충점을 찾기 전에 테이블에 올려놓을 수 있는 다른 똑같이
-유효한 솔루션을 무시하지 않는 것이 중요합니다.
+We might feel tempted to follow what everyone is doing, even if that means
+sticking with the inconveniences that everyone continues to complain about.
+Let’s not do that. How do I imagine archiving my app? How would I love code
+signing to be? What processes can I help streamline with Tuist? For example,
+adding support for [Fastlane](https://fastlane.tools/) is a solution to a
+problem that we need to understand first. We can get to the root of the problem
+by asking “why” questions. Once we narrow down where the motivation comes from,
+we can think of how Tuist can help them best. Maybe the solution is integrating
+with Fastlane, but it’s important we don’t disregard other equally valid
+solutions that we can put on the table before making trade-offs.
 
-## 오류는 발생할 수 있고 또 발생할 것입니다 {#errors-can-and-will-happen}.
+## Errors can and will happen {#errors-can-and-will-happen}
 
-개발자는 오류가 발생할 수 있다는 사실을 무시하고 싶은 유혹이 내재되어 있습니다. 그 결과 우리는 이상적인 시나리오만을 고려하여 소프트웨어를
-설계하고 테스트합니다.
+We, developers, have an inherent temptation to disregard that errors can happen.
+As a result, we design and test software only considering the ideal scenario.
 
-Swift와 그 유형 시스템, 잘 설계된 코드는 일부 오류를 방지하는 데 도움이 될 수 있지만, 일부 오류는 우리가 통제할 수 없으므로 모든
-오류를 방지하지는 못합니다. 사용자가 항상 인터넷에 연결되어 있거나 시스템 명령이 성공적으로 반환될 것이라고 가정할 수는 없습니다. Tuist가
-실행되는 환경은 우리가 통제할 수 있는 샌드박스가 아니므로 환경이 어떻게 변화하고 영향을 미칠 수 있는지 이해하기 위해 노력해야 합니다.
+Swift, its type system, and a well-architected code might help prevent some
+errors, but not all of them because some are out of our control. We can’t assume
+the user will always have an internet connection, or that the system commands
+will return successfully. The environments in which Tuist runs are not sandboxes
+that we control, and hence we need to make an effort to understand how they
+might change and impact Tuist.
 
-오류를 제대로 처리하지 못하면 사용자 경험이 나빠지고 사용자는 프로젝트에 대한 신뢰를 잃을 수 있습니다. 저희는 사용자가 오류를 표시하는
-방식까지 포함하여 모든 부분에서 튜이스트의 모든 것을 즐기기를 바랍니다.
+Poorly handled errors result in bad user experience, and users might lose trust
+in the project. We want users to enjoy every single piece of Tuist, even the way
+we present errors to them.
 
-사용자의 입장이 되어 오류가 우리에게 무엇을 알려줄지 상상해 보아야 합니다. 프로그래밍 언어가 오류가 전파되는 커뮤니케이션 채널이고 사용자가
-오류의 대상인 경우 대상(사용자)이 사용하는 언어와 동일한 언어로 작성해야 합니다. 어떤 일이 발생했는지 알 수 있는 충분한 정보를 포함하고
-관련성이 없는 정보는 숨겨야 합니다. 또한 사용자가 오류를 복구하기 위해 취할 수 있는 조치를 알려줌으로써 실행 가능한 것이어야 합니다.
+We should put ourselves in the shoes of users and imagine what we’d expect the
+error to tell us. If the programming language is the communication channel
+through which errors propagate, and the users are the destination of the errors,
+they should be written in the same language that the target (users) speak. They
+should include enough information to know what happened and hide the information
+that is not relevant. Also, they should be actionable by telling users what
+steps they can take to recover from them.
 
-마지막으로, 테스트 케이스는 실패 시나리오를 고려해야 합니다. 테스트 케이스는 오류를 제대로 처리하고 있는지 확인할 뿐만 아니라 향후 개발자가
-해당 로직을 깨뜨리는 것을 방지합니다.
+And last but not least, our test cases should contemplate failing scenarios. Not
+only they ensure that we are handling errors as we are supposed to, but prevent
+future developers from breaking that logic.

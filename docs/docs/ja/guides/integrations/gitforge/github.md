@@ -5,39 +5,51 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# GitHubの統合{#github}。
+# GitHub integration {#github}
 
-Gitリポジトリは、世の中の大半のソフトウェアプロジェクトの中心的存在です。私たちはGitHubと統合し、プルリクエストでTuistの洞察を提供したり、デフォルトブランチの同期などの設定を省くことができます。
+Git repositories are the centerpiece of the vast majority of software projects
+out there. We integrate with GitHub to provide Tuist insights right in your pull
+requests and to save you some configuration such as syncing your default branch.
 
-## セットアップ {#setup}
+## Setup {#setup}
 
-組織の`Integrations` タブに Tuist GitHub アプリをインストールする必要があります:
-![integrationsタブを示す画像](/images/guides/integrations/gitforge/github/integrations.png)。
+You will need to install the Tuist GitHub app in the `Integrations` tab of your
+organization: ![An image that shows the integrations
+tab](/images/guides/integrations/gitforge/github/integrations.png)
 
-その後、GitHubリポジトリとTuistプロジェクトの間にプロジェクト接続を追加できます：
+After that, you can add a project connection between your GitHub repository and
+your Tuist project:
 
-プロジェクト接続を追加するイメージ](/images/guides/integrations/gitforge/github/add-project-connection.png)。
+![An image that shows adding the project
+connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## プル／マージ・リクエスト・コメント {#pull-merge-request-comments}
+## Pull/merge request comments {#pull-merge-request-comments}
 
-GitHubアプリは、最新の<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>や<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>へのリンクを含むPRの要約を含むTuist実行レポートを投稿します：
+The GitHub app posts a Tuist run report, which includes a summary of the PR,
+including links to the latest
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
+or
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>:
 
-プルリクエストのコメントを表示する画像](/images/guides/integrations/gitforge/github/pull-request-comment.png)。
+![An image that shows the pull request
+comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-必要な情報
+::: info REQUIREMENTS
 <!-- -->
-コメントが投稿されるのは、CIの実行が<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証</LocalizedLink>された場合のみです。
+The comment is only posted when your CI runs are
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 <!-- -->
 :::
 
-::情報 GITHUB_REF
+::: info GITHUB_REF
 <!-- -->
-PR のコミットではなく GitHub のコメントなどをトリガーとするカスタムワークフローの場合は、`GITHUB_REF`
-変数に`refs/pull/<pr_number>/merge` または`refs/pull/<pr_number>/head`
-のいずれかを設定する必要があります。</pr_number></pr_number>
+If you have a custom workflow that's not triggered on a PR commit, but for
+example, a GitHub comment, you might need to ensure that the `GITHUB_REF`
+variable is set to either `refs/pull/<PR_NUMBER>/merge` or
+`refs/pull/<PR_NUMBER>/head`.
 
-`tuist share` のように、`GITHUB_REF`
-環境変数を前に付けて、関連するコマンドを実行できます：<code v-pre>GITHUB_REF="refs/pull/${{
+You can run the relevant command, like `tuist share`, with the prefixed
+`GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{
 github.event.issue.number }}/head" tuist share</code>
 <!-- -->
 :::

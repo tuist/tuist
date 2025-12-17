@@ -5,19 +5,21 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# إنشاء مشروع جديد {#إنشاء مشروع جديد}
+# Create a new project {#create-a-new-project}
 
-الطريقة الأكثر مباشرة لبدء مشروع جديد مع تويست هي استخدام الأمر `tuist init`.
-يقوم هذا الأمر بتشغيل واجهة CLI تفاعلية ترشدك خلال إعداد مشروعك. عند مطالبتك
-بذلك، تأكد من تحديد خيار إنشاء "مشروع تم إنشاؤه".
+The most straightforward way to start a new project with Tuist is to use the
+`tuist init` command. This command launches an interactive CLI that guides you
+through setting up your project. When prompted, make sure to select the option
+to create a "generated project".
 
-يمكنك بعد ذلك <LocalizedLink href="/guides/features/projects/editing">تعديل
-المشروع</LocalizedLink> تشغيل `tuist تحرير` ، وسيقوم Xcode بفتح مشروع حيث يمكنك
-تحرير المشروع. أحد الملفات التي يتم إنشاؤها هو `Project.swift` ، والذي يحتوي على
-تعريف مشروعك. إذا كنت معتادًا على مدير حزم سويفت، ففكر في الأمر على أنه
-`Package.swift` ولكن مع لغة مشاريع Xcode.
+You can then <LocalizedLink href="/guides/features/projects/editing">edit the
+project</LocalizedLink> running `tuist edit`, and Xcode will open a project
+where you can edit the project. One of the files that are generated is the
+`Project.swift`, which contains the definition of your project. If you are
+familiar with the Swift Package Manager, think of it as the `Package.swift` but
+with the lingo of Xcode projects.
 
-:::: مجموعة الرموز
+::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -57,30 +59,31 @@ let project = Project(
 <!-- -->
 :::
 
-:::: المعلومات
+::: info
 <!-- -->
-لقد تعمدنا إبقاء قائمة القوالب المتاحة قصيرة لتقليل نفقات الصيانة. إذا كنت ترغب
-في إنشاء مشروع لا يمثل تطبيقًا، على سبيل المثال إطار عمل، يمكنك استخدام `tuist
-init` كنقطة بداية ثم تعديل المشروع الذي تم إنشاؤه ليناسب احتياجاتك.
+We intentionally keep the list of available templates short to minimize
+maintenance overhead. If you want to create a project that doesn't represent an
+application, for example a framework, you can use `tuist init` as a starting
+point and then modify the generated project to suit your needs.
 <!-- -->
 :::
 
-## إنشاء مشروع يدويًا {#إنشاء مشروع يدويًا}
+## Manually creating a project {#manually-creating-a-project}
 
-بدلاً من ذلك، يمكنك إنشاء المشروع يدوياً. نوصي بالقيام بذلك فقط إذا كنت معتادًا
-بالفعل على تويست ومفاهيمه. أول شيء ستحتاج إلى القيام به هو إنشاء دلائل إضافية
-لهيكل المشروع:
+Alternatively, you can create the project manually. We recommend doing this only
+if you're already familiar with Tuist and its concepts. The first thing that
+you'll need to do is to create additional directories for the project structure:
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-ثم قم بإنشاء ملف `Tuist.swift.swift` ، والذي سيقوم بتهيئة ملف تويست ويستخدمه
-تويست لتحديد الدليل الجذر للمشروع، وملف `Project.swift` ، حيث سيتم الإعلان عن
-مشروعك:
+Then create a `Tuist.swift` file, which will configure Tuist and is used by
+Tuist to determine the root directory of the project, and a `Project.swift`,
+where your project will be declared:
 
-:::: مجموعة الرموز
+::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -106,10 +109,11 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-:::: تحذير
+::: warning
 <!-- -->
-يستخدم تويست الدليل `تويست/` لتحديد جذر مشروعك، ومن هناك يبحث عن ملفات البيان
-الأخرى التي تملأ الدلائل. نوصي بإنشاء تلك الملفات باستخدام المحرر الذي تختاره،
-ومن تلك النقطة يمكنك استخدام `tuist edit` لتحرير المشروع باستخدام Xcode.
+Tuist uses the `Tuist/` directory to determine the root of your project, and
+from there it looks for other manifest files globbing the directories. We
+recommend creating those files with your editor of choice, and from that point
+on, you can use `tuist edit` to edit the project with Xcode.
 <!-- -->
 :::

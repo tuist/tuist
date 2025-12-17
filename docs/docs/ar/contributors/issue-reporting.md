@@ -5,69 +5,73 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# الإبلاغ عن المشكلات {# الإبلاغ عن المشكلات}
+# Issue reporting {#issue-reporting}
 
-بصفتك مستخدمًا لـ Tuist، قد تصادف أخطاءً أو سلوكيات غير متوقعة. إذا حدث ذلك،
-فنحن نشجعك على الإبلاغ عنها حتى نتمكن من إصلاحها.
+As user of Tuist, you might come across bugs or unexpected behaviors. If you do,
+we encourage you to report them so that we can fix them.
 
-## مشكلات GitHub هي منصتنا لإصدار التذاكر {#gitHub-issues-is- is- our-ticketing-platform}
+## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
 
-يجب الإبلاغ عن المشكلات على GitHub باسم [مشكلات GitHub]
-(https://github.com/tuist/tuist/issues) وليس على Slack أو منصات أخرى. يعد GitHub
-أفضل لتتبع المشكلات وإدارتها، وهو أقرب إلى قاعدة البرمجة، ويسمح لنا بتتبع تقدم
-المشكلة. وعلاوة على ذلك، فإنه يشجع على تقديم وصف مطول للمشكلة، مما يجبر
-المُبلِّغ على التفكير في المشكلة وتوفير المزيد من السياق.
+Issues should be reported on GitHub as [GitHub
+issues](https://github.com/tuist/tuist/issues) and not on Slack or other
+platforms. GitHub is better for tracing and managing issues, is closer to the
+codebase, and allows us to track the progress of the issue. Moreover, it
+encourages a long-form description of the problem, which forces the reporter to
+think about the problem and provide more context.
 
-## السياق أمر بالغ الأهمية {#السياق أمر بالغ الأهمية}
+## Context is crucial {#context-is-crucial}
 
-سيتم اعتبار المشكلة التي لا تحتوي على سياق كافٍ غير مكتملة وسيُطلب من المؤلف
-تقديم سياق إضافي. إذا لم يتم توفيره، سيتم إغلاق المشكلة. فكّر في الأمر على هذا
-النحو: كلما زاد السياق الذي توفره، كان من الأسهل علينا فهم المشكلة وإصلاحها. لذا
-إذا كنت تريد أن يتم إصلاح مشكلتك، قدم أكبر قدر ممكن من السياق. حاول الإجابة عن
-الأسئلة التالية:
+An issue without enough context will be deemed incomplete and the author will be
+asked for additional context. If not provided, the issue will be closed. Think
+about it this way: the more context you provide, the easier it is for us to
+understand the problem and fix it. So if you want your issue to be fixed,
+provide as much context as possible. Try to answer the following questions:
 
-- ماذا كنت تحاول أن تفعل؟
-- كيف يبدو الرسم البياني الخاص بك؟
-- ما هو إصدار تويست الذي تستخدمه؟
-- هل يعيقك هذا؟
+- What were you trying to do?
+- How does your graph look?
+- What version of Tuist are you using?
+- Is this blocking you?
 
-نطلب منك أيضًا توفير الحد الأدنى **مشروع قابل للتكرار**.
+We also require you to provide a minimal **reproducible project**.
 
-## مشروع قابل للتكرار {#مشروع قابل للتكرار}
+## Reproducible project {#reproducible-project}
 
-### ما هو المشروع القابل للتكرار؟ {# ما هو المشروع القابل للتكرار}
+### What is a reproducible project? {#what-is-a-reproducible-project}
 
-المشروع القابل للتكرار هو مشروع تويست صغير لتوضيح مشكلة ما - وغالبًا ما تكون هذه
-المشكلة ناتجة عن خطأ في تويست. يجب أن يحتوي مشروعك القابل للتكرار على الحد
-الأدنى من الميزات اللازمة لإظهار الخطأ بوضوح.
+A reproducible project is a small Tuist project to demonstrate a problem - often
+this problem is caused by a bug in Tuist. Your reproducible project should
+contain the bare minimum features needed to clearly demonstrate the bug.
 
-### لماذا يجب عليك إنشاء حالة اختبار قابلة للتكرار؟ {#لماذا يجب عليك إنشاء حالة اختبار قابلة للتكرار}
+### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
 
-تتيح لنا المشاريع القابلة للتكرار عزل سبب المشكلة، وهي الخطوة الأولى نحو
-إصلاحها! أهم جزء في أي تقرير عن الأخطاء هو وصف الخطوات الدقيقة اللازمة لإعادة
-إنتاج الخطأ.
+A reproducible projects lets us isolate the cause of a problem, which is the
+first step towards fixing it! The most important part of any bug report is to
+describe the exact steps needed to reproduce the bug.
 
-يعد المشروع القابل للتكرار طريقة رائعة لمشاركة بيئة معينة تسبب خطأ ما. مشروعك
-القابل للتكرار هو أفضل طريقة لمساعدة الأشخاص الذين يرغبون في مساعدتك.
+A reproducible project is a great way to share a specific environment that
+causes a bug. Your reproducible project is the best way to help people that want
+to help you.
 
-### خطوات إنشاء مشروع قابل للتكرار {#خطوات إنشاء مشروع قابل للتكرار}
+### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
 
-- إنشاء مستودع git جديد.
-- تهيئة مشروع باستخدام `tuist init` في دليل المستودع.
-- أضف التعليمات البرمجية اللازمة لإعادة إنشاء الخطأ الذي رأيته.
-- انشر الكود (حساب GitHub الخاص بك هو مكان جيد للقيام بذلك) ثم اربطه عند إنشاء
-  مشكلة.
+- Create a new git repository.
+- Initialize a project using `tuist init` in the repository directory.
+- Add the code needed to recreate the error you’ve seen.
+- Publish the code (your GitHub account is a good place to do this) and then
+  link to it when creating an issue.
 
-### فوائد المشروعات القابلة للتكرار {#فوائد المشروعات القابلة للتكرار}
+### Benefits of reproducible projects {#benefits-of-reproducible-projects}
 
-- **مساحة سطح أصغر:** بإزالة كل شيء ما عدا الخطأ، لن تضطر إلى الحفر للعثور على
-  الخطأ.
-- **لا حاجة لنشر كود سري:** قد لا تتمكن من نشر موقعك الرئيسي (لأسباب عديدة).
-  تتيح لك إعادة إنشاء جزء صغير منه كحالة اختبار قابلة للتكرار إظهار المشكلة
-  علنًا دون الكشف عن أي كود سري.
-- **إثبات الخلل:** في بعض الأحيان يكون سبب الخطأ هو مجموعة من الإعدادات على
-  جهازك. تسمح حالة الاختبار القابلة للتكرار للمساهمين بسحب الإصدار الخاص بك
-  واختباره على أجهزتهم أيضًا. يساعد ذلك في التحقق من سبب المشكلة وتضييق نطاقها.
-- **احصل على المساعدة في إصلاح الخطأ الخاص بك:** إذا تمكن شخص آخر من إعادة إنتاج
-  مشكلتك، فغالباً ما يكون لديه فرصة جيدة لإصلاح المشكلة. يكاد يكون من المستحيل
-  إصلاح الخطأ دون أن تكون قادرًا على إعادة إنتاجه أولاً.
+- **Smaller surface area:** By removing everything but the error, you don’t have
+  to dig to find the bug.
+- **No need to publish secret code:** You might not be able to publish your main
+  site (for many reasons). Remaking a small part of it as a reproducible test
+  case allows you to publicly demonstrate a problem without exposing any secret
+  code.
+- **Proof of the bug:** Sometimes a bug is caused by some combination of
+  settings on your machine. A reproducible test case allows contributors to pull
+  down your build and test it on their machines as well. This helps verify and
+  narrow down the cause of a problem.
+- **Get help with fixing your bug:** If someone else can reproduce your problem,
+  they often have a good chance of fixing the problem. It’s almost impossible to
+  fix a bug without first being able to reproduce it.

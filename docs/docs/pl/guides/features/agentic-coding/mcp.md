@@ -5,61 +5,58 @@
   "description": "Learn how to use Tuist's MCP server to have a language-based interface for your app development environment."
 }
 ---
-# Protokół kontekstu modelu (MCP)
+# Model Context Protocol (MCP)
 
-[Model Context Protocol (MCP)](https://www.claudemcp.com) to standard
-zaproponowany przez [Claude](https://claude.ai) dla LLM do interakcji ze
-środowiskami programistycznymi. Można o nim myśleć jak o USB-C dla LLM. Podobnie
-jak kontenery transportowe, które sprawiły, że ładunek i transport stały się
-bardziej interoperacyjne, lub protokoły takie jak TCP, które oddzieliły warstwę
-aplikacji od warstwy transportowej, MCP sprawia, że aplikacje oparte na LLM,
-takie jak [Claude](https://claude.ai/), [Claude
-Code](https://docs.anthropic.com/en/docs/claude-code) i edytory takie jak
-[Zed](https://zed.dev), [Cursor](https://www.cursor.com) lub [VS
-Code](https://code.visualstudio.com) są interoperacyjne z innymi domenami.
+[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard proposed
+by [Claude](https://claude.ai) for LLMs to interact with development
+environments. You can think of it as the USB-C of LLMs. Like shipping
+containers, which made cargo and transportation more interoperable, or protocols
+like TCP, which decoupled the application layer from the transport layer, MCP
+makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude
+Code](https://docs.anthropic.com/en/docs/claude-code), and editors like
+[Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS
+Code](https://code.visualstudio.com) interoperable with other domains.
 
-Tuist zapewnia lokalny serwer za pośrednictwem interfejsu CLI, dzięki czemu
-można wchodzić w interakcje ze środowiskiem programistycznym aplikacji **** .
-Podłączając do niego aplikacje klienckie, można używać języka do interakcji z
-projektami.
+Tuist provides a local server through its CLI so that you can interact with your
+**app development environment**. By connecting your client apps to it, you can
+use language to interact with your projects.
 
-Na tej stronie dowiesz się, jak ją skonfigurować i jakie są jej możliwości.
+In this page you'll learn about how to set it up and its capabilities.
 
-:: info
+::: info
 <!-- -->
-Serwer Tuist MCP wykorzystuje najnowsze projekty Xcode jako źródło prawdy dla
-projektów, z którymi chcesz wchodzić w interakcje.
+Tuist MCP server uses Xcode's most-recent projects as the source of truth for
+projects you want to interact with.
 <!-- -->
 :::
 
-## Konfiguracja
+## Set it up
 
-Tuist zapewnia automatyczne polecenia konfiguracyjne dla popularnych klientów
-kompatybilnych z MCP. Wystarczy uruchomić odpowiednie polecenie dla danego
-klienta:
+Tuist provides automated setup commands for popular MCP-compatible clients.
+Simply run the appropriate command for your client:
 
 ### [Claude](https://claude.ai)
 
-Dla [Claude desktop](https://claude.ai/download), uruchom:
+For [Claude desktop](https://claude.ai/download), run:
 ```bash
 tuist mcp setup claude
 ```
 
-Spowoduje to skonfigurowanie pliku pod adresem `~/Library/Application
+This will configure the file at `~/Library/Application
 Support/Claude/claude_desktop_config.json`.
 
 ### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
-Dla Claude Code, uruchom:
+For Claude Code, run:
 ```bash
 tuist mcp setup claude-code
 ```
 
-Spowoduje to skonfigurowanie tego samego pliku co pulpit Claude.
+This will configure the same file as Claude desktop.
 
-### [Kursor](https://www.cursor.com)
+### [Cursor](https://www.cursor.com)
 
-Cursor IDE można skonfigurować globalnie lub lokalnie:
+For Cursor IDE, you can configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup cursor --global
@@ -73,7 +70,7 @@ tuist mcp setup cursor --path /path/to/project
 
 ### [Zed](https://zed.dev)
 
-W przypadku edytora Zed można również skonfigurować go globalnie lub lokalnie:
+For Zed editor, you can also configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup zed --global
@@ -87,7 +84,7 @@ tuist mcp setup zed --path /path/to/project
 
 ### [VS Code](https://code.visualstudio.com)
 
-W przypadku VS Code z rozszerzeniem MCP skonfiguruj je globalnie lub lokalnie:
+For VS Code with MCP extension, configure it globally or locally:
 ```bash
 # Global configuration
 tuist mcp setup vscode --global
@@ -99,10 +96,10 @@ tuist mcp setup vscode
 tuist mcp setup vscode --path /path/to/project
 ```
 
-### Konfiguracja ręczna
+### Manual Configuration
 
-Jeśli wolisz konfigurować ręcznie lub używasz innego klienta MCP, dodaj serwer
-MCP Tuist do konfiguracji klienta:
+If you prefer to configure manually or are using a different MCP client, add the
+Tuist MCP server to your client's configuration:
 
 ::: code-group
 
@@ -130,39 +127,38 @@ MCP Tuist do konfiguracji klienta:
 <!-- -->
 :::
 
-## Możliwości
+## Capabilities
 
-W poniższych sekcjach dowiesz się o możliwościach serwera Tuist MCP.
+In the following sections you'll learn about the capabilities of the Tuist MCP
+server.
 
-### Zasoby
+### Resources
 
-#### Ostatnie projekty i przestrzenie robocze
+#### Recent projects and workspaces
 
-Tuist prowadzi rejestr projektów Xcode i obszarów roboczych, z którymi ostatnio
-pracowałeś, dając Twojej aplikacji dostęp do ich wykresów zależności w celu
-uzyskania potężnych wglądów. Możesz przeszukiwać te dane, aby odkryć szczegóły
-dotyczące struktury projektu i relacji, takie jak:
+Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked
+with, giving your application access to their dependency graphs for powerful
+insights. You can query this data to uncover details about your project
+structure and relationships, such as:
 
-- Jakie są bezpośrednie i przechodnie zależności określonego celu?
-- Który cel ma najwięcej plików źródłowych i ile ich zawiera?
-- Jakie są wszystkie statyczne produkty (np. statyczne biblioteki lub
-  frameworki) na wykresie?
-- Czy możesz wymienić wszystkie cele, posortowane alfabetycznie, wraz z ich
-  nazwami i typami produktów (np. aplikacja, framework, test jednostkowy)?
-- Które cele zależą od konkretnego frameworka lub zewnętrznej zależności?
-- Jaka jest całkowita liczba plików źródłowych we wszystkich obiektach
-  docelowych w projekcie?
-- Czy istnieją jakieś zależności kołowe między celami, a jeśli tak, to gdzie?
-- Które cele używają określonego zasobu (np. obrazu lub pliku plist)?
-- Jaki jest najgłębszy łańcuch zależności na wykresie i które cele są w niego
-  zaangażowane?
-- Czy możesz pokazać mi wszystkie cele testów i powiązane z nimi cele aplikacji
-  lub frameworka?
-- Które cele mają najdłuższy czas budowy na podstawie ostatnich interakcji?
-- Jakie są różnice w zależnościach między dwoma konkretnymi celami?
-- Czy w projekcie są jakieś nieużywane pliki źródłowe lub zasoby?
-- Które cele mają wspólne zależności i jakie one są?
+- What are the direct and transitive dependencies of a specific target?
+- Which target has the most source files, and how many does it include?
+- What are all the static products (e.g., static libraries or frameworks) in the
+  graph?
+- Can you list all targets, sorted alphabetically, along with their names and
+  product types (e.g., app, framework, unit test)?
+- Which targets depend on a particular framework or external dependency?
+- What’s the total number of source files across all targets in the project?
+- Are there any circular dependencies between targets, and if so, where?
+- Which targets use a specific resource (e.g., an image or plist file)?
+- What’s the deepest dependency chain in the graph, and which targets are
+  involved?
+- Can you show me all the test targets and their associated app or framework
+  targets?
+- Which targets have the longest build times based on recent interactions?
+- What are the differences in dependencies between two specific targets?
+- Are there any unused source files or resources in the project?
+- Which targets share common dependencies, and what are they?
 
-Dzięki Tuist możesz zagłębić się w swoje projekty Xcode jak nigdy dotąd,
-ułatwiając zrozumienie, optymalizację i zarządzanie nawet najbardziej złożonymi
-konfiguracjami!
+With Tuist, you can dig into your Xcode projects like never before, making it
+easier to understand, optimize, and manage even the most complex setups!

@@ -5,38 +5,38 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# Configuración dinámica {#dynamic-configuration}
+# Dynamic configuration {#dynamic-configuration}
 
-Hay ciertos escenarios en los que podrías necesitar configurar dinámicamente tu
-proyecto en el momento de la generación. Por ejemplo, es posible que desee
-cambiar el nombre de la aplicación, el identificador de paquete, o el objetivo
-de despliegue basado en el entorno en el que se está generando el proyecto.
-Tuist soporta esto a través de variables de entorno, a las que se puede acceder
-desde los archivos de manifiesto.
+There are certain scenarios where you might need to dynamically configure your
+project at generation time. For example, you might want to change the name of
+the app, the bundle identifier, or the deployment target based on the
+environment where the project is being generated. Tuist supports that via
+environment variables, which can be accessed from the manifest files.
 
-## Configuración a través de variables de entorno {#configuration-through-environment-variables}
+## Configuration through environment variables {#configuration-through-environment-variables}
 
-Tuist permite pasar la configuración a través de variables de entorno a las que
-se puede acceder desde los ficheros de manifiesto. Por ejemplo:
+Tuist allows passing configuration through environment variables that can be
+accessed from the manifest files. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-Si desea pasar varias variables de entorno, sepárelas con un espacio. Por
-ejemplo:
+If you want to pass multiple environment variables just separate them with a
+space. For example:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Lectura de las variables de entorno de los manifiestos {#reading-the-environment-variables-from-manifests}
+## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
 
-Se puede acceder a las variables utilizando el tipo
-<LocalizedLink href="/references/project-description/enums/environment">`Entorno`</LocalizedLink>.
-Cualquier variable que siga la convención `TUIST_XXX` definida en el entorno o
-pasada a Tuist al ejecutar comandos será accesible utilizando el tipo `Entorno`.
-El siguiente ejemplo muestra cómo accedemos a la variable `TUIST_APP_NAME`:
+Variables can be accessed using the
+<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>
+type. Any variables following the convention `TUIST_XXX` defined in the
+environment or passed to Tuist when running commands will be accessible using
+the `Environment` type. The following example shows how we access the
+`TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {
@@ -48,20 +48,19 @@ func appName() -> String {
 }
 ```
 
-El acceso a las variables devuelve una instancia de tipo `Environment.Value?`
-que puede tomar cualquiera de los siguientes valores:
+Accessing variables returns an instance of type `Environment.Value?` which can
+take any of the following values:
 
-| Caso              | Descripción                                          |
-| ----------------- | ---------------------------------------------------- |
-| `.string(Cadena)` | Se utiliza cuando la variable representa una cadena. |
+| Case              | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `.string(String)` | Used when the variable represents a string. |
 
-También puede recuperar la cadena o booleano `Entorno` variable utilizando
-cualquiera de los métodos de ayuda definidos a continuación, estos métodos
-requieren un valor por defecto que se pasa a asegurar que el usuario obtiene
-resultados consistentes cada vez. Esto evita la necesidad de definir la función
-appName() definida anteriormente.
+You can also retrieve the string or boolean `Environment` variable using either
+of the helper methods defined below, these methods require a default value to be
+passed to ensure the user gets consistent results each time. This avoids the
+need to define the function appName() defined above.
 
-::: grupo de códigos
+::: code-group
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")

@@ -5,44 +5,44 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# Udostępnianie kodu {#code-sharing}
+# Code sharing {#code-sharing}
 
-Jedną z niedogodności Xcode, gdy używamy go z dużymi projektami, jest to, że nie
-pozwala on na ponowne wykorzystanie elementów projektów innych niż ustawienia
-kompilacji za pośrednictwem plików `.xcconfig`. Możliwość ponownego
-wykorzystania definicji projektu jest przydatna z następujących powodów:
+One of the inconveniences of Xcode when we use it with large projects is that it
+doesn't allow reusing elements of the projects other than the build settings
+through `.xcconfig` files. Being able to reuse project definitions is useful for
+the following reasons:
 
-- Ułatwia to konserwację **** , ponieważ zmiany można wprowadzać w jednym
-  miejscu, a wszystkie projekty otrzymują je automatycznie.
-- Umożliwia to zdefiniowanie konwencji **** , z którymi mogą być zgodne nowe
-  projekty.
-- Projekty są bardziej **spójne** i dlatego prawdopodobieństwo zepsutych
-  kompilacji z powodu niespójności jest znacznie mniejsze.
-- Dodanie nowego projektu staje się łatwym zadaniem, ponieważ możemy ponownie
-  wykorzystać istniejącą logikę.
+- It eases the **maintenance** because changes can be applied in one place and
+  all the projects get the changes automatically.
+- It makes it possible to define **conventions** that new projects can conform
+  to.
+- Projects are more **consistent** and therefore the likelihood of broken builds
+  due inconsistencies is significantly less.
+- Adding a new projects becomes an easy task because we can reuse the existing
+  logic.
 
-Ponowne wykorzystanie kodu w plikach manifestu jest możliwe w Tuist dzięki
-koncepcji pomocników opisu projektu **** .
+Reusing code across manifest files is possible in Tuist thanks to the concept of
+**project description helpers**.
 
 ::: tip A TUIST UNIQUE ASSET
 <!-- -->
-Wiele organizacji lubi Tuist, ponieważ widzą w narzędziach pomocniczych do opisu
-projektów platformę dla zespołów platformowych do kodyfikowania własnych
-konwencji i wymyślania własnego języka do opisywania swoich projektów. Na
-przykład, generatory projektów oparte na YAML muszą wymyślić własne rozwiązanie
-szablonowe oparte na YAML lub zmusić organizacje do budowania swoich narzędzi.
+Many organizations like Tuist because they see in project description helpers a
+platform for platform teams to codify their own conventions and come up with
+their own language for describing their projects. For example, YAML-based
+project generators have to come up with their own YAML-based propietary
+templating solution, or force organizations onto building their tools upon.
 <!-- -->
 :::
 
-## Pomocnicy opisu projektu {#project-description-helpers}
+## Project description helpers {#project-description-helpers}
 
-Pomocnicy opisu projektu to pliki Swift, które są kompilowane do modułu
-`ProjectDescriptionHelpers`, który może importować pliki manifestu. Moduł jest
-kompilowany poprzez zebranie wszystkich plików w katalogu
-`Tuist/ProjectDescriptionHelpers`.
+Project description helpers are Swift files that get compiled into a module,
+`ProjectDescriptionHelpers`, that manifest files can import. The module is
+compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers`
+directory.
 
-Można je zaimportować do pliku manifestu, dodając instrukcję importu w górnej
-części pliku:
+You can import them into your manifest file by adding an import statement at the
+top of the file:
 
 ```swift
 // Project.swift
@@ -50,15 +50,15 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` są dostępne w następujących manifestach:
+`ProjectDescriptionHelpers` are available in the following manifests:
 - `Project.swift`
-- `Package.swift` (tylko za flagą kompilatora `#TUIST` )
+- `Package.swift` (only behind the `#TUIST` compiler flag)
 - `Workspace.swift`
 
-## Przykład {#example}
+## Example {#example}
 
-Poniższe fragmenty zawierają przykład tego, jak rozszerzamy model `Project`, aby
-dodać statyczne konstruktory i jak ich używamy z pliku `Project.swift`:
+The snippets below contain an example of how we extend the `Project` model to
+add static constructors and how we use them from a `Project.swift` file:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -104,9 +104,9 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip NARZĘDZIE DO USTANAWIANIA KONWENCJI
+::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
-Zwróć uwagę, jak za pomocą funkcji definiujemy konwencje dotyczące nazw obiektów
-docelowych, identyfikatora pakietu i struktury folderów.
+Note how through the function we are defining conventions about the name of the
+targets, the bundle identifier, and the folders structure.
 <!-- -->
 :::

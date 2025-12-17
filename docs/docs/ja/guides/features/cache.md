@@ -5,38 +5,61 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# キャッシュ {#cache}
+# Cache {#cache}
 
-Xcode
-のビルドシステムは、[インクリメンタルビルド](https://en.wikipedia.org/wiki/Incremental_build_model)
-を提供し、1 台のマシンでの効率を高めます。しかし、ビルドアーチファクトは、異なる環境間で共有されないため、同じコードを何度もリビルドする必要があります -
-継続的インテグレーション（CI）環境](https://en.wikipedia.org/wiki/Continuous_integration)
-またはローカル開発環境（Mac）のいずれかで。
+Xcode's build system provides [incremental
+builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
+efficiency on a single machine. However, build artifacts are not shared across
+different environments, forcing you to rebuild the same code over and over –
+either in your [Continuous Integration (CI)
+environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
+development environments (your Mac).
 
-Tuistはキャッシュ機能によってこれらの課題に対処し、ローカル開発環境とCI環境の両方でビルド時間を大幅に短縮する。このアプローチは、フィードバックループを加速するだけでなく、コンテキスト切り替えの必要性を最小化し、最終的に生産性を高める。
+Tuist addresses these challenges with its caching feature, significantly
+reducing build times both in local development and CI environments. This
+approach not only accelerates feedback loops but also minimizes the need for
+context switching, ultimately boosting productivity.
 
-キャッシュには2種類あります：
-- <LocalizedLink href="/guides/features/cache/module-cache">モジュールキャッシュ</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcodeキャッシュ</LocalizedLink>
+We offer two types of caching:
+- <LocalizedLink href="/guides/features/cache/module-cache">Module
+  cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
+  cache</LocalizedLink>
 
-## モジュール・キャッシュ {#module-cache}
+## Module cache {#module-cache}
 
-Tuistの<LocalizedLink href="/guides/features/projects">プロジェクト生成</LocalizedLink>機能を使用するプロジェクトには、個々のモジュールをバイナリとしてキャッシュし、チームやCI環境で共有する強力なキャッシュシステムを提供します。
+For projects that use Tuist's
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities, we provide a powerful caching system,
+which caches individual modules as binaries and shares them across your team and
+CI environments.
 
-新しい Xcode
-キャッシュを使用することもできますが、この機能は現在ローカルビルド用に最適化されており、生成されたプロジェクトのキャッシュと比較すると、キャッシュのヒット率は低くなるでしょう。しかし、どのキャッシュソリューションを使用するかの決定は、あなたの特定のニーズと好みに依存します。最良の結果を得るために両方のキャッシュソリューションを組み合わせることもできます。
+While you can also use the new Xcode cache, this feature is currently optimized
+for local builds and you will likely have a lower cache hit rate compared to the
+generated project caching. However, the decision for which caching solution to
+use depends on your specific needs and preferences. You may also combine both
+caching solutions to achieve the best results.
 
-<LocalizedLink href="/guides/features/cache/module-cache">モジュール・キャッシュについて詳しくはこちら</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
+Module cache →</LocalizedLink>
 
-## Xcodeキャッシュ {#xcode-cache}
+## Xcode cache {#xcode-cache}
 
-XCODEにおけるキャッシュの状態。
+::: warning STATE OF CACHE IN XCODE
 <!-- -->
-Xcodeのキャッシュは現在、ローカルのインクリメンタルビルドに最適化されており、ビルドタスクの全領域はまだパスに依存していません。それでも、Tuistのリモートキャッシュをプラグインすることで恩恵を受けることができ、ビルドシステムの能力が向上し続けるにつれて、ビルド時間が改善されることを期待しています。
+Xcode caching is currently optimized for local incremental builds and the whole
+spectrum of build tasks is not yet path-independent. Still you can experience
+benefits by plugging Tuist's remote cache, and we expect build times to improve
+over time as the build system's capability keeps improving.
 <!-- -->
 :::
 
-Appleは、BazelやBuckのような他のビルドシステムと同様に、ビルドレベルでの新しいキャッシュソリューションに取り組んできた。この新しいキャッシュ機能はXcode
-26から利用できるようになり、TuistはTuistの<LocalizedLink href="/guides/features/projects">プロジェクト生成</LocalizedLink>機能を使用しているかどうかに関係なく、シームレスに統合されるようになった。
+Apple has been working on a new caching solution at the build level, similar to
+other build systems like Bazel and Buck. The new caching capability is available
+since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
+whether you are using Tuist's
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities or not.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Xcodeキャッシュについて詳しくはこちら</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
+cache →</LocalizedLink>

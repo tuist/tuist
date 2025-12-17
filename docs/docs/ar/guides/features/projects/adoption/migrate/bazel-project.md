@@ -5,40 +5,42 @@
   "description": "Learn how to migrate your projects from Bazel to Tuist."
 }
 ---
-# ترحيل مشروع بازل {#ترحيل مشروع بازل}
+# Migrate a Bazel project {#migrate-a-bazel-project}
 
-[Bazel] (https://bazel.build) هو نظام بناء قامت جوجل بفتح مصادره في عام 2015.
-وهو أداة قوية تسمح لك ببناء واختبار البرمجيات من أي حجم، بسرعة وموثوقية. تستخدمه
-بعض المؤسسات الكبيرة مثل
-[Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/)
-أو
-[Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae)
-أو [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)، ومع ذلك، فإنه يتطلب
-استثمارًا مقدمًا (أي تعلم التكنولوجيا) واستثمارًا مستمرًا (أي مواكبة تحديثات
-Xcode) لتقديمه وصيانته. وفي حين أن هذا الأمر مناسب لبعض المؤسسات التي تتعامل معه
-على أنه اهتمام شامل، إلا أنه قد لا يكون الأنسب لمؤسسات أخرى تريد التركيز على
-تطوير منتجاتها. على سبيل المثال، رأينا مؤسسات قام فريق منصة iOS لديها بتقديم
-بازل واضطروا إلى التخلي عنه بعد أن غادر المهندسون الذين قادوا هذا الجهد الشركة.
-موقف Apple من الاقتران القوي بين Xcode ونظام الإنشاء هو عامل آخر يجعل من الصعب
-الحفاظ على مشاريع Bazel مع مرور الوقت.
+[Bazel](https://bazel.build) is a build system that Google open-sourced in 2015.
+It's a powerful tool that allows you to build and test software of any size,
+quickly and reliably. Some large organizations like
+[Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/),
+[Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae),
+or [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) use it, however, it
+requires an upfront (i.e., learning the technology) and ongoing investment
+(i.e., keeping up with Xcode updates) to introduce and maintain. While this
+works for some organizations that treat it as a cross-cutting concern, it might
+not be the best fit for others that want to focus on their product development.
+For instance, we've seen organizations whose iOS platform team introduced Bazel
+and had to drop it after the engineers that led the effort left the company.
+Apple's stance on the strong coupling between Xcode and the build system is
+another factor that makes it hard to maintain Bazel projects over time.
 
-::::: تلميح تكمن الفرادة في فرادتها
+::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
 <!-- -->
-بدلًا من محاربة Xcode ومشاريع Xcode، يحتضن تويست ذلك. إنها نفس المفاهيم (مثل
-الأهداف والمخططات وإعدادات الإنشاء)، ولغة مألوفة (أي سويفت)، وتجربة بسيطة وممتعة
-تجعل صيانة المشاريع وتوسيع نطاقها مهمة الجميع وليس فقط فريق منصة iOS.
+Instead of fighting Xcode and Xcode projects, Tuist embraces it. It's the same
+concepts (e.g., targets, schemes, build settings), a familiar language (i.e.,
+Swift), and a simple and enjoyable experience that makes maintaining and scaling
+projects everyone's job and not just the iOS platform team's.
 <!-- -->
 :::
 
-## القواعد {#القواعد}
+## Rules {#rules}
 
-يستخدم بازل قواعد لتحديد كيفية بناء واختبار البرمجيات. تتم كتابة القواعد بلغة
-[Starlark] (https://github.com/bazelbuild/starlark)، وهي لغة شبيهة بلغة بايثون.
-يستخدم تويست لغة سويفت كلغة تكوين، والتي توفر للمطورين سهولة استخدام ميزات
-الإكمال التلقائي والتحقق من النوع والتحقق من صحة برمجيات Xcode. على سبيل المثال،
-تصف القاعدة التالية كيفية بناء مكتبة سويفت في بازل:
+Bazel uses rules to define how to build and test software. The rules are written
+in [Starlark](https://github.com/bazelbuild/starlark), a Python-like language.
+Tuist uses Swift as a configuration language, which provides developers with the
+convenience of using Xcode's autocompletion, type-checking, and validation
+features. For example, the following rule describes how to build a Swift library
+in Bazel:
 
-:::: مجموعة الرموز
+::: code-group
 ```txt [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
@@ -58,9 +60,10 @@ let project = Project(
 <!-- -->
 :::
 
-إليك مثال آخر ولكن بمقارنة كيفية تعريف اختبارات الوحدة في بازل وتويست:
+Here's another example but comparing how to define unit tests in Bazel and
+Tuist:
 
-:::: مجموعة الرموز
+::: code-group
 ```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
@@ -92,25 +95,27 @@ let project = Project(
 :::
 
 
-## تبعيات Swift Package Manager {#swift-package-manager-dependencies}
+## Swift Package Manager dependencies {#swift-package-manager-dependencies}
 
-في Bazel، يمكنك استخدام
-[`rules_swift_swift_package_manager`]](https://github.com/cgrindel/rules_swift_package_manager)
+In Bazel, you can use the
+[`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager)
 [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md)
-المكوّن الإضافي لاستخدام حزم سويفت كتبعيات. يتطلب المكون الإضافي `Package.swift`
-كمصدر للحقيقة للتبعيات. واجهة تويست مشابهة لواجهة بازل بهذا المعنى. يمكنك
-استخدام الأمر `tuist install` لحل وسحب تبعيات الحزمة. بعد اكتمال عملية الحل،
-يمكنك بعد ذلك إنشاء المشروع باستخدام الأمر `tuist gener`.
+plugin to use Swift Packages as dependencies. The plugin requires a
+`Package.swift` as a source of truth for the dependencies. Tuist's interface is
+similar to Bazel's in that sense. You can use the `tuist install` command to
+resolve and pull the dependencies of the package. After the resolution
+completes, you can then generate the project with the `tuist generate` command.
 
 ```bash
 tuist install # Fetch dependencies defined in Tuist/Package.swift
 tuist generate # Generate an Xcode project
 ```
 
-## توليد المشاريع {#-توليد-المشاريع}
+## Project generation {#project-generation}
 
-يوفّر المجتمع مجموعة من القواعد،
-[rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)،
-لتوليد مشاريع Xcode من مشاريع بازل المعلنة. على عكس Bazel، حيث تحتاج إلى إضافة
-بعض التهيئة إلى ملف `BUILD` ، لا يتطلب Tuist أي تهيئة على الإطلاق. يمكنك تشغيل
-`tuist gener` في الدليل الجذر لمشروعك، وسيقوم Tuist بإنشاء مشروع Xcode لك.
+The community provides a set of rules,
+[rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj), to
+generate Xcode projects off Bazel-declared projects. Unlike Bazel, where you
+need to add some configuration to your `BUILD` file, Tuist doesn't require any
+configuration at all. You can run `tuist generate` in the root directory of your
+project, and Tuist will generate an Xcode project for you.

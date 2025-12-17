@@ -31,19 +31,23 @@ Projects/
 Workspace.swift
 ```
 
-- **Tuist 디렉토리:** 이 디렉터리에는 두 가지 용도가 있습니다. 첫째, 프로젝트의 루트가** 인 경우 **에 신호를 보냅니다. 이를
-  통해 프로젝트의 루트를 기준으로 경로를 구성하고 프로젝트 내의 모든 디렉토리에서 Tuist 명령을 실행할 수 있습니다. 둘째, 다음 파일을
-  위한 컨테이너입니다:
-  - **프로젝트 설명 헬퍼:** 이 디렉터리에는 모든 매니페스트 파일에서 공유되는 Swift 코드가 포함되어 있습니다. 매니페스트 파일은
-    `import ProjectDescriptionHelpers` 이 디렉터리에 정의된 코드를 사용할 수 있습니다. 코드 공유는 중복을
-    방지하고 프로젝트 전반의 일관성을 유지하는 데 유용합니다.
-  - **Package.swift:** 이 파일에는 구성 및 최적화가 가능한 Xcode 프로젝트 및
-    대상([CocoaPods](https://cococapods) 등)을 사용하여 통합하기 위한 Swift 패키지 종속성이 포함되어
-    있습니다. 자세히
-    <LocalizedLink href="/guides/features/projects/dependencies">여기</LocalizedLink>에서
-    알아보세요.
+- **Tuist directory:** This directory has two purposes. First, it signals
+  **where the root of the project is**. This allows constructing paths relative
+  to the root of the project, and also running Tuist commands from any directory
+  within the project. Second, it's the container for the following files:
+  - **ProjectDescriptionHelpers:** This directory contains Swift code that's
+    shared across all the manifest files. Manifest files can `import
+    ProjectDescriptionHelpers` to use the code defined in this directory.
+    Sharing code is useful to avoid duplications and ensure consistency across
+    the projects.
+  - **Package.swift:** This file contains Swift Package dependencies for Tuist
+    to integrate them using Xcode projects and targets (like
+    [CocoaPods](https://cococapods)) that are configurable and optimizable.
+    Learn more
+    <LocalizedLink href="/guides/features/projects/dependencies">here</LocalizedLink>.
 
-- **루트 디렉토리**: 프로젝트의 루트 디렉터리로 `Tuist` 디렉터리가 포함되어 있습니다.
+- **Root directory**: The root directory of your project that also contains the
+  `Tuist` directory.
   - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>
     이 파일은 모든 프로젝트, 워크스페이스, 환경 변수에 공유되는 Tuist의 환경 설정을 포함 합니다. 예를 들어, 자동 Scheme
     생성을 비활성화 하거나 배포 대상 OS Target을 정의하는데 사용될 수 있습니다.

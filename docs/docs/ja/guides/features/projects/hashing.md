@@ -5,56 +5,81 @@
   "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
 }
 ---
-# ハッシング {#hashing}
+# Hashing {#hashing}
 
-1}キャッシュ</LocalizedLink>や選択的テスト実行のような機能には、ターゲットが変更されたかどうかを判断する方法が必要です。Tuistは依存関係グラフの各ターゲットについてハッシュを計算し、ターゲットが変更されたかどうかを判定する。ハッシュは以下の属性に基づいて計算される：
+Features like
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or
+selective test execution require a way to determine whether a target has
+changed. Tuist calculates a hash for each target in the dependency graph to
+determine if a target has changed. The hash is calculated based on the following
+attributes:
 
-- ターゲットの属性（名前、プラットフォーム、製品など）
-- ターゲットのファイル
-- ターゲットの依存関係のハッシュ
+- The target's attributes (e.g., name, platform, product, etc.)
+- The target's files
+- The hash of the target's dependencies
 
-### キャッシュ属性 {#cache-attributes}
+### Cache attributes {#cache-attributes}
 
-さらに、<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>のハッシュを計算するとき、以下の属性もハッシュする。
+Additionally, when calculating the hash for
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also
+hash the following attributes.
 
-#### スウィフトバージョン {#swift-version}
+#### Swift version {#swift-version}
 
-`/usr/bin/xcrun swift --version`
-というコマンドを実行して得られたSwiftバージョンをハッシュ化し、ターゲットとバイナリ間のSwiftバージョンの不一致によるコンパイルエラーを防ぐ。
+We hash the Swift version obtained from running the command `/usr/bin/xcrun
+swift --version` to prevent compilation errors due to Swift version mismatches
+between the targets and the binaries.
 
-情報 モジュールの安定性
+::: info MODULE STABILITY
 <!-- -->
-以前のバージョンのバイナリー・キャッシングでは、`BUILD_LIBRARY_FOR_DISTRIBUTION` ビルド設定を使用して
-[モジュールの安定性](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-を有効にし、任意のコンパイラー・バージョンでバイナリーを使用できるようにしていました。しかし、モジュールの安定性をサポートしないターゲットを使用するプロジェクトでは、コンパイルの問題が発生しました。生成されたバイナリはそれらをコンパイルするために使用された
-Swift のバージョンにバインドされ、Swift のバージョンはプロジェクトをコンパイルするために使用されたものと一致しなければなりません。
+Previous versions of binary caching relied on the
+`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
+stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+and enable using binaries with any compiler version. However, it caused
+compilation issues in projects with targets that don't support module stability.
+Generated binaries are bound to the Swift version used to compile them, and the
+Swift version must match the one used to compile the project.
 <!-- -->
 :::
 
-#### コンフィギュレーション {#configuration}
+#### Configuration {#configuration}
 
-`-configuration`
-というフラグの背後にあるアイデアは、デバッグ・バイナリがリリース・ビルドで使用されないようにすることであり、その逆も同様である。しかし、他のコンフィギュレーションが使用されないようにプロジェクトから削除するメカニズムがまだ不足しています。
+The idea behind the flag `-configuration` was to ensure debug binaries were not
+used in release builds and viceversa. However, we are still missing a mechanism
+to remove the other configurations from the projects to prevent them from being
+used.
 
-## デバッグ {#debugging}
+## Debugging {#debugging}
 
-環境や呼び出しにまたがってキャッシュを使用したときに非決定的な動作に気づいた場合、それは環境間の違いやハッシュロジックのバグに関連している可能性があります。この問題をデバッグするために以下のステップを踏むことをお勧めします：
+If you notice non-deterministic behaviors when using the caching across
+environments or invocations, it might be related to differences across the
+environments or a bug in the hashing logic. We recommend following these steps
+to debug the issue:
 
-1. `tuist hash cache` または`tuist hash selective-testing`
-   （<LocalizedLink href="/guides/features/cache">バイナリ・キャッシュ</LocalizedLink>または<LocalizedLink href="/guides/features/selective-testing">選択テスト</LocalizedLink>用のハッシュ）を実行し、ハッシュをコピーしてプロジェクト・ディレクトリの名前を変更し、もう一度コマンドを実行してください。ハッシュは一致するはずです。
-2. ハッシュが一致しない場合は、生成されたプロジェクトが環境に依存している可能性があります。両方のケースで`tuist graph --format
-   json`
-   を実行し、グラフを比較してください。あるいは、プロジェクトを生成して、[Diffchecker](https://www.diffchecker.com)のような差分ツールで`project.pbxproj`
-   ファイルを比較してください。
-3. ハッシュが同じであっても、環境（例えば、CIとローカル）で異なる場合は、同じ[configuration](#configuration)と[Swift
-   version](#swift-version)がどこでも使用されていることを確認してください。Swift のバージョンは、Xcode
-   のバージョンと結びついているので、Xcode のバージョンが一致することを確認してください。
+1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
+   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
+   or <LocalizedLink href="/guides/features/selective-testing">selective
+   testing</LocalizedLink>), copy the hashes, rename the project directory, and
+   run the command again. The hashes should match.
+2. If the hashes don't match, it's likely that the generated project depends on
+   the environment. Run `tuist graph --format json` in both cases and compare
+   the graphs. Alternatively, generate the projects and compare their
+   `project.pbxproj` files with a diff tool such as
+   [Diffchecker](https://www.diffchecker.com).
+3. If the hashes are the same but differ across environments (for example, CI
+   and local), make sure the same [configuration](#configuration) and [Swift
+   version](#swift-version) are used everywhere. The Swift version is tied to
+   the Xcode version, so confirm the Xcode versions match.
 
-それでもハッシュが非決定的な場合は、デバッグのお手伝いをしますので、お知らせください。
+If the hashes are still non-deterministic, let us know and we can help with the
+debugging.
 
 
-より良いデバッグ体験を計画中
+::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
-デバッグ体験の向上は我々のロードマップにある。print-hashesコマンドは、違いを理解するためのコンテキストを欠いているため、ハッシュ間の違いをツリーのような構造で表示する、よりユーザーフレンドリーなコマンドに置き換える予定である。
+Improving our debugging experience is in our roadmap. The print-hashes command,
+which lacks the context to understand the differences, will be replaced by a
+more user-friendly command that uses a tree-like structure to show the
+differences between the hashes.
 <!-- -->
 :::

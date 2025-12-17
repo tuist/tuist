@@ -5,43 +5,45 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# مشروع Xcode {#xxcode-project}
+# Xcode project {#xcode-project}
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
-- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
-  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
-يمكنك تشغيل اختبارات مشاريع Xcode الخاصة بك بشكل انتقائي من خلال سطر الأوامر.
-`لذلك، يمكنك إضافة الأمر` إلى الأمر `tuist` - على سبيل المثال، `tuist xcodebuild
-test -scheme App`. يقوم الأمر بتجزئة مشروعك وعند النجاح، يستمر التجزئة لتحديد ما
-تغير في عمليات التشغيل المستقبلية.
+You can run the tests of your Xcode projects selectively through the command
+line. For that, you can prepend your `xcodebuild` command with `tuist` – for
+example, `tuist xcodebuild test -scheme App`. The command hashes your project
+and on success, it persists the hashes to determine what has changed in future
+runs.
 
-في عمليات التشغيل المستقبلية `tuist اختبار xcodebuild` يستخدم التجزئة بشفافية
-لتصفية الاختبارات لتشغيل الاختبارات التي تغيرت فقط منذ آخر تشغيل اختبار ناجح.
+In future runs `tuist xcodebuild test` transparently uses the hashes to filter
+down the tests to run only the ones that have changed since the last successful
+test run.
 
-على سبيل المثال، بافتراض الرسم البياني التالي للتبعية:
+For example, assuming the following dependency graph:
 
-- `الميزة A` لديها اختبارات `FeatureATests` ، وتعتمد على `الأساسية`
-- `الميزة ب` لديه اختبارات `FeatureBTests` ، ويعتمد على `الأساسية`
-- `يحتوي الموقع الأساسي` على اختبارات `CoreTests CoreTests`
+- `FeatureA` has tests `FeatureATests`, and depends on `Core`
+- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
+- `Core` has tests `CoreTests`
 
-`سوف يتصرف tuist xcodebuild test` على هذا النحو:
+`tuist xcodebuild test` will behave as such:
 
-| الإجراء                         | الوصف                                                                     | الحالة الداخلية                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | يتم الاحتفاظ بتجزئة `ميزات الاختبارات` و `ميزات الاختبارات` و `الاختبارات الأساسية` |
-| `الميزة يتم تحديث`              | يقوم المطور بتعديل الكود البرمجي للهدف                                    | كما في السابق                                                                       |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `FeatureATests` لأنه تم تغيير التجزئة           | يتم استمرار التجزئة الجديدة لـ `FeatureATests`                                      |
-| `تم تحديث الموقع الأساسي`       | يقوم المطور بتعديل الكود البرمجي للهدف                                    | كما في السابق                                                                       |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | التجزئة الجديدة لـ `FeatureATests` `FeatureBTests` ، و `CoreTests` يتم استمرارها    |
+| Action                             | Description                                                         | Internal state                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
+| `FeatureA` is updated              | The developer modifies the code of a target                         | Same as before                                                                 |
+| `tuist xcodebuild test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
+| `Core` is updated                  | The developer modifies the code of a target                         | Same as before                                                                 |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
 
-لاستخدام `tuist xcodebuild test` على CI الخاص بك، اتبع التعليمات الواردة في دليل
-<LocalizedLink href="/guides/integrations/continuous-integration">التكامل
-المستمر</LocalizedLink>.
+To use `tuist xcodebuild test` on your CI, follow the instructions in the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+integration guide</LocalizedLink>.
 
-شاهد الفيديو التالي لمشاهدة الاختبار الانتقائي أثناء العمل:
+Check out the following video to see selective testing in action:
 
 <iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>

@@ -5,29 +5,33 @@
   "description": "Learn how to configure your shell to auto-complete Tuist commands."
 }
 ---
-# Shell 완성
+# Shell completions
 
-Tuist **** (예: 홈브류를 통해)를 전역적으로 설치한 경우, 명령과 옵션을 자동 완성하는 Bash 및 Zsh용 셸 완성 기능을 설치할
-수 있습니다.
+If you have Tuist **globally installed** (e.g., via Homebrew), you can install
+shell completions for Bash and Zsh to autocomplete commands and options.
 
-::: 경고 글로벌 설치란 무엇인가요?
+::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
-전역 설치는 셸의 `$PATH` 환경 변수에서 사용할 수 있는 설치입니다. 즉, 터미널의 모든 디렉토리에서 `tuist` 을 실행할 수
-있습니다. 이것이 Homebrew의 기본 설치 방법입니다.
+A global installation is an installation that's available in your shell's
+`$PATH` environment variable. This means you can run `tuist` from any directory
+in your terminal. This is the default installation method for Homebrew.
 <!-- -->
 :::
 
 #### Zsh {#zsh}
 
-oh-my-zsh](https://ohmyz.sh/)가 설치되어 있는 경우 완성 스크립트를 자동으로 로드하는 디렉터리(
-`.oh-my-zsh/completions`)가 이미 있습니다. 새 완성 스크립트를 해당 디렉토리의 새 파일 `_tuist` 에 복사합니다:
+If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a
+directory of automatically loading completion scripts —
+`.oh-my-zsh/completions`. Copy your new completion script to a new file in that
+directory called `_tuist`:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh` 이 없으면 함수 경로에 완성 스크립트 경로를 추가하고 완성 스크립트 자동 로딩을 사용 설정해야 합니다. 먼저
-`~/.zshrc` 에 다음 줄을 추가합니다:
+Without `oh-my-zsh`, you'll need to add a path for completion scripts to your
+function path, and turn on completion script autoloading. First, add these lines
+to `~/.zshrc`:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -35,8 +39,8 @@ autoload -U compinit
 compinit
 ```
 
-그런 다음 `~/.zsh/complication` 에 디렉터리를 만들고 완성 스크립트를 새 디렉터리에 복사한 다음 `_tuist` 라는 파일에
-다시 복사합니다.
+Next, create a directory at `~/.zsh/completion` and copy the completion script
+to the new directory, again into a file called `_tuist`.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -44,24 +48,26 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 #### Bash {#bash}
 
-bash-completion](https://github.com/scop/bash-completion)이 설치되어 있는 경우 새 완료 스크립트를
-`/usr/local/etc/bash_complete.d/_tuist` 파일에 복사하기만 하면 됩니다:
+If you have [bash-completion](https://github.com/scop/bash-completion)
+installed, you can just copy your new completion script to file
+`/usr/local/etc/bash_completion.d/_tuist`:
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-bash-completion이 없으면 완성 스크립트를 직접 소싱해야 합니다. ` ~/.bash_completions/` 와 같은 디렉터리에
-복사한 다음 `~/.bash_profile` 또는 `~/.bashrc` 에 다음 줄을 추가합니다:
+Without bash-completion, you'll need to source the completion script directly.
+Copy it to a directory such as `~/.bash_completions/`, and then add the
+following line to `~/.bash_profile` or `~/.bashrc`:
 
 ```bash
 source ~/.bash_completions/example.bash
 ```
 
-#### 물고기 {#fish}
+#### Fish {#fish}
 
-물고기 껍질](https://fishshell.com)을 사용하는 경우, 새 완성 스크립트를
-`~/.config/fish/complements/tuist.fish` 에 복사할 수 있습니다:
+If you use [fish shell](https://fishshell.com), you can copy your new completion
+script to `~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions

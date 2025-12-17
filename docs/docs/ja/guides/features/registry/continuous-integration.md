@@ -5,18 +5,23 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 継続的インテグレーション（CI）{#continuous-integration-ci}。
+# Continuous Integration (CI) {#continuous-integration-ci}
 
-CIでレジストリを使用するには、ワークフローの一環として`tuist registry login`
-を実行して、レジストリにログインしていることを確認する必要がある。
+To use the registry on your CI, you need to ensure that you have logged in to
+the registry by running `tuist registry login` as part of your workflow.
 
-::情報のみ XCODE インテグレーション
+::: info ONLY XCODE INTEGRATION
 <!-- -->
-新しいプレアンロックキーチェーンの作成は、パッケージのXcode統合を使用している場合にのみ必要です。
+Creating a new pre-unlocked keychain is required only if you are using the Xcode
+integration of packages.
 <!-- -->
 :::
 
-レジストリの認証情報はキーチェーンに保存されるので、CI環境でキーチェーンにアクセスできるようにする必要がある。Fastlane](https://fastlane.tools/)のようなCIプロバイダや自動化ツールは、既に一時的なキーチェーンを作成しているか、作成方法をビルトインしている。しかし、以下のコードでカスタムステップを作成することで作成することもできます：
+Since the registry credentials are stored in a keychain, you need to ensure the
+keychain can be accessed in the CI environment. Note some CI providers or
+automation tools like [Fastlane](https://fastlane.tools/) already create a
+temporary keychain or provide a built-in way how to create one. However, you can
+also create one by creating a custom step with the following code:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -27,13 +32,15 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` を実行すると、認証情報がデフォルトのキーチェーンに保存されます。__ `tuist registry login`
-を実行する前に、デフォルトのキーチェーンが作成され、ロックが解除されていることを確認してください。
+`tuist registry login` will then store the credentials in the default keychain.
+Ensure that your default keychain is created and unlocked _before_ `tuist
+registry login` is run.
 
-さらに、`TUIST_CONFIG_TOKEN`
-環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。
+Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable
+is set. You can create one by following the documentation
+<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
 
-GitHub Actions のワークフローの例は次のようになります：
+An example workflow for GitHub Actions could then look like this:
 ```yaml
 name: Build
 
@@ -57,12 +64,16 @@ jobs:
       - # Your build steps
 ```
 
-### 環境間の増分解像度 {#incremental-resolution-across-environments}.
+### Incremental resolution across environments {#incremental-resolution-across-environments}
 
-レジストリを使用することで、クリーン/コールドの解決がわずかに速くなり、解決した依存関係をCIビルド間で永続化すると、さらに大きな改善を体験できます。レジストリのおかげで、保存してリストアする必要があるディレクトリのサイズは、レジストリを使用しない場合よりもはるかに小さく、大幅に時間がかからないことに注意してください。デフォルトの
-Xcode パッケージ統合を使用するときに依存関係をキャッシュするために、最良の方法は、`xcodebuild`
-を介して依存関係を解決するときに、カスタム`clonedSourcePackagesDirPath` を指定することです。これは、`Config.swift`
-ファイルに以下を追加することで実行できます：
+Clean/cold resolutions are slightly faster with our registry, and you can
+experience even greater improvements if you persist the resolved dependencies
+across CI builds. Note that thanks to the registry, the size of the directory
+that you need to store and restore is much smaller than without the registry,
+taking significantly less time. To cache dependencies when using the default
+Xcode package integration, the best way is to specify a custom
+`clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`. This
+can be done by adding the following to your `Config.swift` file:
 
 ```swift
 import ProjectDescription
@@ -74,14 +85,17 @@ let config = Config(
 )
 ```
 
-さらに、`Package.resolved` のパスを見つける必要がある。`ls **/Package.resolved`
-を実行することでパスを取得できます。パスは`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
-のようになるはずです。
+Additionally, you will need to find a path of the `Package.resolved`. You can
+grab the path by running `ls **/Package.resolved`. The path should look
+something like
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-Swift パッケージと XcodeProj ベースの統合のために、プロジェクトのルートか`Tuist` ディレクトリにあるデフォルトの`.build`
-ディレクトリを使用することができます。パイプラインをセットアップする際に、パスが正しいことを確認してください。
+For Swift packages and the XcodeProj-based integration, we can use the default
+`.build` directory located either in the root of the project or in the `Tuist`
+directory. Make sure the path is correct when setting up your pipeline.
 
-以下は、デフォルトの Xcode パッケージ統合を使用するときに、依存関係を解決してキャッシュするための GitHub Actions のワークフロー例です：
+Here's an example workflow for GitHub Actions for resolving and caching
+dependencies when using the default Xcode package integration:
 ```yaml
 - name: Restore cache
   id: cache-restore

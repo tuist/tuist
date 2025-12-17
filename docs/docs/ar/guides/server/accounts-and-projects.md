@@ -5,67 +5,73 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# الحسابات والمشروعات {# الحسابات والمشروعات}
+# Accounts and projects {#accounts-and-projects}
 
-تتطلب بعض ميزات Tuist خادمًا يضيف ثباتًا للبيانات ويمكنه التفاعل مع الخدمات
-الأخرى. للتفاعل مع الخادم، تحتاج إلى حساب ومشروع تتصل به بمشروعك المحلي.
+Some Tuist features require a server which adds persistence of data and can
+interact with other services. To interact with the server, you need an account
+and a project that you connect to your local project.
 
-## الحسابات {#الحسابات}
+## Accounts {#accounts}
 
-لاستخدام الخادم، ستحتاج إلى حساب. هناك نوعان من الحسابات:
+To use the server, you'll need an account. There are two types of accounts:
 
-- **الحساب الشخصي:** تُنشأ هذه الحسابات تلقائيًا عند التسجيل ويتم تحديدها من
-  خلال مُعرِّف يتم الحصول عليه إما من مزود الهوية (مثل GitHub) أو الجزء الأول من
-  عنوان البريد الإلكتروني.
-- **حساب المؤسسة:** يتم إنشاء هذه الحسابات يدويًا ويتم تعريفها من خلال مُعرّف
-  يتم تحديده من قبل المطور. تسمح منظمات المؤسسات بدعوة أعضاء آخرين للتعاون في
-  المشاريع.
+- **Personal account:** Those accounts are created automaticaly when you sign up
+  and are identified by a handle that's obtained either from the identity
+  provider (e.g. GitHub) or the first part of the email address.
+- **Organization account:** Those accounts are manually created and are
+  identified by a handle that's defined by the developer. Organizations allow
+  inviting other members to collaborate on projects.
 
-إذا كنت على دراية بـ [GitHub] (https://github.com)، فإن المفهوم مشابه لمفهومهم،
-حيث يمكنك امتلاك حسابات شخصية وحسابات مؤسسة، ويتم تحديدها بواسطة مقبض ** الذي
-يستخدم عند إنشاء عناوين URL.
+If you are familiar with [GitHub](https://github.com), the concept is similar to
+theirs, where you can have personal and organization accounts, and they are
+identified by a *handle* that's used when constructing URLs.
 
-:::: معلومات CLI-FIRST
+::: info CLI-FIRST
 <!-- -->
-تتم معظم عمليات إدارة الحسابات والمشاريع من خلال واجهة CLI. نحن نعمل على واجهة
-ويب ستسهل إدارة الحسابات والمشاريع.
+Most operations to manage accounts and projects are done through the CLI. We are
+working on a web interface that will make it easier to manage accounts and
+projects.
 <!-- -->
 :::
 
-يمكنك إدارة منتدى المجموعة من خلال الأوامر الفرعية الموجودة ضمن
-<LocalizedLink href="/cli/organization">`tuist منتدى المجموعة`</LocalizedLink>.
-لإنشاء حساب منتدى مجموعة جديد، قم بتشغيل:
+You can manage the organization through the subcommands under
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
+create a new organization account, run:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## مشاريع {#مشاريع}
+## Projects {#projects}
 
-يجب أن تتكامل مشاريعك، سواء كانت مشاريع تويست أو Xcode الخام، مع حسابك من خلال
-مشروع بعيد. بالاستمرار في المقارنة مع GitHub، فإن الأمر يشبه وجود مستودع محلي
-ومستودع بعيد حيث تدفع تغييراتك. يمكنك استخدام
-<LocalizedLink href="/cli/project">`مشروع تويست`</LocalizedLink> لإنشاء وإدارة
-المشاريع.
+Your projects, either Tuist's or raw Xcode's, need to be integrated with your
+account through a remote project. Continuing with the comparison with GitHub,
+it's like having a local and a remote repository where you push your changes.
+You can use the <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> to create and manage projects.
 
-يتم تحديد المشاريع من خلال مقبض كامل، وهو نتيجة ربط مقبض منتدى المجموعة ومقبض
-المشروع. فعلى سبيل المثال، إذا كان لديك منتدى مؤسسة بالمعرّف `tuist` ، ومشروع
-بالمعرّف `tuist` ، فإن المعرف الكامل سيكون `tuist/Uist`.
+Projects are identified by a full handle, which is the result of concatenating
+the organization handle and the project handle. For example, if you have an
+organization with the handle `tuist`, and a project with the handle `tuist`, the
+full handle would be `tuist/tuist`.
 
-يتم الربط بين المشروع المحلي والمشروع البعيد من خلال ملف التكوين. إذا لم يكن
-لديك أي ملف، قم بإنشائه في `Tuist.swift.swift` وأضف المحتوى التالي:
+The binding between the local and the remote project is done through the
+configuration file. If you don't have any, create it at `Tuist.swift` and add
+the following content:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-:::: تحذير ميزات مشروع TUIST-فقط
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-لاحظ أن هناك بعض الميزات مثل <LocalizedLink href="/guides/features/cache">
-التخزين المؤقت الثنائي</LocalizedLink> التي تتطلب أن يكون لديك مشروع تويست. إذا
-كنت تستخدم مشاريع Xcode الخام، فلن تتمكن من استخدام هذه الميزات.
+Note that there are some features like
+<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
+require you having a Tuist project. If you are using raw Xcode projects, you
+won't be able to use those features.
 <!-- -->
 :::
 
-يتم إنشاء عنوان URL الخاص بمشروعك باستخدام المعالج الكامل. على سبيل المثال، يمكن
-الوصول إلى لوحة تحكم تويست، وهي عامة، على [tuist.dev/tuist/tuist]
-(https://tuist.dev/tuist/tuist)، حيث `tuist/tuist` هو المعالج الكامل للمشروع.
+Your project's URL is constructed by using the full handle. For example, Tuist's
+dashboard, which is public, is accessible at
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
+the project's full handle.

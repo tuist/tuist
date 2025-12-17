@@ -5,11 +5,13 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# XcodeProj 기반 패키지 통합으로 생성된 프로젝트 {#generated-project-with-xcodeproj-based-integration}
+# Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
 
-1}XcodeProj 기반 통합</LocalizedLink>을 사용하는 경우 ``--replace-scm-with-registry`` 플래그를
-사용하여 레지스트리에서 종속성을 해결할 수 있습니다(사용 가능한 경우). ` Tuist.swift` 파일의 `installOptions` 에
-추가합니다:
+When using the
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based
+integration</LocalizedLink>, you can use the ``--replace-scm-with-registry``
+flag to resolve dependencies from the registry if they are available. Add it to
+the `installOptions` in your `Tuist.swift` file:
 ```swift
 import ProjectDescription
 
@@ -21,9 +23,12 @@ let tuist = Tuist(
 )
 ```
 
-종속성을 해결할 때마다 레지스트리가 사용되도록 하려면 `Tuist/Package.swift` 파일에서 `의존성` 을 업데이트하여 URL 대신
-레지스트리 식별자를 사용하도록 해야 합니다. 레지스트리 식별자는 항상 `{조직}.{저장소}` 형식입니다. 예를 들어
-`swift-composable-architecture` 패키지의 레지스트리를 사용하려면 다음과 같이 하세요:
+If you want to ensure that the registry is used every time you resolve
+dependencies, you will need to update `dependencies` in your
+`Tuist/Package.swift` file to use the registry identifier instead of a URL. The
+registry identifier is always in the form of `{organization}.{repository}`. For
+example, to use the registry for the `swift-composable-architecture` package, do
+the following:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
