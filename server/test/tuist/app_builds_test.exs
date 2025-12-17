@@ -42,6 +42,109 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert Repo.all(Preview) == [preview]
     end
+
+    test "allows creating previews with same fields but different tracks" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      # When
+      {:ok, preview_no_track} = AppBuilds.create_preview(attrs)
+      {:ok, preview_beta} = AppBuilds.create_preview(Map.put(attrs, :track, "beta"))
+      {:ok, preview_nightly} = AppBuilds.create_preview(Map.put(attrs, :track, "nightly"))
+
+      # Then
+      assert preview_no_track.track == nil
+      assert preview_beta.track == "beta"
+      assert preview_nightly.track == "nightly"
+      assert length(Repo.all(Preview)) == 3
+    end
+
+    test "prevents creating duplicate previews with same track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, _first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      result = AppBuilds.create_preview(attrs)
+
+      # Then
+      assert {:error, changeset} = result
+      assert {"has already been taken", _} = changeset.errors[:project_id]
+    end
+
+    test "allows creating previews with same track but different bundle_identifier" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app1",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | bundle_identifier: "com.example.app2"})
+
+      # Then
+      assert first_preview.bundle_identifier == "com.example.app1"
+      assert second_preview.bundle_identifier == "com.example.app2"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "allows creating previews with same track but different git_commit_sha" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | git_commit_sha: "def456"})
+
+      # Then
+      assert first_preview.git_commit_sha == "abc123"
+      assert second_preview.git_commit_sha == "def456"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
   end
 
   describe "find_or_create_preview/1" do
