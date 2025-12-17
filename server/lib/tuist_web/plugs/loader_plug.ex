@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
 
   def init([]), do: [:project, :account, :run]
   def init(opts), do: opts
@@ -53,7 +54,9 @@ defmodule TuistWeb.Plugs.LoaderPlug do
               })
 
       account ->
-        assign(conn, :selected_account, account)
+        conn
+        |> assign(:selected_account, account)
+        |> AppsignalAttributionPlug.set_selection_tags()
     end
   end
 
@@ -83,6 +86,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         |> assign(:selected_account, project.account)
         |> assign(:selected_project, project)
         |> assign(:selected_run, run)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         raise NotFoundError,
@@ -101,6 +105,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         conn
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         raise NotFoundError,
