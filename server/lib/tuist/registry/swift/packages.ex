@@ -102,9 +102,12 @@ defmodule Tuist.Registry.Swift.Packages do
            provider: :github,
            token: token
          }) do
-      {:error, {:http_error, 404}} ->
+      {:error, {:http_error, status}} when status in [403, 404] ->
         Logger.debug("Skipping #{scope}/#{name} (#{repository_full_handle}): repository not found or not accessible")
+        []
 
+      {:error, {:http_error, status}} ->
+        Logger.debug("Skipping #{scope}/#{name} (#{repository_full_handle}): HTTP error #{status}")
         []
 
       tags ->
