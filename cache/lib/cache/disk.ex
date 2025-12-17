@@ -209,6 +209,96 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Assembles multiple part files into a single module cache artifact.
+
+  Parts are concatenated in the order provided. Uses atomic rename for safety.
+
+  Returns:
+  - `:ok` on success
+  - `{:error, :exists}` if artifact already exists
+  - `{:error, reason}` on failure
+  """
+  def module_put_from_parts(account_handle, project_handle, category, hash, name, part_paths) do
+    dest_path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(dest_path),
+         false <- File.exists?(dest_path) do
+      tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
+
+      case assemble_parts(part_paths, tmp_dest) do
+        :ok ->
+          case File.rename(tmp_dest, dest_path) do
+            :ok ->
+              :ok
+
+            {:error, :eexist} ->
+              File.rm(tmp_dest)
+              {:error, :exists}
+
+            {:error, reason} ->
+              Logger.error("Failed to rename assembled artifact to #{dest_path}: #{inspect(reason)}")
+              File.rm(tmp_dest)
+              {:error, reason}
+          end
+
+        {:error, reason} ->
+          File.rm(tmp_dest)
+          {:error, reason}
+      end
+    else
+      true -> {:error, :exists}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp assemble_parts(part_paths, dest_path) do
+    case File.open(dest_path, [:write, :binary]) do
+      {:ok, dest_file} ->
+        result =
+          Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
+            case stream_file_to_file(part_path, dest_file) do
+              :ok -> {:cont, :ok}
+              {:error, reason} -> {:halt, {:error, reason}}
+            end
+          end)
+
+        File.close(dest_file)
+        result
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp stream_file_to_file(src_path, dest_file) do
+    case File.open(src_path, [:read, :binary]) do
+      {:ok, src_file} ->
+        result = do_stream_copy(src_file, dest_file)
+        File.close(src_file)
+        result
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp do_stream_copy(src_file, dest_file) do
+    case IO.binread(src_file, 65_536) do
+      :eof ->
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+
+      data ->
+        case IO.binwrite(dest_file, data) do
+          :ok -> do_stream_copy(src_file, dest_file)
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  @doc """
   Returns file stat information for a module artifact.
   """
   def module_stat(account_handle, project_handle, category, hash, name) do

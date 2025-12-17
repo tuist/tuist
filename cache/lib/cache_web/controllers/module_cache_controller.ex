@@ -5,9 +5,12 @@ defmodule CacheWeb.ModuleCacheController do
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
   alias Cache.Disk
+  alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
+  alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
   alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.StartMultipartUploadResponse
 
   require Logger
 
@@ -16,6 +19,8 @@ defmodule CacheWeb.ModuleCacheController do
   action_fallback CacheWeb.FallbackController
 
   tags(["ModuleCache"])
+
+  @max_part_size 10 * 1024 * 1024
 
   operation(:download,
     summary: "Download a module cache artifact",
@@ -110,63 +115,6 @@ defmodule CacheWeb.ModuleCacheController do
     end
   end
 
-  operation(:upload,
-    summary: "Upload a module cache artifact",
-    operation_id: "uploadModuleCacheArtifact",
-    parameters: [
-      account_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the account"
-      ],
-      project_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project"
-      ],
-      hash: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "Artifact hash"
-      ],
-      name: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "Artifact name"
-      ],
-      cache_category: [
-        in: :query,
-        type: :string,
-        required: false,
-        description: "Cache category (builds)"
-      ]
-    ],
-    request_body: {"The artifact data", "application/octet-stream", nil, required: true},
-    responses: %{
-      no_content: {"Upload successful", nil, nil},
-      request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
-      request_timeout: {"Request body read timed out", "application/json", Error},
-      internal_server_error: {"Failed to persist artifact", "application/json", Error},
-      unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
-    }
-  )
-
-  def upload(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
-    category = Map.get(params, :cache_category, "builds")
-
-    if Disk.module_exists?(account_handle, project_handle, category, hash, name) do
-      handle_existing_artifact(conn)
-    else
-      save_new_artifact(conn, account_handle, project_handle, category, hash, name)
-    end
-  end
-
   operation(:exists,
     summary: "Check if a module cache artifact exists",
     operation_id: "moduleCacheArtifactExists",
@@ -222,78 +170,244 @@ defmodule CacheWeb.ModuleCacheController do
     end
   end
 
-  defp handle_existing_artifact(conn) do
-    :telemetry.execute([:cache, :module, :upload, :exists], %{count: 1}, %{})
+  operation(:start_multipart,
+    summary: "Start a multipart module cache upload",
+    operation_id: "startModuleCacheMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      hash: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact hash"
+      ],
+      name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact name"
+      ],
+      cache_category: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Cache category (builds)"
+      ]
+    ],
+    responses: %{
+      ok: {"Upload started", "application/json", StartMultipartUploadResponse},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
 
-    case BodyReader.drain(conn) do
-      {:ok, conn_after} -> send_resp(conn_after, :no_content, "")
-      {:error, conn_after} -> send_resp(conn_after, :no_content, "")
+  def start_multipart(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+    category = Map.get(params, :cache_category, "builds")
+
+    if Disk.module_exists?(account_handle, project_handle, category, hash, name) do
+      json(conn, %{upload_id: nil})
+    else
+      {:ok, upload_id} = MultipartUploads.start_upload(account_handle, project_handle, category, hash, name)
+      :telemetry.execute([:cache, :module, :multipart, :start], %{}, %{})
+      json(conn, %{upload_id: upload_id})
     end
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, category, hash, name) do
-    case BodyReader.read(conn) do
-      {:ok, data, conn_after} ->
-        size = get_data_size(data)
-        :telemetry.execute([:cache, :module, :upload, :attempt], %{size: size}, %{})
-        persist_artifact(conn_after, account_handle, project_handle, category, hash, name, data, size)
+  operation(:upload_part,
+    summary: "Upload a part of a multipart module cache upload",
+    operation_id: "uploadModuleCachePart",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      upload_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The upload ID from start_multipart"
+      ],
+      part_number: [
+        in: :query,
+        type: :integer,
+        required: true,
+        description: "Part number (1-indexed)"
+      ]
+    ],
+    request_body: {"The part data", "application/octet-stream", nil, required: true},
+    responses: %{
+      no_content: {"Part uploaded successfully", nil, nil},
+      not_found: {"Upload not found", "application/json", Error},
+      request_entity_too_large: {"Part exceeds 10MB limit", "application/json", Error},
+      unprocessable_entity: {"Total upload size exceeds 500MB limit", "application/json", Error},
+      request_timeout: {"Request body read timed out", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def upload_part(conn, %{upload_id: upload_id, part_number: part_number}) do
+    case read_part_body(conn) do
+      {:ok, tmp_path, size, conn_after} ->
+        case MultipartUploads.add_part(upload_id, part_number, tmp_path, size) do
+          :ok ->
+            :telemetry.execute([:cache, :module, :multipart, :part], %{size: size, part_number: part_number}, %{})
+            send_resp(conn_after, :no_content, "")
+
+          {:error, :upload_not_found} ->
+            File.rm(tmp_path)
+            {:error, :not_found}
+
+          {:error, :part_too_large} ->
+            File.rm(tmp_path)
+            {:error, :part_too_large}
+
+          {:error, :total_size_exceeded} ->
+            File.rm(tmp_path)
+            {:error, :total_size_exceeded}
+        end
 
       {:error, :too_large, _conn_after} ->
-        :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :too_large})
-        {:error, :too_large}
+        {:error, :part_too_large}
 
       {:error, :timeout, _conn_after} ->
-        :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :timeout})
         {:error, :timeout}
 
-      {:error, :cancelled, conn_after} ->
-        :telemetry.execute([:cache, :module, :upload, :cancelled], %{count: 1}, %{})
-        send_resp(conn_after, :no_content, "")
-
       {:error, _reason, _conn_after} ->
-        :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :read_error})
         {:error, :persist_error}
     end
   end
 
-  defp get_data_size({:file, tmp_path}) do
-    case File.stat(tmp_path) do
-      {:ok, %File.Stat{size: sz}} -> sz
-      _ -> 0
+  operation(:complete_multipart,
+    summary: "Complete a multipart module cache upload",
+    operation_id: "completeModuleCacheMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      upload_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The upload ID from start_multipart"
+      ]
+    ],
+    request_body: {"Completion request", "application/json", CompleteMultipartUploadRequest, required: true},
+    responses: %{
+      no_content: {"Upload completed successfully", nil, nil},
+      not_found: {"Upload not found", "application/json", Error},
+      bad_request: {"Parts mismatch or missing parts", "application/json", Error},
+      internal_server_error: {"Failed to assemble artifact", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error}
+    }
+  )
+
+  def complete_multipart(conn, %{upload_id: upload_id}) do
+    with {:ok, upload} <- MultipartUploads.complete_upload(upload_id),
+         parts_from_client <- Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"),
+         :ok <- verify_parts(upload.parts, parts_from_client),
+         part_paths <- get_ordered_part_paths(upload.parts, parts_from_client),
+         :ok <- Disk.module_put_from_parts(
+           upload.account_handle,
+           upload.project_handle,
+           upload.category,
+           upload.hash,
+           upload.name,
+           part_paths
+         ) do
+      Enum.each(part_paths, &File.rm/1)
+
+      key = Disk.module_key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+      :ok = CacheArtifacts.track_artifact_access(key)
+      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+
+      :telemetry.execute([:cache, :module, :multipart, :complete], %{
+        size: upload.total_bytes,
+        parts_count: map_size(upload.parts)
+      }, %{})
+
+      send_resp(conn, :no_content, "")
+    else
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, :parts_mismatch} -> {:error, :parts_mismatch}
+      {:error, :exists} -> send_resp(conn, :no_content, "")
+      {:error, _reason} -> {:error, :persist_error}
     end
   end
 
-  defp get_data_size(bin) when is_binary(bin), do: byte_size(bin)
+  defp read_part_body(conn) do
+    opts = [length: @max_part_size, read_length: 262_144, read_timeout: 60_000]
 
-  defp persist_artifact(conn, account_handle, project_handle, category, hash, name, data, size) do
-    case Disk.module_put(account_handle, project_handle, category, hash, name, data) do
-      :ok ->
-        key = Disk.module_key(account_handle, project_handle, category, hash, name)
+    case BodyReader.read_with_opts(conn, opts) do
+      {:ok, {:file, tmp_path}, conn_after} ->
+        case File.stat(tmp_path) do
+          {:ok, %File.Stat{size: size}} -> {:ok, tmp_path, size, conn_after}
+          _ -> {:error, :read_error, conn_after}
+        end
 
-        :telemetry.execute([:cache, :module, :upload, :success], %{size: size}, %{
-          category: category,
-          hash: hash,
-          name: name,
-          account_handle: account_handle,
-          project_handle: project_handle
-        })
+      {:ok, data, conn_after} when is_binary(data) ->
+        tmp_path = tmp_path()
+        case File.write(tmp_path, data) do
+          :ok -> {:ok, tmp_path, byte_size(data), conn_after}
+          {:error, _} -> {:error, :read_error, conn_after}
+        end
 
-        :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_module_upload(account_handle, project_handle, category, hash, name)
-        send_resp(conn, :no_content, "")
-
-      {:error, :exists} ->
-        cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :module, :upload, :exists], %{count: 1}, %{})
-        send_resp(conn, :no_content, "")
-
-      {:error, _reason} ->
-        cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :module, :upload, :error], %{count: 1}, %{reason: :persist_error})
-        {:error, :persist_error}
+      {:error, reason, conn_after} ->
+        {:error, reason, conn_after}
     end
   end
 
-  defp cleanup_tmp_file({:file, tmp_path}), do: File.rm(tmp_path)
-  defp cleanup_tmp_file(_binary_data), do: :ok
+  defp tmp_path do
+    base = System.tmp_dir!()
+    unique = :erlang.unique_integer([:positive, :monotonic])
+    Path.join(base, "cache-part-#{unique}")
+  end
+
+  defp verify_parts(server_parts, client_parts) do
+    server_part_numbers = Map.keys(server_parts) |> Enum.sort()
+    client_part_numbers = Enum.sort(client_parts)
+
+    if server_part_numbers == client_part_numbers do
+      :ok
+    else
+      {:error, :parts_mismatch}
+    end
+  end
+
+  defp get_ordered_part_paths(server_parts, client_parts) do
+    Enum.map(client_parts, fn part_num ->
+      server_parts[part_num].path
+    end)
+  end
 end
