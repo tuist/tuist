@@ -17,6 +17,8 @@ defmodule Tuist.Repo.Migrations.AddTrackToPreviews do
                :git_commit_sha,
                :created_by_account_id,
                :track
-             ], name: "previews_unique_with_track")
+             ],
+             name: "previews_unique_with_track"
+           )
   end
 end
