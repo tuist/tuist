@@ -1751,35 +1751,6 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
       x-validate:
-    DuplicateAppBuildError:
-      properties:
-        code:
-          description: Error code
-          enum:
-            - duplicate_app_build
-          type: string
-          x-struct:
-          x-validate:
-        message:
-          description: A human-readable error message
-          type: string
-          x-struct:
-          x-validate:
-        status:
-          default: error
-          enum:
-            - error
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - status
-        - code
-        - message
-      title: DuplicateAppBuildError
-      type: object
-      x-struct:
-      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -4010,35 +3981,8 @@ paths:
           content:
             application/json:
               schema:
-                properties:
-                  code:
-                    description: Error code
-                    enum:
-                      - duplicate_app_build
-                    type: string
-                    x-struct:
-                    x-validate:
-                  message:
-                    description: A human-readable error message
-                    type: string
-                    x-struct:
-                    x-validate:
-                  status:
-                    default: error
-                    enum:
-                      - error
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - status
-                  - code
-                  - message
-                title: DuplicateAppBuildError
-                type: object
-                x-struct:
-                x-validate:
-          description: An app build with the same binary_id and build_version already exists
+                $ref: '#/components/schemas/Error'
+          description: An app build with the same binary ID and build version already exists
       summary: It initiates a multipart upload for a preview artifact.
       tags:
         - Previews

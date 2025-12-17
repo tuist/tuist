@@ -497,7 +497,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Operations.startPreviewsMultipartUpload.Output.Conflict.Body.jsonPayload.self,
+                            Components.Schemas._Error.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

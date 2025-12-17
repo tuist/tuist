@@ -125,18 +125,7 @@ defmodule TuistWeb.API.PreviewsController do
            },
            required: [:status, :data]
          }},
-      conflict:
-        {"An app build with the same binary ID and build version already exists", "application/json",
-         %Schema{
-           title: "DuplicateAppBuildError",
-           type: :object,
-           properties: %{
-             status: %Schema{type: :string, default: "error", enum: ["error"]},
-             code: %Schema{type: :string, description: "Error code", enum: ["duplicate_app_build"]},
-             message: %Schema{type: :string, description: "A human-readable error message"}
-           },
-           required: [:status, :code, :message]
-         }},
+      conflict: {"An app build with the same binary ID and build version already exists", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
