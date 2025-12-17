@@ -55,7 +55,10 @@ defmodule CacheWeb.Router do
     post "/cas/:id", CASController, :save
 
     get "/module", ModuleCacheController, :download
-    post "/module", ModuleCacheController, :upload
     get "/module/exists", ModuleCacheController, :exists
+
+    post "/module/start", ModuleCacheController, :start_multipart
+    post "/module/part", ModuleCacheController, :upload_part
+    post "/module/complete", ModuleCacheController, :complete_multipart
   end
 end

@@ -1,5 +1,5 @@
 defmodule CacheWeb.ModuleCacheControllerTest do
-  use CacheWeb.ConnCase, async: true
+  use CacheWeb.ConnCase, async: false
   use Mimic
 
   import ExUnit.CaptureLog
@@ -7,6 +7,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.Disk
+  alias Cache.MultipartUploads
   alias Cache.Repo
   alias Cache.S3
   alias Cache.S3Transfer
@@ -17,146 +18,6 @@ defmodule CacheWeb.ModuleCacheControllerTest do
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
 
     {:ok, test_storage_dir: test_storage_dir}
-  end
-
-  describe "POST /api/cache/module (upload)" do
-    test "saves artifact successfully when authenticated", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      hash = "abc123"
-      name = "MyModule.xcframework.zip"
-      body = "test artifact content"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      Disk
-      |> expect(:module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
-        false
-      end)
-      |> expect(:module_put, fn "test-account", "test-project", "builds", ^hash, ^name, ^body ->
-        :ok
-      end)
-
-      capture_log(fn ->
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer valid-token")
-          |> put_req_header("content-type", "application/octet-stream")
-          |> post(
-            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
-            body
-          )
-
-        assert conn.status == 204
-        assert conn.resp_body == ""
-      end)
-
-      # Verify S3 upload was enqueued via S3Transfers table
-      transfer = Repo.one(S3Transfer)
-      assert transfer.type == :upload
-      assert transfer.account_handle == "test-account"
-      assert transfer.project_handle == "test-project"
-      assert transfer.artifact_id == CacheArtifacts.encode_module("builds", hash, name)
-    end
-
-    test "returns 204 when artifact already exists", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      hash = "abc123"
-      name = "MyModule.xcframework.zip"
-      body = "test artifact content"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
-        true
-      end)
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("content-type", "application/octet-stream")
-        |> post(
-          "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
-          body
-        )
-
-      assert conn.status == 204
-      assert conn.resp_body == ""
-    end
-
-    test "returns 500 when disk write fails", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      hash = "abc123"
-      name = "MyModule.xcframework.zip"
-      body = "test artifact content"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      Disk
-      |> expect(:module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
-        false
-      end)
-      |> expect(:module_put, fn "test-account", "test-project", "builds", ^hash, ^name, ^body ->
-        {:error, :enospc}
-      end)
-
-      capture_log(fn ->
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer valid-token")
-          |> put_req_header("content-type", "application/octet-stream")
-          |> post(
-            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}",
-            body
-          )
-
-        assert conn.status == 500
-        response = json_response(conn, 500)
-        assert response["message"] == "Failed to persist artifact"
-      end)
-    end
-
-    test "uses cache_category parameter when provided", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      hash = "abc123"
-      name = "MyModule.xcframework.zip"
-      body = "test artifact content"
-      category = "custom_category"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      Disk
-      |> expect(:module_exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
-        false
-      end)
-      |> expect(:module_put, fn "test-account", "test-project", ^category, ^hash, ^name, ^body ->
-        :ok
-      end)
-
-      capture_log(fn ->
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer valid-token")
-          |> put_req_header("content-type", "application/octet-stream")
-          |> post(
-            "/api/cache/module?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}&cache_category=#{category}",
-            body
-          )
-
-        assert conn.status == 204
-      end)
-    end
   end
 
   describe "GET /api/cache/module (download)" do
@@ -365,6 +226,259 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert conn.status == 404
       response = json_response(conn, 404)
       assert response["message"] == "Artifact not found"
+    end
+  end
+
+  describe "POST /api/cache/module/start (start_multipart)" do
+    test "returns upload_id when artifact doesn't exist", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+        false
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post(
+          "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
+
+      assert conn.status == 200
+      response = json_response(conn, 200)
+      assert is_binary(response["upload_id"])
+      assert String.length(response["upload_id"]) == 36
+    end
+
+    test "returns null upload_id when artifact already exists", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+        true
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post(
+          "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
+
+      assert conn.status == 200
+      response = json_response(conn, 200)
+      assert response["upload_id"] == nil
+    end
+
+    test "uses cache_category parameter when provided", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+      category = "custom_category"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :module_exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
+        false
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post(
+          "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}&cache_category=#{category}"
+        )
+
+      assert conn.status == 200
+      response = json_response(conn, 200)
+      assert is_binary(response["upload_id"])
+    end
+  end
+
+  describe "POST /api/cache/module/part (upload_part)" do
+    test "uploads part successfully", %{conn: conn} do
+      {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", "abc123", "test.zip")
+      body = String.duplicate("x", 1000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post(
+          "/api/cache/module/part?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}&part_number=1",
+          body
+        )
+
+      assert conn.status == 204
+
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      assert Map.has_key?(upload.parts, 1)
+      assert upload.parts[1].size == 1000
+    end
+
+    test "returns 404 for unknown upload_id", %{conn: conn} do
+      body = String.duplicate("x", 1000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post(
+          "/api/cache/module/part?account_handle=test-account&project_handle=test-project&upload_id=nonexistent&part_number=1",
+          body
+        )
+
+      assert conn.status == 404
+      response = json_response(conn, 404)
+      assert response["message"] == "Artifact not found"
+    end
+  end
+
+  describe "POST /api/cache/module/complete (complete_multipart)" do
+    test "completes upload successfully", %{conn: conn} do
+      hash = "abc123"
+      name = "test.zip"
+      {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
+
+      tmp_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+      File.write!(tmp_path, "test content")
+      MultipartUploads.add_part(upload_id, 1, tmp_path, 12)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :module_put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, [^tmp_path] ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
+          Jason.encode!(%{parts: [1]})
+        )
+
+      assert conn.status == 204
+
+      # Upload should be removed from state after completion
+      assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
+
+      # Verify S3 upload was enqueued via S3Transfers table
+      transfer = Repo.one(S3Transfer)
+      assert transfer.type == :upload
+      assert transfer.account_handle == "test-account"
+      assert transfer.project_handle == "test-project"
+    end
+
+    test "returns 404 for unknown upload_id", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=nonexistent",
+          Jason.encode!(%{parts: [1]})
+        )
+
+      assert conn.status == 404
+      response = json_response(conn, 404)
+      assert response["message"] == "Artifact not found"
+    end
+
+    test "returns 400 when parts don't match", %{conn: conn} do
+      {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", "abc123", "test.zip")
+
+      tmp_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+      File.write!(tmp_path, "test content")
+      MultipartUploads.add_part(upload_id, 1, tmp_path, 12)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
+          Jason.encode!(%{parts: [1, 2]})
+        )
+
+      assert conn.status == 400
+      response = json_response(conn, 400)
+      assert response["message"] == "Parts mismatch or missing parts"
+
+      File.rm(tmp_path)
+    end
+
+    test "assembles multiple parts in order", %{conn: conn} do
+      hash = "xyz789"
+      name = "multi.zip"
+      {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
+
+      tmp_path1 = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+      tmp_path2 = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+      tmp_path3 = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+
+      File.write!(tmp_path1, "PART1")
+      File.write!(tmp_path2, "PART2")
+      File.write!(tmp_path3, "PART3")
+
+      MultipartUploads.add_part(upload_id, 1, tmp_path1, 5)
+      MultipartUploads.add_part(upload_id, 2, tmp_path2, 5)
+      MultipartUploads.add_part(upload_id, 3, tmp_path3, 5)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :module_put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, part_paths ->
+        assert part_paths == [tmp_path1, tmp_path2, tmp_path3]
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
+          Jason.encode!(%{parts: [1, 2, 3]})
+        )
+
+      assert conn.status == 204
     end
   end
 end

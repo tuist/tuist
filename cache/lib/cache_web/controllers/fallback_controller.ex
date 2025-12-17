@@ -20,6 +20,24 @@ defmodule CacheWeb.FallbackController do
     |> json(%{message: "Request body exceeded allowed size"})
   end
 
+  def call(conn, {:error, :part_too_large}) do
+    conn
+    |> put_status(:request_entity_too_large)
+    |> json(%{message: "Part exceeds 10MB limit"})
+  end
+
+  def call(conn, {:error, :total_size_exceeded}) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{message: "Total upload size exceeds 500MB limit"})
+  end
+
+  def call(conn, {:error, :parts_mismatch}) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "Parts mismatch or missing parts"})
+  end
+
   def call(conn, {:error, :timeout}) do
     conn
     |> put_status(:request_timeout)
