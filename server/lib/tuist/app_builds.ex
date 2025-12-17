@@ -78,7 +78,7 @@ defmodule Tuist.AppBuilds do
 
   Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
   """
-  def latest_preview_for_binary_id(binary_id, build_version, %Project{} = project, opts \\ []) do
+  def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
     with {:ok, app_build} <- app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
@@ -107,13 +107,7 @@ defmodule Tuist.AppBuilds do
   defp app_build_by_binary_id_and_build_version(binary_id, build_version, opts) do
     preload = Keyword.get(opts, :preload, [])
 
-    query =
-      from(ab in AppBuild,
-        where: ab.binary_id == ^binary_id,
-        where: ab.build_version == ^build_version
-      )
-
-    case Repo.one(query) do
+    case Repo.get_by(AppBuild, binary_id: binary_id, build_version: build_version) do
       nil -> {:error, :not_found}
       %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
     end

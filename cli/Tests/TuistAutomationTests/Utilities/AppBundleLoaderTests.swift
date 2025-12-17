@@ -67,7 +67,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: ipaPath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "0.9.0",
-                    buildVersion: "1",
+                    buildVersion: "0.9.0",
                     name: "Tuist",
                     bundleId: "io.tuist.app",
                     minimumOSVersion: Version("18.4"),

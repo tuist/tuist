@@ -872,7 +872,7 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
-  describe "latest_preview_for_binary_id/4" do
+  describe "latest_preview_for_binary_id_and_build_version/4" do
     test "returns the latest preview on the same track" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -901,7 +901,7 @@ defmodule Tuist.AppBuildsTest do
       _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_two.id
@@ -924,7 +924,10 @@ defmodule Tuist.AppBuildsTest do
         AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project, preload: [:app_builds])
+      {:ok, result} =
+        AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project,
+          preload: [:app_builds]
+        )
 
       # Then
       assert result.id == preview.id
@@ -958,7 +961,7 @@ defmodule Tuist.AppBuildsTest do
         )
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_main.id
@@ -972,7 +975,7 @@ defmodule Tuist.AppBuildsTest do
       build_version = "1"
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result == {:error, :not_found}
@@ -995,7 +998,7 @@ defmodule Tuist.AppBuildsTest do
         AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project)
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result == {:error, :not_found}
@@ -1019,7 +1022,7 @@ defmodule Tuist.AppBuildsTest do
         AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       # When
-      result = AppBuilds.latest_preview_for_binary_id(binary_id, build_version, project_two)
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project_two)
 
       # Then
       assert result == {:error, :not_found}

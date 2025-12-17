@@ -669,7 +669,7 @@ defmodule TuistWeb.API.PreviewsController do
       ) do
     build_version = Map.get(params, :build_version)
 
-    case AppBuilds.latest_preview_for_binary_id(binary_id, build_version, selected_project,
+    case AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, selected_project,
            preload: [:app_builds, :created_by_account]
          ) do
       {:ok, preview} ->
