@@ -282,6 +282,8 @@ defmodule Tuist.Registry.Swift.Packages do
     case System.cmd(
            "git",
            [
+             "-c",
+             "url.https://github.com/.insteadOf=git@github.com:",
              "clone",
              "--depth",
              "1",
