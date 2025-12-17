@@ -3856,6 +3856,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                build_version:
+                  description: The CFBundleVersion of the app.
+                  type: string
+                  x-struct:
+                  x-validate:
                 bundle_identifier:
                   description: The bundle identifier of the preview.
                   type: string
@@ -3972,6 +3977,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An app build with the same binary ID and build version already exists
       summary: It initiates a multipart upload for a preview artifact.
       tags:
         - Previews
@@ -4153,6 +4164,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4167,14 +4186,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -5114,7 +5125,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/previews/latest:
     get:
       callbacks: {}
-      description: Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+      description: Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
       operationId: getLatestPreview
       parameters:
         - description: The handle of the account.
@@ -5136,6 +5147,14 @@ paths:
         - description: The Mach-O UUID of the running binary.
           in: query
           name: binary_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The CFBundleVersion of the running app.
+          in: query
+          name: build_version
           required: true
           schema:
             type: string

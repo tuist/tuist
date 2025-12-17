@@ -9,6 +9,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         type: PreviewType,
         displayName: String,
         version: String?,
+        buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
@@ -25,12 +26,13 @@ public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable 
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case conflict(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The app build could not be uploaded due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .conflict(message):
             return message
         }
     }
@@ -55,6 +57,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         type: PreviewType,
         displayName: String,
         version: String?,
+        buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
@@ -83,6 +86,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                 body: .json(
                     .init(
                         binary_id: binaryId,
+                        build_version: buildVersion,
                         bundle_identifier: bundleIdentifier,
                         display_name: displayName,
                         git_branch: gitBranch,
@@ -120,6 +124,11 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
             switch unauthorized.body {
             case let .json(error):
                 throw MultipartUploadStartPreviewsServiceError.unauthorized(error.message)
+            }
+        case let .conflict(conflictResponse):
+            switch conflictResponse.body {
+            case let .json(error):
+                throw MultipartUploadStartPreviewsServiceError.conflict(error.message)
             }
         }
     }
