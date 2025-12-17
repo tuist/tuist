@@ -597,7 +597,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                    "supported_platforms" => ["ios"],
                    "url" => "https://mocked-url.com",
                    "inserted_at" => DateTime.to_iso8601(app_build.inserted_at),
-                   "binary_id" => nil
+                   "binary_id" => nil,
+                   "build_version" => nil
                  }
                ],
                "supported_platforms" => ["ios"],
@@ -1546,7 +1547,8 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
 
       conn = Authentication.put_current_user(conn, user)
 
