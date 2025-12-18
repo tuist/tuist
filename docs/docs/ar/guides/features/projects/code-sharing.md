@@ -5,44 +5,40 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# Code sharing {#code-sharing}
+# مشاركة الرموز {#مشاركة الرموز}
 
-One of the inconveniences of Xcode when we use it with large projects is that it
-doesn't allow reusing elements of the projects other than the build settings
-through `.xcconfig` files. Being able to reuse project definitions is useful for
-the following reasons:
+أحد مضايقات Xcode عندما نستخدمه مع المشاريع الكبيرة هو أنه لا يسمح بإعادة
+استخدام عناصر المشاريع بخلاف إعدادات الإنشاء من خلال `.xcconfig` الملفات. إن
+القدرة على إعادة استخدام تعريفات المشروع مفيدة للأسباب التالية:
 
-- It eases the **maintenance** because changes can be applied in one place and
-  all the projects get the changes automatically.
-- It makes it possible to define **conventions** that new projects can conform
-  to.
-- Projects are more **consistent** and therefore the likelihood of broken builds
-  due inconsistencies is significantly less.
-- Adding a new projects becomes an easy task because we can reuse the existing
-  logic.
+- إنه يسهل عملية الصيانة **الصيانة** لأنه يمكن تطبيق التغييرات في مكان واحد
+  وتحصل جميع المشاريع على التغييرات تلقائيًا.
+- يجعل من الممكن تحديد **الاتفاقيات** التي يمكن أن تتوافق معها المشاريع الجديدة.
+- تكون المشاريع أكثر اتساقًا **متناسقة** وبالتالي فإن احتمالية تعطل عمليات
+  الإنشاء بسبب التناقضات أقل بكثير.
+- تصبح إضافة مشاريع جديدة مهمة سهلة لأنه يمكننا إعادة استخدام المنطق الحالي.
 
-Reusing code across manifest files is possible in Tuist thanks to the concept of
-**project description helpers**.
+إعادة استخدام التعليمات البرمجية عبر ملفات البيان ممكنة في تويست بفضل مفهوم
+مساعدي وصف المشروع **** .
 
-::: tip A TUIST UNIQUE ASSET
+:::: إكرامية أصل فريد من نوعه
 <!-- -->
-Many organizations like Tuist because they see in project description helpers a
-platform for platform teams to codify their own conventions and come up with
-their own language for describing their projects. For example, YAML-based
-project generators have to come up with their own YAML-based propietary
-templating solution, or force organizations onto building their tools upon.
+تحب العديد من المنظمات تويست لأنها ترى في مساعدي وصف المشروع منصة لفرق المنصة
+لتقنين اصطلاحاتها الخاصة والتوصل إلى لغتها الخاصة لوصف مشاريعها. على سبيل
+المثال، يتعين على مولدي المشاريع المستندة إلى YAML أن يتوصلوا إلى حل خاص بهم
+قائم على YAML، أو إجبار المؤسسات على بناء أدواتهم على أساسه.
 <!-- -->
 :::
 
-## Project description helpers {#project-description-helpers}
+## مساعدو وصف المشروع {#مساعدو-وصف-مساعدو-المشروع}
 
-Project description helpers are Swift files that get compiled into a module,
-`ProjectDescriptionHelpers`, that manifest files can import. The module is
-compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers`
-directory.
+مساعِدات وصف المشروع هي ملفات سويفت التي يتم تجميعها في وحدة نمطية
+`ProjectDescriptionHelpers` ، والتي يمكن لملفات البيان استيرادها. يتم تجميع
+الوحدة النمطية عن طريق تجميع جميع الملفات الموجودة في الدليل `تويست/مساعدو وصف
+المشروع`.
 
-You can import them into your manifest file by adding an import statement at the
-top of the file:
+يمكنك استيرادها إلى ملف البيان الخاص بك عن طريق إضافة عبارة استيراد في أعلى
+الملف:
 
 ```swift
 // Project.swift
@@ -50,17 +46,17 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` are available in the following manifests:
-- `Project.swift`
-- `Package.swift` (only behind the `#TUIST` compiler flag)
-- `Workspace.swift`
+`يتوفر ProjectDespeccriptionHelpers` في البيانات التالية:
+- `مشروع.سويفت`
+- `الحزمة.سويفت` (فقط خلف علامة المترجم `#TUIST` )
+- `مساحة العمل.سويفت`
 
-## Example {#example}
+## مثال {#مثال}
 
-The snippets below contain an example of how we extend the `Project` model to
-add static constructors and how we use them from a `Project.swift` file:
+تحتوي المقتطفات أدناه على مثال على كيفية توسيع نموذج `Project` لإضافة منشئات
+ثابتة وكيفية استخدامها من ملف `Project.swift.`:
 
-::: code-group
+:::: مجموعة الرموز
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -104,9 +100,9 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
+::::: تلميح أداة لإرساء الاتفاقيات
 <!-- -->
-Note how through the function we are defining conventions about the name of the
-targets, the bundle identifier, and the folders structure.
+لاحظ كيف أننا من خلال الدالة نحدد اصطلاحات حول اسم الأهداف، ومعرف الحزمة، وبنية
+المجلدات.
 <!-- -->
 :::
