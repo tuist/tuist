@@ -5,84 +5,66 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Authentication {#authentication}
+# 身份验证 {#authentication}
 
-To interact with the server, the CLI needs to authenticate the requests using
-[bearer
-authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-The CLI supports authenticating as a user, as an account, or using an OIDC
-token.
+要与服务器交互，CLI
+需要使用[承载验证](https://swagger.io/docs/specification/authentication/bearer-authentication/)对请求进行验证。CLI
+支持以用户身份、账户身份或使用 OIDC 令牌进行身份验证。
 
-## As a user {#as-a-user}
+## 作为用户 {#as-a-user}
 
-When using the CLI locally on your machine, we recommend authenticating as a
-user. To authenticate as a user, you need to run the following command:
+在本地计算机上使用 CLI 时，我们建议以用户身份进行身份验证。要以用户身份进行身份验证，需要运行以下命令：
 
 ```bash
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you
-authenticate, the CLI will store a long-lived refresh token and a short-lived
-access token under `~/.config/tuist/credentials`. Each file in the directory
-represents the domain you authenticated against, which by default should be
-`tuist.dev.json`. The information stored in that directory is sensitive, so
-**make sure to keep it safe**.
+该命令将引导您完成基于 Web 的身份验证流程。通过身份验证后，CLI 将在`~/.config/tuist/credentials`
+下存储一个长期刷新令牌和一个短期访问令牌。该目录中的每个文件都代表您通过身份验证的域，默认情况下应该是`tuist.dev.json`
+。该目录中存储的信息非常敏感，因此**务必妥善保管** 。
 
-The CLI will automatically look up the credentials when making requests to the
-server. If the access token is expired, the CLI will use the refresh token to
-get a new access token.
+CLI 在向服务器发出请求时会自动查找凭据。如果访问令牌已过期，CLI 将使用刷新令牌获取新的访问令牌。
 
-## OIDC tokens {#oidc-tokens}
+## OIDC 标记 {#oidc-tokens}
 
-For CI environments that support OpenID Connect (OIDC), Tuist can authenticate
-automatically without requiring you to manage long-lived secrets. When running
-in a supported CI environment, the CLI will automatically detect the OIDC token
-provider and exchange the CI-provided token for a Tuist access token.
+对于支持 OpenID Connect (OIDC) 的 CI 环境，Tuist 可以自动进行身份验证，而无需管理长期保密信息。在受支持的 CI
+环境中运行时，CLI 会自动检测 OIDC 令牌提供者，并将 CI 提供的令牌交换为 Tuist 访问令牌。
 
-### Supported CI providers {#supported-ci-providers}
+### 支持的 CI 提供商 {#supported-ci-providers}
 
-- GitHub Actions
+- GitHub 操作
 - CircleCI
 - Bitrise
 
-### Setting up OIDC authentication {#setting-up-oidc-authentication}
+### 设置 OIDC 身份验证 {#setting-up-oidc-authentication}
 
-1. **Connect your repository to Tuist**: Follow the
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
-   guide</LocalizedLink> to connect your GitHub repository to your Tuist
-   project.
+1. **将仓库连接到 Tuist**
+   ：按照<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
+   集成指南</LocalizedLink>，将 GitHub 仓库连接到 Tuist 项目。
 
-2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
-   before any commands that require authentication. The CLI will automatically
-   detect the CI environment and authenticate using OIDC.
+2. **运行 `tuist auth login`** ：在您的 CI 工作流程中，在任何需要身份验证的命令之前运行`tuist auth login`
+   。CLI 将自动检测 CI 环境并使用 OIDC 进行身份验证。
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for provider-specific configuration examples.
+有关特定提供商的配置示例，请参阅<LocalizedLink href="/guides/integrations/continuous-integration">持续集成指南</LocalizedLink>。
 
-### OIDC token scopes {#oidc-token-scopes}
+### OIDC 令牌作用域 {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group, which provides access to all
-projects connected to the repository. See [Scope groups](#scope-groups) for
-details about what the `ci` scope includes.
+OIDC 标记被授予`ci` 范围组，可访问与版本库相连的所有项目。有关`ci` 范围包括哪些内容的详情，请参阅 [范围组](#scope-groups)。
 
-::: tip SECURITY BENEFITS
+小贴士 安全福利
 <!-- -->
-OIDC authentication is more secure than long-lived tokens because:
-- No secrets to rotate or manage
-- Tokens are short-lived and scoped to individual workflow runs
-- Authentication is tied to your repository identity
+OIDC 身份验证比长效令牌更安全，因为
+- 没有需要轮换或管理的秘密
+- 令牌的有效期很短，且适用于单个工作流运行
+- 身份验证与存储库身份绑定
 <!-- -->
 :::
 
-## Account tokens {#account-tokens}
+## 账户代币 {#account-tokens}
 
-For CI environments that don't support OIDC, or when you need fine-grained
-control over permissions, you can use account tokens. Account tokens allow you
-to specify exactly which scopes and projects the token can access.
+对于不支持 OIDC 的 CI 环境，或者需要对权限进行精细控制时，可以使用账户令牌。账户令牌允许你精确指定令牌可以访问哪些作用域和项目。
 
-### Creating an account token {#creating-an-account-token}
+### 创建账户令牌 {#creating-an-account-token}
 
 ```bash
 tuist account tokens create my-account \
@@ -91,91 +73,85 @@ tuist account tokens create my-account \
   --expires 1y
 ```
 
-The command accepts the following options:
+该命令接受以下选项：
 
-| Option       | Description                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
-| `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
-| `--expires`  | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
-| `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified.                                              |
+| 选项     | 描述                                                        |
+| ------ | --------------------------------------------------------- |
+| `--范围` | 必填。以逗号分隔的要授予标记的作用域列表。                                     |
+| `--名称` | 必须填写。令牌的唯一标识符（1-32 个字符，仅限字母数字、连字符和下划线）。                   |
+| `--到期` | 可选。令牌过期时间。使用格式如`30d` （天）、`6m` （月）或`1y` （年）。如果未指定，则令牌永不过期。 |
+| `--项目` | 限制令牌访问特定项目句柄。如果未指定，令牌可访问所有项目。                             |
 
-### Available scopes {#available-scopes}
+### 可用范围 {#available-scopes}
 
-| Scope                    | Description                           |
-| ------------------------ | ------------------------------------- |
-| `account:members:read`   | Read account members                  |
-| `account:members:write`  | Manage account members                |
-| `account:registry:read`  | Read from the Swift package registry  |
-| `account:registry:write` | Publish to the Swift package registry |
-| `project:previews:read`  | Download previews                     |
-| `project:previews:write` | Upload previews                       |
-| `project:admin:read`     | Read project settings                 |
-| `project:admin:write`    | Manage project settings               |
-| `project:cache:read`     | Download cached binaries              |
-| `project:cache:write`    | Upload cached binaries                |
-| `project:bundles:read`   | View bundles                          |
-| `project:bundles:write`  | Upload bundles                        |
-| `project:tests:read`     | Read test results                     |
-| `project:tests:write`    | Upload test results                   |
-| `project:builds:read`    | Read build analytics                  |
-| `project:builds:write`   | Upload build analytics                |
-| `project:runs:read`      | Read command runs                     |
-| `project:runs:write`     | Create and update command runs        |
+| 范围                      | 描述                |
+| ----------------------- | ----------------- |
+| `帐户：成员：已读`              | 阅读账户成员            |
+| `帐户：成员：写`               | 管理账户成员            |
+| `账户：注册表：读取`             | 从 Swift 软件包注册表中读取 |
+| `账户：登记：写`               | 发布到 Swift 软件包注册表  |
+| `项目：预览：阅读`              | 下载预览              |
+| `项目：预览：写`               | 上传预览              |
+| `项目：管理：阅读`              | 读取项目设置            |
+| `project:admin:write`   | 管理项目设置            |
+| `项目：缓存：读取`              | 下载缓存二进制文件         |
+| `项目：缓存：写`               | 上传缓存二进制文件         |
+| `project:bundles:read`  | 查看捆绑包             |
+| `project:bundles:write` | 上传捆绑包             |
+| `项目：测试：读取`              | 阅读测试结果            |
+| `project:tests:write`   | 上传测试结果            |
+| `项目：构建：读取`              | 阅读构建分析            |
+| `项目：构建：编写`              | 上传构建分析            |
+| `项目：运行：读取`              | 读取命令运行            |
+| `项目：运行：写`               | 创建和更新命令运行         |
 
-### Scope groups {#scope-groups}
+### 范围组 {#scope-groups}
 
-Scope groups provide a convenient way to grant multiple related scopes with a
-single identifier. When you use a scope group, it automatically expands to
-include all the individual scopes it contains.
+作用域组提供了一种方便的方法，可以用一个标识符授予多个相关的作用域。使用作用域组时，它会自动扩展以包含它所包含的所有单独作用域。
 
-| Scope Group | Included Scopes                                                                                                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+| 范围小组 | 包含的瞄准镜                                                                                                                                   |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci` | `project:cache:write`,`project:previews:write`,`project:bundles:write`,`project:tests:write`,`project:builds:write`,`project:runs:write` |
 
-### Continuous Integration {#continuous-integration}
+### 持续集成 {#continuous-integration｝
 
-For CI environments that don't support OIDC, you can create an account token
-with the `ci` scope group to authenticate your CI workflows:
+对于不支持 OIDC 的 CI 环境，您可以使用`ci` scope group 创建一个账户令牌来验证您的 CI 工作流：
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
 ```
 
-This creates a token with all the scopes needed for typical CI operations
-(cache, previews, bundles, tests, builds, and runs). Store the generated token
-as a secret in your CI environment and set it as the `TUIST_TOKEN` environment
-variable.
+这将创建一个具有典型 CI 操作（缓存、预览、捆绑包、测试、构建和运行）所需全部作用域的令牌。将生成的令牌作为秘密存储在 CI
+环境中，并将其设置为`TUIST_TOKEN` 环境变量。
 
-### Managing account tokens {#managing-account-tokens}
+### 管理账户令牌 {#managing-account-tokens}
 
-To list all tokens for an account:
+列出账户的所有令牌：
 
 ```bash
 tuist account tokens list my-account
 ```
 
-To revoke a token by name:
+按名称撤销令牌：
 
 ```bash
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### Using account tokens {#using-account-tokens}
+### 使用账户令牌 {#using-account-tokens}
 
-Account tokens are expected to be defined as the environment variable
-`TUIST_TOKEN`:
+账户令牌应定义为环境变量`TUIST_TOKEN` ：
 
 ```bash
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip WHEN TO USE ACCOUNT TOKENS
+提示 何时使用账户代金券
 <!-- -->
-Use account tokens when you need:
-- Authentication in CI environments that don't support OIDC
-- Fine-grained control over which operations the token can perform
-- A token that can access multiple projects within an account
-- Time-limited tokens that automatically expire
+在需要时使用账户令牌：
+- 在不支持 OIDC 的 CI 环境中进行身份验证
+- 对令牌可执行的操作进行细粒度控制
+- 可访问账户内多个项目的令牌
+- 自动过期的限时令牌
 <!-- -->
 :::
