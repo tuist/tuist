@@ -39,10 +39,12 @@ defmodule TuistWeb.OverviewLive do
         Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "?#{query_params}")}
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
+  def handle_params(params, request_uri, %{assigns: %{selected_project: _project}} = socket) do
+    full_uri = URI.parse(request_uri)
+
     uri =
       URI.new!(
         "?" <>
@@ -64,10 +66,8 @@ defmodule TuistWeb.OverviewLive do
       |> assign_analytics(params)
       |> assign_builds(params)
       |> assign_bundles(params)
-      |> assign(
-        :uri,
-        uri
-      )
+      |> assign(:uri, uri)
+      |> assign(:uri_path, full_uri.path)
     }
   end
 
@@ -233,6 +233,7 @@ defmodule TuistWeb.OverviewLive do
 
     start_date =
       case date_range do
+        "last_24_hours" -> Date.add(DateTime.utc_now(), -1)
         "last_12_months" -> Date.add(DateTime.utc_now(), -365)
         "last_30_days" -> Date.add(DateTime.utc_now(), -30)
         "last_7_days" -> Date.add(DateTime.utc_now(), -7)
@@ -261,10 +262,22 @@ defmodule TuistWeb.OverviewLive do
         _ -> opts
       end
 
+    # Build value map for date picker (used for custom range display)
+    date_picker_value =
+      if date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
+      else
+        nil
+      end
+
     socket
     |> assign(
       :analytics_date_range,
       date_range
+    )
+    |> assign(
+      :analytics_date_range_value,
+      date_picker_value
     )
     |> assign(
       :analytics_trend_label,
@@ -303,6 +316,7 @@ defmodule TuistWeb.OverviewLive do
     )
   end
 
+  defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_projects", "since yesterday")
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "vs previous period")
