@@ -1,37 +1,25 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main id="marketing-case-studies" phx-hook="ScrollToTop" data-scroll-target='[data-part="filters-bar"]'>
+  <main
+    id="marketing-case-studies"
+    phx-hook="ScrollToTop"
+    data-scroll-target='[data-part="filters-bar"]'
+  >
     <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
 
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
-    <section data-part="header">
-      <div data-part="title">
-        <h1 data-part="title">
-          {dgettext("marketing", "Case Studies")}
-        </h1>
-      </div>
-      <.link
-        :if={@highlighted_case}
-        data-part="main"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_case.slug)}
-      >
-        <img data-part="image" src={"/marketing/images/case-studies/#{Path.basename(@highlighted_case.slug)}.jpg"} />
-        <div data-part="content">
-          <h2 data-part="title">
-            {@highlighted_case.title}
-          </h2>
-          <p data-part="excerpt">{@highlighted_case.name}</p>
-          <div data-part="footer">
-            <div data-part="metadata">
-              <div data-part="date">
-                {Timex.format!(@highlighted_case.date, "{Mfull} {D}, {YYYY}")}
-              </div>
-            </div>
-            <.arrow_right data-part="icon" />
-          </div>
-        </div>
-      </.link>
-    </section>
+    <header data-part="header">
+      <img data-part="logo" src={~p"/marketing/images/case-studies/logo.webp"} data-part="logo" />
+      <h1 data-part="title">
+        {dgettext("marketing", "Case Studies,")}
+      </h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+        )}
+      </p>
+    </header>
 
     <section data-part="filters-bar">
       <div data-part="actions">
@@ -45,38 +33,29 @@
             show_suffix={false}
           />
         </form>
-        <.link href={~p"/case-studies/rss.xml"}>
-          <.button variant="secondary" icon_only={true} size="large">
-            <.rss />
-          </.button>
-        </.link>
-        <.link href={~p"/case-studies/atom.xml"}>
-          <.button variant="secondary" icon_only={true} size="large">
-            <.atom />
-          </.button>
-        </.link>
+        <.button variant="secondary" icon_only={true} size="large">
+          <.rss />
+        </.button>
+        <.button variant="secondary" icon_only={true} size="large">
+          <.atom />
+        </.button>
       </div>
     </section>
 
-    <section data-part="posts">
+    <section data-part="cases">
       <.link
-        :for={case_study <- @filtered_cases}
-        data-part="post"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(case_study.slug)}
+        :for={case <- @filtered_cases}
+        data-part="case"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(case.slug)}
       >
-        <img data-part="image" src={"/marketing/images/case-studies/#{Path.basename(case_study.slug)}.jpg"} />
+        <img data-part="image" src="TODO" />
         <div data-part="content">
           <header data-part="header">
-            <div data-part="metadata">
-              <div data-part="author">{case_study.name}</div>
-              <div>•</div>
-              <div data-part="date">
-                {Timex.format!(case_study.date, "{Mfull} {D}, {YYYY}")}
-              </div>
-            </div>
+            <h2 data-part="title">{case.title}</h2>
             <.arrow_right />
           </header>
-          <h3 data-part="title">{case_study.title}</h3>
+          <%!-- <h3 data-part="title">{post.title}</h3> --%>
+          <%!-- <p data-part="excerpt">{post.excerpt}</p> --%>
         </div>
       </.link>
     </section>

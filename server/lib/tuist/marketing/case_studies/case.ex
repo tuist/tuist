@@ -1,4 +1,5 @@
 defmodule Tuist.Marketing.CaseStudies.Case do
+  @moduledoc false
   @enforce_keys [:title, :date, :name, :url, :founded, :onboarded, :body, :slug]
   defstruct [
     :title,
