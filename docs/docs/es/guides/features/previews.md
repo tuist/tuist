@@ -72,26 +72,29 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## Tracks {#tracks}
+## Pistas {#tracks}
 
-Tracks allow you to organize your previews into named groups. For example, you
-might have a `beta` track for internal testers and a `nightly` track for
-automated builds. Tracks are lazily created — simply specify a track name when
-sharing, and it will be created automatically if it doesn't exist.
+Las pistas te permiten organizar tus vistas previas en grupos con nombre. Por
+ejemplo, puedes tener una pista `beta` para los probadores internos y una pista
+`nightly` para las compilaciones automáticas. Los tracks se crean de forma
+perezosa - simplemente especifica un nombre de track al compartir, y se creará
+automáticamente si no existe.
 
-To share a preview on a specific track, use the `--track` option:
+Para compartir una vista previa en una pista específica, utilice la opción
+`--track`:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-This is useful for:
-- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
-  `internal`)
-- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
-  notify users about
-- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+Esto es útil para:
+- **Organizar las previsualizaciones**: Agrupar las vistas previas por finalidad
+  (por ejemplo, `beta`, `nocturna`, `interna`)
+- **Actualizaciones in-app**: El SDK de Tuist utiliza pistas para determinar qué
+  actualizaciones notificar a los usuarios.
+- **Filtrar**: Encuentra y gestiona fácilmente previsualizaciones por pista en
+  el panel de control de Tuist.
 
 ::: aviso VISIBILIDAD DE LOS PREVIOS
 <!-- -->
@@ -172,11 +175,12 @@ El [Tuist SDK](https://github.com/tuist/sdk) permite a tu aplicación detectar
 cuándo hay disponible una versión preliminar más reciente y notificárselo a los
 usuarios. Esto es útil para mantener a los probadores en la última versión.
 
-The SDK checks for updates within the same **preview track**. When you share a
-preview with an explicit track using `--track`, the SDK will look for updates on
-that track. If no track is specified, the git branch is used as the track — so a
-preview built from the `main` branch will only notify about newer previews also
-built from `main`.
+El SDK busca actualizaciones dentro de la misma pista de vista previa **** .
+Cuando comparte una vista previa con una pista explícita usando `--track`, el
+SDK buscará actualizaciones en esa pista. Si no se especifica ninguna pista, la
+rama git se utiliza como pista - por lo que una vista previa construida desde la
+rama `main` sólo notificará sobre vistas previas más recientes también
+construidas desde `main`.
 
 ### Instalación {#sdk-installation}
 
