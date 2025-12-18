@@ -16,8 +16,6 @@ defmodule Cache.MultipartUploads do
   @max_part_size 10 * 1024 * 1024
   @max_total_size 500 * 1024 * 1024
 
-  # Client API
-
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -27,25 +25,10 @@ defmodule Cache.MultipartUploads do
 
   Returns `{:ok, upload_id}` where upload_id is a UUID string.
   """
-  @spec start_upload(String.t(), String.t(), String.t(), String.t(), String.t()) ::
-          {:ok, String.t()}
   def start_upload(account_handle, project_handle, category, hash, name) do
     GenServer.call(__MODULE__, {:start_upload, account_handle, project_handle, category, hash, name})
   end
 
-  @doc """
-  Add a part to an existing multipart upload.
-
-  Records the temp file path and size for the given part number.
-
-  Returns:
-  - `:ok` on success
-  - `{:error, :upload_not_found}` if upload_id is invalid
-  - `{:error, :part_too_large}` if size exceeds 10MB
-  - `{:error, :total_size_exceeded}` if cumulative size exceeds 500MB
-  """
-  @spec add_part(String.t(), pos_integer(), String.t(), pos_integer()) ::
-          :ok | {:error, :upload_not_found | :part_too_large | :total_size_exceeded}
   def add_part(upload_id, part_number, temp_file_path, size_bytes) do
     GenServer.call(__MODULE__, {:add_part, upload_id, part_number, temp_file_path, size_bytes})
   end
@@ -55,7 +38,6 @@ defmodule Cache.MultipartUploads do
 
   Returns `{:ok, upload_data}` or `{:error, :not_found}`.
   """
-  @spec get_upload(String.t()) :: {:ok, map()} | {:error, :not_found}
   def get_upload(upload_id) do
     GenServer.call(__MODULE__, {:get_upload, upload_id})
   end
@@ -68,7 +50,6 @@ defmodule Cache.MultipartUploads do
 
   Returns `{:ok, upload_data}` or `{:error, :not_found}`.
   """
-  @spec complete_upload(String.t()) :: {:ok, map()} | {:error, :not_found}
   def complete_upload(upload_id) do
     GenServer.call(__MODULE__, {:complete_upload, upload_id})
   end
@@ -78,12 +59,9 @@ defmodule Cache.MultipartUploads do
 
   Cleans up temp files and removes the upload from ETS.
   """
-  @spec abort_upload(String.t()) :: :ok
   def abort_upload(upload_id) do
     GenServer.call(__MODULE__, {:abort_upload, upload_id})
   end
-
-  # Server Callbacks
 
   @impl true
   def init(_opts) do

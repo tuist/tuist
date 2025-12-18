@@ -23,16 +23,6 @@ defmodule Cache.BodyReader do
     do_read(conn, opts, :store, @max_upload_bytes)
   end
 
-  @doc """
-  Reads the request body with custom options.
-
-  The `opts` keyword list should contain:
-  - `:length` - Maximum body size (in bytes)
-  - `:read_length` - Chunk size for reading
-  - `:read_timeout` - Timeout for reading
-
-  Returns same as `read/1`.
-  """
   def read_with_opts(conn, opts) do
     max_bytes = Keyword.get(opts, :length, @max_upload_bytes)
     do_read(conn, opts, :store, max_bytes)
