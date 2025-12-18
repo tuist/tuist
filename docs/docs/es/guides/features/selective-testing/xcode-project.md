@@ -32,13 +32,13 @@ Por ejemplo, suponiendo el siguiente gráfico de dependencias:
 
 `tuist xcodebuild test` se comportará como tal:
 
-| Acción                             | Descripción                                                         | Estado interno                                                               |
-| ---------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Se conservan los hashes de `FeatureATests`, `FeatureBTests` y `CoreTests`    |
-| `CaracterísticaA` se actualiza     | The developer modifies the code of a target                         | Same as before                                                               |
-| `tuist xcodebuild test` invocation | Ejecuta las pruebas en `FeatureATests` porque su hash ha cambiado   | Se mantiene el nuevo hash de `FeatureATests`                                 |
-| `Se actualiza el núcleo`           | The developer modifies the code of a target                         | Same as before                                                               |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests`, y `CoreTests` se persisten |
+| Acción                             | Descripción                                                            | Estado interno                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `tuist xcodebuild test` invocación | Ejecuta las pruebas en `CoreTests`, `FeatureATests`, y `FeatureBTests` | Se conservan los hashes de `FeatureATests`, `FeatureBTests` y `CoreTests`    |
+| `CaracterísticaA` se actualiza     | El desarrollador modifica el código de un objetivo                     | Igual que antes                                                              |
+| `tuist xcodebuild test` invocación | Ejecuta las pruebas en `FeatureATests` porque su hash ha cambiado      | Se mantiene el nuevo hash de `FeatureATests`                                 |
+| `Se actualiza el núcleo`           | El desarrollador modifica el código de un objetivo                     | Igual que antes                                                              |
+| `tuist xcodebuild test` invocación | Ejecuta las pruebas en `CoreTests`, `FeatureATests`, y `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests`, y `CoreTests` se persisten |
 
 Para utilizar `tuist xcodebuild test` en su CI, siga las instrucciones de la
 <LocalizedLink href="/guides/integrations/continuous-integration">Guía de
