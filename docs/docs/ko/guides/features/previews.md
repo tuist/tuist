@@ -60,6 +60,27 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+## Tracks {#tracks}
+
+Tracks allow you to organize your previews into named groups. For example, you
+might have a `beta` track for internal testers and a `nightly` track for
+automated builds. Tracks are lazily created — simply specify a track name when
+sharing, and it will be created automatically if it doesn't exist.
+
+To share a preview on a specific track, use the `--track` option:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+This is useful for:
+- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
+  `internal`)
+- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
+  notify users about
+- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+
 ::: 경고 미리보기 표시 여부
 <!-- -->
 프로젝트가 속한 조직에 대한 액세스 권한이 있는 사람만 미리 보기에 액세스할 수 있습니다. 만료되는 링크에 대한 지원도 추가할 계획입니다.
@@ -126,8 +147,11 @@ macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스�
 Tuist SDK](https://github.com/tuist/sdk)를 사용하면 앱에서 최신 프리뷰 버전을 사용할 수 있는 시기를 감지하여
 사용자에게 알릴 수 있습니다. 이는 테스터를 최신 빌드로 유지하는 데 유용합니다.
 
-SDK는 동일한 **프리뷰 트랙** 내에서 업데이트를 확인합니다. 현재 트랙은 git 브랜치에 의해 결정되므로 `메인` 브랜치에서 빌드된
-프리뷰는 `메인` 에서 빌드된 최신 프리뷰에 대해서만 알림을 보냅니다.
+The SDK checks for updates within the same **preview track**. When you share a
+preview with an explicit track using `--track`, the SDK will look for updates on
+that track. If no track is specified, the git branch is used as the track — so a
+preview built from the `main` branch will only notify about newer previews also
+built from `main`.
 
 ### 설치 {#sdk-installation}
 

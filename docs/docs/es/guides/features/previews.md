@@ -72,6 +72,27 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+## Tracks {#tracks}
+
+Tracks allow you to organize your previews into named groups. For example, you
+might have a `beta` track for internal testers and a `nightly` track for
+automated builds. Tracks are lazily created — simply specify a track name when
+sharing, and it will be created automatically if it doesn't exist.
+
+To share a preview on a specific track, use the `--track` option:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+This is useful for:
+- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
+  `internal`)
+- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
+  notify users about
+- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+
 ::: aviso VISIBILIDAD DE LOS PREVIOS
 <!-- -->
 Sólo las personas con acceso a la organización a la que pertenece el proyecto
@@ -151,10 +172,11 @@ El [Tuist SDK](https://github.com/tuist/sdk) permite a tu aplicación detectar
 cuándo hay disponible una versión preliminar más reciente y notificárselo a los
 usuarios. Esto es útil para mantener a los probadores en la última versión.
 
-El SDK busca actualizaciones dentro de la misma pista de previsualización **** .
-Actualmente, la pista está determinada por la rama git - por lo que una vista
-previa construida desde la rama `main` sólo notificará sobre vistas previas más
-recientes también construidas desde `main`.
+The SDK checks for updates within the same **preview track**. When you share a
+preview with an explicit track using `--track`, the SDK will look for updates on
+that track. If no track is specified, the git branch is used as the track — so a
+preview built from the `main` branch will only notify about newer previews also
+built from `main`.
 
 ### Instalación {#sdk-installation}
 

@@ -67,6 +67,27 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+## Tracks {#tracks}
+
+Tracks allow you to organize your previews into named groups. For example, you
+might have a `beta` track for internal testers and a `nightly` track for
+automated builds. Tracks are lazily created — simply specify a track name when
+sharing, and it will be created automatically if it doesn't exist.
+
+To share a preview on a specific track, use the `--track` option:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+This is useful for:
+- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
+  `internal`)
+- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
+  notify users about
+- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+
 :::: التحذير من الرؤية المسبقة
 <!-- -->
 يمكن فقط للأشخاص الذين لديهم حق الوصول إلى المؤسسة التي ينتمي إليها المشروع
@@ -140,9 +161,11 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 تُمكِّن [Tuist SDK] (https://github.com/tuist/sdk) تطبيقك من اكتشاف وقت توفر
 إصدار معاينة أحدث وإعلام المستخدمين. هذا مفيد لإبقاء المختبرين على أحدث إصدار.
 
-تتحقق SDK من وجود تحديثات داخل نفس مسار المعاينة **معاينة المسار**. حاليًا، يتم
-تحديد المسار من خلال فرع git - لذا فإن المعاينة التي تم إنشاؤها من الفرع الرئيسي
-`` الرئيسي لن تُعلم إلا بالمعاينات الأحدث التي تم إنشاؤها أيضًا من `الرئيسي`.
+The SDK checks for updates within the same **preview track**. When you share a
+preview with an explicit track using `--track`, the SDK will look for updates on
+that track. If no track is specified, the git branch is used as the track — so a
+preview built from the `main` branch will only notify about newer previews also
+built from `main`.
 
 ### التثبيت {#SDKDk-installation}
 

@@ -58,6 +58,27 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+## Tracks {#tracks}
+
+Tracks allow you to organize your previews into named groups. For example, you
+might have a `beta` track for internal testers and a `nightly` track for
+automated builds. Tracks are lazily created — simply specify a track name when
+sharing, and it will be created automatically if it doesn't exist.
+
+To share a preview on a specific track, use the `--track` option:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+This is useful for:
+- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
+  `internal`)
+- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
+  notify users about
+- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+
 警告预览的可见性
 <!-- -->
 只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
@@ -121,7 +142,11 @@ Tuist macOS 应用程序中选择的设备上自动运行应用程序呢？*
 Tuist SDK](https://github.com/tuist/sdk)
 可让您的应用程序检测到更新的预览版本，并通知用户。这对于让测试人员使用最新版本非常有用。
 
-SDK 会检查同一**预览轨道** 中的更新。目前，轨道由 git 分支决定，因此从`main` 分支构建的预览版只会通知同样从`main` 构建的更新预览版。
+The SDK checks for updates within the same **preview track**. When you share a
+preview with an explicit track using `--track`, the SDK will look for updates on
+that track. If no track is specified, the git branch is used as the track — so a
+preview built from the `main` branch will only notify about newer previews also
+built from `main`.
 
 ### 安装 {#SDK-installation}
 
