@@ -188,7 +188,7 @@
 
       &:hover {
         & > [data-part="content"] {
-          & > [data-part="header"] {
+          & > [data-part="footer"] {
             & > svg {
               visibility: visible;
               opacity: 1;
@@ -208,25 +208,27 @@
       & > [data-part="content"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-4);
+        gap: var(--noora-spacing-5);
         padding: var(--noora-spacing-5);
 
-        & > [data-part="header"] {
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font-family: var(--noora-font-heading);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="footer"] {
           display: flex;
           flex-direction: row;
           justify-content: space-between;
           align-items: center;
+          gap: var(--noora-spacing-4);
 
-          & > [data-part="title"] {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: 8px;
-            color: var(--noora-surface-label-primary);
+          & > [data-part="read-story"] {
+            color: var(--noora-button-secondary-label);
             font-family: var(--noora-font-body);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
           }
-
           & > svg {
             visibility: hidden;
             opacity: 0;
@@ -235,17 +237,6 @@
               visibility 0.25s ease-out;
             color: var(--noora-surface-label-primary);
           }
-        }
-
-        & > [data-part="title"] {
-          color: var(--noora-surface-label-primary);
-          font-family: var(--noora-font-heading);
-          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-        }
-        & > [data-part="excerpt"] {
-          color: var(--noora-surface-label-secondary);
-          font-family: var(--noora-font-body);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         }
       }
     }

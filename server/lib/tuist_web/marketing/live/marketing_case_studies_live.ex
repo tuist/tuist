@@ -12,14 +12,11 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
   @cases_per_page 9
 
   def mount(_params, _session, socket) do
-    all_cases = CaseStudies.get_cases()
-
     socket =
       socket
       |> assign(:search_query, "")
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)
-      |> assign(:highlighted_case, List.first(all_cases))
       |> assign(:filtered_cases, [])
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
@@ -38,8 +35,6 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
     previous_page = Map.get(socket.assigns, :current_page, 1)
     page_changed = page != previous_page
 
-    highlighted_case = List.first(all_cases)
-
     filtered_cases =
       if search_query == "" do
         all_cases
@@ -53,8 +48,6 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
         end)
       end
 
-    filtered_cases = Enum.reject(filtered_cases, fn case_study -> case_study.slug == highlighted_case.slug end)
-
     total_cases = length(filtered_cases)
     total_pages = max(ceil(total_cases / @cases_per_page), 1)
     page = min(max(page, 1), total_pages)
@@ -63,7 +56,6 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
 
     socket =
       socket
-      |> assign(:highlighted_case, highlighted_case)
       |> assign(:filtered_cases, paginated_cases)
       |> assign(:search_query, search_query)
       |> assign(:current_page, page)
