@@ -583,7 +583,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/case-studies.jpg")
+        Tuist.Environment.app_url(path: case_study.og_image_path)
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(

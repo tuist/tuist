@@ -205,8 +205,6 @@
         border-top-right-radius: var(--noora-radius-xlarge);
         border-top-left-radius: var(--noora-radius-xlarge);
         border-radius: var(--noora-radius-xlarge);
-        /* TODO: Remove */
-        background-color: var(--noora-purple-500);
         aspect-ratio: 16 / 9;
         width: 100%;
         object-fit: cover;
