@@ -93,7 +93,7 @@ tuist account tokens create my-account \
 
 The command accepts the following options:
 
-| Option       | Description                                                                                                                                      |
+| Option       | Descrição                                                                                                                                        |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
 | `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
@@ -102,7 +102,7 @@ The command accepts the following options:
 
 ### Available scopes {#available-scopes}
 
-| Scope                    | Description                           |
+| Scope                    | Descrição                             |
 | ------------------------ | ------------------------------------- |
 | `account:members:read`   | Read account members                  |
 | `account:members:write`  | Manage account members                |
