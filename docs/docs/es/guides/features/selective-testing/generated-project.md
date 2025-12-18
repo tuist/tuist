@@ -36,13 +36,13 @@ Por ejemplo, suponiendo el siguiente gráfico de dependencias:
 
 `tuist test` se comportará como tal:
 
-| Acción                         | Descripción                                                            | Estado interno                                                               |
-| ------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `tuist test` invocación        | Ejecuta las pruebas en `CoreTests`, `FeatureATests`, y `FeatureBTests` | Se conservan los hashes de `FeatureATests`, `FeatureBTests` y `CoreTests`    |
-| `CaracterísticaA` se actualiza | El desarrollador modifica el código de un objetivo                     | Igual que antes                                                              |
-| `tuist test` invocación        | Ejecuta las pruebas en `FeatureATests` porque su hash ha cambiado      | Se mantiene el nuevo hash de `FeatureATests`                                 |
-| `Se actualiza el núcleo`       | El desarrollador modifica el código de un objetivo                     | Igual que antes                                                              |
-| `tuist test` invocación        | Ejecuta las pruebas en `CoreTests`, `FeatureATests`, y `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests`, y `CoreTests` se persisten |
+| Acción                         | Descripción                                                         | Estado interno                                                               |
+| ------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `tuist test` invocation        | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Se conservan los hashes de `FeatureATests`, `FeatureBTests` y `CoreTests`    |
+| `CaracterísticaA` se actualiza | The developer modifies the code of a target                         | Same as before                                                               |
+| `tuist test` invocation        | Ejecuta las pruebas en `FeatureATests` porque su hash ha cambiado   | Se mantiene el nuevo hash de `FeatureATests`                                 |
+| `Se actualiza el núcleo`       | The developer modifies the code of a target                         | Same as before                                                               |
+| `tuist test` invocation        | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests`, y `CoreTests` se persisten |
 
 `tuist test` se integra directamente con el almacenamiento en caché de binarios
 para utilizar tantos binarios de su almacenamiento local o remoto para mejorar

@@ -36,13 +36,13 @@
 
 `туистский тест` будет вести себя именно так:
 
-| Действие               | Описание                                                                     | Внутреннее состояние                                                  |
-| ---------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `туистский тест` вызов | Запускает тесты из разделов `CoreTests`, `FeatureATests`, и `FeatureBTests.` | Хэши `FeatureATests`, `FeatureBTests` и `CoreTests` сохраняются.      |
-| `ФункцияА` обновляется | Разработчик изменяет код целевой программы                                   | Как и раньше                                                          |
-| `туистский тест` вызов | Запускает тесты в `FeatureATests`, потому что хэш изменился.                 | Новый хэш `FeatureATests` сохраняется.                                |
-| `Обновлено ядро`       | Разработчик изменяет код целевой программы                                   | Как и раньше                                                          |
-| `туистский тест` вызов | Запускает тесты из разделов `CoreTests`, `FeatureATests`, и `FeatureBTests.` | Новый хэш `FeatureATests` `FeatureBTests`, и `CoreTests` сохраняется. |
+| Действие                | Описание                                                            | Внутреннее состояние                                                  |
+| ----------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Хэши `FeatureATests`, `FeatureBTests` и `CoreTests` сохраняются.      |
+| `ФункцияА` обновляется  | The developer modifies the code of a target                         | Same as before                                                        |
+| `tuist test` invocation | Запускает тесты в `FeatureATests`, потому что хэш изменился.        | Новый хэш `FeatureATests` сохраняется.                                |
+| `Обновлено ядро`        | The developer modifies the code of a target                         | Same as before                                                        |
+| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Новый хэш `FeatureATests` `FeatureBTests`, и `CoreTests` сохраняется. |
 
 `tuist test` напрямую интегрируется с кэшированием бинарных файлов, чтобы
 использовать как можно больше бинарных файлов из локального или удаленного

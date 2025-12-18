@@ -30,13 +30,13 @@
 
 `튜이스트 테스트` 는 이와 같이 작동합니다:
 
-| 액션            | 설명                                                          | 내부 상태                                                       |
-| ------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `튜이스트 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests`, `FeatureBTests`, `CoreTests` 의 해시는 유지됩니다.  |
-| `기능` 업데이트됨    | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
-| `튜이스트 테스트` 호출 | 해시가 변경되었으므로 `FeatureATests` 에서 테스트를 실행합니다.                  | `FeatureATests` 의 새 해시가 유지됩니다.                              |
-| `핵심` 업데이트됨    | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
-| `튜이스트 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
+| 액션                      | 설명                                                                  | 내부 상태                                                       |
+| ----------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests`, `FeatureBTests`, `CoreTests` 의 해시는 유지됩니다.  |
+| `기능` 업데이트됨              | The developer modifies the code of a target                         | Same as before                                              |
+| `tuist test` invocation | 해시가 변경되었으므로 `FeatureATests` 에서 테스트를 실행합니다.                          | `FeatureATests` 의 새 해시가 유지됩니다.                              |
+| `핵심` 업데이트됨              | The developer modifies the code of a target                         | Same as before                                              |
+| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
 
 `튜이스트 테스트` 바이너리 캐싱과 직접 통합하여 로컬 또는 원격 저장소의 바이너리를 최대한 많이 사용하여 테스트 스위트를 실행할 때 빌드
 시간을 개선할 수 있습니다. 선택적 테스트와 바이너리 캐싱을 결합하면 CI에서 테스트를 실행하는 데 걸리는 시간을 크게 줄일 수 있습니다.
