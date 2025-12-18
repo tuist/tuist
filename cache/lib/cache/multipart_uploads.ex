@@ -72,7 +72,7 @@ defmodule Cache.MultipartUploads do
 
   @impl true
   def handle_call({:start_upload, account_handle, project_handle, category, hash, name}, _from, state) do
-    upload_id = Ecto.UUID.generate()
+    upload_id = UUIDv7.generate()
 
     upload_data = %{
       account_handle: account_handle,

@@ -213,23 +213,18 @@ defmodule Cache.Disk do
          false <- File.exists?(dest_path) do
       tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
 
-      case assemble_parts(part_paths, tmp_dest) do
-        :ok ->
-          case File.rename(tmp_dest, dest_path) do
-            :ok ->
-              :ok
-
-            {:error, :eexist} ->
-              File.rm(tmp_dest)
-              {:error, :exists}
-
-            {:error, reason} ->
-              Logger.error("Failed to rename assembled artifact to #{dest_path}: #{inspect(reason)}")
-              File.rm(tmp_dest)
-              {:error, reason}
-          end
+      with {:ok, dest_file} <- File.open(tmp_dest, [:write, :binary]),
+           :ok <- copy_parts_to_file(part_paths, dest_file),
+           :ok <- File.close(dest_file),
+           :ok <- File.rename(tmp_dest, dest_path) do
+        :ok
+      else
+        {:error, :eexist} ->
+          File.rm(tmp_dest)
+          {:error, :exists}
 
         {:error, reason} ->
+          Logger.error("Failed to assemble artifact to #{dest_path}: #{inspect(reason)}")
           File.rm(tmp_dest)
           {:error, reason}
       end
@@ -239,51 +234,15 @@ defmodule Cache.Disk do
     end
   end
 
-  defp assemble_parts(part_paths, dest_path) do
-    case File.open(dest_path, [:write, :binary]) do
-      {:ok, dest_file} ->
-        result =
-          Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
-            case stream_file_to_file(part_path, dest_file) do
-              :ok -> {:cont, :ok}
-              {:error, reason} -> {:halt, {:error, reason}}
-            end
-          end)
-
-        File.close(dest_file)
-        result
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp stream_file_to_file(src_path, dest_file) do
-    case File.open(src_path, [:read, :binary]) do
-      {:ok, src_file} ->
-        result = do_stream_copy(src_file, dest_file)
-        File.close(src_file)
-        result
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp do_stream_copy(src_file, dest_file) do
-    case IO.binread(src_file, 65_536) do
-      :eof ->
-        :ok
-
-      {:error, reason} ->
-        {:error, reason}
-
-      data ->
-        case IO.binwrite(dest_file, data) do
-          :ok -> do_stream_copy(src_file, dest_file)
-          {:error, reason} -> {:error, reason}
-        end
-    end
+  defp copy_parts_to_file(part_paths, dest_file) do
+    Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
+      with {:ok, data} <- File.read(part_path),
+           :ok <- IO.binwrite(dest_file, data) do
+        {:cont, :ok}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   @doc """
