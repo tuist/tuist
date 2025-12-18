@@ -875,5 +875,4 @@ defmodule TuistWeb.API.RunsController do
     |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
     |> Enum.filter(&(&1.value != nil))
   end
-
 end
