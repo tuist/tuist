@@ -5,6 +5,7 @@ url: "https://monday.com/"
 onboarded_date: "2022-06-01"
 founded_date: "2012"
 company: "monday.com"
+excerpt: "monday.com slashed CI times from 20 to 9 minutes and scaled to 200 modules with Tuist. Learn how their 20-engineer iOS team transformed their development workflow."
 ---
 
 ## The challenge

@@ -4,8 +4,8 @@
     <title><%= dgettext("marketing", "Tuist Case Studies") %></title>
     <description><%= dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.") %></description>
     <link><%= Tuist.Environment.app_url(path: ~p"/case-studies") %></link>
-    <lastBuildDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></lastBuildDate>
-    <pubDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></pubDate>
+    <lastBuildDate><%= DateTime.new!(@last_build_date, ~T[00:00:00], "Etc/UTC") |> Timex.format!("{RFC1123}") %></lastBuildDate>
+    <pubDate><%= DateTime.new!(@last_build_date, ~T[00:00:00], "Etc/UTC") |> Timex.format!("{RFC1123}") %></pubDate>
     <ttl>1800</ttl>
     <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/case-studies/rss.xml") %>" rel="self" type="application/rss+xml"/>
 
@@ -15,7 +15,7 @@
         <description><![CDATA[ <%= case_study.body %> ]]></description>
         <link><%= Tuist.Environment.app_url(path: case_study.slug) %></link>
         <guid isPermaLink="false"><%= case_study.slug %></guid>
-        <pubDate><%= case_study.date |> Timex.format!("{RFC1123}")  %></pubDate>
+        <pubDate><%= DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC") |> Timex.format!("{RFC1123}") %></pubDate>
       </item>
     <% end %>
   </channel>

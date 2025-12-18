@@ -5,18 +5,18 @@
   <link href="<%= Tuist.Environment.app_url(path: ~p"/case-studies") %>"/>
   <link href="<%= Tuist.Environment.app_url(path: ~p"/case-studies/atom.xml") %>" rel="self"/>
   <id><%= Tuist.Environment.app_url(path: ~p"/case-studies") %></id>
-  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
+  <updated><%= DateTime.new!(@last_build_date, ~T[00:00:00], "Etc/UTC") |> Timex.format!("{RFC3339}") %></updated>
 
   <%= for case_study <- @cases do %>
     <entry>
       <title><![CDATA[ <%= case_study.title %> ]]></title>
       <author>
-        <name><![CDATA[ <%= case_study.name %> ]]></name>
+        <name><![CDATA[ <%= case_study.company %> ]]></name>
       </author>
-      <summary type="html"><![CDATA[ <%= case_study.title %> - <%= case_study.name %> ]]></summary>
+      <summary type="html"><![CDATA[ <%= case_study.title %> - <%= case_study.company %> ]]></summary>
       <link href="<%= Tuist.Environment.app_url(path: case_study.slug) %>"/>
       <id><%= Tuist.Environment.app_url(path: case_study.slug) %></id>
-      <updated><%= case_study.date |> Timex.format!("{RFC1123}") %></updated>
+      <updated><%= DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC") |> Timex.format!("{RFC3339}") %></updated>
       <content type="html"><![CDATA[ <%= case_study.body %> ]]></content>
     </entry>
   <% end %>
