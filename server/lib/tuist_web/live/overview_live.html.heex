@@ -206,9 +206,12 @@
                   },
                   axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
                 },
-                tooltip: %{
-                  valueFormat: "{value}%"
-                },
+                tooltip:
+                  if @analytics_date_range == "last_24_hours" do
+                    %{valueFormat: "{value}%", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "{value}%"}
+                  end,
                 legend: %{
                   show: false
                 }
