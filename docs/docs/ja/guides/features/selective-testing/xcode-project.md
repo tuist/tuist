@@ -28,13 +28,13 @@ Xcode プロジェクトのテストをコマンドラインから選択的に�
 
 `tuist xcodebuild test` このように動作する：
 
-| アクション                              | 説明                                                                  | 内部状態                                                             |
-| ---------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests`,`FeatureBTests` and`CoreTests` のハッシュが永続化される。     |
-| `FeatureA` が更新される                  | The developer modifies the code of a target                         | Same as before                                                   |
-| `tuist xcodebuild test` invocation | ハッシュが変更されたため、`FeatureATests` のテストを実行する。                             | `FeatureATests` の新しいハッシュが永続化される。                                 |
-| `コア` を更新                           | The developer modifies the code of a target                         | Same as before                                                   |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` `FeatureBTests` 、および`CoreTests` の新しいハッシュが永続化される。 |
+| アクション                        | 説明                                                       | 内部状態                                                             |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `tuist xcodebuild test` 呼び出し | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests`,`FeatureBTests` and`CoreTests` のハッシュが永続化される。     |
+| `FeatureA` が更新される            | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuist xcodebuild test` 呼び出し | ハッシュが変更されたため、`FeatureATests` のテストを実行する。                  | `FeatureATests` の新しいハッシュが永続化される。                                 |
+| `コア` を更新                     | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuist xcodebuild test` 呼び出し | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests` `FeatureBTests` 、および`CoreTests` の新しいハッシュが永続化される。 |
 
 CI で`tuist xcodebuild test`
 を使うには、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
