@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:29+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:31+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -666,7 +666,7 @@ msgstr "Tuist işte bu yüzden var: Her ölçekte geliştirmenin keyfini yeniden
 
 #, fuzzy
 msgid "The newsletter issue %{issue_number} was not found."
-msgstr "Bülten sayısı %{sayı_numarası} bulunamadı."
+msgstr "Haber bülteni sayısı %{sayı_sayı} bulunamadı."
 
 #, fuzzy
 msgid "The newsletter issue number %{issue_number} is not a valid number."
@@ -742,7 +742,7 @@ msgstr "Tuist, Apple'ın araçlarında ekiplerin hızlı hareket etmesini engell
 
 #, fuzzy
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
-msgstr "Tuist, mevcut monolitik kod tabanımızı modüler bir kod tabanına taşımamızı sağladı. Farklı alanlarımızı belirli modüllere ayırdık. Ekstra bağımlılıkları kaldırmamızı, test edilebilirliği kolaylaştırmamızı ve geliştirme döngülerimizi her zamankinden daha hızlı hale getirmemizi sağladı. Hatta her modülde geliştirmemizi hızlandırmak için 'Test Uygulamaları' oluşturmamızı sağladı."
+msgstr "Tuist, mevcut monolitik kod tabanımızı modüler bir kod tabanına taşımamızı sağladı. Farklı alanlarımızı belirli modüllere ayırdık. Ekstra bağımlılıkları ortadan kaldırmamızı, test edilebilirliği kolaylaştırmamızı ve geliştirme döngülerimizi her zamankinden daha hızlı hale getirmemizi sağladı. Hatta her modülde geliştirmemizi hızlandırmak için 'Test Uygulamaları' oluşturmamızı sağladı."
 
 #, fuzzy
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
@@ -822,7 +822,7 @@ msgstr "Kredi kartı ödemelerini ve banka havalelerini kabul ediyoruz."
 
 #, fuzzy
 msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
-msgstr "Açıklığın daha iyi araçlar oluşturduğuna, sürdürülebilir kalkınma için sadece ihtiyaç duyulanların kapalı tutulduğuna inanıyoruz."
+msgstr "Açıklığın daha iyi araçlar geliştirdiğine ve sürdürülebilir kalkınma için sadece ihtiyaç duyulanları kapalı tuttuğuna inanıyoruz."
 
 #, fuzzy
 msgid "We embrace standards for long-term success while respecting freedom of choice."
