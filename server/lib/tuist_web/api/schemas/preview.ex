@@ -55,6 +55,10 @@ defmodule TuistWeb.API.Schemas.Preview do
         type: :string,
         description: "The git branch associated with the preview"
       },
+      track: %Schema{
+        type: :string,
+        description: "The track for the preview (e.g., 'beta', 'nightly')"
+      },
       builds: %Schema{
         type: :array,
         items: TuistWeb.API.Schemas.AppBuild

@@ -42,6 +42,109 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert Repo.all(Preview) == [preview]
     end
+
+    test "allows creating previews with same fields but different tracks" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      # When
+      {:ok, preview_no_track} = AppBuilds.create_preview(attrs)
+      {:ok, preview_beta} = AppBuilds.create_preview(Map.put(attrs, :track, "beta"))
+      {:ok, preview_nightly} = AppBuilds.create_preview(Map.put(attrs, :track, "nightly"))
+
+      # Then
+      assert preview_no_track.track == ""
+      assert preview_beta.track == "beta"
+      assert preview_nightly.track == "nightly"
+      assert length(Repo.all(Preview)) == 3
+    end
+
+    test "prevents creating duplicate previews with same track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, _first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      result = AppBuilds.create_preview(attrs)
+
+      # Then
+      assert {:error, changeset} = result
+      assert {"has already been taken", _} = changeset.errors[:project_id]
+    end
+
+    test "allows creating previews with same track but different bundle_identifier" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app1",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | bundle_identifier: "com.example.app2"})
+
+      # Then
+      assert first_preview.bundle_identifier == "com.example.app1"
+      assert second_preview.bundle_identifier == "com.example.app2"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "allows creating previews with same track but different git_commit_sha" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | git_commit_sha: "def456"})
+
+      # Then
+      assert first_preview.git_commit_sha == "abc123"
+      assert second_preview.git_commit_sha == "def456"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
   end
 
   describe "find_or_create_preview/1" do
@@ -200,6 +303,132 @@ defmodule Tuist.AppBuildsTest do
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
+    end
+
+    test "creates a new preview with track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      # When
+      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert preview.track == "beta"
+    end
+
+    test "returns existing preview when track matches" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, existing_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert found_preview.id == existing_preview.id
+      assert found_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 1
+    end
+
+    test "creates new preview when track differs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs_beta = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      attrs_nightly = %{attrs_beta | track: "nightly"}
+
+      {:ok, _existing_preview} = AppBuilds.create_preview(attrs_beta)
+
+      # When
+      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs_nightly)
+
+      # Then
+      assert new_preview.track == "nightly"
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "distinguishes between empty track and non-empty track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs_no_track = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      attrs_with_track = Map.put(attrs_no_track, :track, "beta")
+
+      {:ok, preview_no_track} = AppBuilds.create_preview(attrs_no_track)
+
+      # When
+      {:ok, preview_with_track} = AppBuilds.find_or_create_preview(attrs_with_track)
+
+      # Then
+      assert preview_no_track.track == ""
+      assert preview_with_track.track == "beta"
+      assert preview_no_track.id != preview_with_track.id
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "finds existing preview with empty track when no track is provided" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      {:ok, existing_preview} = AppBuilds.create_preview(attrs)
+
+      # Create another preview with same attrs but with a track
+      attrs_with_track = Map.put(attrs, :track, "beta")
+      {:ok, _preview_with_track} = AppBuilds.create_preview(attrs_with_track)
+
+      # When
+      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert found_preview.id == existing_preview.id
+      assert found_preview.track == ""
     end
   end
 
@@ -1026,6 +1255,156 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+
+    test "returns latest preview with matching track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440010"
+      build_version = "1"
+
+      preview_beta_old =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-old",
+          track: "beta",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_beta_old =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      preview_beta_new =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-new",
+          track: "beta",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_beta_new = AppBuildsFixtures.app_build_fixture(preview: preview_beta_new)
+
+      # Create a preview with different track (should not be returned)
+      _preview_nightly =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-nightly",
+          track: "nightly",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_beta_new.id
+      assert result.track == "beta"
+    end
+
+    test "returns latest preview with empty track when source preview has empty track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440011"
+      build_version = "1"
+
+      preview_no_track_old =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-old",
+          track: "",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_no_track_old =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_no_track_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      preview_no_track_new =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-new",
+          track: "",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_no_track_new = AppBuildsFixtures.app_build_fixture(preview: preview_no_track_new)
+
+      # Create a preview with a track (should not be returned)
+      _preview_with_track =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-beta",
+          track: "beta",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_no_track_new.id
+      assert result.track == ""
+    end
+
+    test "does not match previews with different track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440012"
+      build_version = "1"
+
+      preview_beta =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-beta",
+          track: "beta",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      # Only create preview with nightly track (no beta track previews after the source)
+      _preview_nightly =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-nightly",
+          track: "nightly",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_beta.id
+      assert result.track == "beta"
     end
   end
 

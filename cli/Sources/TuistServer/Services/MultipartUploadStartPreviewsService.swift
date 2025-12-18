@@ -17,7 +17,8 @@ public protocol MultipartUploadStartPreviewsServicing {
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        track: String?
     ) async throws -> AppBuildUpload
 }
 
@@ -65,7 +66,8 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        track: String?
     ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -93,6 +95,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
+                        track: track,
                         _type: type,
                         version: version
                     )

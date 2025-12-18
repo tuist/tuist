@@ -35,6 +35,28 @@
       data-part="previews"
     >
       <.card_section data-part="previews-table-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-name" phx-debounce="300">
+            <.text_input
+              type="search"
+              id="filter-name"
+              name="name"
+              placeholder={dgettext("dashboard_previews", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@filter_name}
+            />
+          </.form>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={dgettext("dashboard_previews", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
         <.table
           id="previews-table"
           rows={@previews}
@@ -55,6 +77,9 @@
                 <.platform_cell platform={platform} />
               <% end %>
             </div>
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Track")}>
+            <.text_cell label={format_track(preview.track)} />
           </:col>
           <:col :let={preview} label={dgettext("dashboard_previews", "Branch")}>
             <.text_cell icon="git_branch" label={preview.git_branch || "None"} />

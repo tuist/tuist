@@ -3,36 +3,25 @@ defmodule TuistWeb.PreviewsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Filter
   import TuistWeb.EmptyState
   import TuistWeb.Previews.AppPreview
   import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
   import TuistWeb.Previews.RunButton
 
+  alias Noora.Filter
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
-    {previews, previews_meta} =
-      list_previews(project.id, first: 20)
-
-    uri = URI.new!("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
-
+  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,
      socket
-     |> assign(:uri, uri)
      |> assign(
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
-     )
-     |> assign(
-       :previews,
-       previews
-     )
-     |> assign(
-       :previews,
-       previews_meta
      )
      |> assign(
        :latest_app_previews,
@@ -41,39 +30,25 @@ defmodule TuistWeb.PreviewsLive do
      |> assign(
        :user_agent,
        UAParser.parse(get_connect_info(socket, :user_agent))
-     )}
+     )
+     |> assign(:available_filters, define_filters())}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
-    {next_previews, next_previews_meta} =
-      cond do
-        !is_nil(params["after"]) ->
-          list_previews(project.id,
-            first: 20,
-            after: params["after"]
-          )
+  def handle_params(params, _uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
+    uri = URI.new!("?" <> URI.encode_query(params))
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
+    filter_name = params["name"] || ""
 
-        !is_nil(params["before"]) ->
-          list_previews(project.id,
-            last: 20,
-            before: params["before"]
-          )
-
-        true ->
-          list_previews(project.id, first: 20)
-      end
+    {next_previews, next_previews_meta} = assign_previews(project, filters, params)
 
     {
       :noreply,
       socket
-      |> assign(
-        :previews,
-        next_previews
-      )
-      |> assign(
-        :previews_meta,
-        next_previews_meta
-      )
+      |> assign(:uri, uri)
+      |> assign(:active_filters, filters)
+      |> assign(:filter_name, filter_name)
+      |> assign(:previews, next_previews)
+      |> assign(:previews_meta, next_previews_meta)
       |> assign(
         :latest_app_previews,
         AppBuilds.latest_previews_with_distinct_bundle_ids(project)
@@ -81,26 +56,89 @@ defmodule TuistWeb.PreviewsLive do
     }
   end
 
-  defp list_previews(project_id, attrs) do
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/previews?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/previews?#{updated_query_params}"
+     )
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_event(
+        "search-name",
+        %{"name" => name},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    query =
+      uri.query
+      |> Query.put("name", name)
+      |> Query.drop("after")
+      |> Query.drop("before")
+
+    socket =
+      push_patch(
+        socket,
+        to: "/#{selected_account.name}/#{selected_project.name}/previews?#{query}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
+  defp assign_previews(project, filters, params) do
+    base_flop_filters = [%{field: :project_id, op: :==, value: project.id}]
+    filter_flop_filters = build_flop_filters(filters)
+
+    name_filter =
+      case params["name"] do
+        nil -> []
+        "" -> []
+        name -> [%{field: :display_name, op: :ilike_and, value: name}]
+      end
+
+    flop_filters = base_flop_filters ++ filter_flop_filters ++ name_filter
+
     options = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project_id}
-      ],
+      filters: flop_filters,
       order_by: [:inserted_at],
       order_directions: [:desc]
     }
 
     options =
       cond do
-        not is_nil(Keyword.get(attrs, :before)) ->
-          options
-          |> Map.put(:last, 20)
-          |> Map.put(:before, Keyword.get(attrs, :before))
-
-        not is_nil(Keyword.get(attrs, :after)) ->
+        !is_nil(params["after"]) ->
           options
           |> Map.put(:first, 20)
-          |> Map.put(:after, Keyword.get(attrs, :after))
+          |> Map.put(:after, params["after"])
+
+        !is_nil(params["before"]) ->
+          options
+          |> Map.put(:last, 20)
+          |> Map.put(:before, params["before"])
 
         true ->
           Map.put(options, :first, 20)
@@ -108,6 +146,38 @@ defmodule TuistWeb.PreviewsLive do
 
     AppBuilds.list_previews(options, preload: [:created_by_account, :app_builds, project: :account])
   end
+
+  defp build_flop_filters(filters) do
+    filters
+    |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+    |> Enum.map(fn filter ->
+      %{field: filter.field, op: :ilike_and, value: filter.value}
+    end)
+  end
+
+  defp define_filters do
+    [
+      %Filter.Filter{
+        id: "track",
+        field: :track,
+        display_name: dgettext("dashboard_previews", "Track"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "branch",
+        field: :git_branch,
+        display_name: dgettext("dashboard_previews", "Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      }
+    ]
+  end
+
+  defp format_track(track) when track in [nil, ""], do: dgettext("dashboard_previews", "None")
+  defp format_track(track), do: String.capitalize(track)
 
   def empty_state_light_background(assigns) do
     ~H"""

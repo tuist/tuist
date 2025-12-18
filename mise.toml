@@ -13,6 +13,15 @@
 [env]
     _.file = { path = ".env.json", redact = true }
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
+    # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
+    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+    TUIST_HOSTED = "1"
+    TUIST_S3_VIRTUAL_HOST = "1"
+    TUIST_S3_BUCKET_AS_HOST = "1"
+    TUIST_S3_REGION = "auto"
+    TUIST_S3_TIGRIS_BUCKET_AS_HOST = "0"
+    TUIST_S3_TIGRIS_VIRTUAL_HOST = "0"
+    ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
 
 [tasks.cla-sign]
     description = "Sign the CLA by adding current user to signatures.json"

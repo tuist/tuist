@@ -36,6 +36,7 @@
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
+            track: String?,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> ServerPreview
     }
@@ -103,6 +104,7 @@
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
+            track: String?,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> ServerPreview {
             let gitInfo = try gitController.gitInfo(workingDirectory: path)
@@ -123,6 +125,7 @@
                     binaryId: binaryId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
+                    track: track,
                     updateProgress: updateProgress
                 )
                 return preview
@@ -151,6 +154,7 @@
                         binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
+                        track: track,
                         updateProgress: { progress in
                             updateProgress(progressOffset + progress * progressScale)
                         }
@@ -174,6 +178,7 @@
             binaryId: String,
             fullHandle: String,
             serverURL: URL,
+            track: String?,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> ServerPreview {
             updateProgress(0.1)
@@ -192,7 +197,8 @@
                         gitRef: gitInfo.ref,
                         binaryId: binaryId,
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        track: track
                     )
 
                 updateProgress(0.2)

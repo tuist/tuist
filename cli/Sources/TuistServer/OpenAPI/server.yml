@@ -818,6 +818,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        track:
+          description: "The track for the preview (e.g., 'beta', 'nightly')"
+          type: string
+          x-struct:
+          x-validate:
         url:
           description: The URL to download the preview
           type: string
@@ -3852,7 +3857,7 @@ paths:
             schema:
               properties:
                 binary_id:
-                  description: The Mach-O UUID of the binary.
+                  description: The Mach-O UUID of the binary
                   type: string
                   x-struct:
                   x-validate:
@@ -3891,6 +3896,11 @@ paths:
                   items:
                     $ref: '#/components/schemas/PreviewSupportedPlatform'
                   type: array
+                  x-struct:
+                  x-validate:
+                track:
+                  description: "The track for the preview (e.g., 'beta', 'nightly')."
+                  type: string
                   x-struct:
                   x-validate:
                 type:
