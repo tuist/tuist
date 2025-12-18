@@ -40,13 +40,13 @@ Format: `typ(zakres): opis`
 | ---------------- | -------------------------- | --------------------------------- | ----------------------------------------------------------- |
 | `wyczyn`         | Nowa funkcja lub możliwość | Drobna zmiana wersji (x.Y.z)      | `feat(cli): dodanie wsparcia dla Swift 6`                   |
 | `poprawka`       | Poprawka błędu             | Uderzenie wersji poprawki (x.y.Z) | `fix(app): usunięcie awarii podczas otwierania projektów`   |
-| `dokumenty`      | Zmiany w dokumentacji      | No release                        | `dokumenty: instrukcja instalacji aktualizacji`             |
-| `styl`           | Zmiany w stylu kodu        | No release                        | `style: formatowanie kodu za pomocą swiftformat`            |
-| `refaktoryzacja` | Refaktoryzacja kodu        | No release                        | `refactor(server): uproszczenie logiki autoryzacji`         |
+| `dokumenty`      | Zmiany w dokumentacji      | Brak wydania                      | `dokumenty: instrukcja instalacji aktualizacji`             |
+| `styl`           | Zmiany w stylu kodu        | Brak wydania                      | `style: formatowanie kodu za pomocą swiftformat`            |
+| `refaktoryzacja` | Refaktoryzacja kodu        | Brak wydania                      | `refactor(server): uproszczenie logiki autoryzacji`         |
 | `perf`           | Ulepszenia wydajności      | Ulepszenie wersji łatki           | `perf(cli): optymalizacja rozdzielczości zależności`        |
-| `test`           | Dodatki/zmiany testowe     | No release                        | `test: dodanie testów jednostkowych dla pamięci podręcznej` |
-| `chore`          | Zadania konserwacyjne      | No release                        | `chore: aktualizacja zależności`                            |
-| `ci`             | Zmiany CI/CD               | No release                        | `ci: dodanie przepływu pracy dla wydań`                     |
+| `test`           | Dodatki/zmiany testowe     | Brak wydania                      | `test: dodanie testów jednostkowych dla pamięci podręcznej` |
+| `chore`          | Zadania konserwacyjne      | Brak wydania                      | `chore: aktualizacja zależności`                            |
+| `ci`             | Zmiany CI/CD               | Brak wydania                      | `ci: dodanie przepływu pracy dla wydań`                     |
 
 #### Przełomowe zmiany
 
