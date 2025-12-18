@@ -13,6 +13,8 @@ At [monday.com](https://monday.com), we work with a large, mixed iOS codebase th
 
 Building the project was slow and messy. We wanted a highly modular setup that allowed developers to build only what they needed, as quickly as possible. But creating modules inside Xcode was painful and error-prone, and the project naturally drifted toward a big monolithic structure. Code became tightly coupled, merge conflicts were common, and restructuring the project often felt like fighting the tool instead of building with it.
 
+> "Restructuring the project often felt like fighting the tool instead of building with it."
+
 The underlying Xcode project format also caused hidden configuration issues. Because everything lived in pseudo-XML, it was easy to end up with unexpected behaviors, inconsistent settings, or modules that behaved differently for reasons no one could easily trace. Understanding why something was configured in a certain way was becoming harder over time. We needed a cleaner, more reliable, and more scalable way to define the project.
 
 ## Choosing Tuist
@@ -33,11 +35,15 @@ A bit later, we adopted Tuist’s [module cache](https://docs.tuist.dev/en/guide
 
 - All modules, app targets, and configurations are now defined in Tuist’s Swift-based manifests. It provides a  real source of truth, far more transparent and reliable than managing settings inside a pbxproj file.
 - We now maintain around 200 modules, and creating new ones is simple enough that anyone on the team feels comfortable doing it. The cost of modularizing has gone way down.
-- Our CI merge workflow dropped from more than 20 minutes in 2022 to about 9 minutes today. This came from many improvements across the board, but Tuist’s [module cache](https://docs.tuist.dev/en/guides/features/cache) played a significant role. The result is a faster iteration cycle and a meaningful reduction in developer hours lost to waiting on builds.
-- It’s also much easier to make large-scale changes or experiment with a new build configuration. Because everything is defined in code, large refactors and optimizations feel safer, more predictable, and far more approachable.
+- Our CI merge workflow dropped from more than 20 minutes in 2022 to about 9 minutes today. This came from many improvements across the board, but Tuist's [module cache](https://docs.tuist.dev/en/guides/features/cache) played a significant role. The result is a faster iteration cycle and a meaningful reduction in developer hours lost to waiting on builds.
+- It's also much easier to make large-scale changes or experiment with a new build configuration. Because everything is defined in code, large refactors and optimizations feel safer, more predictable, and far more approachable.
+
+> "We now maintain around 200 modules, and creating new ones is simple enough that anyone on the team feels comfortable doing it."
 
 ## What’s next
 
 Tuist gives us confidence that we can continue scaling the team and the codebase. Spinning up a new app is basically as simple as creating a new target and reusing the modules we already have, which opens the door for faster experimentation across the engineering team.
 
-We’re excited to keep improving the developer experience for our iOS engineers, and we’re equally excited to see what the Tuist team builds next. Their work has already had a significant impact on how we ship software, and we expect that impact to continue as we grow.
+We're excited to keep improving the developer experience for our iOS engineers, and we're equally excited to see what the Tuist team builds next. Their work has already had a significant impact on how we ship software, and we expect that impact to continue as we grow.
+
+> "Tuist gives us confidence that we can continue scaling the team and the codebase."
