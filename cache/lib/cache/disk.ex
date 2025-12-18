@@ -213,7 +213,7 @@ defmodule Cache.Disk do
          false <- File.exists?(dest_path) do
       tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
 
-      with {:ok, dest_file} <- File.open(tmp_dest, [:write, :binary]),
+      with {:ok, dest_file} <- File.open(tmp_dest, [:write, :append, :binary]),
            :ok <- copy_parts_to_file(part_paths, dest_file),
            :ok <- File.close(dest_file),
            :ok <- File.rename(tmp_dest, dest_path) do
@@ -236,8 +236,9 @@ defmodule Cache.Disk do
 
   defp copy_parts_to_file(part_paths, dest_file) do
     Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
-      with {:ok, data} <- File.read(part_path),
-           :ok <- IO.binwrite(dest_file, data) do
+      with {:ok, source} <- File.open(part_path, [:read, :binary, :raw]),
+           {:ok, _bytes_copied} <- :file.copy(source, dest_file),
+           :ok <- File.close(source) do
         {:cont, :ok}
       else
         {:error, reason} -> {:halt, {:error, reason}}
