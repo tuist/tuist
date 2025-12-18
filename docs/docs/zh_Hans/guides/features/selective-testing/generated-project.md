@@ -29,13 +29,13 @@ Xcode
 
 `tuist 测试` 也将如此：
 
-| 行动                      | 描述                                                                  | 内部状态                                                      |
-| ----------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的哈希值被持久化。   |
-| `功能A` 已更新               | The developer modifies the code of a target                         | Same as before                                            |
-| `tuist test` invocation | 运行`FeatureATests` 中的测试，因为它的哈希值已更改                                   | `FeatureATests` 的新散列值被持久化                                 |
-| `核心` 已更新                | The developer modifies the code of a target                         | Same as before                                            |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新散列值被持久化。 |
+| 行动                      | 描述                                                  | 内部状态                                                      |
+| ----------------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| `tuist test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的哈希值被持久化。   |
+| `功能A` 已更新               | 开发人员修改目标代码                                          | 和以前一样                                                     |
+| `tuist test` invocation | 运行`FeatureATests` 中的测试，因为它的哈希值已更改                   | `FeatureATests` 的新散列值被持久化                                 |
+| `核心` 已更新                | 开发人员修改目标代码                                          | 和以前一样                                                     |
+| `tuist test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新散列值被持久化。 |
 
 `tuist test`
 与二进制缓存直接集成，可从本地或远程存储中使用尽可能多的二进制文件，从而在运行测试套件时缩短构建时间。选择性测试与二进制缓存相结合，可大大缩短在 CI
