@@ -19,6 +19,7 @@ defmodule TuistWeb.Router do
 
   pipeline :content_security_policy do
     plug :put_content_security_policy,
+      frame_ancestors: "'self'",
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
       media_src:

@@ -697,7 +697,7 @@ let package = Package(
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
         // swift-collections 1.3.0 requires Swift 6.2.0
-        .package(id: "apple.swift-collections", "1.1.4" ..< "1.3.0"),
+        .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(
             id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")
         ),
@@ -741,6 +741,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
+        .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

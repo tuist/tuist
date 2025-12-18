@@ -485,6 +485,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 409:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startPreviewsMultipartUpload.Output.Conflict.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .conflict(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2812,7 +2834,7 @@ public struct Client: APIProtocol {
     }
     /// Get the latest preview for a binary.
     ///
-    /// Given a binary ID (Mach-O UUID), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
@@ -2839,6 +2861,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "binary_id",
                     value: input.query.binary_id
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "build_version",
+                    value: input.query.build_version
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

@@ -9,6 +9,8 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +18,8 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
 
 permissions:
   id-token: write
@@ -94,7 +98,11 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -141,12 +149,16 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Test TuistApp
-        run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -180,7 +192,11 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install

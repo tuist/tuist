@@ -26,20 +26,18 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "sets auth sample data for authenticated user" do
+    test "sets auth tags for authenticated user" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
         assert data == %{
-                 auth: %{
-                   user_id: user.id,
-                   account_id: user.account.id,
-                   account_handle: user.account.name
-                 }
+                 auth_user_id: user.id,
+                 auth_account_id: user.account.id,
+                 auth_account_handle: user.account.name
                }
 
         :ok
@@ -54,20 +52,18 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "sets auth sample data for authenticated project" do
+    test "sets auth tags for authenticated project" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
       span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
         assert data == %{
-                 auth: %{
-                   project_id: project.id,
-                   account_id: project.account.id,
-                   account_handle: project.account.name
-                 }
+                 auth_project_id: project.id,
+                 auth_account_id: project.account.id,
+                 auth_account_handle: project.account.name
                }
 
         :ok
@@ -82,7 +78,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "sets auth sample data for authenticated account" do
+    test "sets auth tags for authenticated account" do
       account = AccountsFixtures.account_fixture()
       authenticated_account = %AuthenticatedAccount{account: account, scopes: [:registry_read]}
       span = make_ref()
@@ -90,8 +86,8 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
-        assert data == %{auth: %{account_id: account.id, account_handle: account.name}}
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+        assert data == %{auth_account_id: account.id, auth_account_handle: account.name}
         :ok
       end)
 
@@ -104,7 +100,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "sets selection sample data for selected project and account" do
+    test "sets selection tags for selected project and account" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(preload: [:account])
       span = make_ref()
@@ -112,19 +108,16 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
         assert data == %{
-                 auth: %{
-                   user_id: user.id,
-                   account_id: user.account.id,
-                   account_handle: user.account.name
-                 },
-                 selection: %{
-                   project_id: project.id,
-                   project_name: project.name,
-                   account_id: project.account.id,
-                   account_handle: project.account.name
-                 }
+                 auth_user_id: user.id,
+                 auth_account_id: user.account.id,
+                 auth_account_handle: user.account.name,
+                 selected_project_id: project.id,
+                 selected_project_handle: project.name,
+                 selected_account_id: project.account.id,
+                 selected_account_handle: project.account.name,
+                 selected_account_customer_id: project.account.customer_id
                }
 
         :ok
@@ -141,7 +134,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "sets selection sample data for only selected account" do
+    test "sets selection tags for only selected account" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       account = AccountsFixtures.account_fixture()
       span = make_ref()
@@ -149,14 +142,14 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
         assert data == %{
-                 auth: %{
-                   user_id: user.id,
-                   account_id: user.account.id,
-                   account_handle: user.account.name
-                 },
-                 selection: %{account_id: account.id, account_handle: account.name}
+                 auth_user_id: user.id,
+                 auth_account_id: user.account.id,
+                 auth_account_handle: user.account.name,
+                 selected_account_id: account.id,
+                 selected_account_handle: account.name,
+                 selected_account_customer_id: account.customer_id
                }
 
         :ok
@@ -172,7 +165,7 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
       assert conn
     end
 
-    test "does not set sample data when no authentication or selection" do
+    test "does not set tags when no authentication or selection" do
       span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)

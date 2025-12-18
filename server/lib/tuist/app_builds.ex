@@ -77,14 +77,14 @@ defmodule Tuist.AppBuilds do
 
   @doc """
   Finds the latest preview on the same track (bundle identifier, git branch, and track) as the app build
-  identified by the given binary ID.
+  identified by the given binary ID and build version.
 
   Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
   """
-  def latest_preview_for_binary_id(binary_id, %Project{} = project, opts \\ []) do
+  def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    with {:ok, app_build} <- app_build_by_binary_id(binary_id, preload: [:preview]),
+    with {:ok, app_build} <- app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
          %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch, track: track}
          when not is_nil(bundle_identifier) <- app_build.preview do
       preview =
@@ -108,10 +108,15 @@ defmodule Tuist.AppBuilds do
     end
   end
 
-  defp app_build_by_binary_id(binary_id, opts) do
+  defp app_build_by_binary_id_and_build_version(binary_id, build_version, _opts)
+       when is_nil(binary_id) or is_nil(build_version) do
+    {:error, :not_found}
+  end
+
+  defp app_build_by_binary_id_and_build_version(binary_id, build_version, opts) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Repo.get_by(AppBuild, binary_id: binary_id) do
+    case Repo.get_by(AppBuild, binary_id: binary_id, build_version: build_version) do
       nil -> {:error, :not_found}
       %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
     end
@@ -120,7 +125,7 @@ defmodule Tuist.AppBuilds do
   def create_app_build(attrs) do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)
-    |> Repo.insert!()
+    |> Repo.insert()
   end
 
   def update_preview_with_app_build(preview_id, app_build) do
