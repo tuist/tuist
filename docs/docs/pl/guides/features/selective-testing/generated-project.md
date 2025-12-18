@@ -36,13 +36,13 @@ Na przykład, zakładając następujący graf zależności:
 
 `tuistycznego testu` będzie zachowywać się w ten sposób:
 
-| Działanie                     | Opis                                                                | Stan wewnętrzny                                                            |
-| ----------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `tuist test` invocation       | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Skróty `FeatureATests`, `FeatureBTests` i `CoreTests` są przechowywane.    |
-| `FunkcjaA` jest aktualizowana | The developer modifies the code of a target                         | Same as before                                                             |
-| `tuist test` invocation       | Uruchamia testy w `FeatureATests`, ponieważ zmienił się ich hash.   | Nowy skrót `FeatureATests` jest przechowywany                              |
-| `Rdzeń` jest aktualizowany    | The developer modifies the code of a target                         | Same as before                                                             |
-| `tuist test` invocation       | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Nowe skróty `FeatureATests` `FeatureBTests` i `CoreTests` są przechowywane |
+| Działanie                     | Opis                                                              | Stan wewnętrzny                                                            |
+| ----------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `tuist test` wywołanie        | Uruchamia testy w `CoreTests`, `FeatureATests` i `FeatureBTests`  | Skróty `FeatureATests`, `FeatureBTests` i `CoreTests` są przechowywane.    |
+| `FunkcjaA` jest aktualizowana | Deweloper modyfikuje kod obiektu docelowego                       | Tak jak poprzednio                                                         |
+| `tuist test` wywołanie        | Uruchamia testy w `FeatureATests`, ponieważ zmienił się ich hash. | Nowy skrót `FeatureATests` jest przechowywany                              |
+| `Rdzeń` jest aktualizowany    | Deweloper modyfikuje kod obiektu docelowego                       | Tak jak poprzednio                                                         |
+| `tuist test` wywołanie        | Uruchamia testy w `CoreTests`, `FeatureATests` i `FeatureBTests`  | Nowe skróty `FeatureATests` `FeatureBTests` i `CoreTests` są przechowywane |
 
 `tuist test` integruje się bezpośrednio z buforowaniem binarnym, aby wykorzystać
 jak najwięcej plików binarnych z lokalnej lub zdalnej pamięci masowej w celu
