@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:28+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:28+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -54,8 +54,9 @@ msgstr "Se ha enviado un correo electrónico de confirmación a su cuenta con m�
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Un boletín del equipo de Tuist que comparte actualizaciones de productos, nuestra perspectiva sobre el desarrollo de aplicaciones modernas y lo que está en el horizonte. Mantente al tanto de hacia dónde nos dirigimos y por qué."
 
+#, fuzzy
 msgid "API Documentation"
-msgstr ""
+msgstr "Documentación de la API"
 
 #, fuzzy
 msgid "About"
@@ -137,11 +138,13 @@ msgstr "Análisis de bundles"
 msgid "Bundle analysis"
 msgstr "Análisis de bundles"
 
+#, fuzzy
 msgid "Bundle insights"
-msgstr ""
+msgstr "Análisis de bundles"
 
+#, fuzzy
 msgid "Cache"
-msgstr ""
+msgstr "Cache"
 
 #, fuzzy
 msgid "Can I change or cancel my plan at any time?"
@@ -218,8 +221,9 @@ msgstr "Póngase en contacto con"
 msgid "Contact us"
 msgstr "Póngase en contacto con nosotros"
 
+#, fuzzy
 msgid "Contributors"
-msgstr ""
+msgstr "Colaboradores"
 
 #, fuzzy
 msgid "Cookie policy"
@@ -305,8 +309,9 @@ msgstr "Explore nuestra documentación, su guía de referencia para dominarlo to
 msgid "Faster & more lightweight OSS packages resolution"
 msgstr "Resolución de paquetes OSS más rápida y ligera"
 
+#, fuzzy
 msgid "Features"
-msgstr ""
+msgstr "Características"
 
 #, fuzzy
 msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
@@ -324,11 +329,13 @@ msgstr "Gratuito dentro de los límites de nivel"
 msgid "Frequently Asked Questions"
 msgstr "Preguntas frecuentes"
 
+#, fuzzy
 msgid "Generated Projects"
-msgstr ""
+msgstr "Proyectos generados"
 
+#, fuzzy
 msgid "Generated projects"
-msgstr ""
+msgstr "Proyectos generados"
 
 #, fuzzy
 msgid "Get Support"
@@ -568,8 +575,9 @@ msgstr "Compruebe su correo electrónico para confirmar su suscripción."
 msgid "Powered by"
 msgstr "Desarrollado por"
 
+#, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "Previews"
 
 #, fuzzy
 msgid "Price per unit above free tier"
@@ -603,8 +611,9 @@ msgstr "Producto"
 msgid "Pull requests merged"
 msgstr "Pull requests fusionados"
 
+#, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #, fuzzy
 msgid "Read engaging stories and expert insights."
@@ -625,8 +634,9 @@ msgstr ""
 msgid "Requires a generated project"
 msgstr "Requiere un proyecto generado"
 
+#, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "Recursos"
 
 #, fuzzy
 msgid "Right Inside Your Workflow"
@@ -843,8 +853,9 @@ msgstr "Trendyol reduce el tiempo de construcción en un 65% con Tuist"
 msgid "Trusted by the world's best developer teams"
 msgstr "La confianza de los mejores equipos de desarrolladores del mundo"
 
+#, fuzzy
 msgid "Tuist"
-msgstr ""
+msgstr "Tuist"
 
 #, fuzzy
 msgid "Tuist Blog"
