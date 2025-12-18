@@ -400,4 +400,25 @@ defmodule TuistWeb.RunDetailLive do
         [0, 0, 0, 0]
     end
   end
+
+  def format_cache_endpoint(""), do: nil
+  def format_cache_endpoint(nil), do: nil
+
+  def format_cache_endpoint(endpoint) do
+    case Regex.run(~r/cache-([a-z-]+)\.tuist\.dev/, endpoint) do
+      [_, "eu-central"] -> "EU Central"
+      [_, "us-east"] -> "US East"
+      [_, "us-west"] -> "US West"
+      [_, "ap-southeast"] -> "Asia Pacific Southeast"
+      [_, region] ->
+        region
+        |> String.replace("-", " ")
+        |> String.split()
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
+
+      _ ->
+        endpoint
+    end
+  end
 end

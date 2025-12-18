@@ -246,72 +246,32 @@ defmodule TuistWeb.GenerateRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  defp define_filters(project) do
-    base = [
-      %Filter.Filter{
-        id: "name",
-        field: :name,
-        display_name: dgettext("dashboard_builds", "Command"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "status",
-        field: :status,
-        display_name: dgettext("dashboard_builds", "Status"),
-        type: :option,
-        options: [0, 1],
-        options_display_names: %{
-          0 => dgettext("dashboard_builds", "Passed"),
-          1 => dgettext("dashboard_builds", "Failed")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
-        id: "git_branch",
-        field: :git_branch,
-        display_name: dgettext("dashboard_builds", "Branch"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "hit_rate",
-        field: :hit_rate,
-        display_name: dgettext("dashboard_builds", "Hit rate"),
-        type: :percentage,
-        operator: :>,
-        value: ""
-      }
-    ]
+  defp cache_endpoint_options do
+    ["" | Tuist.Environment.cache_endpoints()]
+  end
 
-    organization =
-      if Accounts.organization?(project.account) do
-        {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
-        users = Accounts.get_organization_members(organization)
+  defp cache_endpoint_display_names do
+    Tuist.Environment.cache_endpoints()
+    |> Enum.map(fn endpoint -> {endpoint, format_cache_endpoint(endpoint)} end)
+    |> Map.new()
+    |> Map.put("", dgettext("dashboard_builds", "None (Legacy)"))
+  end
 
-        [
-          %Filter.Filter{
-            id: "ran_by",
-            field: :ran_by,
-            display_name: dgettext("dashboard_builds", "Ran by"),
-            type: :option,
-            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
-            options_display_names:
-              Map.merge(
-                %{ci: "CI"},
-                Map.new(users, fn user -> {user.account.id, user.account.name} end)
-              ),
-            operator: :==,
-            value: nil
-          }
-        ]
-      else
-        []
-      end
+  defp format_cache_endpoint(endpoint) do
+    case Regex.run(~r/cache-([a-z-]+)\.tuist\.dev/, endpoint) do
+      [_, "eu-central"] -> "EU Central"
+      [_, "us-east"] -> "US East"
+      [_, "us-west"] -> "US West"
+      [_, "ap-southeast"] -> "Asia Pacific Southeast"
+      [_, region] ->
+        region
+        |> String.replace("-", " ")
+        |> String.split()
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
 
-    base ++ organization
+      _ ->
+        endpoint
+    end
   end
 end

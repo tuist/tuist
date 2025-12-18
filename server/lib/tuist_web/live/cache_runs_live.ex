@@ -65,6 +65,16 @@ defmodule TuistWeb.CacheRunsLive do
         type: :percentage,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "cache_endpoint",
+        field: :cache_endpoint,
+        display_name: dgettext("dashboard_cache", "Cache Endpoint"),
+        type: :option,
+        options: cache_endpoint_options(),
+        options_display_names: cache_endpoint_display_names(),
+        operator: :==,
+        value: nil
       }
     ]
 
@@ -305,5 +315,34 @@ defmodule TuistWeb.CacheRunsLive do
       |> Map.delete("cache_runs_sort_order")
 
     "?#{URI.encode_query(query_params)}"
+  end
+
+  defp cache_endpoint_options do
+    ["" | Tuist.Environment.cache_endpoints()]
+  end
+
+  defp cache_endpoint_display_names do
+    Tuist.Environment.cache_endpoints()
+    |> Enum.map(fn endpoint -> {endpoint, format_cache_endpoint(endpoint)} end)
+    |> Map.new()
+    |> Map.put("", dgettext("dashboard_cache", "None (Legacy)"))
+  end
+
+  defp format_cache_endpoint(endpoint) do
+    case Regex.run(~r/cache-([a-z-]+)\.tuist\.dev/, endpoint) do
+      [_, "eu-central"] -> "EU Central"
+      [_, "us-east"] -> "US East"
+      [_, "us-west"] -> "US West"
+      [_, "ap-southeast"] -> "Asia Pacific Southeast"
+      [_, region] ->
+        region
+        |> String.replace("-", " ")
+        |> String.split()
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
+
+      _ ->
+        endpoint
+    end
   end
 end
