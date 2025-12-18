@@ -3,7 +3,7 @@ defmodule Tuist.Repo.Migrations.AddTrackToPreviews do
 
   def change do
     alter table(:previews) do
-      add :track, :string
+      add :track, :citext, default: "", null: false
     end
 
     create index(:previews, [:track])

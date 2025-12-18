@@ -176,6 +176,9 @@ defmodule TuistWeb.PreviewsLive do
     ]
   end
 
+  defp format_track(track) when track in [nil, ""], do: dgettext("dashboard_previews", "None")
+  defp format_track(track), do: String.capitalize(track)
+
   def empty_state_light_background(assigns) do
     ~H"""
     <svg

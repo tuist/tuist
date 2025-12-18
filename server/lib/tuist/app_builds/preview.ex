@@ -32,7 +32,7 @@ defmodule Tuist.AppBuilds.Preview do
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
-    field :track, :string
+    field :track, :string, default: ""
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [

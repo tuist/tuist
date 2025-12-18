@@ -79,7 +79,7 @@
             </div>
           </:col>
           <:col :let={preview} label={dgettext("dashboard_previews", "Track")}>
-            <.text_cell label={preview.track || dgettext("dashboard_previews", "None")} />
+            <.text_cell label={format_track(preview.track)} />
           </:col>
           <:col :let={preview} label={dgettext("dashboard_previews", "Branch")}>
             <.text_cell icon="git_branch" label={preview.git_branch || "None"} />

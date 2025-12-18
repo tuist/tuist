@@ -115,7 +115,7 @@ defmodule TuistWeb.PreviewsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
-    assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "beta")
+    assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "Beta")
   end
 
   test "filters previews by name using search field", %{
@@ -173,6 +173,37 @@ defmodule TuistWeb.PreviewsLiveTest do
       live(conn, ~p"/#{organization.account.name}/#{project.name}/previews?filter_track_op==~&filter_track_val=beta")
 
     # Then
+    assert has_element?(lv, "#previews-table span", "BetaApp")
+    refute has_element?(lv, "#previews-table span", "NightlyApp")
+  end
+
+  test "filters previews by track case insensitively", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    _preview_beta =
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "BetaApp",
+        supported_platforms: [:ios],
+        track: "beta"
+      )
+
+    _preview_nightly =
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "NightlyApp",
+        supported_platforms: [:ios],
+        track: "nightly"
+      )
+
+    # When - filter with uppercase BETA
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews?filter_track_op==~&filter_track_val=BETA")
+
+    # Then - should still find the beta track preview
     assert has_element?(lv, "#previews-table span", "BetaApp")
     refute has_element?(lv, "#previews-table span", "NightlyApp")
   end
