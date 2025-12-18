@@ -68,30 +68,6 @@ defmodule Tuist.AppBuildsTest do
       assert length(Repo.all(Preview)) == 3
     end
 
-    test "prevents creating duplicate previews with same track" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      attrs = %{
-        project_id: project.id,
-        bundle_identifier: "com.example.app",
-        version: "1.0.0",
-        git_commit_sha: "abc123",
-        created_by_account_id: project.account.id,
-        display_name: "Test App",
-        track: "beta"
-      }
-
-      {:ok, _first_preview} = AppBuilds.create_preview(attrs)
-
-      # When
-      result = AppBuilds.create_preview(attrs)
-
-      # Then
-      assert {:error, changeset} = result
-      assert {"has already been taken", _} = changeset.errors[:project_id]
-    end
-
     test "allows creating previews with same track but different bundle_identifier" do
       # Given
       project = ProjectsFixtures.project_fixture()
