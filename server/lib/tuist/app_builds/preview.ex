@@ -74,9 +74,6 @@ defmodule Tuist.AppBuilds.Preview do
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:project_id])
-    |> unique_constraint([:project_id, :bundle_identifier, :version, :git_commit_sha, :created_by_account_id, :track],
-      name: "previews_unique_with_track"
-    )
   end
 
   def map_simulators_to_devices(platforms) do
