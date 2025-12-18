@@ -8,7 +8,7 @@
       <div data-part="content">
         <div data-part="category">
           <a href={~p"/case-studies"}>{dgettext("marketing", "Case Studies")}</a>
-          <.math_slash />
+          <.math_slash aria-hidden="true" />
           <span>{@case_study.company}</span>
         </div>
 
@@ -21,7 +21,11 @@
         </div>
       </div>
 
-      <img data-part="image" src={@case_study.og_image_path} />
+      <img
+        data-part="image"
+        src={@case_study.og_image_path}
+        alt={dgettext("marketing", "%{company} case study", company: @case_study.company)}
+      />
     </header>
 
     <section data-part="metadata">
@@ -32,7 +36,9 @@
         <div data-part="entry">
           <span>{@case_study.company}</span>
           <.link href={@case_study.url}>
-            {@case_study.url |> URI.parse() |> Map.get(:host)} <.external_link />
+            {@case_study.url |> URI.parse() |> Map.get(:host)}
+            <.external_link aria-hidden="true" />
+            <span class="sr-only">{dgettext("marketing", "(opens in new tab)")}</span>
           </.link>
         </div>
         <div data-part="entry">
@@ -58,12 +64,16 @@
           data-part="case"
           href={TuistWeb.Marketing.MarketingHTML.localized_href(related.slug)}
         >
-          <img data-part="image" src={related.og_image_path} />
+          <img
+            data-part="image"
+            src={related.og_image_path}
+            alt={dgettext("marketing", "%{company} case study", company: related.company)}
+          />
           <div data-part="content">
             <h3 data-part="title">{related.title}</h3>
             <footer data-part="footer">
               <span data-part="read-story">{dgettext("marketing", "Read story")}</span>
-              <.arrow_right />
+              <.arrow_right aria-hidden="true" />
             </footer>
           </div>
         </.link>
