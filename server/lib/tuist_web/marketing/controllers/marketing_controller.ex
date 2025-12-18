@@ -566,6 +566,38 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
+  def case_study(%{request_path: request_path} = conn, _params) do
+    request_path = Localization.path_without_locale(request_path)
+
+    case_study =
+      Enum.find(CaseStudies.get_cases(), &(&1.slug == String.trim_trailing(request_path, "/")))
+
+    if is_nil(case_study) do
+      raise NotFoundError
+    else
+      conn
+      |> assign(:head_title, case_study.title)
+      |> assign(
+        :head_description,
+        dgettext("marketing", "Learn how %{company} uses Tuist to scale their development.", company: case_study.company)
+      )
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: "/marketing/images/og/case-studies.jpg")
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Case Studies"), Tuist.Environment.app_url(path: ~p"/case-studies")},
+          {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
+        ])
+      )
+      |> assign(:case_study, case_study)
+      |> render(:case_study, layout: false)
+    end
+  end
+
   def pricing(conn, _params) do
     faqs = [
       {dgettext(

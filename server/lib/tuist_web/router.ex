@@ -232,6 +232,14 @@ defmodule TuistWeb.Router do
             private: private
       end
 
+      for %{slug: case_study_slug} <- Tuist.Marketing.CaseStudies.get_cases() do
+        get Path.join(locale_path_prefix, case_study_slug),
+            MarketingController,
+            :case_study,
+            metadata: %{type: :marketing},
+            private: private
+      end
+
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
             MarketingController,
