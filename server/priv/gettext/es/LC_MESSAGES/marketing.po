@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:43+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:43+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -152,7 +152,7 @@ msgstr "¿Puedo cambiar o cancelar mi plan en cualquier momento?"
 
 #, fuzzy
 msgid "Changelog"
-msgstr "Registro de cambios"
+msgstr "Changelog"
 
 #, fuzzy
 msgid "Chat with the founders"
@@ -352,7 +352,7 @@ msgstr "Obtenga ayuda cuando la necesite a través de diversos canales de asiste
 
 #, fuzzy
 msgid "Get started"
-msgstr "Comienza"
+msgstr "Get started"
 
 #, fuzzy
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
@@ -408,7 +408,7 @@ msgstr "Pie de imprenta"
 
 #, fuzzy
 msgid "Insights"
-msgstr "Perspectivas"
+msgstr "Insights"
 
 #, fuzzy
 msgid "Insights from your builds and test runs"
@@ -632,7 +632,7 @@ msgstr "Lea la historia de un cliente de Trendyol"
 
 #, fuzzy
 msgid "Registry"
-msgstr "Registro"
+msgstr "Registry"
 
 #, fuzzy
 msgid "Requires a generated project"
@@ -656,7 +656,7 @@ msgstr "Seguridad"
 
 #, fuzzy
 msgid "Selective testing"
-msgstr "Testing selectivo"
+msgstr "Selective testing"
 
 #, fuzzy
 msgid "Self-host your instance of Tuist"
