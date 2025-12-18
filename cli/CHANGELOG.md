@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.116.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.117.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* preview tracks by [@fortmarek](https://github.com/fortmarek) in [#8939](https://github.com/tuist/tuist/pull/8939)
+### 🐛 Bug Fixes
+
+* handle cross-project dependencies in redundant import inspection by [@hiltonc](https://github.com/hiltonc) in [#8862](https://github.com/tuist/tuist/pull/8862)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.116.2...4.117.0
+
+## What's Changed in 4.116.2<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,7 +22,7 @@ All notable changes to this project will be documented in this file.
 * require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
 * add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.2
 
 ## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
 
