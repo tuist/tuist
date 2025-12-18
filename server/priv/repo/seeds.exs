@@ -1110,7 +1110,7 @@ platform_combinations = [
   [:watchos_simulator, :visionos, :watchos, :visionos_simulator]
 ]
 
-preview_tracks = [nil, nil, nil, "beta", "nightly", "internal"]
+preview_tracks = ["", "", "", "beta", "nightly", "internal"]
 
 test_previews =
   Enum.map(1..40, fn _index ->
