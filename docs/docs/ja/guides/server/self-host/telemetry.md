@@ -20,8 +20,8 @@ PostHogの統合はオプションで、適切な環境変数を設定するこ�
 
 | 環境変数                    | 説明                       | 必須  | デフォルト | 例                                                 |
 | ----------------------- | ------------------------ | --- | ----- | ------------------------------------------------- |
-| `tuist_posthog_api_key` | PostHogプロジェクトのAPIキー      | No  |       | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `tuist_posthog_url`     | PostHog API のエンドポイント URL | No  |       | `https://eu.i.posthog.com`                        |
+| `tuist_posthog_api_key` | PostHogプロジェクトのAPIキー      | いいえ |       | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `tuist_posthog_url`     | PostHog API のエンドポイント URL | いいえ |       | `https://eu.i.posthog.com`                        |
 
 アナリティクス・イネーブルメント
 <!-- -->
