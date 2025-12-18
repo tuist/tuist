@@ -60,26 +60,22 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## Tracks {#tracks}
+## 트랙 {#트랙}
 
-Tracks allow you to organize your previews into named groups. For example, you
-might have a `beta` track for internal testers and a `nightly` track for
-automated builds. Tracks are lazily created — simply specify a track name when
-sharing, and it will be created automatically if it doesn't exist.
+트랙을 사용하면 미리 보기를 이름 지정된 그룹으로 구성할 수 있습니다. 예를 들어 내부 테스터를 위한 `베타` 트랙과 자동화된 빌드를 위한
+`야간` 트랙이 있을 수 있습니다. 트랙은 느리게 생성되므로 공유할 때 트랙 이름을 지정하기만 하면 트랙이 없는 경우 자동으로 생성됩니다.
 
-To share a preview on a specific track, use the `--track` option:
+특정 트랙에서 미리보기를 공유하려면 `--track` 옵션을 사용하세요:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-This is useful for:
-- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
-  `internal`)
-- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
-  notify users about
-- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+이 기능은 다음과 같은 경우에 유용합니다:
+- **미리보기 구성하기**: 목적별 그룹 미리보기(예: `베타`, `야간`, `내부`)
+- **인앱 업데이트**: Tuist SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다.
+- **필터링**: 튜이스트 대시보드에서 트랙별 미리보기를 쉽게 찾고 관리할 수 있습니다.
 
 ::: 경고 미리보기 표시 여부
 <!-- -->
@@ -147,11 +143,9 @@ macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스�
 Tuist SDK](https://github.com/tuist/sdk)를 사용하면 앱에서 최신 프리뷰 버전을 사용할 수 있는 시기를 감지하여
 사용자에게 알릴 수 있습니다. 이는 테스터를 최신 빌드로 유지하는 데 유용합니다.
 
-The SDK checks for updates within the same **preview track**. When you share a
-preview with an explicit track using `--track`, the SDK will look for updates on
-that track. If no track is specified, the git branch is used as the track — so a
-preview built from the `main` branch will only notify about newer previews also
-built from `main`.
+SDK는 동일한 **미리 보기 트랙** 내에서 업데이트를 확인합니다. ` --track` 을 사용하여 프리뷰를 명시적 트랙과 공유하면 SDK는
+해당 트랙에서 업데이트를 찾습니다. 트랙을 지정하지 않으면 git 브랜치가 트랙으로 사용되므로 `메인` 브랜치에서 빌드한 프리뷰는 `메인` 에서
+빌드한 최신 프리뷰에 대해서만 알림을 보냅니다.
 
 ### 설치 {#sdk-installation}
 
