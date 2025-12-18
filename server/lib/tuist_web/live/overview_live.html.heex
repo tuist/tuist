@@ -54,6 +54,7 @@
           %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
         ]}
         selected_preset={@analytics_date_range}
+        max={Date.utc_today()}
       />
     </:actions>
     <div data-part="widgets">
