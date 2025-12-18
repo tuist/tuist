@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:29+0000\nLast-Translator: Emirhan Karahan <emirhan.karahan@outlook.com>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:29+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -498,8 +498,9 @@ msgstr "Ürün"
 msgid "Pull requests merged"
 msgstr "Pull requestler mergelendi"
 
+#, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 msgid "Read engaging stories and expert insights."
 msgstr "İlgi çekici hikayeleri ve uzman görüşlerini okuyun."
@@ -699,8 +700,9 @@ msgstr "Trendyol, Tuist ile yapım sürelerini %65 azalttı"
 msgid "Trusted by the world's best developer teams"
 msgstr "Dünyanın en iyi geliştirici ekipleri tarafından güvenilir"
 
+#, fuzzy
 msgid "Tuist"
-msgstr ""
+msgstr "Tuist"
 
 #, fuzzy
 msgid "Tuist Blog"
