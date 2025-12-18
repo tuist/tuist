@@ -70,7 +70,7 @@ defmodule CacheWeb.CASController do
       {:error, _} ->
         :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
 
-        S3Transfers.enqueue_download(account_handle, project_handle, id)
+        S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
 
         case S3.presign_download_url(key) do
           {:ok, url} ->
@@ -188,8 +188,9 @@ defmodule CacheWeb.CASController do
           project_handle: project_handle
         })
 
-        :ok = CacheArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))
-        S3Transfers.enqueue_upload(account_handle, project_handle, id)
+        key = Disk.cas_key(account_handle, project_handle, id)
+        :ok = CacheArtifacts.track_artifact_access(key)
+        S3Transfers.enqueue_cas_upload(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->

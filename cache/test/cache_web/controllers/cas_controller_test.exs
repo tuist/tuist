@@ -53,7 +53,8 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_id == id
+      assert upload.artifact_type == :cas
+      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -95,7 +96,8 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_id == id
+      assert upload.artifact_type == :cas
+      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -339,7 +341,8 @@ defmodule CacheWeb.CASControllerTest do
       assert download.type == :download
       assert download.account_handle == account_handle
       assert download.project_handle == project_handle
-      assert download.artifact_id == id
+      assert download.artifact_type == :cas
+      assert download.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do
