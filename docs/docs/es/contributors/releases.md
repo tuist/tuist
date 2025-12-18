@@ -41,13 +41,13 @@ Formato: `tipo(ámbito): descripción`
 | -------------- | ------------------------------- | --------------------------------- | ---------------------------------------------------------- |
 | `feat`         | Nueva función o capacidad       | Pequeño cambio de versión (x.Y.z) | `feat(cli): añadir compatibilidad con Swift 6`             |
 | `fije`         | Corrección de errores           | Parche versión bump (x.y.Z)       | `fix(app): resolver el bloqueo al abrir proyectos`         |
-| `docs`         | Cambios en la documentación     | No release                        | `docs: guía de instalación de actualizaciones`             |
-| `estilo`       | Cambios en el estilo del código | No release                        | `estilo: formatear código con swiftformat`                 |
-| `refactorizar` | Refactorización del código      | No release                        | `refactor(server): simplificar la lógica de autenticación` |
+| `docs`         | Cambios en la documentación     | Ningún comunicado                 | `docs: guía de instalación de actualizaciones`             |
+| `estilo`       | Cambios en el estilo del código | Ningún comunicado                 | `estilo: formatear código con swiftformat`                 |
+| `refactorizar` | Refactorización del código      | Ningún comunicado                 | `refactor(server): simplificar la lógica de autenticación` |
 | `perf`         | Mejoras de rendimiento          | Aumento de la versión del parche  | `perf(cli): optimizar la resolución de dependencias`       |
-| `prueba`       | Pruebas adiciones/cambios       | No release                        | `test: añadir pruebas unitarias para la caché`             |
-| `tarea`        | Tareas de mantenimiento         | No release                        | `tarea: actualizar dependencias`                           |
-| `ci`           | Cambios CI/CD                   | No release                        | `ci: añadir flujo de trabajo para liberaciones`            |
+| `prueba`       | Pruebas adiciones/cambios       | Ningún comunicado                 | `test: añadir pruebas unitarias para la caché`             |
+| `tarea`        | Tareas de mantenimiento         | Ningún comunicado                 | `tarea: actualizar dependencias`                           |
+| `ci`           | Cambios CI/CD                   | Ningún comunicado                 | `ci: añadir flujo de trabajo para liberaciones`            |
 
 #### Cambios de última hora
 
