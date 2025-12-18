@@ -9,8 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
+- Generated project</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
   project</LocalizedLink>
 <!-- -->
@@ -35,7 +34,7 @@ For example, assuming the following dependency graph:
 
 `tuist test` will behave as such:
 
-| Action                  | Description                                                         | Internal state                                                                 |
+| Action                  | Descrição                                                           | Internal state                                                                 |
 | ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
 | `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
