@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:29+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2025-12-18 14:29+0000\nLast-Translator: Emirhan Karahan <emirhan.karahan@outlook.com>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,9 +38,7 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr ""
-"<p>Açık kaynağa bağlılığımız ve temel değerlerimiz, fiyatlandırmaya olan yaklaşımımızı benzersiz kılıyor. Birçok modelin “satış için iletişime geçin”, sınırlı demolar ve diğer satış taktikleriyle sizden her doları almaya çalışmasının aksine, biz adalet ve şeffaflığa inanıyoruz. Herkese eşit davranıyor ve herkese adil fiyatlar belirliyoruz. Hizmetlerimizi seçerek yalnızca harika bir ürün almakla kalmıyor, aynı zamanda daha fazla açık kaynak projesinin geliştirilmesini destekliyorsunuz. Biz başarılı bir işi; kısa vadeli, dürüst olmayan uygulamalarla aceleye getirmiyor, uzun vadeli bir yolculuk olarak görüyoruz. Felsefemiz hakkında daha fazla %{read_more} okuyabilirsiniz. </p>\n"
-"<p>Tuist’i destekleyerek aynı zamanda Swift ekosistemi için daha fazla açık kaynak yazılım geliştirilmesini de destekliyorsunuz.</p>\n"
+msgstr "<p>Açık kaynağa bağlılığımız ve temel değerlerimiz, fiyatlandırmaya olan yaklaşımımızı benzersiz kılıyor. Birçok modelin “satış için iletişime geçin”, sınırlı demolar ve diğer satış taktikleriyle sizden her doları almaya çalışmasının aksine, biz adalet ve şeffaflığa inanıyoruz. Herkese eşit davranıyor ve herkese adil fiyatlar belirliyoruz. Hizmetlerimizi seçerek yalnızca harika bir ürün almakla kalmıyor, aynı zamanda daha fazla açık kaynak projesinin geliştirilmesini destekliyorsunuz. Biz başarılı bir işi; kısa vadeli, dürüst olmayan uygulamalarla aceleye getirmiyor, uzun vadeli bir yolculuk olarak görüyoruz. Felsefemiz hakkında daha fazla %{read_more} okuyabilirsiniz. </p>\n<p>Tuist’i destekleyerek aynı zamanda Swift ekosistemi için daha fazla açık kaynak yazılım geliştirilmesini de destekliyorsunuz.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "Hesabınıza daha fazla detay içeren bir doğrulama e-postası gönderildi."
@@ -54,9 +52,8 @@ msgstr "API Dokümantasyonu"
 msgid "About"
 msgstr "Hakkında"
 
-#, fuzzy
 msgid "Active community members and counting"
-msgstr "Aktif topluluk üyeleri (artmaya devam ediyor)"
+msgstr "Aktif topluluk üyeleri ve sayıları artıyor"
 
 msgid "Agentic QA"
 msgstr "Yapay zeka destekli test süreçleri"
@@ -135,194 +132,194 @@ msgid "Cache"
 msgstr "Önbellek"
 
 msgid "Can I change or cancel my plan at any time?"
-msgstr ""
+msgstr "Planımı istediğim zaman değiştirebilir veya iptal edebilir miyim?"
 
 msgid "Changelog"
-msgstr ""
+msgstr "Güncelleme geçmişi"
 
 msgid "Chat with the founders"
-msgstr ""
+msgstr "Kurucularla sohbet edin"
 
 msgid "Check our sources, issues, and PRs"
-msgstr ""
+msgstr "Kaynak kodumuzu, issue ve PR'larımızı kontrol edin"
 
 msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-msgstr ""
+msgstr "Sihrin gerçekleştiği ve işbirliğinin geliştiği tüm aksiyonu görmek için GitHub'ımıza göz atın."
 
 msgid "Check out our REST API documentation"
-msgstr ""
+msgstr "REST API dokümantasyonumuza göz atın"
 
 msgid "Check out our documentation"
-msgstr ""
+msgstr "Dokümantasyonumuza göz atın"
 
 msgid "Close menu"
-msgstr ""
+msgstr "Menüyü kapat"
 
 msgid "Community"
-msgstr ""
+msgstr "Topluluk"
 
 msgid "Community Forum"
-msgstr ""
+msgstr "Topluluk Forumu"
 
 msgid "Community forum"
-msgstr ""
+msgstr "Topluluk forumu"
 
 msgid "Community support"
-msgstr ""
+msgstr "Topluluk desteği"
 
 msgid "Community support via forum"
-msgstr ""
+msgstr "Forum aracılığıyla topluluk desteği"
 
 msgid "Company"
-msgstr ""
+msgstr "Şirket"
 
 msgid "Compare our plans"
-msgstr ""
+msgstr "Planlarımızı karşılaştırın"
 
 msgid "Concise Summary"
-msgstr ""
+msgstr "Kısa Özet"
 
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
-msgstr ""
+msgstr "Diğer Tuist kullanıcıları ile bağlantı kurun, deneyimlerinizi paylaşın ve topluluktan yardım alın."
 
 msgid "Contact"
-msgstr ""
+msgstr "İletişim"
 
 msgid "Contact us"
-msgstr ""
+msgstr "Bize ulaşın"
 
 msgid "Contributors"
-msgstr ""
+msgstr "Katkıda bulunanlar"
 
 msgid "Cookie policy"
-msgstr ""
+msgstr "Çerez politikası"
 
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "Planınızı oluşturun veya projeyi kendiniz barındırın."
 
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
-msgstr ""
+msgstr "Kuruluşunuzun ihtiyaçlarına göre uyarlanmış özel yasal sözleşmeler ve hizmet şartları."
 
 msgid "Cuts build times by caching and reusing binaries"
-msgstr ""
+msgstr "İkili dosyaları önbelleğe alarak ve yeniden kullanarak derleme sürelerini kısaltır"
 
 msgid "Dashboard"
-msgstr ""
+msgstr "Panel"
 
 msgid "Designed for large scale organizations."
-msgstr ""
+msgstr "Büyük ölçekli kuruluşlar için tasarlanmıştır."
 
 msgid "Developers"
-msgstr ""
+msgstr "Geliştiriciler"
 
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
-msgstr ""
+msgstr "Tuist'teki esnek fiyatlandırma planlarımızı keşfedin. Zaman sınırı olmayan ücretsiz bir katmanın keyfini çıkarın ve yalnızca kullandığınız kadar ödeyin. Ayrıca, açık kaynaklı projeler için sonsuza kadar ücretsiz."
 
 msgid "Do you offer annual billing discounts?"
-msgstr ""
+msgstr "Yıllık fatura indirimleri sunuyor musunuz?"
 
 msgid "Do you offer discounts for non-profits and open-source?"
-msgstr ""
+msgstr "Kar amacı gütmeyen kuruluşlar ve açık kaynak için indirim sunuyor musunuz?"
 
 msgid "Do you support a seat-based pricing model?"
-msgstr ""
+msgstr "Koltuk bazlı bir fiyatlandırma modelini destekliyor musunuz?"
 
 msgid "Docs"
-msgstr ""
+msgstr "Dokümanlar"
 
 msgid "Documentation"
-msgstr ""
+msgstr "Dokümantasyon"
 
 msgid "Download"
-msgstr ""
+msgstr "İndir"
 
 msgid "Download our iOS and macOS apps"
-msgstr ""
+msgstr "iOS ve macOS uygulamalarımızı indirin"
 
 msgid "Effortlessly share your app with a single URL."
-msgstr ""
+msgstr "Uygulamanızı tek bir URL ile zahmetsizce paylaşın."
 
 msgid "Email Support"
-msgstr ""
+msgstr "E-posta Desteği"
 
 msgid "Enhance your development environment with actionable insights."
-msgstr ""
+msgstr "Eyleme dönüştürülebilir iç görülerle geliştirme ortamınızı iyileştirin."
 
 msgid "Enterprise"
-msgstr ""
+msgstr "Kurumsal"
 
 msgid "Explore our documentation—your go-to guide for mastering all things."
-msgstr ""
+msgstr "Her konuda uzmanlaşmak için başvuracağınız rehberiniz olan dokümantasyonumuzu keşfedin."
 
 msgid "Faster & more lightweight OSS packages resolution"
-msgstr ""
+msgstr "Daha hızlı ve daha hafif OSS paketleri çözümü"
 
 msgid "Features"
-msgstr ""
+msgstr "Özellikler"
 
 msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
-msgstr ""
+msgstr "Teknik sorunlar veya hesapla ilgili sorular hakkında doğrudan yardım almak için e-posta yoluyla destek ekibimize ulaşın."
 
 msgid "Forum"
-msgstr ""
+msgstr "Forum"
 
 #, fuzzy
 msgid "Free under tier limits"
 msgstr "Kademe limitleri altında ücretsiz"
 
 msgid "Frequently Asked Questions"
-msgstr ""
+msgstr "Sıkça Sorulan Sorular"
 
 msgid "Generated Projects"
-msgstr ""
+msgstr "Oluşturulmuş projeler"
 
 msgid "Generated projects"
-msgstr ""
+msgstr "Oluşturulmuş projeler"
 
 msgid "Get Support"
-msgstr ""
+msgstr "Destek Alın"
 
 msgid "Get early access"
-msgstr ""
+msgstr "Erken erişim sağlayın"
 
 msgid "Get help when you need it through various support channels."
-msgstr ""
+msgstr "İhtiyacınız olduğunda çeşitli destek kanalları aracılığıyla yardım alın."
 
 msgid "Get started"
-msgstr ""
+msgstr "Başlayın"
 
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
-msgstr ""
+msgstr "Tuist'e ücretsiz olarak başlayın ve yalnızca daha yüksek limitler, kişiselleştirilmiş destek veya alternatif faturalandırma seçenekleri için hazır olduğunuzda daha fazla yatırım yapın."
 
 msgid "Get started with no credit card required."
-msgstr ""
+msgstr "Kredi kartı gerekmeden başlayın."
 
 msgid "GitHub"
-msgstr ""
+msgstr "GitHub"
 
 msgid "Got ideas or questions? Join the conversation in our community forum."
-msgstr ""
+msgstr "Fikirleriniz veya sorularınız mı var? Topluluk forumumuzdaki sohbete katılın."
 
 msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
-msgstr ""
+msgstr "Harika! E-posta %{email} onaylandı ve Tuist Digest'e abone olundu."
 
 msgid "Happiness"
-msgstr ""
+msgstr "Mutluluk"
 
 msgid "Hear from our community about their experience with Tuist"
-msgstr ""
+msgstr "Topluluğumuzdan Tuist ile ilgili deneyimlerini dinleyin"
 
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
-msgstr ""
+msgstr "Tam kontrol ve veri egemenliği için Tuist sunucusunu kendi altyapınızda barındırın."
 
 msgid "How can I estimate the cost for my project?"
-msgstr ""
+msgstr "Projemin maliyetini nasıl tahmin edebilirim?"
 
 msgid "How can I estimate the cost of my project?"
-msgstr ""
+msgstr "Projemin maliyetini nasıl tahmin edebilirim?"
 
 msgid "How do we calculate units?"
-msgstr ""
+msgstr "Birimleri nasıl hesaplarız?"
 
 #, fuzzy
 msgid "Ideal for individual developers."
@@ -385,250 +382,250 @@ msgid "Jonathan Crooke, Bumble"
 msgstr "Jonathan Crooke, Bumble"
 
 msgid "Keep up with the latest and greatest changes in Tuist."
-msgstr ""
+msgstr "Tuist'teki en son ve en büyük değişiklikleri takip edin."
 
 msgid "Last updated %{date}"
-msgstr ""
+msgstr "Son güncelleme %{tarih}"
 
 msgid "Learn & contribute to our source code"
-msgstr ""
+msgstr "Kaynak kodumuzu öğrenin ve katkıda bulunun"
 
 msgid "Learn about Tuist and meet the team"
-msgstr ""
+msgstr "Tuist hakkında bilgi edinin ve ekiple tanışın"
 
 msgid "Legal"
-msgstr ""
+msgstr "Yasal"
 
 msgid "LinkedIn"
-msgstr ""
+msgstr "LinkedIn"
 
 msgid "Load more"
-msgstr ""
+msgstr "Daha fazla yükle"
 
 msgid "Log in"
-msgstr ""
+msgstr "Giriş yap"
 
 msgid "Longevity"
-msgstr ""
+msgstr "Uzun Ömürlülük"
 
 msgid "Make Xcode projects easier to manage and scale"
-msgstr ""
+msgstr "Xcode projelerinin yönetimini ve ölçeklendirilmesini kolaylaştırın"
 
 msgid "Make mobile"
-msgstr ""
+msgstr "Mobil hale getirin"
 
 msgid "Make modular Xcode projects more manageable"
-msgstr ""
+msgstr "Modüler Xcode projelerini daha yönetilebilir hale getirin"
 
 msgid "Mastodon"
-msgstr ""
+msgstr "Mastodon"
 
 msgid "Module cache"
-msgstr ""
+msgstr "Modül önbelleği"
 
 msgid "Most popular"
-msgstr ""
+msgstr "En popüler"
 
 msgid "Newsletter"
-msgstr ""
+msgstr "Haber Bülteni"
 
 msgid "Newsletter Verification Failed"
-msgstr ""
+msgstr "Bülten Doğrulaması Başarısız"
 
 msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
-msgstr ""
+msgstr "Bülten sayıları 6 haftada bir gönderilir ve istediğiniz zaman aboneliğinizi iptal edebilirsiniz."
 
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
-msgstr ""
+msgstr "Hayır, minimum sözleşme süresi yoktur. İstediğiniz zaman iptal etmekte özgürsünüz."
 
 msgid "Ongoing incident"
-msgstr ""
+msgstr "Devam eden olay"
 
 msgid "Open the %{feature} feature documentation"
-msgstr ""
+msgstr "%{feature} özelliği dokümantasyonunu açın"
 
 msgid "Openness"
-msgstr ""
+msgstr "Açıklık"
 
 msgid "Optimized app bundles"
-msgstr ""
+msgstr "Optimize edilmiş uygulama paketleri"
 
 msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
-msgstr ""
+msgstr "Yaklaşımımızın temelinde merak ve açık işbirliği yatıyor. Yolculuğumuzu paylaşıyor, araçlara açık kaynak olarak katkıda bulunuyor ve geliştiricilerin birlikte öğrenip büyüdüğü topluluklar oluşturuyoruz. Sorunları açık bir şekilde çözdüğümüzde herkes kazanır."
 
 msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
-msgstr ""
+msgstr "Önbellek çözümümüz, Xcode 26'nın derleme sistemi önbellek özellikleriyle entegre olur."
 
 msgid "Pay nothing if below free tier limits"
-msgstr ""
+msgstr "Ücretsiz plan limitlerinin altındaysa hiçbir şey ödemeyin"
 
 msgid "Pay only for what you use per feature"
-msgstr ""
+msgstr "Özellik başına yalnızca kullandığınız kadar ödeyin"
 
 msgid "People"
-msgstr ""
+msgstr "İnsanlar"
 
 msgid "Please check your email to confirm your subscription."
-msgstr ""
+msgstr "Aboneliğinizi onaylamak için lütfen e-postanızı kontrol edin."
 
 msgid "Powered by"
-msgstr ""
+msgstr "Tarafından desteklenmektedir"
 
 msgid "Previews"
-msgstr ""
+msgstr "Önizlemeler"
 
 msgid "Price per unit above free tier"
-msgstr ""
+msgstr "Ücretsiz planın üzerindeki birim başına fiyat"
 
 msgid "Pricing"
-msgstr ""
+msgstr "Fiyatlandırma"
 
 msgid "Priority support"
-msgstr ""
+msgstr "Öncelikli destek"
 
 msgid "Priority support via Slack channel"
-msgstr ""
+msgstr "Slack kanalı üzerinden öncelikli destek"
 
 msgid "Privacy policy"
-msgstr ""
+msgstr "Gizlilik Politikası"
 
 msgid "Pro"
-msgstr ""
+msgstr "Pro"
 
 msgid "Product"
-msgstr ""
+msgstr "Ürün"
 
 msgid "Pull requests merged"
-msgstr ""
+msgstr "Pull requestler mergelendi"
 
 msgid "QA"
 msgstr ""
 
 msgid "Read engaging stories and expert insights."
-msgstr ""
+msgstr "İlgi çekici hikayeleri ve uzman görüşlerini okuyun."
 
 msgid "Read the Bumble customer story"
-msgstr ""
+msgstr "Bumble müşteri hikayesini okuyun"
 
 msgid "Read the Trendyol customer story"
-msgstr ""
+msgstr "Trendyol müşteri hikayesini okuyun"
 
 msgid "Registry"
-msgstr ""
+msgstr "Kayıt"
 
 msgid "Requires a generated project"
-msgstr ""
+msgstr "Oluşturulmuş proje gerektirir"
 
 msgid "Resources"
-msgstr ""
+msgstr "Kaynaklar"
 
 msgid "Right Inside Your Workflow"
-msgstr ""
+msgstr "İş Akışınızın Tam İçinde"
 
 msgid "Screenshots & Replays"
-msgstr ""
+msgstr "Ekran Görüntüleri & Kayıtlar"
 
 msgid "Security"
-msgstr ""
+msgstr "Güvenlik"
 
 msgid "Selective testing"
-msgstr ""
+msgstr "Seçmeli test"
 
 msgid "Self-host your instance of Tuist"
-msgstr ""
+msgstr "Tuist örneğinizi kendiniz barındırın"
 
 msgid "Self-hosting Tuist instance"
-msgstr ""
+msgstr "Yerel barındırılmış Tuist örneği"
 
 msgid "Send us an email"
-msgstr ""
+msgstr "Bize bir e-posta gönderin"
 
 msgid "Share your app builds with others via URL for testing on simulators or devices."
-msgstr ""
+msgstr "Simülatörlerde veya cihazlarda test etmek için uygulama derlemelerinizi URL aracılığıyla başkalarıyla paylaşın."
 
 msgid "Shared app preview with the team"
-msgstr ""
+msgstr "Uygulama önizlemesi ekip ile paylaşıldı"
 
 msgid "Shrink your app by cleaning up code and assets"
-msgstr ""
+msgstr "Kod ve medyayı temizleyerek uygulamanızı küçültün"
 
 msgid "Sign up"
-msgstr ""
+msgstr "Kaydolun"
 
 msgid "Sign up to get early access to Tuist QA"
-msgstr ""
+msgstr "Tuist QA'ya erken erişim için kaydolun"
 
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
-msgstr ""
+msgstr "Tuist'i iOS projemizde kullanmaya başladığımızdan beri ölçeklenebilirlik ve üretkenlikte önemli gelişmeler gördük. Genel olarak, geliştirme sürecimizi daha hızlı ve daha verimli hale getirerek ekibin araç sınırlamaları tarafından yavaşlatılmadan özellikler oluşturmaya odaklanmasını sağladı."
 
 msgid "Skipped repetitive tests"
-msgstr ""
+msgstr "Tekrarlı testler atlandı"
 
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
 msgid "Social Media Links"
-msgstr ""
+msgstr "Sosyal Medya Bağlantıları"
 
 msgid "Socials"
-msgstr ""
+msgstr "Sosyal Medya"
 
 msgid "Something went wrong. Please try again."
-msgstr ""
+msgstr "Bir şeyler yanlış gitti. Lütfen tekrar deneyin."
 
 msgid "Sources"
-msgstr ""
+msgstr "Kaynaklar"
 
 msgid "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
-msgstr ""
+msgstr "Önbelleğe alınabilir hedefler ve Swift görevleri için ikili dosyaları önbelleğe alarak temiz derlemeleri hızlandırın."
 
 msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
-msgstr ""
+msgstr "Testleri değişikliklerden etkilenmeyen test süitlerini atlayarak test çalıştırmalarını hızlandırın."
 
 msgid "Speed up your builds and test runs."
-msgstr ""
+msgstr "Derlemelerinizi ve test çalışmalarınızı hızlandırın."
 
 msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
-msgstr ""
+msgstr "Derlenmiş ikili dosyaları yeniden kullanarak derlemeleri hızlandırır, hem yerel geliştirme hem de CI'da derleme sürelerini kısaltır."
 
 msgid "Standard support"
-msgstr ""
+msgstr "Standart destek"
 
 msgid "Standard support via Slack and email"
-msgstr ""
+msgstr "Slack ve e-posta yoluyla standart destek"
 
 msgid "Standards"
-msgstr ""
+msgstr "Standartlar"
 
 msgid "Stars on GitHub"
-msgstr ""
+msgstr "GitHub'daki Yıldızlar"
 
 msgid "Start free,"
-msgstr ""
+msgstr "Ücretsiz başla,"
 
 msgid "Start free, scale as you grow"
-msgstr ""
+msgstr "Ücretsiz başlayın, büyüdükçe ölçeklendirin"
 
 msgid "Stay in touch"
-msgstr ""
+msgstr "İletişimde kalın"
 
 msgid "Stay updated with the latest changes and improvements in Tuist."
-msgstr ""
+msgstr "Tuist'teki en son değişiklikler ve iyileştirmelerden haberdar olun."
 
 msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
-msgstr ""
+msgstr "Tuist'teki en son değişiklikler ve iyileştirmelerle güncel kalın. Yeni özellikler, hata düzeltmeleri ve geliştirmeler hakkında ayrıntılı bilgi için değişiklik günlüğümüzü okuyun."
 
 msgid "Stay updated—subscribe to our newsletter"
-msgstr ""
+msgstr "Güncel kalın, bültenimize abone olun"
 
 msgid "Subscribe"
-msgstr ""
+msgstr "Abone Olun"
 
 msgid "Successfully Subscribed!"
-msgstr ""
+msgstr "Başarıyla Abone Oldun!"
 
 msgid "Supercharge your app development"
-msgstr ""
+msgstr "Uygulama geliştirmenizi güçlendirin"
 
 #, fuzzy
 msgid "Support"
