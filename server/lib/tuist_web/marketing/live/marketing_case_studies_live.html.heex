@@ -50,12 +50,11 @@
       >
         <img data-part="image" src="TODO" />
         <div data-part="content">
-          <header data-part="header">
-            <h2 data-part="title">{case.title}</h2>
+          <h3 data-part="title">{case.title}</h3>
+          <footer data-part="footer">
+            <span data-part="read-story">{dgettext("marketing", "Read story")}</span>
             <.arrow_right />
-          </header>
-          <%!-- <h3 data-part="title">{post.title}</h3> --%>
-          <%!-- <p data-part="excerpt">{post.excerpt}</p> --%>
+          </footer>
         </div>
       </.link>
     </section>
