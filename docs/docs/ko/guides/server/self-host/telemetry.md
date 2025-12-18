@@ -5,513 +5,478 @@
   "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# Telemetry {#telemetry}
+# 원격 측정 {#텔레메트리}
 
-You can ingest metrics gathered by the Tuist server using
-[Prometheus](https://prometheus.io/) and a visualization tool such as
-[Grafana](https://grafana.com/) to create a custom dashboard tailored to your
-needs. The Prometheus metrics are served via the `/metrics` endpoint on port
-9091. The Prometheus'
-[scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-should be set as less than 10_000 seconds (we recommend keeping the default of
-15 seconds).
+Prometheus](https://prometheus.io/) 및 [Grafana](https://grafana.com/)와 같은 시각화
+도구를 사용하여 Tuist 서버에서 수집한 지표를 수집하여 필요에 맞는 사용자 지정 대시보드를 만들 수 있습니다. Prometheus 메트릭은
+포트 9091의 `/metrics` 엔드포인트를 통해 제공됩니다. Prometheus의
+[스크랩_간격](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)은
+10_000초 미만으로 설정해야 합니다(기본값인 15초를 유지하는 것이 좋습니다).
 
-## PostHog analytics {#posthog-analytics}
+## PostHog 애널리틱스 {#posthog-analytics}
 
-Tuist integrates with [PostHog](https://posthog.com/) for user behavior
-analytics and event tracking. This allows you to understand how users interact
-with your Tuist server, track feature usage, and gain insights into user
-behavior across the marketing site, dashboard, and API documentation.
+Tuist는 사용자 행동 분석 및 이벤트 추적을 위해 [PostHog](https://posthog.com/)와 통합됩니다. 이를 통해 사용자가
+Tuist 서버와 상호 작용하는 방식을 이해하고, 기능 사용을 추적하고, 마케팅 사이트, 대시보드 및 API 문서 전반에서 사용자 행동에 대한
+인사이트를 얻을 수 있습니다.
 
-### Configuration {#posthog-configuration}
+### 구성 {#posthog-configuration}
 
-PostHog integration is optional and can be enabled by setting the appropriate
-environment variables. When configured, Tuist will automatically track user
-events, page views, and user journeys.
+PostHog 통합은 선택 사항이며 적절한 환경 변수를 설정하여 활성화할 수 있습니다. 설정하면 Tuist는 사용자 이벤트, 페이지 조회수 및
+사용자 여정을 자동으로 추적합니다.
 
-| Environment variable    | Description                  | Required | Default | Example                                           |
-| ----------------------- | ---------------------------- | -------- | ------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No       |         | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | The PostHog API endpoint URL | No       |         | `https://eu.i.posthog.com`                        |
+| 환경 변수              | 설명                    | 필수  | 기본값 | 예                                                 |
+| ------------------ | --------------------- | --- | --- | ------------------------------------------------- |
+| `튜이스트_포스트호그_API_키` | PostHog 프로젝트 API 키    | 아니요 |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `튜이스트_포스트호그_URL`   | PostHog API 엔드포인트 URL | 아니요 |     | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
+정보 분석 지원 ::: 정보 분석 지원
 <!-- -->
-Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and
-`TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics
-events will be sent.
+분석은 `TUIST_POSTHOG_API_KEY` 및 `TUIST_POSTHOG_URL` 이 모두 구성된 경우에만 활성화됩니다. 두 변수 중
+하나라도 누락되면 분석 이벤트가 전송되지 않습니다.
 <!-- -->
 :::
 
-### Features {#posthog-features}
+### 기능 {#posthog-features}
 
-When PostHog is enabled, Tuist automatically tracks:
+PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
-- **User identification**: Users are identified by their unique ID and email
-  address
-- **User aliasing**: Users are aliased by their account name for easier
-  identification
-- **Group analytics**: Users are grouped by their selected project and
-  organization for segmented analytics
-- **Page sections**: Events include super properties indicating which section of
-  the application generated them:
-  - `marketing` - Events from marketing pages and public content
-  - `dashboard` - Events from the main application dashboard and authenticated
-    areas
-  - `api-docs` - Events from API documentation pages
-- **Page views**: Automatic tracking of page navigation using Phoenix LiveView
-- **Custom events**: Application-specific events for feature usage and user
-  interactions
+- **사용자 식별**: 사용자는 고유 ID와 이메일 주소로 식별됩니다.
+- **사용자 별칭**: 사용자 식별을 쉽게 하기 위해 계정 이름으로 별칭을 지정합니다.
+- **그룹 분석**: 세그먼트 분석을 위해 선택한 프로젝트 및 조직별로 사용자를 그룹화합니다.
+- **페이지 섹션**: 이벤트에는 애플리케이션의 어느 섹션에서 이벤트를 생성했는지를 나타내는 슈퍼 속성이 포함됩니다:
+  - `마케팅` - 마케팅 페이지 및 공개 콘텐츠의 이벤트
+  - `대시보드` - 기본 애플리케이션 대시보드 및 인증된 영역의 이벤트
+  - `api-docs` - API 문서 페이지의 이벤트
+- **페이지 조회수**: Phoenix 라이브뷰를 사용한 페이지 탐색 자동 추적
+- **사용자 지정 이벤트**: 기능 사용 및 사용자 상호작용을 위한 애플리케이션별 이벤트
 
-### Privacy considerations {#posthog-privacy}
+### 개인정보 보호 고려 사항 {#posthog-privacy}
 
-- For authenticated users, PostHog uses the user's unique ID as the distinct
-  identifier and includes their email address
-- For anonymous users, PostHog uses memory-only persistence to avoid storing
-  data locally
-- All analytics respect user privacy and follow data protection best practices
-- PostHog data is processed according to PostHog's privacy policy and your
-  configuration
+- 인증된 사용자의 경우 PostHog는 사용자의 고유 ID를 고유 식별자로 사용하며 이메일 주소를 포함합니다.
+- 익명 사용자의 경우 PostHog는 메모리 전용 지속성을 사용하여 데이터를 로컬에 저장하지 않습니다.
+- 모든 분석은 사용자 개인 정보를 존중하고 데이터 보호 모범 사례를 따릅니다.
+- PostHog 데이터는 PostHog의 개인정보처리방침 및 사용자 설정에 따라 처리됩니다.
 
-## Elixir metrics {#elixir-metrics}
+## 엘릭서 메트릭 {#엘릭서-메트릭}
 
-By default we include metrics of the Elixir runtime, BEAM, Elixir, and some of
-the libraries we use. The following are some of the metrics you can expect to
-see:
+기본적으로 Elixir 런타임, BEAM, Elixir 및 우리가 사용하는 일부 라이브러리에 대한 메트릭이 포함됩니다. 다음은 예상할 수 있는
+몇 가지 메트릭입니다:
 
-- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [애플리케이션](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
-- [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
-- [Phoenix
-  LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
+- [피닉스](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
+- [피닉스 라이브뷰](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
-- [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
+- [오반](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-We recommend checking those pages to know which metrics are available and how to
-use them.
+해당 페이지를 확인하여 사용 가능한 메트릭과 사용 방법을 알아보는 것이 좋습니다.
 
-## Runs metrics {#runs-metrics}
+## 메트릭 {#runs-metrics}을 실행합니다.
 
-A set of metrics related to Tuist Runs.
+튜이스트 런과 관련된 일련의 메트릭입니다.
 
-### `tuist_runs_total` (counter) {#tuist_runs_total-counter}
+### `tuist_runs_total` (카운터) {#tuist_runs_total-counter}
 
-The total number of Tuist Runs.
+총 튜이스트 런 횟수입니다.
 
-#### Tags {#tuist-runs-total-tags}
+#### 태그 {#튜이스트-런-총-태그}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| 태그      | 설명                                           |
+| ------- | -------------------------------------------- |
+| `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
+| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
-### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
+### `tuist_runs_duration_milliseconds` (히스토그램) {#tuist_runs_duration_milliseconds-histogram}
 
-The total duration of each tuist run in milliseconds.
+각 튜토리얼의 총 실행 시간(밀리초)입니다.
 
-#### Tags {#tuist-runs-duration-miliseconds-tags}
+#### 태그 {#튜이스트-런-지속 시간-밀리초-태그}
 
-| Tag      | Description                                                                 |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| 태그      | 설명                                           |
+| ------- | -------------------------------------------- |
+| `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
+| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
-## Cache metrics {#cache-metrics}
+## 캐시 메트릭 {#cache-metrics}
 
-A set of metrics related to the Tuist Cache.
+튜이스트 캐시와 관련된 메트릭 집합입니다.
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+### `tuist_cache_events_total` (카운터) {#tuist_cache_events_total-counter}
 
-The total number of binary cache events.
+바이너리 캐시 이벤트의 총 개수입니다.
 
-#### Tags {#tuist-cache-events-total-tags}
+#### 태그 {#튜이스트-캐시-이벤트-총-태그}
 
-| Tag          | Description                                            |
-| ------------ | ------------------------------------------------------ |
-| `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+| 태그       | 설명                                                  |
+| -------- | --------------------------------------------------- |
+| `이벤트 유형` | `local_hit`, `remote_hit`, 또는 `miss` 중 하나 일 수 있습니다. |
 
-### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+### `tuist_cache_uploads_total` (카운터) {#tuist_cache_uploads_total-counter}
 
-The number of uploads to the binary cache.
+바이너리 캐시에 업로드한 횟수입니다.
 
-### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+### `tuist_cache_uploaded_bytes` (합계) {#tuist_cache_uploaded_bytes-sum}
 
-The number of bytes uploaded to the binary cache.
+바이너리 캐시에 업로드된 바이트 수입니다.
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_downloads_total` (카운터) {#tuist_cache_downloads_total-counter}
 
-The number of downloads to the binary cache.
+바이너리 캐시에 대한 다운로드 횟수입니다.
 
-### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_downloaded_bytes` (합계) {#tuist_cache_downloaded_bytes-sum}
 
-The number of bytes downloaded from the binary cache.
-
----
-
-## Previews metrics {#previews-metrics}
-
-A set of metrics related to the previews feature.
-
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
-
-The total number of previews uploaded.
-
-### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
-
-The total number of previews downloaded.
+바이너리 캐시에서 다운로드한 바이트 수입니다.
 
 ---
 
-## Storage metrics {#storage-metrics}
+## 메트릭 미리 보기 {#previews-metrics}
 
-A set of metrics related to the storage of artifacts in a remote storage (e.g.
-s3).
+미리보기 기능과 관련된 일련의 메트릭입니다.
+
+### `tuist_previews_uploads_total` (합계) {#tuist_previews_uploads_total-counter}
+
+업로드된 총 미리보기 수입니다.
+
+### `tuist_previews_downloads_total` (합계) {#tuist_previews_downloads_total-counter}
+
+다운로드한 미리보기의 총 개수입니다.
+
+---
+
+## 스토리지 메트릭 {#storage-metrics}
+
+원격 스토리지(예: s3)에 아티팩트 저장과 관련된 메트릭 집합입니다.
 
 ::: tip
 <!-- -->
-These metrics are useful to understand the performance of the storage operations
-and to identify potential bottlenecks.
+이러한 메트릭은 스토리지 작업의 성능을 이해하고 잠재적인 병목 현상을 파악하는 데 유용합니다.
 <!-- -->
 :::
 
-### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (히스토그램) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-The size (in bytes) of an object fetched from the remote storage.
+원격 저장소에서 가져온 개체의 크기(바이트 단위)입니다.
 
-#### Tags {#tuist-storage-get-object-size-size-bytes-tags}
+#### 태그 {#튜이스트-저장소-객체-크기-크기-바이트-태그}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
-
-The duration (in milliseconds) of fetching an object size from the remote
-storage.
-
-#### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_duration_miliseconds` (히스토그램) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-The number of times an object size was fetched from the remote storage.
+원격 저장소에서 개체 크기를 가져오는 데 걸리는 시간(밀리초)입니다.
 
-#### Tags {#tuist-storage-get-object-size-count-tags}
+#### 태그 {#튜이스트-저장소-객체-크기-지속 시간-밀리초-태그}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
-
-The duration (in milliseconds) of deleting all objects from the remote storage.
-
-#### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
-
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_get_object_size_count` (카운터) {#tuist_storage_get_object_size_count-counter}
 
-The number of times all project objects were deleted from the remote storage.
+원격 스토리지에서 개체 크기를 가져온 횟수입니다.
 
-#### Tags {#tuist-storage-delete-all-objects-count-tags}
+#### 태그 {#tuist-storage-get-object-size-count-tags}
 
-| Tag            | Description                                                      |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
+### `tuist_storage_delete_all_objects_duration_milliseconds` (히스토그램) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+원격 스토리지에서 모든 개체를 삭제하는 데 걸리는 기간(밀리초)입니다.
 
-The duration (in milliseconds) of starting an upload to the remote storage.
+#### 태그 {#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}{#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}
-
-The number of times an upload was started to the remote storage.
-
-#### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| 태그         | 설명                            |
+| ---------- | ----------------------------- |
+| `프로젝트_슬러그` | 오브젝트가 삭제되는 프로젝트의 프로젝트 슬러그입니다. |
 
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_delete_all_objects_count` (카운터) {#tuist_storage_delete_all_objects_count-counter}
 
-The duration (in milliseconds) of fetching an object as a string from the remote
-storage.
+원격 저장소에서 모든 프로젝트 개체가 삭제된 횟수입니다.
 
-#### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
+#### 태그 {#튜이스트-저장소-삭제-모든-개체-수-태그}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| 태그         | 설명                            |
+| ---------- | ----------------------------- |
+| `프로젝트_슬러그` | 오브젝트가 삭제되는 프로젝트의 프로젝트 슬러그입니다. |
+
+
+### `tuist_storage_multipart_start_upload_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+
+원격 저장소에 업로드를 시작하는 기간(밀리초)입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-업로드 시작 기간-밀리초-태그}
+
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
+
+### `tuist_storage_multipart_start_upload_duration_count` (카운터) {#tuist_storage_multipart_start_upload_duration_count-counter}
+
+원격 스토리지에 업로드가 시작된 횟수입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-업로드 시작-기간-수-태그}
+
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
+
+
+### `tuist_storage_get_object_as_string_duration_milliseconds` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+
+원격 저장소에서 객체를 문자열로 가져오는 데 걸리는 기간(밀리초)입니다.
+
+#### 태그 {#튜이스트 저장소-객체를 문자열로 가져오기-지속 시간-밀리초 태그}
+
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 ### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
 
-The number of times an object was fetched as a string from the remote storage.
+원격 스토리지에서 객체를 문자열로 가져온 횟수입니다.
 
-#### Tags {#tuist-storage-get-object-as-string-count-tags}
+#### 태그 {#tuist-storage-get-object-as-string-count-tags}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
-
-The duration (in milliseconds) of checking the existence of an object in the
-remote storage.
-
-#### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
-
-The number of times the existence of an object was checked in the remote
-storage.
-
-#### Tags {#tuist-storage-check-object-existence-count-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
-
-The duration (in milliseconds) of generating a download presigned URL for an
-object in the remote storage.
-
-#### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_check_object_existence_duration_milliseconds` (히스토그램) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-The number of times a download presigned URL was generated for an object in the
-remote storage.
+원격 스토리지에 있는 개체의 존재 여부를 확인하는 기간(밀리초)입니다.
 
-#### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
+#### 태그 {#튜이스트-저장소-확인-객체-존재-기간-밀리초-태그}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_check_object_existence_count` (카운트) {#tuist_storage_check_object_existence_count-count}
 
-The duration (in milliseconds) of generating a part upload presigned URL for an
-object in the remote storage.
+원격 스토리지에서 개체의 존재를 확인한 횟수입니다.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
+#### 태그 {#튜이스트-저장소-확인-객체-존재-수-태그}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_생성_다운로드_사전_서명된_URL_지속시간_밀리초` (히스토그램) {#tuist_storage_생성_다운로드_사전_서명된_URL_지속시간_밀리초-histogram}
 
-The number of times a part upload presigned URL was generated for an object in
-the remote storage.
+원격 저장소에 있는 개체에 대해 미리 지정된 다운로드 URL을 생성하는 데 걸리는 기간(밀리초)입니다.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
+#### 태그 {#튜이스트-저장소-생성-다운로드-사전 지정 URL-기간-밀리초-태그}
 
-| Tag           | Description                                         |
-| ------------- | --------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
-
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
-
-The duration (in milliseconds) of completing an upload to the remote storage.
-
-#### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
-
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_생성_다운로드_사전 서명된 URL 카운트` (카운트) {#tuist_storage_생성_다운로드_사전 서명된 URL 카운트}
 
-The total number of times an upload was completed to the remote storage.
+원격 저장소에 있는 개체에 대해 다운로드 미리 지정된 URL이 생성된 횟수입니다.
 
-#### Tags {#tuist-storage-multipart-complete-upload-count-tags}
+#### 태그 {#튜이스트-스토리지-생성-다운로드-사전-서명된-URL-수-태그}
 
-| Tag          | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
+
+### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+
+원격 스토리지에 있는 개체에 대한 파트 업로드 사전 지정 URL을 생성하는 기간(밀리초)입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-기간-밀리초-태그}
+
+| 태그            | 설명                      |
+| ------------- | ----------------------- |
+| `object_key`  | 원격 저장소에 있는 개체의 조회 키입니다. |
+| `part_number` | 업로드 중인 오브젝트의 부품 번호입니다.  |
+| `upload_id`   | 멀티파트 업로드의 업로드 ID입니다.    |
+
+### `tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL_카운트` (카운트) {#tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL-카운트}
+
+원격 스토리지의 개체에 대해 파트 업로드 지정 URL이 생성된 횟수입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-수-태그}
+
+| 태그            | 설명                      |
+| ------------- | ----------------------- |
+| `object_key`  | 원격 저장소에 있는 개체의 조회 키입니다. |
+| `part_number` | 업로드 중인 오브젝트의 부품 번호입니다.  |
+| `upload_id`   | 멀티파트 업로드의 업로드 ID입니다.    |
+
+### `tuist_storage_multipart_complete_upload_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+
+원격 저장소에 업로드를 완료하는 데 걸리는 시간(밀리초)입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-완료-업로드-기간-밀리초-태그}
+
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
+| `upload_id`  | 멀티파트 업로드의 업로드 ID입니다.    |
+
+
+### `tuist_storage_multipart_complete_upload_count` (카운트) {#tuist_storage_multipart_complete_upload_count-count}
+
+원격 스토리지에 업로드가 완료된 총 횟수입니다.
+
+#### 태그 {#튜이스트-스토리지-멀티파트-완료-업로드-수-태그}
+
+| 태그           | 설명                      |
+| ------------ | ----------------------- |
+| `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
+| `upload_id`  | 멀티파트 업로드의 업로드 ID입니다.    |
 
 ---
 
-## Authentication metrics {#authentication-metrics}
+## 인증 메트릭 {#인증-메트릭}
 
-A set of metrics related to authentication.
+인증과 관련된 메트릭 집합입니다.
 
-### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_token_refresh_error_total` (카운터) {#tuist_authentication_token_refresh_error_total-counter}
 
-The total number of token refresh errors.
+토큰 새로 고침 오류의 총 개수입니다.
 
-#### Tags {#tuist-authentication-token-refresh-error-total-tags}
+#### 태그 {#튜이스트-인증-토큰-새로고침-오류-총-태그}
 
-| Tag           | Description                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `cli_version` | The version of the Tuist CLI that encountered the error.                                 |
-| `reason`      | The reason for the token refresh error, such as `invalid_token_type` or `invalid_token`. |
+| 태그            | 설명                                                           |
+| ------------- | ------------------------------------------------------------ |
+| `cli_version` | 오류가 발생한 Tuist CLI의 버전입니다.                                    |
+| `이유`          | 토큰 새로 고침 오류의 원인(예: `invalid_token_type` 또는 `invalid_token`). |
 
 ---
 
-## Projects metrics {#projects-metrics}
+## 프로젝트 메트릭 {#projects-metrics}
 
-A set of metrics related to the projects.
+프로젝트와 관련된 일련의 메트릭입니다.
 
 ### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
 
-The total number of projects.
+총 프로젝트 수입니다.
 
 ---
 
-## Accounts metrics {#accounts-metrics}
+## 계정 메트릭 {#accounts-metrics}
 
-A set of metrics related to accounts (users and organizations).
+계정(사용자 및 조직)과 관련된 일련의 메트릭입니다.
 
-### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
+### `tuist_accounts_조직_총계` (last_value) {#tuist_accounts_조직_총계-마지막_값}
 
-The total number of organizations.
+총 조직 수입니다.
 
 ### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
 
-The total number of users.
+총 사용자 수입니다.
 
 
-## Database metrics {#database-metrics}
+## 데이터베이스 메트릭 {#데이터베이스-메트릭}
 
-A set of metrics related to the database connection.
+데이터베이스 연결과 관련된 메트릭 집합입니다.
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-The number of database queries that are sitting in a queue waiting to be
-assigned to a database connection.
+데이터베이스 연결에 할당되기를 기다리며 대기열에 있는 데이터베이스 쿼리의 수입니다.
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-The number of database connections that are ready to be assigned to a database
-query.
+데이터베이스 쿼리에 할당할 준비가 된 데이터베이스 연결 수입니다.
 
 
-### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
+### `tuist_repo_pool_db_conection_conected` (카운터) {#tuist_repo_pool_db_conection_conected-counter}
 
-The number of connections that have been established to the database.
+데이터베이스에 설정된 연결 수입니다.
 
-### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
+### `tuist_repo_pool_db_connection_disconnected` (카운터) {#tuist_repo_pool_db_connection_disconnected-counter}
 
-The number of connections that have been disconnected from the database.
+데이터베이스에서 연결이 끊어진 연결 수입니다.
 
-## HTTP metrics {#http-metrics}
+## HTTP 메트릭 {#http-metrics}
 
-A set of metrics related to Tuist's interactions with other services via HTTP.
+HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 메트릭입니다.
 
-### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
+### `tuist_http_request_count` (카운터) {#tuist_http_request_count-last_value}
 
-The number of outgoing HTTP requests.
+발신 HTTP 요청 수입니다.
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-The sum of the duration of the outgoing requests (including the time that they
-spent waiting to be assigned to a connection).
+발신 요청 기간의 합계(연결에 할당되기 위해 대기한 시간 포함)입니다.
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-The distribution of the duration of outgoing requests (including the time that
-they spent waiting to be assigned to a connection).
+### `tuist_http_request_duration_nanosecond_버킷` (배포) {#tuist_http_request_duration_나노초_버킷-distribution}
+발신 요청의 기간 분포(연결에 할당되기 위해 대기한 시간 포함).
 
-### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
+### `tuist_http_queue_count` (카운터) {#tuist_http_queue_count-counter}
 
-The number of requests that have been retrieved from the pool.
+풀에서 검색된 요청 수입니다.
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-The time it takes to retrieve a connection from the pool.
+풀에서 연결을 검색하는 데 걸리는 시간입니다.
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+### `tuist_http_queue_idle_time_나노초_sum` (합계) {#tuist_http_queue_idle_time_나노초_sum-sum}
 
-The time a connection has been idle waiting to be retrieved.
+연결이 검색되기를 기다리며 유휴 상태인 시간입니다.
 
-### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_queue_duration_nanoseconds_버킷` (배포) {#tuist_http_queue_duration_nanoseconds_버킷-distribution}
 
-The time it takes to retrieve a connection from the pool.
+풀에서 연결을 검색하는 데 걸리는 시간입니다.
 
-### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+### `tuist_http_queue_idle_time_나노초_버킷` (배포) {#tuist_http_queue_idle_time_나노초_버킷-distribution}
 
-The time a connection has been idle waiting to be retrieved.
+연결이 검색되기를 기다리며 유휴 상태인 시간입니다.
 
-### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
+### `tuist_http_connect_count` (카운터) {#tuist_http_connect_count-counter}
 
-The number of connections that have been established.
+설정된 연결 수입니다.
 
-### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+### `tuist_http_connect_duration_nanoseconds_sum` (sum) {#tuist_http_connect_duration_nanoseconds_sum-sum}
 
-The time it takes to establish a connection against a host.
+호스트에 대한 연결을 설정하는 데 걸리는 시간입니다.
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connect_duration_nanoseconds_버킷` (배포) {#tuist_http_connect_duration_nanoseconds_버킷-distribution}
 
-The distribution of the time it takes to establish a connection against a host.
+호스트에 대한 연결을 설정하는 데 걸리는 시간의 분포입니다.
 
-### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+### `tuist_http_send_count` (카운터) {#tuist_http_send_count-counter}
 
-The number of requests that have been sent once assigned to a connection from
-the pool.
+풀에서 연결에 할당된 후 전송된 요청의 수입니다.
 
-### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
+### `tuist_http_send_duration_나노초_sum` (합계) {#tuist_http_send_duration_나노초_sum-sum}
 
-The time that it takes for requests to complete once assigned to a connection
-from the pool.
+풀에서 연결에 할당된 후 요청이 완료되는 데 걸리는 시간입니다.
 
-### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
+### `tuist_http_send_duration_nanoseconds_버킷` (배포) {#tuist_http_send_duration_nanoseconds_버킷-distribution}
 
-The distribution of the time that it takes for requests to complete once
-assigned to a connection from the pool.
+풀에서 연결에 할당된 후 요청이 완료되는 데 걸리는 시간의 분포입니다.
 
-### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
+### `tuist_http_receive_count` (카운터) {#tuist_http_receive_count-counter}
 
-The number of responses that have been received from sent requests.
+보낸 요청에 대해 수신된 응답 수입니다.
 
-### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
+### `tuist_http_receive_duration_나노초_sum` (합계) {#tuist_http_receive_duration_나노초_sum-sum}
 
-The time spent receiving responses.
+응답을 받는 데 소요된 시간입니다.
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+### `tuist_http_receive_duration_나노초_버킷` (배포) {#tuist_http_receive_duration_나노초_버킷-distribution}
 
-The distribution of the time spent receiving responses.
+응답 수신에 소요된 시간의 분포입니다.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
-The number of connections available in the queue.
+대기열에서 사용 가능한 연결 수입니다.
 
 ### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
 
-The number of queue connections that are in use.
+사용 중인 대기열 연결 수입니다.
