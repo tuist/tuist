@@ -306,7 +306,8 @@ defmodule Cache.DiskIntegrationTest do
 
       log =
         capture_log(fn ->
-          assert {:error, :enoent} = Disk.module_put_from_parts(account, "project", "builds", hash, "missing.zip", ["/nonexistent/part"])
+          assert {:error, :enoent} =
+                   Disk.module_put_from_parts(account, "project", "builds", hash, "missing.zip", ["/nonexistent/part"])
         end)
 
       assert log =~ "Failed to assemble artifact to #{dest_path}"
