@@ -21,7 +21,7 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
       bundle_identifier: Keyword.get(opts, :bundle_identifier, "dev.tuist.app"),
       version: Keyword.get(opts, :version, "1.0.0"),
       git_branch: Keyword.get(opts, :git_branch, "main"),
-      git_commit_sha: Keyword.get(opts, :git_commit_sha, "7c184b7"),
+      git_commit_sha: Keyword.get_lazy(opts, :git_commit_sha, fn -> Ecto.UUID.generate() end),
       git_ref: Keyword.get(opts, :git_ref, "refs/heads/main"),
       track: Keyword.get(opts, :track, ""),
       created_by_account_id: Keyword.get(opts, :created_by_account_id, project.account.id),

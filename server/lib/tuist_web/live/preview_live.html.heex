@@ -151,7 +151,7 @@
             </span>
           </div>
         </div>
-        <div :if={@preview.track} data-part="metadata-row">
+        <div :if={@preview.track != ""} data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_previews", "Track")}</div>
             <span data-part="label">

@@ -178,13 +178,13 @@ defmodule TuistWeb.PreviewLiveTest do
     assert has_element?(lv, "div[data-part='metadata'] span[data-part='label']", "beta")
   end
 
-  test "does not show track row when track is nil", %{
+  test "does not show track row when track is empty", %{
     conn: conn,
     organization: organization,
     project: project
   } do
     # Given
-    preview = AppBuildsFixtures.preview_fixture(project: project, track: nil)
+    preview = AppBuildsFixtures.preview_fixture(project: project, track: "")
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 

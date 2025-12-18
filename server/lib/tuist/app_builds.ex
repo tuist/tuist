@@ -25,7 +25,7 @@ defmodule Tuist.AppBuilds do
           display_name: display_name
         } = attrs
       ) do
-    track = Map.get(attrs, :track)
+    track = Map.get(attrs, :track) || ""
 
     preview =
       from(p in Preview)
@@ -50,12 +50,12 @@ defmodule Tuist.AppBuilds do
         )
       )
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
-      |> then(&if(is_nil(track), do: where(&1, [p], is_nil(p.track)), else: where(&1, [p], p.track == ^track)))
+      |> where([p], p.track == ^track)
       |> limit(1)
       |> Repo.one()
 
     if is_nil(preview) do
-      create_preview(attrs)
+      create_preview(Map.put(attrs, :track, track))
     else
       {:ok, preview}
     end
@@ -87,13 +87,15 @@ defmodule Tuist.AppBuilds do
     with {:ok, app_build} <- app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
          %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch, track: track}
          when not is_nil(bundle_identifier) <- app_build.preview do
+      normalized_track = track || ""
+
       preview =
         from(p in Preview,
           where: p.project_id == ^project.id,
           where: p.bundle_identifier == ^bundle_identifier,
           where: p.git_branch == ^git_branch
         )
-        |> then(&if(is_nil(track), do: where(&1, [p], is_nil(p.track)), else: where(&1, [p], p.track == ^track)))
+        |> where([p], p.track == ^normalized_track)
         |> order_by([p], desc: p.inserted_at)
         |> limit(1)
         |> preload(^preload)

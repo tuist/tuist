@@ -617,7 +617,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
-               "track" => nil,
+               "track" => "",
                "version" => "1.0.0",
                "builds" => [
                  %{
@@ -1037,7 +1037,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
-                 "track" => nil,
+                 "track" => "",
                  "version" => "1.0.0",
                  "builds" => [
                    %{

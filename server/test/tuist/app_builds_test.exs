@@ -62,7 +62,7 @@ defmodule Tuist.AppBuildsTest do
       {:ok, preview_nightly} = AppBuilds.create_preview(Map.put(attrs, :track, "nightly"))
 
       # Then
-      assert preview_no_track.track == nil
+      assert preview_no_track.track == ""
       assert preview_beta.track == "beta"
       assert preview_nightly.track == "nightly"
       assert length(Repo.all(Preview)) == 3
@@ -377,7 +377,7 @@ defmodule Tuist.AppBuildsTest do
       assert length(Repo.all(Preview)) == 2
     end
 
-    test "distinguishes between nil track and non-nil track" do
+    test "distinguishes between empty track and non-empty track" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -398,13 +398,13 @@ defmodule Tuist.AppBuildsTest do
       {:ok, preview_with_track} = AppBuilds.find_or_create_preview(attrs_with_track)
 
       # Then
-      assert preview_no_track.track == nil
+      assert preview_no_track.track == ""
       assert preview_with_track.track == "beta"
       assert preview_no_track.id != preview_with_track.id
       assert length(Repo.all(Preview)) == 2
     end
 
-    test "finds existing preview with nil track when no track is provided" do
+    test "finds existing preview with empty track when no track is provided" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -428,7 +428,7 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert found_preview.id == existing_preview.id
-      assert found_preview.track == nil
+      assert found_preview.track == ""
     end
   end
 
@@ -1261,6 +1261,7 @@ defmodule Tuist.AppBuildsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440010"
+      build_version = "1"
 
       preview_beta_old =
         AppBuildsFixtures.preview_fixture(
@@ -1273,7 +1274,11 @@ defmodule Tuist.AppBuildsTest do
         )
 
       _app_build_beta_old =
-        AppBuildsFixtures.app_build_fixture(preview: preview_beta_old, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
 
       preview_beta_new =
         AppBuildsFixtures.preview_fixture(
@@ -1299,17 +1304,18 @@ defmodule Tuist.AppBuildsTest do
         )
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_beta_new.id
       assert result.track == "beta"
     end
 
-    test "returns latest preview with nil track when source preview has nil track" do
+    test "returns latest preview with empty track when source preview has empty track" do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440011"
+      build_version = "1"
 
       preview_no_track_old =
         AppBuildsFixtures.preview_fixture(
@@ -1317,12 +1323,16 @@ defmodule Tuist.AppBuildsTest do
           bundle_identifier: "com.example.app",
           git_branch: "main",
           git_commit_sha: "commit-sha-old",
-          track: nil,
+          track: "",
           inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       _app_build_no_track_old =
-        AppBuildsFixtures.app_build_fixture(preview: preview_no_track_old, binary_id: binary_id)
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_no_track_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
 
       preview_no_track_new =
         AppBuildsFixtures.preview_fixture(
@@ -1330,7 +1340,7 @@ defmodule Tuist.AppBuildsTest do
           bundle_identifier: "com.example.app",
           git_branch: "main",
           git_commit_sha: "commit-sha-new",
-          track: nil,
+          track: "",
           inserted_at: ~U[2021-01-02 00:00:00Z]
         )
 
@@ -1348,17 +1358,18 @@ defmodule Tuist.AppBuildsTest do
         )
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_no_track_new.id
-      assert result.track == nil
+      assert result.track == ""
     end
 
     test "does not match previews with different track" do
       # Given
       project = ProjectsFixtures.project_fixture()
       binary_id = "550E8400-E29B-41D4-A716-446655440012"
+      build_version = "1"
 
       preview_beta =
         AppBuildsFixtures.preview_fixture(
@@ -1370,7 +1381,12 @@ defmodule Tuist.AppBuildsTest do
           inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
-      _app_build = AppBuildsFixtures.app_build_fixture(preview: preview_beta, binary_id: binary_id)
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta,
+          binary_id: binary_id,
+          build_version: build_version
+        )
 
       # Only create preview with nightly track (no beta track previews after the source)
       _preview_nightly =
@@ -1384,7 +1400,7 @@ defmodule Tuist.AppBuildsTest do
         )
 
       # When
-      {:ok, result} = AppBuilds.latest_preview_for_binary_id(binary_id, project)
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
 
       # Then
       assert result.id == preview_beta.id
