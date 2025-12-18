@@ -5,61 +5,62 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# Кэш {#cache}
 
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency on a single machine. However, build artifacts are not shared across
-different environments, forcing you to rebuild the same code over and over –
-either in your [Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
-development environments (your Mac).
+Система сборки Xcode обеспечивает [инкрементные
+сборки](https://en.wikipedia.org/wiki/Incremental_build_model), повышая
+эффективность работы на одной машине. Однако артефакты сборки не разделяются
+между различными окружениями, что заставляет вас пересобирать один и тот же код
+снова и снова - либо в окружении [Continuous Integration
+(CI)](https://en.wikipedia.org/wiki/Continuous_integration), либо в локальном
+окружении разработки (на вашем Mac).
 
-Tuist addresses these challenges with its caching feature, significantly
-reducing build times both in local development and CI environments. This
-approach not only accelerates feedback loops but also minimizes the need for
-context switching, ultimately boosting productivity.
+Tuist решает эти проблемы с помощью функции кэширования, значительно сокращая
+время сборки как в локальной разработке, так и в CI-средах. Такой подход не
+только ускоряет циклы обратной связи, но и минимизирует необходимость
+переключения контекста, что в конечном итоге повышает производительность.
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module
-  cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  cache</LocalizedLink>
+Мы предлагаем два типа кэширования:
+- <LocalizedLink href="/guides/features/cache/module-cache">Кэш
+  модулей</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Кэш
+  Xcode</LocalizedLink>
 
-## Module cache {#module-cache}
+## Кэш модулей {#module-cache}
 
-For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities, we provide a powerful caching system,
-which caches individual modules as binaries and shares them across your team and
-CI environments.
+Для проектов, использующих возможности Tuist по созданию
+<LocalizedLink href="/guides/features/projects">проектов</LocalizedLink>, мы
+предоставляем мощную систему кэширования, которая кэширует отдельные модули в
+виде двоичных файлов и передает их в вашу команду и CI-среду.
 
-While you can also use the new Xcode cache, this feature is currently optimized
-for local builds and you will likely have a lower cache hit rate compared to the
-generated project caching. However, the decision for which caching solution to
-use depends on your specific needs and preferences. You may also combine both
-caching solutions to achieve the best results.
+Хотя вы также можете использовать новый кэш Xcode, эта функция в настоящее время
+оптимизирована для локальных сборок, и вы, скорее всего, будете иметь более
+низкий коэффициент попадания в кэш по сравнению с кэшированием сгенерированных
+проектов. Однако решение о том, какое решение для кэширования использовать,
+зависит от ваших конкретных потребностей и предпочтений. Вы также можете
+комбинировать оба решения для достижения наилучших результатов.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
-Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Подробнее о Модуль кэш
+→</LocalizedLink>
 
-## Xcode cache {#xcode-cache}
+## Кэш Xcode {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE
+::: предупреждение STATE OF CACHE IN XCODE
 <!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole
-spectrum of build tasks is not yet path-independent. Still you can experience
-benefits by plugging Tuist's remote cache, and we expect build times to improve
-over time as the build system's capability keeps improving.
+Кэширование Xcode в настоящее время оптимизировано для локальных инкрементных
+сборок, и весь спектр задач сборки пока не является независимым от пути. Тем не
+менее, вы можете получить преимущества, подключив удаленный кэш Tuist, и мы
+ожидаем, что время сборки будет улучшаться со временем, поскольку возможности
+системы сборки продолжают совершенствоваться.
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to
-other build systems like Bazel and Buck. The new caching capability is available
-since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
-whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities or not.
+Apple работает над новым решением для кэширования на уровне сборки, подобно
+другим системам сборки, таким как Bazel и Buck. Новая возможность кэширования
+доступна с Xcode 26, и Tuist теперь легко интегрируется с ней - независимо от
+того, используете ли вы
+<LocalizedLink href="/guides/features/projects">генерацию
+проектов</LocalizedLink> Tuist или нет.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
-cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Узнайте больше о кэше
+Xcode →</LocalizedLink>
