@@ -487,8 +487,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       call_count = :counters.new(1, [:atomics])
 
-      Tuist.Runs
-      |> stub(:get_build, fn ^id ->
+      stub(Tuist.Runs, :get_build, fn ^id ->
         count = :counters.get(call_count, 1)
         :counters.add(call_count, 1, 1)
         if count == 0, do: nil, else: existing_build
