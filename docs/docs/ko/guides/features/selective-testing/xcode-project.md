@@ -28,13 +28,13 @@
 
 `튜이스트 X코드 빌드 테스트` 는 이와 같이 작동합니다:
 
-| 액션                    | 설명                                                          | 내부 상태                                                       |
-| --------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `튜이스트 엑스코드 빌드 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests`, `FeatureBTests`, `CoreTests` 의 해시는 유지됩니다.  |
-| `기능` 업데이트됨            | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
-| `튜이스트 엑스코드 빌드 테스트` 호출 | 해시가 변경되었으므로 `FeatureATests` 에서 테스트를 실행합니다.                  | `FeatureATests` 의 새 해시가 유지됩니다.                              |
-| `핵심` 업데이트됨            | 개발자가 대상의 코드를 수정합니다.                                         | 이전과 동일                                                      |
-| `튜이스트 엑스코드 빌드 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
+| 액션                                 | 설명                                                                  | 내부 상태                                                       |
+| ---------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests`, `FeatureBTests`, `CoreTests` 의 해시는 유지됩니다.  |
+| `기능` 업데이트됨                         | The developer modifies the code of a target                         | Same as before                                              |
+| `tuist xcodebuild test` invocation | 해시가 변경되었으므로 `FeatureATests` 에서 테스트를 실행합니다.                          | `FeatureATests` 의 새 해시가 유지됩니다.                              |
+| `핵심` 업데이트됨                         | The developer modifies the code of a target                         | Same as before                                              |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
 
 CI에서 `tuist xcodebuild test` 를 사용하려면
 <LocalizedLink href="/guides/integrations/continuous-integration">연속 통합

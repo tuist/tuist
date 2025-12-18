@@ -32,13 +32,13 @@ Na przykład, zakładając następujący graf zależności:
 
 `tuist xcodebuild test` będzie zachowywać się w ten sposób:
 
-| Działanie                         | Opis                                                              | Stan wewnętrzny                                                            |
-| --------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `tuist xcodebuild test` wywołanie | Uruchamia testy w `CoreTests`, `FeatureATests` i `FeatureBTests`  | Skróty `FeatureATests`, `FeatureBTests` i `CoreTests` są przechowywane.    |
-| `FunkcjaA` jest aktualizowana     | Deweloper modyfikuje kod obiektu docelowego                       | Tak jak poprzednio                                                         |
-| `tuist xcodebuild test` wywołanie | Uruchamia testy w `FeatureATests`, ponieważ zmienił się ich hash. | Nowy skrót `FeatureATests` jest przechowywany                              |
-| `Rdzeń` jest aktualizowany        | Deweloper modyfikuje kod obiektu docelowego                       | Tak jak poprzednio                                                         |
-| `tuist xcodebuild test` wywołanie | Uruchamia testy w `CoreTests`, `FeatureATests` i `FeatureBTests`  | Nowe skróty `FeatureATests` `FeatureBTests` i `CoreTests` są przechowywane |
+| Działanie                          | Opis                                                                | Stan wewnętrzny                                                            |
+| ---------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Skróty `FeatureATests`, `FeatureBTests` i `CoreTests` są przechowywane.    |
+| `FunkcjaA` jest aktualizowana      | The developer modifies the code of a target                         | Same as before                                                             |
+| `tuist xcodebuild test` invocation | Uruchamia testy w `FeatureATests`, ponieważ zmienił się ich hash.   | Nowy skrót `FeatureATests` jest przechowywany                              |
+| `Rdzeń` jest aktualizowany         | The developer modifies the code of a target                         | Same as before                                                             |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | Nowe skróty `FeatureATests` `FeatureBTests` i `CoreTests` są przechowywane |
 
 Aby użyć `tuist xcodebuild test` w CI, postępuj zgodnie z instrukcjami w
 <LocalizedLink href="/guides/integrations/continuous-integration">Przewodniku

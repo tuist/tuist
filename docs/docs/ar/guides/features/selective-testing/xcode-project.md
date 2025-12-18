@@ -30,13 +30,13 @@ test -scheme App`. يقوم الأمر بتجزئة مشروعك وعند الن
 
 `سوف يتصرف tuist xcodebuild test` على هذا النحو:
 
-| الإجراء                         | الوصف                                                                     | الحالة الداخلية                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | يتم الاحتفاظ بتجزئة `ميزات الاختبارات` و `ميزات الاختبارات` و `الاختبارات الأساسية` |
-| `الميزة يتم تحديث`              | يقوم المطور بتعديل الكود البرمجي للهدف                                    | كما في السابق                                                                       |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `FeatureATests` لأنه تم تغيير التجزئة           | يتم استمرار التجزئة الجديدة لـ `FeatureATests`                                      |
-| `تم تحديث الموقع الأساسي`       | يقوم المطور بتعديل الكود البرمجي للهدف                                    | كما في السابق                                                                       |
-| `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | التجزئة الجديدة لـ `FeatureATests` `FeatureBTests` ، و `CoreTests` يتم استمرارها    |
+| الإجراء                            | الوصف                                                               | الحالة الداخلية                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | يتم الاحتفاظ بتجزئة `ميزات الاختبارات` و `ميزات الاختبارات` و `الاختبارات الأساسية` |
+| `الميزة يتم تحديث`                 | The developer modifies the code of a target                         | Same as before                                                                      |
+| `tuist xcodebuild test` invocation | يقوم بتشغيل الاختبارات في `FeatureATests` لأنه تم تغيير التجزئة     | يتم استمرار التجزئة الجديدة لـ `FeatureATests`                                      |
+| `تم تحديث الموقع الأساسي`          | The developer modifies the code of a target                         | Same as before                                                                      |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | التجزئة الجديدة لـ `FeatureATests` `FeatureBTests` ، و `CoreTests` يتم استمرارها    |
 
 لاستخدام `tuist xcodebuild test` على CI الخاص بك، اتبع التعليمات الواردة في دليل
 <LocalizedLink href="/guides/integrations/continuous-integration">التكامل
