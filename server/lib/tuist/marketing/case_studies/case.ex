@@ -1,13 +1,13 @@
 defmodule Tuist.Marketing.CaseStudies.Case do
   @moduledoc false
-  @enforce_keys [:title, :date, :name, :url, :founded, :onboarded, :body, :slug]
+  @enforce_keys [:title, :date, :company, :url, :founded_date, :onboarded_date, :body, :slug]
   defstruct [
     :title,
     :date,
-    :name,
+    :company,
     :url,
-    :founded,
-    :onboarded,
+    :founded_date,
+    :onboarded_date,
     :body,
     :slug
   ]
@@ -19,10 +19,10 @@ defmodule Tuist.Marketing.CaseStudies.Case do
     struct!(__MODULE__,
       title: title,
       date: Date.from_iso8601!(attrs["date"]),
-      name: attrs["name"],
+      company: attrs["company"],
       url: attrs["url"],
-      founded: attrs["founded"],
-      onboarded: Date.from_iso8601!(attrs["onboarded"]),
+      founded_date: attrs["founded_date"],
+      onboarded_date: Date.from_iso8601!(attrs["onboarded_date"]),
       body: body,
       slug: slug
     )
