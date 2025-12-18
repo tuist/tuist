@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
   use TuistWeb, :controller
 
   alias Tuist.Projects
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
 
   def init(opts), do: opts
 
@@ -24,6 +25,7 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
         conn
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         conn
