@@ -71,26 +71,28 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## Tracks {#tracks}
+## Треки {#tracks}
 
-Tracks allow you to organize your previews into named groups. For example, you
-might have a `beta` track for internal testers and a `nightly` track for
-automated builds. Tracks are lazily created — simply specify a track name when
-sharing, and it will be created automatically if it doesn't exist.
+Треки позволяют организовать предварительные просмотры в именованные группы.
+Например, у вас может быть трек `beta` для внутренних тестеров и трек `nightly`
+для автоматических сборок. Треки создаются лениво - просто укажите имя трека при
+публикации, и он будет создан автоматически, если его не существует.
 
-To share a preview on a specific track, use the `--track` option:
+Чтобы поделиться предварительным просмотром на определенной дорожке, используйте
+параметр `--track`:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-This is useful for:
-- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
-  `internal`)
-- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
-  notify users about
-- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+Это полезно для:
+- **Организация предварительных просмотров**: Группируйте предварительные
+  просмотры по назначению (например, `beta`, `nightly`, `internal`).
+- **Обновления в приложении**: Tuist SDK использует треки для определения
+  обновлений, о которых следует уведомлять пользователей.
+- **Фильтрация**: Удобный поиск и управление превью по трекам на приборной
+  панели Tuist
 
 ::: предупреждение Визитная карточка ПРЕДИСЛОВИЕ
 <!-- -->
@@ -171,11 +173,11 @@ share MyApp`</LocalizedLink> в ваш рабочий процесс CI. Пос�
 пользователей. Это полезно для того, чтобы держать тестировщиков на последней
 сборке.
 
-The SDK checks for updates within the same **preview track**. When you share a
-preview with an explicit track using `--track`, the SDK will look for updates on
-that track. If no track is specified, the git branch is used as the track — so a
-preview built from the `main` branch will only notify about newer previews also
-built from `main`.
+SDK проверяет наличие обновлений в пределах одной дорожки **превью**. Когда вы
+делитесь превью с явным треком с помощью `--track`, SDK будет искать обновления
+на этом треке. Если трек не указан, в качестве трека используется ветка git -
+таким образом, превью, созданное из ветки `main`, будет уведомлять только о
+новых превью, также созданных из `main`.
 
 ### Установка {#sdk-installation}
 
