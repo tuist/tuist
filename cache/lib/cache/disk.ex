@@ -154,8 +154,6 @@ defmodule Cache.Disk do
     |> Enum.filter(&File.regular?/1)
   end
 
-  # Module Cache Functions
-
   @doc """
   Constructs a sharded module cache key from account handle, project handle, category, hash, and name.
 
@@ -208,16 +206,6 @@ defmodule Cache.Disk do
     end
   end
 
-  @doc """
-  Assembles multiple part files into a single module cache artifact.
-
-  Parts are concatenated in the order provided. Uses atomic rename for safety.
-
-  Returns:
-  - `:ok` on success
-  - `{:error, :exists}` if artifact already exists
-  - `{:error, reason}` on failure
-  """
   def module_put_from_parts(account_handle, project_handle, category, hash, name, part_paths) do
     dest_path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
 
