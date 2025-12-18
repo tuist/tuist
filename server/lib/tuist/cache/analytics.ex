@@ -161,22 +161,32 @@ defmodule Tuist.Cache.Analytics do
     end_date = Keyword.get(opts, :end_date)
     days_delta = Date.diff(end_date, start_date)
 
-    if days_delta >= 60 do
-      :month
-    else
-      :day
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
     end
   end
 
   defp time_bucket_for_date_period(date_period) do
     case date_period do
+      :hour -> %Postgrex.Interval{secs: 3600}
       :day -> %Postgrex.Interval{days: 1}
       :month -> %Postgrex.Interval{months: 1}
     end
   end
 
+  defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{secs: 3600}), do: "1 hour"
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{days: 1}), do: "1 day"
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{months: 1}), do: "1 month"
+
+  defp generate_date_range(start_date, end_date, :hour) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+
+    Stream.iterate(start_dt, &DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+  end
 
   defp generate_date_range(start_date, end_date, :day) do
     start_date
@@ -189,6 +199,10 @@ defmodule Tuist.Cache.Analytics do
     |> Date.beginning_of_month()
     |> Date.range(Date.beginning_of_month(end_date))
     |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_to_string(%DateTime{} = dt, :hour) do
+    Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
   end
 
   defp date_to_string(date, :day) do

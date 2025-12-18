@@ -397,11 +397,22 @@ defmodule Tuist.Bundles do
     end_date = Keyword.get(opts, :end_date)
     days_delta = Date.diff(end_date, start_date)
 
-    if days_delta >= 60 do
-      :month
-    else
-      :day
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
     end
+  end
+
+  defp date_range_for_date_period(:hour, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+
+    Stream.iterate(start_dt, &DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
   end
 
   defp date_range_for_date_period(date_period, opts) do

@@ -788,6 +788,24 @@ defmodule Tuist.CommandEvents do
 
   defp build_date_range_query(start_date, end_date, date_period, date_format) do
     case date_period do
+      :hour ->
+        from(
+          d in fragment(
+            """
+              SELECT formatDateTime(
+                toDateTime(?) + INTERVAL number HOUR,
+                ?
+              ) AS date
+              FROM numbers(dateDiff('hour', toDateTime(?), toDateTime(?)) + 1)
+            """,
+            ^NaiveDateTime.new!(start_date, ~T[00:00:00]),
+            ^date_format,
+            ^NaiveDateTime.new!(start_date, ~T[00:00:00]),
+            ^NaiveDateTime.new!(end_date, ~T[23:00:00])
+          ),
+          select: %{date: d.date}
+        )
+
       :day ->
         from(
           d in fragment(

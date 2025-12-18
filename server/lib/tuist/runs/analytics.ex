@@ -953,20 +953,22 @@ defmodule Tuist.Runs.Analytics do
     end_date = Keyword.get(opts, :end_date)
     days_delta = Date.diff(end_date, start_date)
 
-    if days_delta >= 60 do
-      :month
-    else
-      :day
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
     end
   end
 
   defp time_bucket_for_date_period(date_period) do
     case date_period do
+      :hour -> %Interval{secs: 3600}
       :day -> %Interval{days: 1}
       :month -> %Interval{months: 1}
     end
   end
 
+  defp time_bucket_to_clickhouse_interval(%Interval{secs: 3600}), do: "1 hour"
   defp time_bucket_to_clickhouse_interval(%Interval{days: 1}), do: "1 day"
   defp time_bucket_to_clickhouse_interval(%Interval{months: 1}), do: "1 month"
 
@@ -1036,6 +1038,17 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
+  defp date_range_for_date_period(:hour, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+
+    Stream.iterate(start_dt, &DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+  end
+
   defp date_range_for_date_period(date_period, opts) do
     start_date = Keyword.get(opts, :start_date)
     end_date = Keyword.get(opts, :end_date)
@@ -1051,6 +1064,27 @@ defmodule Tuist.Runs.Analytics do
           true
       end
     end)
+  end
+
+  defp normalise_date(date_input, :hour) do
+    # For hourly data, return the formatted datetime string for lookups
+    case date_input do
+      %DateTime{} = dt ->
+        Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
+
+      %NaiveDateTime{} = dt ->
+        Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
+
+      date_string when is_binary(date_string) ->
+        # Handle formats like "2025-12-17 11:00:00" or "2025-12-17 11:00:00-01"
+        # Extract just the "YYYY-MM-DD HH:00" part
+        date_string
+        |> String.slice(0, 13)
+        |> Kernel.<>(":00")
+
+      %Date{} = d ->
+        Timex.format!(d, "%Y-%m-%d", :strftime) <> " 00:00"
+    end
   end
 
   defp normalise_date(date_input, date_period) do
@@ -1939,6 +1973,9 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00"),
+    do: "#{Date.to_string(DateTime.to_date(datetime))} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+
   defp format_datetime_for_date_format(datetime, "%Y-%m-%d"), do: Date.to_string(DateTime.to_date(datetime))
 
   defp format_datetime_for_date_format(datetime, "%Y-%m"),
@@ -1946,10 +1983,12 @@ defmodule Tuist.Runs.Analytics do
 
   defp format_datetime_for_date_format(datetime, _), do: Date.to_string(DateTime.to_date(datetime))
 
+  defp get_clickhouse_date_format("1 hour"), do: "%Y-%m-%d %H:00"
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
+  defp clickhouse_interval_to_postgrex_interval("1 hour"), do: %Interval{secs: 3600}
   defp clickhouse_interval_to_postgrex_interval("1 day"), do: %Interval{days: 1}
   defp clickhouse_interval_to_postgrex_interval("1 month"), do: %Interval{months: 1}
 
@@ -2385,6 +2424,14 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
+  defp generate_date_range(start_date, end_date, :hour) do
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+
+    Stream.iterate(start_dt, &DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+  end
+
   defp generate_date_range(start_date, end_date, :day) do
     start_date
     |> Date.range(end_date)
@@ -2406,6 +2453,10 @@ defmodule Tuist.Runs.Analytics do
       {lookup_key, value}
     end)
     |> Enum.unzip()
+  end
+
+  defp date_to_string(%DateTime{} = dt, :hour) do
+    Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
   end
 
   defp date_to_string(date, :day) do
