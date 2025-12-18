@@ -94,7 +94,7 @@ defmodule CacheWeb.ModuleCacheController do
         :telemetry.execute([:cache, :module, :download, :disk_miss], %{}, %{})
 
         if S3.exists?(key) do
-          S3Transfers.enqueue_module_download(account_handle, project_handle, category, hash, name)
+          S3Transfers.enqueue_module_download(account_handle, project_handle, key)
 
           case S3.presign_download_url(key) do
             {:ok, url} ->
@@ -213,7 +213,10 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def start_multipart(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+  def start_multipart(
+        conn,
+        %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
     category = Map.get(params, :cache_category, "builds")
 
     if Disk.module_exists?(account_handle, project_handle, category, hash, name) do
@@ -335,27 +338,32 @@ defmodule CacheWeb.ModuleCacheController do
 
   def complete_multipart(conn, %{upload_id: upload_id}) do
     with {:ok, upload} <- MultipartUploads.complete_upload(upload_id),
-         parts_from_client <- Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"),
+         parts_from_client = Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"),
          :ok <- verify_parts(upload.parts, parts_from_client),
-         part_paths <- get_ordered_part_paths(upload.parts, parts_from_client),
-         :ok <- Disk.module_put_from_parts(
-           upload.account_handle,
-           upload.project_handle,
-           upload.category,
-           upload.hash,
-           upload.name,
-           part_paths
-         ) do
+         part_paths = get_ordered_part_paths(upload.parts, parts_from_client),
+         :ok <-
+           Disk.module_put_from_parts(
+             upload.account_handle,
+             upload.project_handle,
+             upload.category,
+             upload.hash,
+             upload.name,
+             part_paths
+           ) do
       Enum.each(part_paths, &File.rm/1)
 
       key = Disk.module_key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
       :ok = CacheArtifacts.track_artifact_access(key)
-      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
 
-      :telemetry.execute([:cache, :module, :multipart, :complete], %{
-        size: upload.total_bytes,
-        parts_count: map_size(upload.parts)
-      }, %{})
+      :telemetry.execute(
+        [:cache, :module, :multipart, :complete],
+        %{
+          size: upload.total_bytes,
+          parts_count: map_size(upload.parts)
+        },
+        %{}
+      )
 
       send_resp(conn, :no_content, "")
     else
@@ -378,6 +386,7 @@ defmodule CacheWeb.ModuleCacheController do
 
       {:ok, data, conn_after} when is_binary(data) ->
         tmp_path = tmp_path()
+
         case File.write(tmp_path, data) do
           :ok -> {:ok, tmp_path, byte_size(data), conn_after}
           {:error, _} -> {:error, :read_error, conn_after}
@@ -395,7 +404,7 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp verify_parts(server_parts, client_parts) do
-    server_part_numbers = Map.keys(server_parts) |> Enum.sort()
+    server_part_numbers = server_parts |> Map.keys() |> Enum.sort()
     client_part_numbers = Enum.sort(client_parts)
 
     if server_part_numbers == client_part_numbers do

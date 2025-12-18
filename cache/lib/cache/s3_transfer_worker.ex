@@ -12,6 +12,7 @@ defmodule Cache.S3TransferWorker do
 
   use Oban.Worker, queue: :s3_transfers
 
+  alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
 
@@ -22,8 +23,8 @@ defmodule Cache.S3TransferWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    process_batch(:upload, &S3.upload/3)
-    process_batch(:download, &S3.download/3)
+    process_batch(:upload, &S3.upload/1)
+    process_batch(:download, &S3.download/1)
     :ok
   end
 
@@ -37,8 +38,8 @@ defmodule Cache.S3TransferWorker do
         transfers
         |> Task.async_stream(
           fn transfer ->
-            result = operation_fn.(transfer.account_handle, transfer.project_handle, transfer.artifact_id)
-            {transfer.id, result}
+            result = operation_fn.(transfer.key)
+            {transfer, result}
           end,
           max_concurrency: @concurrency,
           timeout: 60_000,
@@ -52,16 +53,38 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
-  defp handle_result(_type, {:ok, {id, :ok}}), do: id
+  defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id
 
-  defp handle_result(type, {:ok, {_id, {:error, :rate_limited}}}) do
+  defp handle_result(:download, {:ok, {transfer, {:ok, :hit}}}) do
+    {:ok, %{size: size}} = transfer.key |> Disk.artifact_path() |> File.stat()
+
+    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
+      account_handle: transfer.account_handle,
+      project_handle: transfer.project_handle
+    })
+
+    transfer.id
+  end
+
+  defp handle_result(:download, {:ok, {transfer, {:ok, :miss}}}) do
+    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_miss], %{}, %{
+      account_handle: transfer.account_handle,
+      project_handle: transfer.project_handle
+    })
+
+    transfer.id
+  end
+
+  defp handle_result(_type, {:ok, {transfer, {:ok, _}}}), do: transfer.id
+
+  defp handle_result(type, {:ok, {_transfer, {:error, :rate_limited}}}) do
     Logger.warning("S3 #{type} rate limited, will retry on next run")
     nil
   end
 
-  defp handle_result(type, {:ok, {id, {:error, reason}}}) do
-    Logger.warning("S3 #{type} failed for transfer #{id}: #{inspect(reason)}")
-    id
+  defp handle_result(type, {:ok, {transfer, {:error, reason}}}) do
+    Logger.warning("S3 #{type} failed for transfer #{transfer.id}: #{inspect(reason)}")
+    transfer.id
   end
 
   defp handle_result(type, {:exit, reason}) do

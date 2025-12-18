@@ -102,7 +102,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :download
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
-      assert transfer.artifact_id == CacheArtifacts.encode_module("builds", hash, name)
+      assert transfer.artifact_type == :module
+      assert transfer.key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
     end
 
     test "returns 404 when S3 presign fails", %{conn: conn} do
@@ -395,6 +396,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :upload
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
+      assert transfer.artifact_type == :module
+      assert transfer.key == "test-account/test-project/module/builds/ab/c1/abc123/test.zip"
     end
 
     test "returns 404 for unknown upload_id", %{conn: conn} do
