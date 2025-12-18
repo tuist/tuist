@@ -71,26 +71,28 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## Tracks {#tracks}
+## Utwory {#tracks}
 
-Tracks allow you to organize your previews into named groups. For example, you
-might have a `beta` track for internal testers and a `nightly` track for
-automated builds. Tracks are lazily created — simply specify a track name when
-sharing, and it will be created automatically if it doesn't exist.
+Ścieżki pozwalają organizować podglądy w nazwane grupy. Na przykład, możesz mieć
+ścieżkę `beta` dla wewnętrznych testerów i ścieżkę `nightly` dla automatycznych
+kompilacji. Ścieżki są tworzone leniwie - wystarczy określić nazwę ścieżki
+podczas udostępniania, a zostanie ona utworzona automatycznie, jeśli nie
+istnieje.
 
-To share a preview on a specific track, use the `--track` option:
+Aby udostępnić podgląd określonej ścieżki, należy użyć opcji `--track`:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-This is useful for:
-- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
-  `internal`)
-- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
-  notify users about
-- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+Jest to przydatne dla:
+- **Organizowanie podglądów**: Grupowanie podglądów według przeznaczenia (np.
+  `beta`, `nightly`, `internal`)
+- **Aktualizacje w aplikacji**: Tuist SDK używa ścieżek do określenia, o których
+  aktualizacjach powiadamiać użytkowników.
+- **Filtrowanie**: Łatwe wyszukiwanie i zarządzanie podglądami według utworów na
+  pulpicie nawigacyjnym Tuist.
 
 ::: ostrzeżenie WIDOCZNOŚĆ PRZEGLĄDÓW
 <!-- -->
@@ -170,11 +172,11 @@ Zestaw [Tuist SDK](https://github.com/tuist/sdk) umożliwia aplikacji wykrywanie
 kiedy dostępna jest nowsza wersja podglądu i powiadamianie o tym użytkowników.
 Jest to przydatne do utrzymywania testerów w najnowszej wersji.
 
-The SDK checks for updates within the same **preview track**. When you share a
-preview with an explicit track using `--track`, the SDK will look for updates on
-that track. If no track is specified, the git branch is used as the track — so a
-preview built from the `main` branch will only notify about newer previews also
-built from `main`.
+Zestaw SDK sprawdza aktualizacje w ramach tej samej **ścieżki podglądu**. Po
+udostępnieniu podglądu z wyraźną ścieżką za pomocą `--track`, SDK będzie szukać
+aktualizacji na tej ścieżce. Jeśli nie określono ścieżki, gałąź git jest używana
+jako ścieżka - więc podgląd zbudowany z gałęzi `main` powiadomi tylko o nowszych
+podglądach również zbudowanych z `main`.
 
 ### Instalacja {#sdk-installation}
 
