@@ -198,10 +198,17 @@
       }
 
       & > [data-part="image"] {
+        box-shadow:
+          0 1px 1px 0 rgba(14, 14, 14, 0.05),
+          0 0 0 1px rgba(46, 51, 56, 0.08),
+          0 1px 1px 0 rgba(46, 51, 56, 0.1);
         border-top-right-radius: var(--noora-radius-xlarge);
         border-top-left-radius: var(--noora-radius-xlarge);
+        border-radius: var(--noora-radius-xlarge);
+        /* TODO: Remove */
+        background-color: var(--noora-purple-500);
+        aspect-ratio: 16 / 9;
         width: 100%;
-        height: auto;
         object-fit: cover;
       }
 
