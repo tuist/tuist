@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:28+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:28+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -57,8 +57,9 @@ msgstr "詳細が記載された確認メールがお客様のアカウントに
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Tuistチームからのニュースレターでは、製品のアップデート、最新のアプリ開発に対する私たちの見解、そして今後の展望をお伝えします。私たちがどこに向かっているのか、なぜそうするのか、常に最新情報をお届けします。"
 
+#, fuzzy
 msgid "API Documentation"
-msgstr ""
+msgstr "APIドキュメント"
 
 #, fuzzy
 msgid "About"
@@ -164,15 +165,17 @@ msgstr "バンドル分析"
 msgid "Bundle insights"
 msgstr "バンドル・インサイト"
 
+#, fuzzy
 msgid "Cache"
-msgstr ""
+msgstr "キャッシュ"
 
 #, fuzzy
 msgid "Can I change or cancel my plan at any time?"
 msgstr "プランの変更やキャンセルはいつでもできますか？"
 
+#, fuzzy
 msgid "Changelog"
-msgstr ""
+msgstr "変更履歴"
 
 #, fuzzy
 msgid "Chat with the founders"
@@ -242,8 +245,9 @@ msgstr "連絡先"
 msgid "Contact us"
 msgstr "お問い合わせ"
 
+#, fuzzy
 msgid "Contributors"
-msgstr ""
+msgstr "コントリビューター"
 
 #, fuzzy
 msgid "Cookie policy"
@@ -329,8 +333,9 @@ msgstr "あらゆることをマスターするためのガイドブックです
 msgid "Faster & more lightweight OSS packages resolution"
 msgstr "より速く、より軽量なOSSパッケージの解決"
 
+#, fuzzy
 msgid "Features"
-msgstr ""
+msgstr "機能"
 
 #, fuzzy
 msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
@@ -348,8 +353,9 @@ msgstr "無料"
 msgid "Frequently Asked Questions"
 msgstr "よくある質問"
 
+#, fuzzy
 msgid "Generated Projects"
-msgstr ""
+msgstr "プロジェクト"
 
 msgid "Generated projects"
 msgstr ""
@@ -366,8 +372,9 @@ msgstr "早期アクセス"
 msgid "Get help when you need it through various support channels."
 msgstr "さまざまなサポートチャネルを通じて、必要なときにサポートを受けることができます。"
 
+#, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "始め方"
 
 #, fuzzy
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
@@ -593,8 +600,9 @@ msgstr "購読を確認するため、Eメールをご確認ください。"
 msgid "Powered by"
 msgstr "搭載"
 
+#, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "プレビュー機能"
 
 #, fuzzy
 msgid "Price per unit above free tier"
@@ -644,15 +652,17 @@ msgstr "バンブルのカスタマーストーリーを読む"
 msgid "Read the Trendyol customer story"
 msgstr "トレンディオールのカスタマーストーリーを読む"
 
+#, fuzzy
 msgid "Registry"
-msgstr ""
+msgstr "レジストリ"
 
 #, fuzzy
 msgid "Requires a generated project"
 msgstr "生成されたプロジェクトが必要"
 
+#, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "リソース"
 
 #, fuzzy
 msgid "Right Inside Your Workflow"
@@ -666,8 +676,9 @@ msgstr "スクリーンショット＆リプレイ"
 msgid "Security"
 msgstr "セキュリティ"
 
+#, fuzzy
 msgid "Selective testing"
-msgstr ""
+msgstr "選択的テスト"
 
 #, fuzzy
 msgid "Self-host your instance of Tuist"
@@ -869,8 +880,9 @@ msgstr "トレンディオールは、Tuistを使用することで、ビルド�
 msgid "Trusted by the world's best developer teams"
 msgstr "世界最高の開発チームによる信頼"
 
+#, fuzzy
 msgid "Tuist"
-msgstr ""
+msgstr "Tuist"
 
 #, fuzzy
 msgid "Tuist Blog"
