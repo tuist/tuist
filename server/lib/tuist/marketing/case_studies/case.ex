@@ -1,6 +1,17 @@
 defmodule Tuist.Marketing.CaseStudies.Case do
   @moduledoc false
-  @enforce_keys [:title, :date, :company, :url, :founded_date, :onboarded_date, :body, :slug, :og_image_path]
+  @enforce_keys [
+    :title,
+    :date,
+    :company,
+    :url,
+    :founded_date,
+    :onboarded_date,
+    :body,
+    :slug,
+    :og_image_path,
+    :excerpt
+  ]
   defstruct [
     :title,
     :date,
@@ -10,7 +21,8 @@ defmodule Tuist.Marketing.CaseStudies.Case do
     :onboarded_date,
     :body,
     :slug,
-    :og_image_path
+    :og_image_path,
+    :excerpt
   ]
 
   def build(filename, attrs, body) do
@@ -28,7 +40,8 @@ defmodule Tuist.Marketing.CaseStudies.Case do
       onboarded_date: Date.from_iso8601!(attrs["onboarded_date"]),
       body: body,
       slug: slug,
-      og_image_path: og_image_path
+      og_image_path: og_image_path,
+      excerpt: attrs["excerpt"]
     )
   end
 end

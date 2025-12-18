@@ -582,10 +582,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
       conn
       |> assign(:head_title, case_study.title)
-      |> assign(
-        :head_description,
-        dgettext("marketing", "Learn how %{company} uses Tuist to scale their development.", company: case_study.company)
-      )
+      |> assign(:head_description, case_study.excerpt)
       |> assign(
         :head_image,
         Tuist.Environment.app_url(path: case_study.og_image_path)
@@ -598,6 +595,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
         ])
       )
+      |> assign_structured_data(get_case_study_article_structured_data(case_study))
       |> assign(:case_study, case_study)
       |> assign(:related_case_studies, related_case_studies)
       |> render(:case_study, layout: false)

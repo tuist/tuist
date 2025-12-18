@@ -43,7 +43,7 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
 
         Enum.filter(all_cases, fn case_study ->
           String.contains?(String.downcase(case_study.title), query_lower) ||
-            String.contains?(String.downcase(case_study.name), query_lower) ||
+            String.contains?(String.downcase(case_study.company), query_lower) ||
             String.contains?(String.downcase(case_study.body), query_lower)
         end)
       end
@@ -67,7 +67,7 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
       |> assign(:head_title, dgettext("marketing", "Case Studies"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_case_studies_structured_markup_data(all_cases))
+      |> assign_structured_data(get_case_studies_structured_data(all_cases))
       |> assign(
         :head_description,
         dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.")
@@ -99,27 +99,5 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
     query_string = "?#{Enum.join(params, "&")}"
 
     {:noreply, push_patch(socket, to: "/case-studies#{query_string}")}
-  end
-
-  defp get_case_studies_structured_markup_data(cases) do
-    %{
-      "@context" => "https://schema.org",
-      "@type" => "CollectionPage",
-      "name" => "Tuist Case Studies",
-      "description" => "Learn how teams use Tuist to scale their iOS development.",
-      "url" => Tuist.Environment.app_url(path: "/case-studies"),
-      "mainEntity" => %{
-        "@type" => "ItemList",
-        "itemListElement" =>
-          Enum.with_index(cases, fn case_study, index ->
-            %{
-              "@type" => "ListItem",
-              "position" => index + 1,
-              "url" => Tuist.Environment.app_url(path: case_study.slug),
-              "name" => case_study.title
-            }
-          end)
-      }
-    }
   end
 end
