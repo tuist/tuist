@@ -20,6 +20,8 @@
           <span>{Timex.format!(@case_study.date, "{Mfull} {D}, {YYYY}")}</span>
         </div>
       </div>
+
+      <img data-part="image" src={@case_study.og_image_path} />
     </header>
 
     <section data-part="metadata">
@@ -30,7 +32,7 @@
         <div data-part="entry">
           <span>{@case_study.company}</span>
           <.link href={@case_study.url}>
-            {@case_study.url |> URI.parse() |> Map.get(:host)}
+            {@case_study.url |> URI.parse() |> Map.get(:host)} <.external_link />
           </.link>
         </div>
         <div data-part="entry">
