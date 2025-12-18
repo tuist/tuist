@@ -575,6 +575,11 @@ defmodule TuistWeb.Marketing.MarketingController do
     if is_nil(case_study) do
       raise NotFoundError
     else
+      related_case_studies =
+        CaseStudies.get_cases()
+        |> Enum.reject(&(&1.slug == case_study.slug))
+        |> Enum.take_random(3)
+
       conn
       |> assign(:head_title, case_study.title)
       |> assign(
@@ -594,6 +599,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         ])
       )
       |> assign(:case_study, case_study)
+      |> assign(:related_case_studies, related_case_studies)
       |> render(:case_study, layout: false)
     end
   end

@@ -50,6 +50,26 @@
       {raw(@case_study.body)}
     </section>
 
+    <section :if={@related_case_studies != []} data-part="read-next">
+      <h2 data-part="title">{dgettext("marketing", "Read next")}</h2>
+      <div data-part="cases">
+        <.link
+          :for={related <- @related_case_studies}
+          data-part="case"
+          href={TuistWeb.Marketing.MarketingHTML.localized_href(related.slug)}
+        >
+          <img data-part="image" src={related.og_image_path} />
+          <div data-part="content">
+            <h3 data-part="title">{related.title}</h3>
+            <footer data-part="footer">
+              <span data-part="read-story">{dgettext("marketing", "Read story")}</span>
+              <.arrow_right />
+            </footer>
+          </div>
+        </.link>
+      </div>
+    </section>
+
     <section data-part="cta">
       <.marketing_banner title={dgettext("marketing", "AI writes faster. So should your builds.")} />
     </section>
