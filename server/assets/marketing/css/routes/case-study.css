@@ -95,13 +95,23 @@
       align-self: flex-start;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: block;
+      }
     }
 
     & > [data-part="content"] {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       align-self: center;
-      gap: var(--noora-spacing-11);
+      gap: var(--noora-spacing-6);
+
+      @media (min-width: 1024px) {
+        flex-direction: row;
+        gap: var(--noora-spacing-11);
+      }
 
       & > [data-part="entry"] {
         display: flex;
