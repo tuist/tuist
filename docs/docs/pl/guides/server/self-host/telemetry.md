@@ -33,8 +33,8 @@ użytkowników.
 
 | Zmienna środowiskowa    | Opis                                              | Wymagane | Domyślne | Przykłady                                         |
 | ----------------------- | ------------------------------------------------- | -------- | -------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | Klucz API projektu PostHog                        | Nie      |          | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | Adres URL punktu końcowego interfejsu API PostHog | Nie      |          | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | Klucz API projektu PostHog                        | No       |          | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | Adres URL punktu końcowego interfejsu API PostHog | No       |          | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->

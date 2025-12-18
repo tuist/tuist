@@ -33,8 +33,8 @@ Tuist интегрируется с [PostHog](https://posthog.com/) для ан�
 
 | Переменная среды        | Описание                       | Требуется | По умолчанию | Пример                                            |
 | ----------------------- | ------------------------------ | --------- | ------------ | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | Ваш ключ API проекта PostHog   | Нет       |              | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | URL конечной точки PostHog API | Нет       |              | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | Ваш ключ API проекта PostHog   | No        |              | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | URL конечной точки PostHog API | No        |              | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
