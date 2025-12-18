@@ -60,7 +60,7 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ## Tracks {#tracks}
 
-Tracks allow you to organize your previews into named channels, making it easier to manage different versions of your app for different audiences. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds.
+Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.
 
 To share a preview on a specific track, use the `--track` option:
 
@@ -69,7 +69,7 @@ tuist share App --track beta
 tuist share App --track nightly
 ```
 
-When you share a preview with a track, it becomes part of that track's distribution channel. This is useful for:
+This is useful for:
 - **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`, `internal`)
 - **In-app updates**: The Tuist SDK uses tracks to determine which updates to notify users about
 - **Filtering**: Easily find and manage previews by track in the Tuist dashboard

@@ -94,7 +94,7 @@ defmodule TuistWeb.PreviewsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
-    assert has_element?(lv, "span", "None")
+    assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "None")
   end
 
   test "displays track column with track value when set", %{
@@ -115,7 +115,7 @@ defmodule TuistWeb.PreviewsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
-    assert has_element?(lv, "span", "beta")
+    assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "beta")
   end
 
   test "filters previews by name using search field", %{
