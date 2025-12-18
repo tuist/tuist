@@ -25,6 +25,23 @@ defmodule TuistWeb.OverviewLive do
      )}
   end
 
+  def handle_event(
+        "analytics_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        Query.put(socket.assigns.uri.query, "analytics_date_range", "custom")
+        |> Query.put("analytics_start_date", start_date)
+        |> Query.put("analytics_end_date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "?#{query_params}")}
+  end
+
   def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
     uri =
       URI.new!(
@@ -33,6 +50,8 @@ defmodule TuistWeb.OverviewLive do
            |> Map.take([
              "analytics_environment",
              "analytics_date_range",
+             "analytics_start_date",
+             "analytics_end_date",
              "builds_environment",
              "builds_date_range"
            ])
@@ -217,6 +236,13 @@ defmodule TuistWeb.OverviewLive do
         "last_12_months" -> Date.add(DateTime.utc_now(), -365)
         "last_30_days" -> Date.add(DateTime.utc_now(), -30)
         "last_7_days" -> Date.add(DateTime.utc_now(), -7)
+        "custom" -> parse_custom_date(params["analytics_start_date"]) || Date.add(DateTime.utc_now(), -30)
+      end
+
+    end_date =
+      case date_range do
+        "custom" -> parse_custom_date(params["analytics_end_date"]) || Date.utc_today()
+        _ -> nil
       end
 
     analytics_environment = analytics_environment(params)
@@ -225,6 +251,8 @@ defmodule TuistWeb.OverviewLive do
       project_id: project.id,
       start_date: start_date
     ]
+
+    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
 
     opts =
       case analytics_environment do
@@ -277,6 +305,7 @@ defmodule TuistWeb.OverviewLive do
 
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "vs previous period")
   defp analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
 
   defp environment_label("any") do
@@ -324,5 +353,16 @@ defmodule TuistWeb.OverviewLive do
     ]
 
     Tuist.Tasks.parallel_tasks(queries)
+  end
+
+  defp parse_custom_date(nil), do: nil
+
+  defp parse_custom_date(date_string) when is_binary(date_string) do
+    case DateTime.from_iso8601(date_string) do
+      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
+      {:error, _} -> Date.from_iso8601!(date_string)
+    end
+  rescue
+    _ -> nil
   end
 end
