@@ -319,7 +319,7 @@ defmodule TuistWeb.OverviewLive do
   defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_projects", "since yesterday")
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
-  defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "vs previous period")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
 
   defp environment_label("any") do
