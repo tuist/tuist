@@ -61,6 +61,21 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
 
   # Private functions
 
+  defp parse_custom_date(nil), do: nil
+
+  defp parse_custom_date(date_string) when is_binary(date_string) do
+    case DateTime.from_iso8601(date_string) do
+      {:ok, datetime, _offset} ->
+        DateTime.to_date(datetime)
+
+      {:error, _} ->
+        case Date.from_iso8601(date_string) do
+          {:ok, date} -> date
+          {:error, _} -> nil
+        end
+    end
+  end
+
   def start_date_for_preset(preset) do
     # Normalize preset to underscore format for matching
     normalized = String.replace(preset, "-", "_")

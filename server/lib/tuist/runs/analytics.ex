@@ -2423,14 +2423,26 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp generate_date_range(_start_date, _end_date, :hour) do
-    # For hourly ranges, generate exactly 24 hours ending at the current hour
+  defp generate_date_range(start_date, end_date, :hour) do
     end_dt = DateTime.truncate(DateTime.utc_now(), :second)
-    start_dt = DateTime.add(end_dt, -23, :hour)
+
+    start_dt =
+      case start_date do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        %Date{} = date -> date |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+        nil -> DateTime.add(end_dt, -23, :hour)
+      end
+
+    actual_end_dt =
+      case end_date do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        %Date{} = date -> min(DateTime.new!(date, ~T[23:59:59], "Etc/UTC"), end_dt)
+        nil -> end_dt
+      end
 
     start_dt
     |> Stream.iterate(&DateTime.add(&1, 1, :hour))
-    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+    |> Enum.take_while(&(DateTime.compare(&1, actual_end_dt) != :gt))
   end
 
   defp generate_date_range(start_date, end_date, :day) do
