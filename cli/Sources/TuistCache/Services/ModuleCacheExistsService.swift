@@ -58,6 +58,7 @@ public struct ModuleCacheExistsService: ModuleCacheExistsServicing {
 
         let response = try await client.moduleCacheArtifactExists(
             .init(
+                path: .init(id: hash),
                 query: .init(
                     account_handle: accountHandle,
                     project_handle: projectHandle,
