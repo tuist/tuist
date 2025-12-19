@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 16:33+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -59,7 +59,7 @@ msgid "Agentic QA"
 msgstr "QA basado en agentes"
 
 msgid "Agentic testing of your app completed"
-msgstr "El agente ha completado el sesteo de su aplicación"
+msgstr "Tu app ya pasó las pruebas con inteligencia artificial"
 
 msgid "Air"
 msgstr "Air"
@@ -74,7 +74,7 @@ msgid "All systems normal"
 msgstr "Todos los sistemas funcionan con normalidad"
 
 msgid "All the features you need,"
-msgstr "Todas las funciones que necesitas,"
+msgstr "Todo lo que necesitas,"
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "Analiza los tiempos de compilación por target y archivo con metadatos como entorno, versión de Xcode y commit."
@@ -89,7 +89,7 @@ msgid "Best for teams and growing startups."
 msgstr "El mejor para equipos y startups en crecimiento."
 
 msgid "Beyond expectations"
-msgstr "Más allá de las expectativas"
+msgstr "Superando todas las expectativas"
 
 msgid "Blog"
 msgstr "Blog"
@@ -107,7 +107,7 @@ msgid "Build insights"
 msgstr "Análisis de builds"
 
 msgid "Build times reduced by 80%"
-msgstr "Tiempos de compilación reducidos en un 80"
+msgstr "Compilaciones un 80% más rápidas"
 
 msgid "Building the future of scalable app development"
 msgstr "Construyendo el futuro del desarrollo de aplicaciones escalables"
@@ -182,7 +182,7 @@ msgid "Connect with other Tuist users, share experiences, and get help from the 
 msgstr "Conecta con otros usuarios de Tuist, comparte experiencias y recibe ayuda de la comunidad."
 
 msgid "Contact"
-msgstr "Póngase en contacto con"
+msgstr "Contacto"
 
 msgid "Contact us"
 msgstr "Contáctenos"
@@ -395,7 +395,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "Proyectos Xcode más fáciles de gestionar y ampliar"
 
 msgid "Make mobile"
-msgstr "Hacer móvil"
+msgstr "Haz del móvil"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "Hacer más manejables los proyectos modulares de Xcode"
@@ -587,7 +587,7 @@ msgid "Start free,"
 msgstr "Empieza gratis,"
 
 msgid "Start free, scale as you grow"
-msgstr "Empieza gratis, amplía a medida que crezcas"
+msgstr "Empieza gratis, crece sin límites"
 
 msgid "Stay in touch"
 msgstr "Mantente en contacto"
@@ -608,7 +608,7 @@ msgid "Successfully Subscribed!"
 msgstr "¡Suscrito con éxito!"
 
 msgid "Supercharge your app development"
-msgstr "Potencie el desarrollo de su aplicación"
+msgstr "Dale superpoderes a tu desarrollo de apps"
 
 msgid "Support"
 msgstr "Soporte"
@@ -842,7 +842,7 @@ msgid "core development experience\""
 msgstr "experiencia básica de desarrollo\"."
 
 msgid "in one platform"
-msgstr "en una sola plataforma"
+msgstr "en un solo lugar"
 
 msgid "open source"
 msgstr "código abierto"
@@ -869,7 +869,7 @@ msgid "via dedicated Slack"
 msgstr "a través de Slack"
 
 msgid "your competitive advantage"
-msgstr "su ventaja competitiva"
+msgstr "tu ventaja competitiva"
 
 msgid "Custom"
 msgstr "A medida"
