@@ -43,7 +43,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
 
     test "returns :ok when the project doesn't exist" do
       # Given
-      non_existent_project_id = Ecto.UUID.generate()
+      non_existent_project_id = UUIDv7.generate()
 
       # Mock Projects.get_project_by_id to return nil
       expect(Projects, :get_project_by_id, fn ^non_existent_project_id -> nil end)

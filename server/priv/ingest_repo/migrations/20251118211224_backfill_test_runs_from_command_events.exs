@@ -46,7 +46,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
     mappings =
       batch_of_events
       |> Enum.map(fn event ->
-        test_run_id = Ecto.UUID.generate()
+        test_run_id = UUIDv7.generate()
 
         account_id =
           if not is_nil(event.user_id) do
@@ -183,7 +183,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
     scheme = extract_scheme_from_command_arguments(command_arguments) || ""
 
     %{
-      id: Ecto.UUID.generate(),
+      id: UUIDv7.generate(),
       project_id: event.project_id,
       duration: event.duration,
       macos_version: event.macos_version || "",

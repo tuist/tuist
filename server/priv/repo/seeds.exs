@@ -338,7 +338,7 @@ cas_events =
     action = cas_output.operation
 
     %{
-      id: Ecto.UUID.generate(),
+      id: UUIDv7.generate(),
       action: action,
       size: cas_output.size,
       cas_id: cas_output.node_id,
