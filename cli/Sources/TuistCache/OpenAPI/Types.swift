@@ -31,21 +31,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
     /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getKeyValue)`.
     func getKeyValue(_ input: Operations.getKeyValue.Input) async throws -> Operations.getKeyValue.Output
-    /// Download a module cache artifact
-    ///
-    /// - Remark: HTTP `GET /api/cache/module`.
-    /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)`.
-    func downloadModuleCacheArtifact(_ input: Operations.downloadModuleCacheArtifact.Input) async throws -> Operations.downloadModuleCacheArtifact.Output
     /// Complete a multipart module cache upload
     ///
     /// - Remark: HTTP `POST /api/cache/module/complete`.
     /// - Remark: Generated from `#/paths//api/cache/module/complete/post(completeModuleCacheMultipartUpload)`.
     func completeModuleCacheMultipartUpload(_ input: Operations.completeModuleCacheMultipartUpload.Input) async throws -> Operations.completeModuleCacheMultipartUpload.Output
-    /// Check if a module cache artifact exists
-    ///
-    /// - Remark: HTTP `GET /api/cache/module/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)`.
-    func moduleCacheArtifactExists(_ input: Operations.moduleCacheArtifactExists.Input) async throws -> Operations.moduleCacheArtifactExists.Output
     /// Upload a part of a multipart module cache upload
     ///
     /// - Remark: HTTP `POST /api/cache/module/part`.
@@ -56,6 +46,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/module/start`.
     /// - Remark: Generated from `#/paths//api/cache/module/start/post(startModuleCacheMultipartUpload)`.
     func startModuleCacheMultipartUpload(_ input: Operations.startModuleCacheMultipartUpload.Input) async throws -> Operations.startModuleCacheMultipartUpload.Output
+    /// Download a module cache artifact
+    ///
+    /// - Remark: HTTP `GET /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)`.
+    func downloadModuleCacheArtifact(_ input: Operations.downloadModuleCacheArtifact.Input) async throws -> Operations.downloadModuleCacheArtifact.Output
+    /// Check if a module cache artifact exists
+    ///
+    /// - Remark: HTTP `HEAD /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)`.
+    func moduleCacheArtifactExists(_ input: Operations.moduleCacheArtifactExists.Input) async throws -> Operations.moduleCacheArtifactExists.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -122,19 +122,6 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Download a module cache artifact
-    ///
-    /// - Remark: HTTP `GET /api/cache/module`.
-    /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)`.
-    public func downloadModuleCacheArtifact(
-        query: Operations.downloadModuleCacheArtifact.Input.Query,
-        headers: Operations.downloadModuleCacheArtifact.Input.Headers = .init()
-    ) async throws -> Operations.downloadModuleCacheArtifact.Output {
-        try await downloadModuleCacheArtifact(Operations.downloadModuleCacheArtifact.Input(
-            query: query,
-            headers: headers
-        ))
-    }
     /// Complete a multipart module cache upload
     ///
     /// - Remark: HTTP `POST /api/cache/module/complete`.
@@ -148,19 +135,6 @@ extension APIProtocol {
             query: query,
             headers: headers,
             body: body
-        ))
-    }
-    /// Check if a module cache artifact exists
-    ///
-    /// - Remark: HTTP `GET /api/cache/module/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)`.
-    public func moduleCacheArtifactExists(
-        query: Operations.moduleCacheArtifactExists.Input.Query,
-        headers: Operations.moduleCacheArtifactExists.Input.Headers = .init()
-    ) async throws -> Operations.moduleCacheArtifactExists.Output {
-        try await moduleCacheArtifactExists(Operations.moduleCacheArtifactExists.Input(
-            query: query,
-            headers: headers
         ))
     }
     /// Upload a part of a multipart module cache upload
@@ -187,6 +161,36 @@ extension APIProtocol {
         headers: Operations.startModuleCacheMultipartUpload.Input.Headers = .init()
     ) async throws -> Operations.startModuleCacheMultipartUpload.Output {
         try await startModuleCacheMultipartUpload(Operations.startModuleCacheMultipartUpload.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Download a module cache artifact
+    ///
+    /// - Remark: HTTP `GET /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)`.
+    public func downloadModuleCacheArtifact(
+        path: Operations.downloadModuleCacheArtifact.Input.Path,
+        query: Operations.downloadModuleCacheArtifact.Input.Query,
+        headers: Operations.downloadModuleCacheArtifact.Input.Headers = .init()
+    ) async throws -> Operations.downloadModuleCacheArtifact.Output {
+        try await downloadModuleCacheArtifact(Operations.downloadModuleCacheArtifact.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Check if a module cache artifact exists
+    ///
+    /// - Remark: HTTP `HEAD /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)`.
+    public func moduleCacheArtifactExists(
+        path: Operations.moduleCacheArtifactExists.Input.Path,
+        query: Operations.moduleCacheArtifactExists.Input.Query,
+        headers: Operations.moduleCacheArtifactExists.Input.Headers = .init()
+    ) async throws -> Operations.moduleCacheArtifactExists.Output {
+        try await moduleCacheArtifactExists(Operations.moduleCacheArtifactExists.Input(
+            path: path,
             query: query,
             headers: headers
         ))
@@ -1733,376 +1737,6 @@ public enum Operations {
             }
         }
     }
-    /// Download a module cache artifact
-    ///
-    /// - Remark: HTTP `GET /api/cache/module`.
-    /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)`.
-    public enum downloadModuleCacheArtifact {
-        public static let id: Swift.String = "downloadModuleCacheArtifact"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/module/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the account
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Artifact hash
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/query/hash`.
-                public var hash: Swift.String
-                /// Artifact name
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/query/name`.
-                public var name: Swift.String
-                /// Cache category (builds)
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/query/cache_category`.
-                public var cache_category: Swift.String?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account
-                ///   - project_handle: The handle of the project
-                ///   - hash: Artifact hash
-                ///   - name: Artifact name
-                ///   - cache_category: Cache category (builds)
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    hash: Swift.String,
-                    name: Swift.String,
-                    cache_category: Swift.String? = nil
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.hash = hash
-                    self.name = name
-                    self.cache_category = cache_category
-                }
-            }
-            public var query: Operations.downloadModuleCacheArtifact.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/module/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.downloadModuleCacheArtifact.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            public init(
-                query: Operations.downloadModuleCacheArtifact.Input.Query,
-                headers: Operations.downloadModuleCacheArtifact.Input.Headers = .init()
-            ) {
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/200/content/application\/octet-stream`.
-                    case binary(OpenAPIRuntime.HTTPBody)
-                    /// The associated value of the enum case if `self` is `.binary`.
-                    ///
-                    /// - Throws: An error if `self` is not `.binary`.
-                    /// - SeeAlso: `.binary`.
-                    public var binary: OpenAPIRuntime.HTTPBody {
-                        get throws {
-                            switch self {
-                            case let .binary(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.downloadModuleCacheArtifact.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Artifact content
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.downloadModuleCacheArtifact.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.downloadModuleCacheArtifact.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.downloadModuleCacheArtifact.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// Bad request
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.downloadModuleCacheArtifact.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.downloadModuleCacheArtifact.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.downloadModuleCacheArtifact.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// Unauthorized
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.downloadModuleCacheArtifact.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.downloadModuleCacheArtifact.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.downloadModuleCacheArtifact.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// Forbidden
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.downloadModuleCacheArtifact.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.downloadModuleCacheArtifact.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.downloadModuleCacheArtifact.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.downloadModuleCacheArtifact.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Artifact not found
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/get(downloadModuleCacheArtifact)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.downloadModuleCacheArtifact.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.downloadModuleCacheArtifact.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case binary
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/octet-stream":
-                    self = .binary
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .binary:
-                    return "application/octet-stream"
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .binary,
-                    .json
-                ]
-            }
-        }
-    }
     /// Complete a multipart module cache upload
     ///
     /// - Remark: HTTP `POST /api/cache/module/complete`.
@@ -2461,354 +2095,6 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "internalServerError",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Check if a module cache artifact exists
-    ///
-    /// - Remark: HTTP `GET /api/cache/module/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)`.
-    public enum moduleCacheArtifactExists {
-        public static let id: Swift.String = "moduleCacheArtifactExists"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the account
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Artifact hash
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query/hash`.
-                public var hash: Swift.String
-                /// Artifact name
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query/name`.
-                public var name: Swift.String
-                /// Cache category (builds)
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/query/cache_category`.
-                public var cache_category: Swift.String?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account
-                ///   - project_handle: The handle of the project
-                ///   - hash: Artifact hash
-                ///   - name: Artifact name
-                ///   - cache_category: Cache category (builds)
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    hash: Swift.String,
-                    name: Swift.String,
-                    cache_category: Swift.String? = nil
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.hash = hash
-                    self.name = name
-                    self.cache_category = cache_category
-                }
-            }
-            public var query: Operations.moduleCacheArtifactExists.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheArtifactExists.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheArtifactExists.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.moduleCacheArtifactExists.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            public init(
-                query: Operations.moduleCacheArtifactExists.Input.Query,
-                headers: Operations.moduleCacheArtifactExists.Input.Headers = .init()
-            ) {
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                public init() {}
-            }
-            /// Artifact exists
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.moduleCacheArtifactExists.Output.NoContent)
-            /// Artifact exists
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            public static var noContent: Self {
-                .noContent(.init())
-            }
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            public var noContent: Operations.moduleCacheArtifactExists.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.moduleCacheArtifactExists.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.moduleCacheArtifactExists.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// Bad request
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.moduleCacheArtifactExists.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.moduleCacheArtifactExists.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.moduleCacheArtifactExists.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.moduleCacheArtifactExists.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// Unauthorized
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.moduleCacheArtifactExists.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.moduleCacheArtifactExists.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.moduleCacheArtifactExists.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.moduleCacheArtifactExists.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// Forbidden
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.moduleCacheArtifactExists.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.moduleCacheArtifactExists.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/module/exists/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.moduleCacheArtifactExists.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.moduleCacheArtifactExists.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Artifact not found
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/module/exists/get(moduleCacheArtifactExists)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.moduleCacheArtifactExists.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.moduleCacheArtifactExists.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -3625,6 +2911,760 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Download a module cache artifact
+    ///
+    /// - Remark: HTTP `GET /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)`.
+    public enum downloadModuleCacheArtifact {
+        public static let id: Swift.String = "downloadModuleCacheArtifact"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The artifact identifier
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/path/id`.
+                public var id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: The artifact identifier
+                public init(id: Swift.String) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.downloadModuleCacheArtifact.Input.Path
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The handle of the account
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query/project_handle`.
+                public var project_handle: Swift.String
+                /// Artifact hash
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query/hash`.
+                public var hash: Swift.String
+                /// Artifact name
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query/name`.
+                public var name: Swift.String
+                /// Cache category (builds)
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/query/cache_category`.
+                public var cache_category: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account
+                ///   - project_handle: The handle of the project
+                ///   - hash: Artifact hash
+                ///   - name: Artifact name
+                ///   - cache_category: Cache category (builds)
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    cache_category: Swift.String? = nil
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.hash = hash
+                    self.name = name
+                    self.cache_category = cache_category
+                }
+            }
+            public var query: Operations.downloadModuleCacheArtifact.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.downloadModuleCacheArtifact.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.downloadModuleCacheArtifact.Input.Path,
+                query: Operations.downloadModuleCacheArtifact.Input.Query,
+                headers: Operations.downloadModuleCacheArtifact.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/200/content/application\/octet-stream`.
+                    case binary(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.binary`.
+                    ///
+                    /// - Throws: An error if `self` is not `.binary`.
+                    /// - SeeAlso: `.binary`.
+                    public var binary: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .binary(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.downloadModuleCacheArtifact.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Artifact content
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadModuleCacheArtifact.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.downloadModuleCacheArtifact.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.downloadModuleCacheArtifact.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Bad request
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.downloadModuleCacheArtifact.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.downloadModuleCacheArtifact.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.downloadModuleCacheArtifact.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Unauthorized
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadModuleCacheArtifact.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.downloadModuleCacheArtifact.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.downloadModuleCacheArtifact.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadModuleCacheArtifact.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.downloadModuleCacheArtifact.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.downloadModuleCacheArtifact.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Artifact not found
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadModuleCacheArtifact.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.downloadModuleCacheArtifact.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case binary
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/octet-stream":
+                    self = .binary
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .binary:
+                    return "application/octet-stream"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .binary,
+                    .json
+                ]
+            }
+        }
+    }
+    /// Check if a module cache artifact exists
+    ///
+    /// - Remark: HTTP `HEAD /api/cache/module/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)`.
+    public enum moduleCacheArtifactExists {
+        public static let id: Swift.String = "moduleCacheArtifactExists"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/path`.
+            public struct Path: Sendable, Hashable {
+                /// The artifact identifier
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/path/id`.
+                public var id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: The artifact identifier
+                public init(id: Swift.String) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.moduleCacheArtifactExists.Input.Path
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query`.
+            public struct Query: Sendable, Hashable {
+                /// The handle of the account
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query/project_handle`.
+                public var project_handle: Swift.String
+                /// Artifact hash
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query/hash`.
+                public var hash: Swift.String
+                /// Artifact name
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query/name`.
+                public var name: Swift.String
+                /// Cache category (builds)
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/query/cache_category`.
+                public var cache_category: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account
+                ///   - project_handle: The handle of the project
+                ///   - hash: Artifact hash
+                ///   - name: Artifact name
+                ///   - cache_category: Cache category (builds)
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    cache_category: Swift.String? = nil
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.hash = hash
+                    self.name = name
+                    self.cache_category = cache_category
+                }
+            }
+            public var query: Operations.moduleCacheArtifactExists.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheArtifactExists.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.moduleCacheArtifactExists.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.moduleCacheArtifactExists.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.moduleCacheArtifactExists.Input.Path,
+                query: Operations.moduleCacheArtifactExists.Input.Query,
+                headers: Operations.moduleCacheArtifactExists.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Artifact exists
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.moduleCacheArtifactExists.Output.NoContent)
+            /// Artifact exists
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.moduleCacheArtifactExists.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheArtifactExists.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheArtifactExists.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Bad request
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.moduleCacheArtifactExists.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.moduleCacheArtifactExists.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheArtifactExists.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheArtifactExists.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Unauthorized
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.moduleCacheArtifactExists.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.moduleCacheArtifactExists.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheArtifactExists.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheArtifactExists.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.moduleCacheArtifactExists.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.moduleCacheArtifactExists.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/HEAD/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.moduleCacheArtifactExists.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.moduleCacheArtifactExists.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Artifact not found
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/head(moduleCacheArtifactExists)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.moduleCacheArtifactExists.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.moduleCacheArtifactExists.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

@@ -35,13 +35,6 @@ defmodule CacheWeb.Plugs.AuthPlug do
     end
   end
 
-  defp extract_handles(%{"project_id" => project_id}) when is_binary(project_id) do
-    case String.split(project_id, "/") do
-      [account_handle, project_handle] -> {account_handle, project_handle}
-      _ -> {nil, nil}
-    end
-  end
-
   defp extract_handles(%{"account_handle" => account, "project_handle" => project}) do
     {account, project}
   end

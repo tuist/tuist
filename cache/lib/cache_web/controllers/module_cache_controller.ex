@@ -16,7 +16,7 @@ defmodule CacheWeb.ModuleCacheController do
 
   plug OpenApiSpex.Plug.CastAndValidate, json_render_error_v2: true
 
-  action_fallback CacheWeb.FallbackController
+  action_fallback CacheWeb.CacheFallbackController
 
   tags(["ModuleCache"])
 
@@ -26,6 +26,12 @@ defmodule CacheWeb.ModuleCacheController do
     summary: "Download a module cache artifact",
     operation_id: "downloadModuleCacheArtifact",
     parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
       account_handle: [
         in: :query,
         type: :string,
@@ -66,7 +72,10 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def download(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+  def download(
+        conn,
+        %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
     category = Map.get(params, :cache_category, "builds")
     key = Disk.module_key(account_handle, project_handle, category, hash, name)
 
@@ -119,6 +128,12 @@ defmodule CacheWeb.ModuleCacheController do
     summary: "Check if a module cache artifact exists",
     operation_id: "moduleCacheArtifactExists",
     parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
       account_handle: [
         in: :query,
         type: :string,
@@ -159,7 +174,10 @@ defmodule CacheWeb.ModuleCacheController do
     }
   )
 
-  def exists(conn, %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params) do
+  def exists(
+        conn,
+        %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
     category = Map.get(params, :cache_category, "builds")
     key = Disk.module_key(account_handle, project_handle, category, hash, name)
 

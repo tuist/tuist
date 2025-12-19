@@ -54,8 +54,8 @@ defmodule CacheWeb.Router do
     get "/cas/:id", CASController, :download
     post "/cas/:id", CASController, :save
 
-    get "/module", ModuleCacheController, :download
-    get "/module/exists", ModuleCacheController, :exists
+    head "/module/:id", ModuleCacheController, :exists
+    get "/module/:id", ModuleCacheController, :download
 
     post "/module/start", ModuleCacheController, :start_multipart
     post "/module/part", ModuleCacheController, :upload_part
