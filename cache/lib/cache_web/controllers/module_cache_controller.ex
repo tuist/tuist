@@ -393,9 +393,9 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp read_part_body(conn) do
-    opts = [length: @max_part_size, read_length: 262_144, read_timeout: 60_000]
+    opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
 
-    case BodyReader.read_with_opts(conn, opts) do
+    case BodyReader.read(conn, opts) do
       {:ok, {:file, tmp_path}, conn_after} ->
         case File.stat(tmp_path) do
           {:ok, %File.Stat{size: size}} -> {:ok, tmp_path, size, conn_after}

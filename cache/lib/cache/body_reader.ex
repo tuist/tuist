@@ -18,14 +18,16 @@ defmodule Cache.BodyReader do
   - `{:error, reason, conn}` - For errors like :too_large, :timeout, etc.
   """
 
-  def read(conn) do
-    opts = read_opts(conn)
-    do_read(conn, opts, :store, @max_upload_bytes)
-  end
+  def read(conn, opts \\ []) do
+    merged_opts = Keyword.merge(read_opts(conn), opts)
+    max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
 
-  def read_with_opts(conn, opts) do
-    max_bytes = Keyword.get(opts, :length, @max_upload_bytes)
-    do_read(conn, opts, :store, max_bytes)
+    conn
+    |> Plug.Conn.read_body(merged_opts)
+    |> handle_read_result(conn, merged_opts, :store, max_bytes)
+  rescue
+    Bandit.TransportError ->
+      {:error, :cancelled, conn}
   end
 
   @doc """
@@ -36,19 +38,10 @@ defmodule Cache.BodyReader do
   def drain(conn) do
     opts = read_opts(conn)
 
-    case do_read(conn, opts, :discard, @max_upload_bytes) do
+    case conn |> Plug.Conn.read_body(opts) |> handle_read_result(conn, opts, :discard, @max_upload_bytes) do
       {:ok, _, conn_after} -> {:ok, conn_after}
       {:error, _reason, conn_after} -> {:error, conn_after}
     end
-  end
-
-  defp do_read(conn, opts, mode, max_bytes) do
-    conn
-    |> Plug.Conn.read_body(opts)
-    |> handle_read_result(conn, opts, mode, max_bytes)
-  rescue
-    Bandit.TransportError ->
-      {:error, :cancelled, conn}
   end
 
   defp handle_read_result(result, conn, opts, mode, max_bytes) do
