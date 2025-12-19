@@ -32,11 +32,48 @@ defmodule TuistWeb.OverviewLive do
       ) do
     query_params =
       if preset == "custom" do
-        Query.put(socket.assigns.uri.query, "analytics_date_range", "custom")
+        socket.assigns.uri.query
+        |> Query.put("analytics_date_range", "custom")
         |> Query.put("analytics_start_date", start_date)
         |> Query.put("analytics_end_date", end_date)
       else
         Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_event(
+        "bundle_size_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("bundle-size-date-range", "custom")
+        |> Query.put("bundle-size-start-date", start_date)
+        |> Query.put("bundle-size-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "bundle-size-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_event(
+        "builds_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("builds_date_range", "custom")
+        |> Query.put("builds_start_date", start_date)
+        |> Query.put("builds_end_date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "builds_date_range", preset)
       end
 
     {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
@@ -55,7 +92,13 @@ defmodule TuistWeb.OverviewLive do
              "analytics_start_date",
              "analytics_end_date",
              "builds_environment",
-             "builds_date_range"
+             "builds_date_range",
+             "builds_start_date",
+             "builds_end_date",
+             "bundle-size-date-range",
+             "bundle-size-start-date",
+             "bundle-size-end-date",
+             "bundle-size-app"
            ])
            |> URI.encode_query())
       )
@@ -121,12 +164,33 @@ defmodule TuistWeb.OverviewLive do
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
     bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
 
+    bundle_start_date =
+      case bundle_size_date_range do
+        "custom" -> parse_custom_date(params["bundle-size-start-date"]) || Date.add(DateTime.utc_now(), -30)
+        _ -> start_date(bundle_size_date_range)
+      end
+
+    bundle_end_date =
+      case bundle_size_date_range do
+        "custom" -> parse_custom_date(params["bundle-size-end-date"]) || Date.utc_today()
+        _ -> nil
+      end
+
+    opts = [
+      project_id: project.id,
+      start_date: bundle_start_date
+    ]
+
+    opts = if bundle_end_date, do: Keyword.put(opts, :end_date, bundle_end_date), else: opts
+
+    date_picker_value =
+      if bundle_size_date_range == "custom" && bundle_start_date && bundle_end_date do
+        %{start: bundle_start_date, end: bundle_end_date}
+      end
+
     bundle_size_analytics =
       project
-      |> Bundles.project_bundle_install_size_analytics(
-        project_id: project.id,
-        start_date: start_date(bundle_size_date_range)
-      )
+      |> Bundles.project_bundle_install_size_analytics(opts)
       |> Enum.map(
         &[
           &1.date,
@@ -141,6 +205,7 @@ defmodule TuistWeb.OverviewLive do
       :bundle_size_date_range,
       bundle_size_date_range
     )
+    |> assign(:bundle_size_date_range_value, date_picker_value)
     |> assign(:bundle_size_analytics, bundle_size_analytics)
   end
 
@@ -152,6 +217,14 @@ defmodule TuistWeb.OverviewLive do
         "last_12_months" -> Date.add(DateTime.utc_now(), -365)
         "last_30_days" -> Date.add(DateTime.utc_now(), -30)
         "last_7_days" -> Date.add(DateTime.utc_now(), -7)
+        "custom" -> parse_custom_date(params["builds_start_date"]) || Date.add(DateTime.utc_now(), -30)
+        _ -> Date.add(DateTime.utc_now(), -30)
+      end
+
+    end_date =
+      case builds_date_range do
+        "custom" -> parse_custom_date(params["builds_end_date"]) || Date.utc_today()
+        _ -> nil
       end
 
     builds_environment = params["builds_environment"] || "any"
@@ -161,11 +234,18 @@ defmodule TuistWeb.OverviewLive do
       start_date: start_date
     ]
 
+    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+
     opts =
       case builds_environment do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
+      end
+
+    date_picker_value =
+      if builds_date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
       end
 
     {recent_build_runs, _meta} =
@@ -188,6 +268,7 @@ defmodule TuistWeb.OverviewLive do
       :builds_date_range,
       builds_date_range
     )
+    |> assign(:builds_date_range_value, date_picker_value)
     |> assign(
       :builds_environment,
       builds_environment
@@ -266,8 +347,6 @@ defmodule TuistWeb.OverviewLive do
     date_picker_value =
       if date_range == "custom" && start_date && end_date do
         %{start: start_date, end: end_date}
-      else
-        nil
       end
 
     socket

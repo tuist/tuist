@@ -31,23 +31,48 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_tests", "7 days")}
-          data-selected={@analytics_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_tests", "30 days")}
-          data-selected={@analytics_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_tests", "12 months")}
-          data-selected={@analytics_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="test-cases-date-range-picker"
+        name="analytics_date_range"
+        on_value_change="analytics_date_range_changed"
+        presets={[
+          %{
+            id: "last_7_days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last_30_days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last_12_months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_date_range}
+        value={@analytics_date_range_value}
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-cases-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-cases-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.widget

@@ -80,6 +80,24 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "analytics_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics_date_range", "custom")
+        |> Query.put("analytics_start_date", start_date)
+        |> Query.put("analytics_end_date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/module-cache?#{query_params}")}
+  end
+
   def handle_info({:command_event_created, _event}, socket) do
     {:noreply,
      socket
@@ -94,8 +112,18 @@ defmodule TuistWeb.ModuleCacheLive do
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     date_range = date_range(params)
-    start_date = start_date(date_range)
-    end_date = Date.utc_today()
+
+    start_date =
+      case date_range do
+        "custom" -> parse_custom_date(params["analytics_start_date"]) || Date.add(Date.utc_today(), -30)
+        _ -> start_date(date_range)
+      end
+
+    end_date =
+      case date_range do
+        "custom" -> parse_custom_date(params["analytics_end_date"]) || Date.utc_today()
+        _ -> Date.utc_today()
+      end
 
     opts = [
       project_id: project.id,
@@ -108,6 +136,11 @@ defmodule TuistWeb.ModuleCacheLive do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
+      end
+
+    date_picker_value =
+      if date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
       end
 
     # Get analytics from Analytics module (runs queries in parallel)
@@ -145,6 +178,7 @@ defmodule TuistWeb.ModuleCacheLive do
 
     socket
     |> assign(:analytics_date_range, date_range)
+    |> assign(:analytics_date_range_value, date_picker_value)
     |> assign(:analytics_trend_label, analytics_trend_label(date_range))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
@@ -229,7 +263,19 @@ defmodule TuistWeb.ModuleCacheLive do
 
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
+
+  defp parse_custom_date(nil), do: nil
+
+  defp parse_custom_date(date_string) when is_binary(date_string) do
+    case DateTime.from_iso8601(date_string) do
+      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
+      {:error, _} -> Date.from_iso8601!(date_string)
+    end
+  rescue
+    _ -> nil
+  end
 
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]

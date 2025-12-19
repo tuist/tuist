@@ -406,10 +406,11 @@ defmodule Tuist.Bundles do
 
   defp date_range_for_date_period(:hour, _opts) do
     # For hourly ranges, generate exactly 24 hours ending at the current hour
-    end_dt = DateTime.utc_now() |> DateTime.truncate(:second)
+    end_dt = DateTime.truncate(DateTime.utc_now(), :second)
     start_dt = DateTime.add(end_dt, -23, :hour)
 
-    Stream.iterate(start_dt, &DateTime.add(&1, 1, :hour))
+    start_dt
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
     |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
   end
 

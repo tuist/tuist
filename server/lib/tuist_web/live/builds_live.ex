@@ -67,12 +67,24 @@ defmodule TuistWeb.BuildsLive do
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
 
-    start_date = start_date(analytics_date_range)
+    start_date =
+      case analytics_date_range do
+        "custom" -> parse_custom_date(params["analytics-start-date"]) || Date.add(DateTime.utc_now(), -30)
+        _ -> start_date(analytics_date_range)
+      end
+
+    end_date =
+      case analytics_date_range do
+        "custom" -> parse_custom_date(params["analytics-end-date"]) || Date.utc_today()
+        _ -> nil
+      end
 
     opts = [
       project_id: project.id,
       start_date: start_date
     ]
+
+    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
 
     opts =
       opts
@@ -85,6 +97,11 @@ defmodule TuistWeb.BuildsLive do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
+      end
+
+    date_picker_value =
+      if analytics_date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
       end
 
     [
@@ -115,6 +132,7 @@ defmodule TuistWeb.BuildsLive do
     )
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_date_range, analytics_date_range)
+    |> assign(:analytics_date_range_value, date_picker_value)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
@@ -164,10 +182,31 @@ defmodule TuistWeb.BuildsLive do
     configuration_insights_date_range =
       params["configuration-insights-date-range"] || "last-30-days"
 
+    start_date =
+      case configuration_insights_date_range do
+        "custom" -> parse_custom_date(params["configuration-insights-start-date"]) || Date.add(DateTime.utc_now(), -30)
+        _ -> start_date(configuration_insights_date_range)
+      end
+
+    end_date =
+      case configuration_insights_date_range do
+        "custom" -> parse_custom_date(params["configuration-insights-end-date"]) || Date.utc_today()
+        _ -> nil
+      end
+
+    opts = [start_date: start_date]
+    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+
+    date_picker_value =
+      if configuration_insights_date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
+      end
+
     socket =
       socket
       |> assign(:configuration_insights_type, configuration_insights_type)
       |> assign(:configuration_insights_date_range, configuration_insights_date_range)
+      |> assign(:configuration_insights_date_range_value, date_picker_value)
 
     configuration_insights_analytics =
       Analytics.build_duration_analytics_by_category(
@@ -177,7 +216,7 @@ defmodule TuistWeb.BuildsLive do
           "device" -> :model_identifier
           _ -> :xcode_version
         end,
-        start_date: start_date(configuration_insights_date_range)
+        opts
       )
 
     socket
@@ -249,6 +288,42 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "analytics_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
+  end
+
+  def handle_event(
+        "configuration_insights_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("configuration-insights-date-range", "custom")
+        |> Query.put("configuration-insights-start-date", start_date)
+        |> Query.put("configuration-insights-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "configuration-insights-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
+  end
+
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
     {recent_builds, _meta} =
       Runs.list_build_runs(
@@ -292,7 +367,19 @@ defmodule TuistWeb.BuildsLive do
 
   defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_builds", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_builds", "since last period")
   defp trend_label(_), do: dgettext("dashboard_builds", "since last month")
+
+  defp parse_custom_date(nil), do: nil
+
+  defp parse_custom_date(date_string) when is_binary(date_string) do
+    case DateTime.from_iso8601(date_string) do
+      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
+      {:error, _} -> Date.from_iso8601!(date_string)
+    end
+  rescue
+    _ -> nil
+  end
 
   defp environment_label("any"), do: dgettext("dashboard_builds", "Any")
   defp environment_label("local"), do: dgettext("dashboard_builds", "Local")

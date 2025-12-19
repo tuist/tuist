@@ -1,5 +1,19 @@
 import Config
 
+# For development, we disable any cache and enable
+# debugging and code reloading.
+#
+# The watchers configuration can be used to run external
+# watchers to your application. For example, we can use it
+# to bundle .js and .css sources.
+
+# Base watchers for esbuild
+base_watchers = [
+  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
+  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
+]
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
 
@@ -39,20 +53,6 @@ config :tuist, Tuist.Repo,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
-
-# For development, we disable any cache and enable
-# debugging and code reloading.
-#
-# The watchers configuration can be used to run external
-# watchers to your application. For example, we can use it
-# to bundle .js and .css sources.
-
-# Base watchers for esbuild
-base_watchers = [
-  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
-]
 
 # When NOORA_LOCAL is set, override esbuild config to use local noora path via alias
 # and add a noora_local profile for watching/rebuilding noora assets
@@ -124,16 +124,6 @@ reloadable_apps =
     []
   end
 
-config :tuist, TuistWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 8080],
-  check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
-  reloadable_apps: reloadable_apps,
-  watchers: base_watchers ++ noora_watchers
-
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed
@@ -176,6 +166,16 @@ noora_live_reload_patterns =
   else
     []
   end
+
+config :tuist, TuistWeb.Endpoint,
+  # Binding to loopback ipv4 address prevents access from other machines.
+  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
+  http: [ip: {127, 0, 0, 1}, port: 8080],
+  check_origin: false,
+  code_reloader: true,
+  debug_errors: true,
+  reloadable_apps: reloadable_apps,
+  watchers: base_watchers ++ noora_watchers
 
 # Configure phoenix_live_reload dirs when NOORA_LOCAL is set
 if System.get_env("NOORA_LOCAL") do

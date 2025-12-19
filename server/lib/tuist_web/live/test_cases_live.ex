@@ -143,6 +143,25 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   def handle_event(
+        "analytics_date_range_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics_date_range", "custom")
+        |> Query.put("analytics_start_date", start_date)
+        |> Query.put("analytics_end_date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+      end
+
+    {:noreply,
+     push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query_params}")}
+  end
+
+  def handle_event(
         "search-test-cases",
         %{"search" => search},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
@@ -182,15 +201,34 @@ defmodule TuistWeb.TestCasesLive do
     analytics_environment = analytics_environment(params)
     selected_duration_type = params["duration_type"] || "avg"
 
+    start_date =
+      case date_range do
+        "custom" -> parse_custom_date(params["analytics_start_date"]) || Date.add(DateTime.utc_now(), -30)
+        _ -> start_date(date_range)
+      end
+
+    end_date =
+      case date_range do
+        "custom" -> parse_custom_date(params["analytics_end_date"]) || Date.utc_today()
+        _ -> nil
+      end
+
     opts = [
-      start_date: start_date(date_range)
+      start_date: start_date
     ]
+
+    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
 
     opts =
       case analytics_environment do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
+      end
+
+    date_picker_value =
+      if date_range == "custom" && start_date && end_date do
+        %{start: start_date, end: end_date}
       end
 
     uri = URI.new!("?" <> URI.encode_query(params))
@@ -251,6 +289,7 @@ defmodule TuistWeb.TestCasesLive do
 
     socket
     |> assign(:analytics_date_range, date_range)
+    |> assign(:analytics_date_range_value, date_picker_value)
     |> assign(:analytics_trend_label, analytics_trend_label(date_range))
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
@@ -269,7 +308,19 @@ defmodule TuistWeb.TestCasesLive do
 
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  defp parse_custom_date(nil), do: nil
+
+  defp parse_custom_date(date_string) when is_binary(date_string) do
+    case DateTime.from_iso8601(date_string) do
+      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
+      {:error, _} -> Date.from_iso8601!(date_string)
+    end
+  rescue
+    _ -> nil
+  end
 
   defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")

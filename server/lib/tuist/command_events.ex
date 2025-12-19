@@ -790,7 +790,7 @@ defmodule Tuist.CommandEvents do
     case date_period do
       :hour ->
         # For hourly ranges, generate exactly 24 hours ending at the current hour
-        now = DateTime.utc_now() |> DateTime.truncate(:second)
+        now = DateTime.truncate(DateTime.utc_now(), :second)
         start_dt = DateTime.add(now, -23, :hour)
 
         from(

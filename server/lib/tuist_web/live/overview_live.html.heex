@@ -48,10 +48,26 @@
         name="analytics_date_range"
         on_value_change="analytics_date_range_changed"
         presets={[
-          %{id: "last_24_hours", label: dgettext("dashboard_projects", "Last 24 hours"), period: {24, :hour}},
-          %{id: "last_7_days", label: dgettext("dashboard_projects", "Last 7 days"), period: {7, :day}},
-          %{id: "last_30_days", label: dgettext("dashboard_projects", "Last 30 days"), period: {30, :day}},
-          %{id: "last_12_months", label: dgettext("dashboard_projects", "Last 12 months"), period: {12, :month}},
+          %{
+            id: "last_24_hours",
+            label: dgettext("dashboard_projects", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last_7_days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last_30_days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last_12_months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
           %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
         ]}
         selected_preset={@analytics_date_range}
@@ -62,11 +78,15 @@
           <.button
             label={dgettext("dashboard_projects", "Cancel")}
             variant="secondary"
-            phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "analytics-date-range-picker"})}
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "analytics-date-range-picker"})
+            }
           />
           <.button
             label={dgettext("dashboard_projects", "Apply")}
-            phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
+            }
           />
         </:actions>
       </.date_picker>
@@ -501,23 +521,50 @@
           </.dropdown_item>
         <% end %>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
-          label={dgettext("dashboard_projects", "7 days")}
-          data-selected={@bundle_size_date_range == "last-7-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
-          label={dgettext("dashboard_projects", "30 days")}
-          data-selected={@bundle_size_date_range == "last-30-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
-          label={dgettext("dashboard_projects", "12 months")}
-          data-selected={@bundle_size_date_range == "last-12-months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="bundle-size-date-range-picker"
+        name="bundle-size-date-range"
+        on_value_change="bundle_size_date_range_changed"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@bundle_size_date_range}
+        value={@bundle_size_date_range_value}
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "bundle-size-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "bundle-size-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <.card_section
       :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
@@ -627,23 +674,48 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_projects", "7 days")}
-          data-selected={@builds_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_projects", "30 days")}
-          data-selected={@builds_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_projects", "12 months")}
-          data-selected={@builds_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="builds-date-range-picker"
+        name="builds_date_range"
+        on_value_change="builds_date_range_changed"
+        presets={[
+          %{
+            id: "last_7_days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last_30_days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last_12_months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@builds_date_range}
+        value={@builds_date_range_value}
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="builds-card-sections">
       <.card_section :if={not Enum.empty?(@recent_build_runs)}>
