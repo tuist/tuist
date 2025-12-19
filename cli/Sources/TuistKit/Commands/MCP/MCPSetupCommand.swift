@@ -9,6 +9,7 @@ struct MCPSetupCommand: ParsableCommand {
             subcommands: [
                 MCPSetupClaudeCommand.self,
                 MCPSetupClaudeCodeCommand.self,
+                MCPSetupCodexCommand.self,
                 MCPSetupCursorCommand.self,
                 MCPSetupZedCommand.self,
                 MCPSetupVSCodeCommand.self,

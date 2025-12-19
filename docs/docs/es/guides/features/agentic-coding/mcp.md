@@ -54,6 +54,15 @@ tuist mcp setup claude-code
 
 This will configure the same file as Claude desktop.
 
+### [Codex CLI](https://github.com/openai/codex)
+
+For Codex CLI, run:
+```bash
+tuist mcp setup codex
+```
+
+This will configure the file at `~/.codex/config.toml`.
+
 ### [Cursor](https://www.cursor.com)
 
 For Cursor IDE, you can configure it globally or locally:
@@ -123,6 +132,18 @@ Tuist MCP server to your client's configuration:
     }
   }
 }
+```
+
+```toml [Codex CLI]
+[mcp_servers.tuist]
+command = "tuist"
+args = ["mcp", "start"]
+```
+
+```toml [Codex CLI (Mise)]
+[mcp_servers.tuist]
+command = "mise"
+args = ["x", "tuist@latest", "--", "tuist", "mcp", "start"] # Or tuist@x.y.z to fix the version
 ```
 <!-- -->
 :::

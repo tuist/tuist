@@ -6,13 +6,19 @@ import TuistSupport
 
 public struct MCPCommandService {
     private let resourcesRepository: MCPResourcesRepositorying
+    private let toolsRepository: MCPToolsRepositorying
 
     public init() {
-        self.init(resourcesRepository: MCPResourcesRepository())
+        let resourcesRepository = MCPResourcesRepository()
+        self.init(
+            resourcesRepository: resourcesRepository,
+            toolsRepository: MCPToolsRepository(resourcesRepository: resourcesRepository)
+        )
     }
 
-    init(resourcesRepository: MCPResourcesRepositorying) {
+    init(resourcesRepository: MCPResourcesRepositorying, toolsRepository: MCPToolsRepositorying) {
         self.resourcesRepository = resourcesRepository
+        self.toolsRepository = toolsRepository
     }
 
     public func run() async throws {
@@ -28,7 +34,9 @@ public struct MCPCommandService {
             )
         )
 
-        try await server.start(transport: StdioTransport())
+        await server.withMethodHandler(ListPrompts.self) { _ in
+            return .init(prompts: [])
+        }
 
         await server.withMethodHandler(ListResources.self) { _ in
             return try await resourcesRepository.list()
@@ -41,6 +49,20 @@ public struct MCPCommandService {
         await server.withMethodHandler(ReadResource.self) { resource in
             return try await resourcesRepository.read(resource)
         }
+
+        await server.withMethodHandler(ResourceSubscribe.self) { _ in
+            return .init()
+        }
+
+        await server.withMethodHandler(ListTools.self) { _ in
+            return try await toolsRepository.list()
+        }
+
+        await server.withMethodHandler(CallTool.self) { tool in
+            return try await toolsRepository.call(tool)
+        }
+
+        try await server.start(transport: StdioTransport())
 
         try await Task.sleep(nanoseconds: 1_000_000_000_000_000)
     }
