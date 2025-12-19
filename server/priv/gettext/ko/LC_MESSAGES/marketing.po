@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 16:34+0000\nLast-Translator: jimmy <wjdtjq6@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -110,7 +110,7 @@ msgid "Build times reduced by 80%"
 msgstr "빌드 시간 80% 단축"
 
 msgid "Building the future of scalable app development"
-msgstr "확장 가능한 앱 개발의 미래 구축"
+msgstr "확장 가능한 앱 개발의 미래를 만들어갑니다"
 
 msgid "Builds"
 msgstr "빌드"
@@ -395,7 +395,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "Xcode 프로젝트들을 더 쉽게 관리하고 확장할 수 있게 해보세요"
 
 msgid "Make mobile"
-msgstr "모바일로 만들기"
+msgstr "모바일로"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "더 관리가 용이하게 모듈화된 Xcode 프로젝트들을 만드세요"
@@ -587,7 +587,7 @@ msgid "Start free,"
 msgstr "무료로 시작하고,"
 
 msgid "Start free, scale as you grow"
-msgstr "무료로 시작하고 성장에 따라 확장하세요"
+msgstr "무료로 시작하고, 성장에 맞춰 확장하세요"
 
 msgid "Stay in touch"
 msgstr "연락하세요"
@@ -608,7 +608,7 @@ msgid "Successfully Subscribed!"
 msgstr "구독 성공!"
 
 msgid "Supercharge your app development"
-msgstr "개발 환경을 폭발적으로 개선하세요"
+msgstr "앱 개발에 날개를 달다"
 
 msgid "Support"
 msgstr "고객지원"
@@ -767,7 +767,7 @@ msgid "We prioritize developer happiness because it's closely tied to creating b
 msgstr "우리는 더 나은 앱들을 위해 개발자의 행복을 우선 합니다."
 
 msgid "We want to enable teams to scale with joy"
-msgstr "우리는 팀들이 즐겁게 확장하기를 원합니다"
+msgstr "팀이 즐겁게 성장할 수 있도록 돕고 싶습니다"
 
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
 msgstr "우리는 당신의 앱을 확장하는 것이 생산성을 해치지 않는다고 믿는 사람들이 모여있습니다. 우리는 멋진 Swift 프로젝트들이 커지면서 빌드 시간 악몽과 도구 사용 장애를 봐왔기 때문에 뭔가 더 나은 것을 만들기로 결심했습니다."
@@ -869,7 +869,7 @@ msgid "via dedicated Slack"
 msgstr "Slack 채널을 통해"
 
 msgid "your competitive advantage"
-msgstr "경쟁에서 앞서가세요"
+msgstr "경쟁력을 높이세요"
 
 msgid "Custom"
 msgstr "맞춤형"
