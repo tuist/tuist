@@ -27,26 +27,26 @@
         </.dropdown>
         <.date_picker
           id="qa-analytics-date-range-picker"
-          name="analytics_date_range"
+          name="analytics-date-range"
           on_value_change="analytics_date_range_changed"
           presets={[
             %{
-              id: "last_24_hours",
+              id: "last-24-hours",
               label: dgettext("dashboard_qa", "Last 24 hours"),
               period: {24, :hour}
             },
             %{
-              id: "last_7_days",
+              id: "last-7-days",
               label: dgettext("dashboard_qa", "Last 7 days"),
               period: {7, :day}
             },
             %{
-              id: "last_30_days",
+              id: "last-30-days",
               label: dgettext("dashboard_qa", "Last 30 days"),
               period: {30, :day}
             },
             %{
-              id: "last_12_months",
+              id: "last-12-months",
               label: dgettext("dashboard_qa", "Last 12 months"),
               period: {12, :month}
             },
@@ -179,7 +179,7 @@
                   }
                 },
                 tooltip:
-                  if @analytics_date_range == "last_24_hours" do
+                  if @analytics_date_range == "last-24-hours" do
                     %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
                   else
                     %{valueFormat: @analytics_chart_data.value_formatter}

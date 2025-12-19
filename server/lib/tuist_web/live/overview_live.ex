@@ -34,11 +34,11 @@ defmodule TuistWeb.OverviewLive do
     query_params =
       if preset == "custom" do
         socket.assigns.uri.query
-        |> Query.put("analytics_date_range", "custom")
-        |> Query.put("analytics_start_date", start_date)
-        |> Query.put("analytics_end_date", end_date)
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
@@ -70,11 +70,11 @@ defmodule TuistWeb.OverviewLive do
     query_params =
       if preset == "custom" do
         socket.assigns.uri.query
-        |> Query.put("builds_date_range", "custom")
-        |> Query.put("builds_start_date", start_date)
-        |> Query.put("builds_end_date", end_date)
+        |> Query.put("builds-date-range", "custom")
+        |> Query.put("builds-start-date", start_date)
+        |> Query.put("builds-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "builds_date_range", preset)
+        Query.put(socket.assigns.uri.query, "builds-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
@@ -88,14 +88,14 @@ defmodule TuistWeb.OverviewLive do
         "?" <>
           (params
            |> Map.take([
-             "analytics_environment",
-             "analytics_date_range",
-             "analytics_start_date",
-             "analytics_end_date",
-             "builds_environment",
-             "builds_date_range",
-             "builds_start_date",
-             "builds_end_date",
+             "analytics-environment",
+             "analytics-date-range",
+             "analytics-start-date",
+             "analytics-end-date",
+             "builds-environment",
+             "builds-date-range",
+             "builds-start-date",
+             "builds-end-date",
              "bundle-size-date-range",
              "bundle-size-start-date",
              "bundle-size-end-date",
@@ -318,9 +318,9 @@ defmodule TuistWeb.OverviewLive do
     )
   end
 
-  defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_projects", "since yesterday")
-  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
-  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_projects", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_projects", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_projects", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
 
