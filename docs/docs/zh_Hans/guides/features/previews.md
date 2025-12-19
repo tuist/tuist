@@ -151,7 +151,7 @@ SDK 会检查同一**预览轨道** 中的更新。当您使用`--track` 将预�
 
 ### 监控更新 {#sdk-monitor-updates}
 
-Use `monitorPreviewUpdates` to periodically check for new preview versions:
+使用`monitorPreviewUpdates` 定期检查新的预览版本：
 
 ```swift
 import TuistSDK
@@ -189,7 +189,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### 停止更新监控 {#SDK-stop-monitoring}
 
-`monitorPreviewUpdates` returns a `Task` that can be cancelled:
+`monitorPreviewUpdates` 返回一个可取消的`任务` ：
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
