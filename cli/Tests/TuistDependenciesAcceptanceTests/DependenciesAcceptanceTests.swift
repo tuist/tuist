@@ -70,7 +70,7 @@ struct DependenciesAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("app_with_registry_and_alamofire")
+        .withFixtureConnectedToCanary("generated_app_with_registry_and_alamofire")
     )
     func app_with_registry_and_alamofire() async throws {
         // Given
@@ -123,7 +123,7 @@ struct DependenciesAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("app_with_registry_and_alamofire_as_xcode_package")
+        .withFixtureConnectedToCanary("generated_app_with_registry_and_alamofire_as_xcode_package")
     )
     func app_with_registry_and_alamofire_as_xcode_package() async throws {
         // Given
@@ -152,7 +152,7 @@ struct DependenciesAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("package_with_registry_and_alamofire")
+        .withFixtureConnectedToCanary("generated_package_with_registry_and_alamofire")
     )
     func package_with_registry_and_alamofire() async throws {
         // Given
