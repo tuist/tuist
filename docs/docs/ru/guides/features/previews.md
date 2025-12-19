@@ -189,8 +189,7 @@ SDK проверяет наличие обновлений в пределах �
 
 ### Мониторинг обновлений {#sdk-monitor-updates}
 
-Используйте `monitorUpdates`, чтобы периодически проверять наличие новых версий
-превью:
+Use `monitorPreviewUpdates` to periodically check for new preview versions:
 
 ```swift
 import TuistSDK
@@ -228,10 +227,10 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### Остановка мониторинга обновлений {#sdk-stop-monitoring}
 
-`monitorUpdates` возвращает `задачу`, которую можно отменить:
+`monitorPreviewUpdates` returns a `Task` that can be cancelled:
 
 ```swift
-let task = sdk.monitorUpdates { preview in
+let task = sdk.monitorPreviewUpdates { preview in
     // Handle update
 }
 

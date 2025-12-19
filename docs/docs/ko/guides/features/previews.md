@@ -157,7 +157,7 @@ SDK는 동일한 **미리 보기 트랙** 내에서 업데이트를 확인합니
 
 ### 업데이트 모니터링 {#sdk-monitor-updates}
 
-`모니터 업데이트` 를 사용하여 주기적으로 새 미리 보기 버전을 확인하세요:
+Use `monitorPreviewUpdates` to periodically check for new preview versions:
 
 ```swift
 import TuistSDK
@@ -195,10 +195,10 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### 업데이트 모니터링 중지 {#sdk-stop-monitoring}
 
-`monitorUpdates` 는 취소할 수 있는 `작업` 을 반환합니다:
+`monitorPreviewUpdates` returns a `Task` that can be cancelled:
 
 ```swift
-let task = sdk.monitorUpdates { preview in
+let task = sdk.monitorPreviewUpdates { preview in
     // Handle update
 }
 

@@ -178,7 +178,7 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 
 ### مراقبة للتحديثات {#sdk-monitor-updates}
 
-استخدم `monitorUpdates` للتحقق بشكل دوري من إصدارات المعاينة الجديدة:
+Use `monitorPreviewUpdates` to periodically check for new preview versions:
 
 ```swift
 import TuistSDK
@@ -216,10 +216,10 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### إيقاف مراقبة التحديث {#sdk-stop-stop-monitoring}
 
-`يُرجِع موقع MonitorUpdates` مهمة `` يمكن إلغاؤها:
+`monitorPreviewUpdates` returns a `Task` that can be cancelled:
 
 ```swift
-let task = sdk.monitorUpdates { preview in
+let task = sdk.monitorPreviewUpdates { preview in
     // Handle update
 }
 
