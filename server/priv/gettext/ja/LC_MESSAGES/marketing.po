@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 16:34+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -395,7 +395,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "Xcodeプロジェクトの管理とスケールを容易に"
 
 msgid "Make mobile"
-msgstr "モバイル開発を"
+msgstr "モバイルを"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "モジュラーXcodeプロジェクトをより管理しやすく"
@@ -869,7 +869,7 @@ msgid "via dedicated Slack"
 msgstr "専用Slack経由"
 
 msgid "your competitive advantage"
-msgstr "あなたの競争優位性"
+msgstr "あなたの武器に"
 
 msgid "Custom"
 msgstr "カスタム"
