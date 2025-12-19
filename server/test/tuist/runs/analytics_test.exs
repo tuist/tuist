@@ -241,6 +241,49 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0, 0, 2000.0]
       assert got.total_average_duration == 2000
     end
+
+    test "returns hourly duration analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics(
+          project.id,
+          start_date: ~D[2024-04-30],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      assert length(got.dates) == 24
+      assert length(got.values) == 24
+      # Hourly ranges return DateTime structs
+      assert ~U[2024-04-30 03:00:00Z] in got.dates
+      assert ~U[2024-04-30 08:00:00Z] in got.dates
+    end
   end
 
   describe "build_percentile_durations/2" do

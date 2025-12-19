@@ -367,7 +367,6 @@ defmodule Tuist.Bundles do
     type = Keyword.get(opts, :type)
     date_period = date_period(start_date: start_date, end_date: end_date)
 
-    # Get all bundles for the project with date truncated to day
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
@@ -375,21 +374,28 @@ defmodule Tuist.Bundles do
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
       |> select([b], %{
         id: b.id,
-        date: fragment("DATE(?) as date", b.inserted_at),
+        inserted_at: b.inserted_at,
         install_size: b.install_size,
-        download_size: b.download_size,
-        inserted_at: b.inserted_at
+        download_size: b.download_size
       })
 
     query
     |> Repo.all()
     |> Enum.map(fn bundle ->
-      case date_period do
-        :day -> bundle
-        :month -> Map.put(bundle, :date, Timex.beginning_of_month(bundle.date))
-      end
+      date =
+        case date_period do
+          :hour -> DateTime.truncate(bundle.inserted_at, :second) |> truncate_to_hour()
+          :day -> DateTime.to_date(bundle.inserted_at)
+          :month -> DateTime.to_date(bundle.inserted_at) |> Timex.beginning_of_month()
+        end
+
+      Map.put(bundle, :date, date)
     end)
     |> Enum.group_by(fn bundle -> bundle.date end)
+  end
+
+  defp truncate_to_hour(%DateTime{} = dt) do
+    %{dt | minute: 0, second: 0, microsecond: {0, 0}}
   end
 
   defp date_period(opts) do

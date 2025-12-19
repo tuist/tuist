@@ -721,5 +721,63 @@ defmodule Tuist.Cache.AnalyticsTest do
       assert ~D[2024-03-01] in got.dates
       assert ~D[2024-04-01] in got.dates
     end
+
+    test "handles hourly aggregation for 24-hour date range" do
+      # Stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C", "D"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 08:00:00]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 03:30:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 08:30:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_remote},
+          %{key: "task4_key", type: :clang, status: :hit_local}
+        ]
+      )
+
+      got =
+        Analytics.cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-30],
+          end_date: ~D[2024-04-30]
+        )
+
+      # 24 hours in a day
+      assert length(got.dates) == 24
+      assert length(got.values) == 24
+
+      # Hourly ranges return DateTime structs
+      assert ~U[2024-04-30 03:00:00Z] in got.dates
+      assert ~U[2024-04-30 08:00:00Z] in got.dates
+    end
   end
 end

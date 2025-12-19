@@ -755,6 +755,47 @@ defmodule Tuist.CommandEventsTest do
       # 11 days in range
       assert length(result) == 11
     end
+
+    test "returns hourly count data for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-15 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 03:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 08:00:00Z],
+        is_ci: false
+      )
+
+      # When - time_bucket is "1 hour" string for hourly format
+      result =
+        CommandEvents.run_count(
+          project.id,
+          ~D[2024-01-15],
+          ~D[2024-01-15],
+          :hour,
+          "1 hour",
+          "test",
+          []
+        )
+
+      # Then
+      assert length(result) == 24
+      dates = Enum.map(result, & &1.date)
+      assert "2024-01-15 03:00:00" in dates
+      assert "2024-01-15 08:00:00" in dates
+    end
   end
 
   describe "run_average_durations/7" do
@@ -871,6 +912,47 @@ defmodule Tuist.CommandEventsTest do
 
       # Then - should not raise an exception and return expected data
       assert length(result) == 11
+    end
+
+    test "returns hourly average duration data for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-15 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 03:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 08:00:00Z],
+        is_ci: false
+      )
+
+      # When - time_bucket is "1 hour" string for hourly format
+      result =
+        CommandEvents.run_average_durations(
+          project.id,
+          ~D[2024-01-15],
+          ~D[2024-01-15],
+          :hour,
+          "1 hour",
+          "test",
+          []
+        )
+
+      # Then
+      assert length(result) == 24
+      dates = Enum.map(result, & &1.date)
+      assert "2024-01-15 03:00:00" in dates
+      assert "2024-01-15 08:00:00" in dates
     end
   end
 

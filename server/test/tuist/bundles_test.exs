@@ -555,6 +555,44 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-04-30], bundle_install_size: 2000}
              ]
     end
+
+    test "returns hourly bundle install size analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now, so:
+      # Range will be 2024-04-29 12:00:00Z to 2024-04-30 11:00:00Z (inclusive)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 4000,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Bundles.project_bundle_install_size_analytics(
+          project,
+          start_date: ~D[2024-04-30],
+          end_date: ~D[2024-04-30],
+          git_branch: "main"
+        )
+
+      # Then
+      assert length(got) == 24
+
+      dates = Enum.map(got, & &1.date)
+      assert ~U[2024-04-30 03:00:00Z] in dates
+      assert ~U[2024-04-30 08:00:00Z] in dates
+    end
   end
 
   describe "bundle_download_size_analytics/2" do
@@ -772,6 +810,43 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-04-29], bundle_download_size: 3000},
                %{date: ~D[2024-04-30], bundle_download_size: 1500}
              ]
+    end
+
+    test "returns hourly bundle download size analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 4000,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Bundles.bundle_download_size_analytics(
+          project,
+          start_date: ~D[2024-04-30],
+          end_date: ~D[2024-04-30],
+          git_branch: "main"
+        )
+
+      # Then
+      assert length(got) == 24
+
+      dates = Enum.map(got, & &1.date)
+      assert ~U[2024-04-30 03:00:00Z] in dates
+      assert ~U[2024-04-30 08:00:00Z] in dates
     end
   end
 
