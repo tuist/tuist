@@ -192,7 +192,8 @@ Añade Tuist SDK como dependencia del paquete Swift:
 
 ### Monitorización de actualizaciones {#sdk-monitor-updates}
 
-Use `monitorPreviewUpdates` to periodically check for new preview versions:
+Utilice `monitorPreviewUpdates` para comprobar periódicamente si hay nuevas
+versiones de previsualización:
 
 ```swift
 import TuistSDK
@@ -230,7 +231,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### Detención de la supervisión de actualizaciones {#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` returns a `Task` that can be cancelled:
+`monitorPreviewUpdates` devuelve una tarea `` que puede ser cancelada:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
