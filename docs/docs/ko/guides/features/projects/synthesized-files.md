@@ -48,17 +48,17 @@ Tuist는 `Info.plist`나 Entitlement 같은 파일의 내용을 Swift로 선언�
 
 ::: tip Derived 디렉토리를 무시하세요
 <!-- -->
-프로젝트의 `.gitignore` 파일에 `파생` 디렉터리를 추가하는 것이 좋습니다.
+프로젝트의 `.gitignore` 파일에 `Derived` 디렉터리 추가를 권장 합니다.
 <!-- -->
 :::
 
-## 번들 액세스자 {#번들-액세서}
+## 번들 접근자 {#bundle-accessors}
 
-Tuist는 대상 리소스가 포함된 번들에 액세스할 수 있는 인터페이스를 합성합니다.
+Tuist는 Target 리소스를 포함하는 번들에 접근하기 위한 인터페이스를 합성합니다.
 
 ### Swift {#swift}
 
-대상에는 번들을 노출하는 `번들` 유형의 확장자가 포함됩니다:
+Target은 번들을 노출하는 `Bundle` Type의 Extension을 가질 것 입니다:
 
 ```swift
 let bundle = Bundle.module
@@ -66,13 +66,13 @@ let bundle = Bundle.module
 
 ### Objective-C {#objectivec}
 
-Objective-C에서는 번들에 액세스할 수 있는 `{Target}Resources` 인터페이스가 제공됩니다:
+Objective-C에는 번들에 접근할 수 있는 `{Target 이}Resources` 인터페이스를 제공합니다:
 
 ```objc
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: 경고 내부 타겟 제한
+::: warning 내부 Target 제한
 <!-- -->
 현재 튜이스트는 Objective-C 소스만 포함된 내부 대상에 대한 리소스 번들 접근자를 생성하지 않습니다. 이는 [이슈
 #6456](https://github.com/tuist/tuist/issues/6456)에서 추적된 알려진 제한 사항입니다.
