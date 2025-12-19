@@ -1,5 +1,5 @@
 ---
-title: "From 20 to 9 minutes: How monday.com cut their CI time in half"
+title: "monday.com cut CI time in half"
 date: "2025-12-15"
 url: "https://monday.com/"
 onboarded_date: "2022-06-01"

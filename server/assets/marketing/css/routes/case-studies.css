@@ -27,6 +27,7 @@
     }
 
     & > [data-part="description"] {
+      max-width: 644px;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-large);
       text-align: center;

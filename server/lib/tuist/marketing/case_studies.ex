@@ -4,7 +4,7 @@ defmodule Tuist.Marketing.CaseStudies do
   The content is included in the compiled Erlang binary.
   """
   use NimblePublisher,
-    build: Tuist.Marketing.CaseStudies.Case,
+    build: Tuist.Marketing.CaseStudies.CaseStudy,
     from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
     as: :cases,
     parser: Tuist.Marketing.CaseStudies.CaseParser,

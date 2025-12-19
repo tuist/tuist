@@ -1,4 +1,4 @@
-defmodule Tuist.Marketing.CaseStudies.Case do
+defmodule Tuist.Marketing.CaseStudies.CaseStudy do
   @moduledoc false
   @enforce_keys [
     :title,
