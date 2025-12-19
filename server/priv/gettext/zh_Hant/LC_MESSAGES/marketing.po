@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2025-12-19 16:34+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -73,7 +73,7 @@ msgid "All systems normal"
 msgstr "所有系統運作正常"
 
 msgid "All the features you need,"
-msgstr "您所需的所有功能，"
+msgstr "你需要的所有功能，"
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "透過環境、Xcode 版本和 commit 等中繼資料，分析每個 target 和檔案的建置時間。"
@@ -109,7 +109,7 @@ msgid "Build times reduced by 80%"
 msgstr "建置時間縮短 80%"
 
 msgid "Building the future of scalable app development"
-msgstr "打造可擴展應用程式開發的未來"
+msgstr "打造可擴展應用開發的未來"
 
 msgid "Builds"
 msgstr "建置"
@@ -394,7 +394,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "讓 Xcode 專案更容易管理和擴展"
 
 msgid "Make mobile"
-msgstr "讓行動開發"
+msgstr "讓行動開發成為"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "讓模組化的 Xcode 專案更易於管理"
@@ -607,7 +607,7 @@ msgid "Successfully Subscribed!"
 msgstr "訂閱成功！"
 
 msgid "Supercharge your app development"
-msgstr "大幅提升您的應用程式開發效率"
+msgstr "為你的應用開發加速"
 
 msgid "Support"
 msgstr "支援"
@@ -766,7 +766,7 @@ msgid "We prioritize developer happiness because it's closely tied to creating b
 msgstr "我們優先考慮開發者的滿意度，因為這與創造更好的應用程式息息相關。"
 
 msgid "We want to enable teams to scale with joy"
-msgstr "我們希望讓團隊能夠愉快地擴展"
+msgstr "我們希望幫助團隊愉快地成長"
 
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
 msgstr "我們是一群相信擴展應用程式不應扼殺創意的建造者。我們曾親眼目睹令人興奮的 Swift 專案在成長過程中淪為建置時間噩夢和工具難題，因此決定打造更好的解決方案。"
@@ -841,7 +841,7 @@ msgid "core development experience\""
 msgstr "核心開發體驗」"
 
 msgid "in one platform"
-msgstr "在一個平台上"
+msgstr "一個平台搞定"
 
 msgid "open source"
 msgstr "開源"
@@ -868,7 +868,7 @@ msgid "via dedicated Slack"
 msgstr "透過專屬 Slack"
 
 msgid "your competitive advantage"
-msgstr "您的競爭優勢"
+msgstr "你的競爭優勢"
 
 msgid "Custom"
 msgstr "客製化"
