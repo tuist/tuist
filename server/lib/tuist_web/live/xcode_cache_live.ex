@@ -11,6 +11,7 @@ defmodule TuistWeb.XcodeCacheLive do
   alias Tuist.Runs.Analytics
   alias Tuist.Runs.Build
   alias Tuist.Utilities.ByteFormatter
+  alias TuistWeb.Helpers.DateRangeHelper
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -44,7 +45,7 @@ defmodule TuistWeb.XcodeCacheLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+          "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
         replace: true
       )
 
@@ -75,11 +76,11 @@ defmodule TuistWeb.XcodeCacheLive do
     query_params =
       if preset == "custom" do
         socket.assigns.uri.query
-        |> Query.put("analytics_date_range", "custom")
-        |> Query.put("analytics_start_date", start_date)
-        |> Query.put("analytics_end_date", end_date)
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{query_params}")}
@@ -102,19 +103,8 @@ defmodule TuistWeb.XcodeCacheLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    date_range = date_range(params)
-
-    start_date =
-      case date_range do
-        "custom" -> parse_custom_date(params["analytics_start_date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(date_range)
-      end
-
-    end_date =
-      case date_range do
-        "custom" -> parse_custom_date(params["analytics_end_date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "analytics")
 
     opts = [
       project_id: project.id,
@@ -123,17 +113,12 @@ defmodule TuistWeb.XcodeCacheLive do
 
     opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
 
-    date_picker_value =
-      if date_range == "custom" && start_date && end_date do
-        %{start: start_date, end: end_date}
-      end
-
     uri = URI.new!("?" <> URI.encode_query(params))
 
     [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
       Analytics.combined_cache_analytics(project.id, opts)
 
-    analytics_selected_widget = analytics_selected_widget(params)
+    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
 
     analytics_chart_data =
       case analytics_selected_widget do
@@ -163,18 +148,9 @@ defmodule TuistWeb.XcodeCacheLive do
       end
 
     socket
-    |> assign(
-      :analytics_date_range,
-      date_range
-    )
-    |> assign(
-      :analytics_date_range_value,
-      date_picker_value
-    )
-    |> assign(
-      :analytics_trend_label,
-      analytics_trend_label(date_range)
-    )
+    |> assign(:analytics_date_range, preset)
+    |> assign(:analytics_date_range_value, date_picker_value)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(
       :analytics_selected_widget,
       analytics_selected_widget
@@ -217,47 +193,11 @@ defmodule TuistWeb.XcodeCacheLive do
     )
   end
 
-  defp start_date("last_24_hours"), do: Date.add(DateTime.utc_now(), -1)
-  defp start_date("last_12_months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
-
-  defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_cache", "since yesterday")
-  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
-  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_cache", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
-
-  defp parse_custom_date(nil), do: nil
-
-  defp parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
-      {:error, _} -> Date.from_iso8601!(date_string)
-    end
-  rescue
-    _ -> nil
-  end
-
-  defp date_range(params) do
-    analytics_date_range = params["analytics_date_range"]
-
-    if is_nil(analytics_date_range) do
-      "last_30_days"
-    else
-      analytics_date_range
-    end
-  end
-
-  defp analytics_selected_widget(params) do
-    analytics_selected_widget = params["analytics_selected_widget"]
-
-    if is_nil(analytics_selected_widget) do
-      "cache_hit_rate"
-    else
-      analytics_selected_widget
-    end
-  end
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
     options = %{

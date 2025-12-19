@@ -21,7 +21,7 @@
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_projects", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
           data-selected={@analytics_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -29,7 +29,7 @@
         <.dropdown_item
           value="local"
           label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
           data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -37,7 +37,7 @@
         <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -49,22 +49,22 @@
         on_value_change="analytics_date_range_changed"
         presets={[
           %{
-            id: "last_24_hours",
+            id: "last-24-hours",
             label: dgettext("dashboard_projects", "Last 24 hours"),
             period: {24, :hour}
           },
           %{
-            id: "last_7_days",
+            id: "last-7-days",
             label: dgettext("dashboard_projects", "Last 7 days"),
             period: {7, :day}
           },
           %{
-            id: "last_30_days",
+            id: "last-30-days",
             label: dgettext("dashboard_projects", "Last 30 days"),
             period: {30, :day}
           },
           %{
-            id: "last_12_months",
+            id: "last-12-months",
             label: dgettext("dashboard_projects", "Last 12 months"),
             period: {12, :month}
           },
@@ -227,7 +227,7 @@
                   axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
                 },
                 tooltip:
-                  if @analytics_date_range == "last_24_hours" do
+                  if @analytics_date_range == "last-24-hours" do
                     %{valueFormat: "{value}%", dateFormat: "hour"}
                   else
                     %{valueFormat: "{value}%"}
@@ -652,7 +652,7 @@
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_projects", "Any")}
-          patch={"?#{Query.put(@uri.query, "builds_environment", "any")}"}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "any")}"}
           data-selected={@builds_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -660,7 +660,7 @@
         <.dropdown_item
           value="local"
           label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "builds_environment", "local")}"}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
           data-selected={@builds_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -668,7 +668,7 @@
         <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
-          patch={"?#{Query.put(@uri.query, "builds_environment", "ci")}"}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
           data-selected={@builds_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -680,22 +680,22 @@
         on_value_change="builds_date_range_changed"
         presets={[
           %{
-            id: "last_24_hours",
+            id: "last-24-hours",
             label: dgettext("dashboard_projects", "Last 24 hours"),
             period: {24, :hour}
           },
           %{
-            id: "last_7_days",
+            id: "last-7-days",
             label: dgettext("dashboard_projects", "Last 7 days"),
             period: {7, :day}
           },
           %{
-            id: "last_30_days",
+            id: "last-30-days",
             label: dgettext("dashboard_projects", "Last 30 days"),
             period: {30, :day}
           },
           %{
-            id: "last_12_months",
+            id: "last-12-months",
             label: dgettext("dashboard_projects", "Last 12 months"),
             period: {12, :month}
           },
@@ -860,7 +860,7 @@
                   }
                 },
                 tooltip:
-                  if @builds_date_range == "last_24_hours" do
+                  if @builds_date_range == "last-24-hours" do
                     %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
                   else
                     %{valueFormat: "fn:formatSeconds"}

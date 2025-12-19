@@ -9,6 +9,7 @@ defmodule TuistWeb.BuildsLive do
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Helpers.DateRangeHelper
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -62,22 +63,12 @@ defmodule TuistWeb.BuildsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_date_range = params["analytics-date-range"] || "last-30-days"
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
 
-    start_date =
-      case analytics_date_range do
-        "custom" -> parse_custom_date(params["analytics-start-date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(analytics_date_range)
-      end
-
-    end_date =
-      case analytics_date_range do
-        "custom" -> parse_custom_date(params["analytics-end-date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "analytics")
 
     opts = [
       project_id: project.id,
@@ -97,11 +88,6 @@ defmodule TuistWeb.BuildsLive do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
-      end
-
-    date_picker_value =
-      if analytics_date_range == "custom" && start_date && end_date do
-        %{start: start_date, end: end_date}
       end
 
     [
@@ -128,10 +114,10 @@ defmodule TuistWeb.BuildsLive do
     )
     |> assign(
       :analytics_trend_label,
-      trend_label(analytics_date_range)
+      trend_label(preset)
     )
     |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_date_range, analytics_date_range)
+    |> assign(:analytics_date_range, preset)
     |> assign(:analytics_date_range_value, date_picker_value)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_configuration, analytics_build_configuration)
@@ -179,33 +165,16 @@ defmodule TuistWeb.BuildsLive do
   defp assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    configuration_insights_date_range =
-      params["configuration-insights-date-range"] || "last-30-days"
-
-    start_date =
-      case configuration_insights_date_range do
-        "custom" -> parse_custom_date(params["configuration-insights-start-date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(configuration_insights_date_range)
-      end
-
-    end_date =
-      case configuration_insights_date_range do
-        "custom" -> parse_custom_date(params["configuration-insights-end-date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "configuration-insights")
 
     opts = [start_date: start_date]
     opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
 
-    date_picker_value =
-      if configuration_insights_date_range == "custom" && start_date && end_date do
-        %{start: start_date, end: end_date}
-      end
-
     socket =
       socket
       |> assign(:configuration_insights_type, configuration_insights_type)
-      |> assign(:configuration_insights_date_range, configuration_insights_date_range)
+      |> assign(:configuration_insights_date_range, preset)
       |> assign(:configuration_insights_date_range_value, date_picker_value)
 
     configuration_insights_analytics =
@@ -361,27 +330,11 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:failed_builds_count, failed_builds_count)
   end
 
-  defp start_date("last-24-hours"), do: Date.add(DateTime.utc_now(), -1)
-  defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
-
   defp trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_builds", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_builds", "since last period")
   defp trend_label(_), do: dgettext("dashboard_builds", "since last month")
-
-  defp parse_custom_date(nil), do: nil
-
-  defp parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
-      {:error, _} -> Date.from_iso8601!(date_string)
-    end
-  rescue
-    _ -> nil
-  end
 
   defp environment_label("any"), do: dgettext("dashboard_builds", "Any")
   defp environment_label("local"), do: dgettext("dashboard_builds", "Local")

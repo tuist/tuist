@@ -13,6 +13,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DateRangeHelper
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -44,7 +45,6 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
-    bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
 
     bundle_size_branch =
       case params["bundle-size-branch"] do
@@ -54,22 +54,8 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
-    bundle_start_date =
-      case bundle_size_date_range do
-        "custom" -> parse_custom_date(params["bundle-size-start-date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(bundle_size_date_range)
-      end
-
-    bundle_end_date =
-      case bundle_size_date_range do
-        "custom" -> parse_custom_date(params["bundle-size-end-date"]) || Date.utc_today()
-        _ -> nil
-      end
-
-    date_picker_value =
-      if bundle_size_date_range == "custom" && bundle_start_date && bundle_end_date do
-        %{start: bundle_start_date, end: bundle_end_date}
-      end
+    %{preset: preset, start_date: bundle_start_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
     {
       :noreply,
@@ -84,10 +70,7 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundles_type, bundles_type)
       |> assign(:bundle_size_selected_app, bundle_size_selected_app)
       |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-      |> assign(
-        :bundle_size_date_range,
-        bundle_size_date_range
-      )
+      |> assign(:bundle_size_date_range, preset)
       |> assign(:bundle_size_date_range_value, date_picker_value)
       |> assign(:bundle_size_branch, bundle_size_branch)
       |> assign(
@@ -215,7 +198,6 @@ defmodule TuistWeb.BundlesLive do
          %{
            assigns: %{
              selected_project: project,
-             bundle_size_date_range: bundle_size_date_range,
              bundle_size_selected_widget: bundle_size_selected_widget,
              bundle_size_branch: bundle_size_branch,
              bundles_type: bundles_type,
@@ -232,17 +214,8 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_type = string_to_bundle_type(bundles_type)
 
-    start_date =
-      case bundle_size_date_range do
-        "custom" -> parse_custom_date(params["bundle-size-start-date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(bundle_size_date_range)
-      end
-
-    end_date =
-      case bundle_size_date_range do
-        "custom" -> parse_custom_date(params["bundle-size-end-date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{start_date: start_date, end_date: end_date} =
+      DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
     opts = [
       project_id: project.id,
@@ -279,25 +252,10 @@ defmodule TuistWeb.BundlesLive do
     assign(socket, :bundle_size_analytics, bundle_size_analytics)
   end
 
-  defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
-
   defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
   defp bundle_size_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
   defp bundle_size_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp bundle_size_trend_label(_), do: dgettext("dashboard_cache", "since last month")
-
-  defp parse_custom_date(nil), do: nil
-
-  defp parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
-      {:error, _} -> Date.from_iso8601!(date_string)
-    end
-  rescue
-    _ -> nil
-  end
 
   defp bundle_size_trend_value(last_bundle, previous_bundle) do
     if last_bundle && last_bundle.download_size && last_bundle.download_size > 0 &&

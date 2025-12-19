@@ -9,6 +9,7 @@ defmodule TuistWeb.TestsLive do
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Helpers.DateRangeHelper
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -34,13 +35,13 @@ defmodule TuistWeb.TestsLive do
         "?" <>
           URI.encode_query(
             Map.take(params, [
-              "analytics_environment",
-              "analytics_date_range",
-              "analytics_selected_widget",
-              "duration_type",
-              "selective_testing_environment",
-              "selective_testing_date_range",
-              "selective_testing_duration_type"
+              "analytics-environment",
+              "analytics-date-range",
+              "analytics-selected-widget",
+              "duration-type",
+              "selective-testing-environment",
+              "selective-testing-date-range",
+              "selective-testing-duration-type"
             ])
           )
       )
@@ -64,7 +65,7 @@ defmodule TuistWeb.TestsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
         replace: true
       )
 
@@ -78,8 +79,8 @@ defmodule TuistWeb.TestsLive do
       ) do
     query =
       uri.query
-      |> Query.put("duration_type", type)
-      |> Query.put("analytics_selected_widget", "test_run_duration")
+      |> Query.put("duration-type", type)
+      |> Query.put("analytics-selected-widget", "test_run_duration")
 
     socket =
       push_patch(
@@ -100,7 +101,7 @@ defmodule TuistWeb.TestsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "selective_testing_duration_type", type)}",
+          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "selective-testing-duration-type", type)}",
         replace: true
       )
 
@@ -115,11 +116,11 @@ defmodule TuistWeb.TestsLive do
     query_params =
       if preset == "custom" do
         socket.assigns.uri.query
-        |> Query.put("analytics_date_range", "custom")
-        |> Query.put("analytics_start_date", start_date)
-        |> Query.put("analytics_end_date", end_date)
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "analytics_date_range", preset)
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
@@ -133,11 +134,11 @@ defmodule TuistWeb.TestsLive do
     query_params =
       if preset == "custom" do
         socket.assigns.uri.query
-        |> Query.put("selective_testing_date_range", "custom")
-        |> Query.put("selective_testing_start_date", start_date)
-        |> Query.put("selective_testing_end_date", end_date)
+        |> Query.put("selective-testing-date-range", "custom")
+        |> Query.put("selective-testing-start-date", start_date)
+        |> Query.put("selective-testing-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "selective_testing_date_range", preset)
+        Query.put(socket.assigns.uri.query, "selective-testing-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
@@ -161,22 +162,12 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    analytics_environment = params["analytics_environment"] || "any"
-    analytics_date_range = params["analytics_date_range"] || "last_30_days"
-    analytics_selected_widget = params["analytics_selected_widget"] || "test_run_count"
-    selected_duration_type = params["duration_type"] || "avg"
+    analytics_environment = params["analytics-environment"] || "any"
+    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+    selected_duration_type = params["duration-type"] || "avg"
 
-    start_date =
-      case analytics_date_range do
-        "custom" -> parse_custom_date(params["analytics_start_date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(analytics_date_range)
-      end
-
-    end_date =
-      case analytics_date_range do
-        "custom" -> parse_custom_date(params["analytics_end_date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "analytics")
 
     opts = [
       start_date: start_date
@@ -189,11 +180,6 @@ defmodule TuistWeb.TestsLive do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
-      end
-
-    date_picker_value =
-      if analytics_date_range == "custom" && start_date && end_date do
-        %{start: start_date, end: end_date}
       end
 
     [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
@@ -212,29 +198,19 @@ defmodule TuistWeb.TestsLive do
     |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:analytics_date_range, analytics_date_range)
+    |> assign(:analytics_date_range, preset)
     |> assign(:analytics_date_range_value, date_picker_value)
-    |> assign(:analytics_trend_label, trend_label(analytics_date_range))
+    |> assign(:analytics_trend_label, trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
   end
 
   defp assign_selective_testing(%{assigns: %{selected_project: project}} = socket, params) do
-    selective_testing_environment = params["selective_testing_environment"] || "any"
-    selective_testing_date_range = params["selective_testing_date_range"] || "last_30_days"
-    selective_testing_duration_type = params["selective_testing_duration_type"] || "avg"
+    selective_testing_environment = params["selective-testing-environment"] || "any"
+    selective_testing_duration_type = params["selective-testing-duration-type"] || "avg"
 
-    start_date =
-      case selective_testing_date_range do
-        "custom" -> parse_custom_date(params["selective_testing_start_date"]) || Date.add(DateTime.utc_now(), -30)
-        _ -> start_date(selective_testing_date_range)
-      end
-
-    end_date =
-      case selective_testing_date_range do
-        "custom" -> parse_custom_date(params["selective_testing_end_date"]) || Date.utc_today()
-        _ -> nil
-      end
+    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+      DateRangeHelper.parse_date_range_params(params, "selective-testing")
 
     opts = [
       project_id: project.id,
@@ -250,18 +226,13 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
-    date_picker_value =
-      if selective_testing_date_range == "custom" && start_date && end_date do
-        %{start: start_date, end: end_date}
-      end
-
     selective_testing_analytics = Analytics.selective_testing_analytics_with_percentiles(opts)
 
     socket
     |> assign(:selective_testing_analytics, selective_testing_analytics)
     |> assign(:selective_testing_environment, selective_testing_environment)
     |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
-    |> assign(:selective_testing_date_range, selective_testing_date_range)
+    |> assign(:selective_testing_date_range, preset)
     |> assign(:selective_testing_date_range_value, date_picker_value)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
   end
@@ -313,29 +284,13 @@ defmodule TuistWeb.TestsLive do
     assign(socket, :slowest_test_cases, slowest_test_cases)
   end
 
-  defp start_date("last_24_hours"), do: Date.add(DateTime.utc_now(), -1)
-  defp start_date("last_12_months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
-
-  defp trend_label("last_24_hours"), do: dgettext("dashboard_tests", "since yesterday")
-  defp trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
-  defp trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
-
-  defp parse_custom_date(nil), do: nil
-
-  defp parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} -> DateTime.to_date(datetime)
-      {:error, _} -> Date.from_iso8601!(date_string)
-    end
-  rescue
-    _ -> nil
-  end
 end
