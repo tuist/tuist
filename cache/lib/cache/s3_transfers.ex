@@ -12,23 +12,43 @@ defmodule Cache.S3Transfers do
   alias Cache.S3Transfer
 
   @doc """
-  Enqueues an artifact for upload to S3.
+  Enqueues a CAS artifact for upload to S3.
 
   Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
-  def enqueue_upload(account_handle, project_handle, artifact_id) do
-    enqueue(:upload, account_handle, project_handle, artifact_id)
+  def enqueue_cas_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :cas, key)
   end
 
   @doc """
-  Enqueues an artifact for download from S3 to local disk.
+  Enqueues a CAS artifact for download from S3 to local disk.
 
   Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
-  def enqueue_download(account_handle, project_handle, artifact_id) do
-    enqueue(:download, account_handle, project_handle, artifact_id)
+  def enqueue_cas_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :cas, key)
+  end
+
+  @doc """
+  Enqueues a module cache artifact for upload to S3.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_module_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :module, key)
+  end
+
+  @doc """
+  Enqueues a module cache artifact for download from S3 to local disk.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_module_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :module, key)
   end
 
   @doc """
@@ -64,7 +84,7 @@ defmodule Cache.S3Transfers do
     :ok
   end
 
-  defp enqueue(type, account_handle, project_handle, artifact_id) do
+  defp enqueue(type, account_handle, project_handle, artifact_type, key) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     Repo.insert(
@@ -72,7 +92,8 @@ defmodule Cache.S3Transfers do
         type: type,
         account_handle: account_handle,
         project_handle: project_handle,
-        artifact_id: artifact_id,
+        artifact_type: artifact_type,
+        key: key,
         inserted_at: now
       },
       on_conflict: :nothing

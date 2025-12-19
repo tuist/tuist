@@ -13,28 +13,29 @@ defmodule Cache.S3TransfersTest do
     :ok
   end
 
-  describe "enqueue_upload/3" do
+  describe "enqueue_cas_upload/3" do
     test "creates a new upload transfer" do
-      {:ok, transfer} = S3Transfers.enqueue_upload("account", "project", "artifact123")
+      {:ok, transfer} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
 
       assert transfer.type == :upload
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_id == "artifact123"
+      assert transfer.artifact_type == :cas
+      assert transfer.key == "account/project/cas/AB/CD/artifact123"
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      {:ok, _transfer1} = S3Transfers.enqueue_upload("account", "project", "artifact123")
-      {:ok, _transfer2} = S3Transfers.enqueue_upload("account", "project", "artifact123")
+      {:ok, _transfer1} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      {:ok, _transfer2} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
     end
 
-    test "allows same artifact for different types" do
-      {:ok, upload} = S3Transfers.enqueue_upload("account", "project", "artifact123")
-      {:ok, download} = S3Transfers.enqueue_download("account", "project", "artifact123")
+    test "allows same key for different types" do
+      {:ok, upload} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      {:ok, download} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
 
       assert upload.id != download.id
 
@@ -43,31 +44,63 @@ defmodule Cache.S3TransfersTest do
     end
   end
 
-  describe "enqueue_download/3" do
+  describe "enqueue_cas_download/3" do
     test "creates a new download transfer" do
-      {:ok, transfer} = S3Transfers.enqueue_download("account", "project", "artifact123")
+      {:ok, transfer} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
 
       assert transfer.type == :download
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_id == "artifact123"
+      assert transfer.artifact_type == :cas
+      assert transfer.key == "account/project/cas/AB/CD/artifact123"
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      {:ok, _transfer1} = S3Transfers.enqueue_download("account", "project", "artifact123")
-      {:ok, _transfer2} = S3Transfers.enqueue_download("account", "project", "artifact123")
+      {:ok, _transfer1} =
+        S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
+
+      {:ok, _transfer2} =
+        S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
     end
   end
 
+  describe "enqueue_module_upload/3" do
+    test "creates a new upload transfer" do
+      {:ok, transfer} =
+        S3Transfers.enqueue_module_upload("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
+
+      assert transfer.type == :upload
+      assert transfer.account_handle == "account"
+      assert transfer.project_handle == "project"
+      assert transfer.artifact_type == :module
+      assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
+      assert transfer.inserted_at
+    end
+  end
+
+  describe "enqueue_module_download/3" do
+    test "creates a new download transfer" do
+      {:ok, transfer} =
+        S3Transfers.enqueue_module_download("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
+
+      assert transfer.type == :download
+      assert transfer.account_handle == "account"
+      assert transfer.project_handle == "project"
+      assert transfer.artifact_type == :module
+      assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
+      assert transfer.inserted_at
+    end
+  end
+
   describe "pending/2" do
     test "returns pending transfers of given type" do
-      {:ok, _} = S3Transfers.enqueue_upload("account", "project", "artifact1")
-      {:ok, _} = S3Transfers.enqueue_upload("account", "project", "artifact2")
-      {:ok, _} = S3Transfers.enqueue_download("account", "project", "artifact3")
+      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
+      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
+      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact3")
 
       uploads = S3Transfers.pending(:upload, 10)
       downloads = S3Transfers.pending(:download, 10)
@@ -81,7 +114,7 @@ defmodule Cache.S3TransfersTest do
 
     test "respects limit" do
       for i <- 1..5 do
-        S3Transfers.enqueue_upload("account", "project", "artifact#{i}")
+        S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact#{i}")
       end
 
       transfers = S3Transfers.pending(:upload, 3)
@@ -96,7 +129,7 @@ defmodule Cache.S3TransfersTest do
 
   describe "delete/1" do
     test "deletes a transfer by id" do
-      {:ok, transfer} = S3Transfers.enqueue_upload("account", "project", "artifact123")
+      {:ok, transfer} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
 
       :ok = S3Transfers.delete(transfer.id)
 
@@ -105,7 +138,7 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "is idempotent" do
-      {:ok, transfer} = S3Transfers.enqueue_upload("account", "project", "artifact123")
+      {:ok, transfer} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
 
       :ok = S3Transfers.delete(transfer.id)
       :ok = S3Transfers.delete(transfer.id)
@@ -117,9 +150,9 @@ defmodule Cache.S3TransfersTest do
 
   describe "delete_all/1" do
     test "deletes multiple transfers by ids" do
-      {:ok, t1} = S3Transfers.enqueue_upload("account", "project", "artifact1")
-      {:ok, t2} = S3Transfers.enqueue_upload("account", "project", "artifact2")
-      {:ok, t3} = S3Transfers.enqueue_upload("account", "project", "artifact3")
+      {:ok, t1} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
+      {:ok, t2} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
+      {:ok, t3} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact3")
 
       :ok = S3Transfers.delete_all([t1.id, t2.id])
 
@@ -129,7 +162,7 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "handles empty list" do
-      {:ok, _} = S3Transfers.enqueue_upload("account", "project", "artifact1")
+      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
 
       :ok = S3Transfers.delete_all([])
 

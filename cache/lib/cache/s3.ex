@@ -40,7 +40,7 @@ defmodule Cache.S3 do
 
     case bucket
          |> ExAws.S3.head_object(key)
-         |> ExAws.request() do
+         |> ExAws.request(http_opts: [recv_timeout: 2_000]) do
       {:ok, _response} -> true
       {:error, {:http_error, 404, _}} -> false
       {:error, _reason} -> false
@@ -54,8 +54,7 @@ defmodule Cache.S3 do
   or {:error, reason} on other failures.
   If the local file does not exist, returns :ok (the file may have been evicted).
   """
-  def upload(account_handle, project_handle, artifact_id) do
-    key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
+  def upload(key) do
     local_path = Cache.Disk.artifact_path(key)
 
     Logger.info("Starting S3 upload for artifact: #{key}")
@@ -103,10 +102,9 @@ defmodule Cache.S3 do
 
   Returns :ok on success, {:error, :rate_limited} on 429 errors (should be retried),
   or {:error, reason} on other failures.
-  If the artifact does not exist in S3, returns :ok (nothing to download).
+  If the artifact does not exist in S3, returns {:ok, :miss}.
   """
-  def download(account_handle, project_handle, artifact_id) do
-    key = Cache.Disk.cas_key(account_handle, project_handle, artifact_id)
+  def download(key) do
     Logger.info("Starting S3 download for artifact: #{key}")
 
     case check_exists(key) do
@@ -115,15 +113,7 @@ defmodule Cache.S3 do
 
         case download_file(key, local_path) do
           :ok ->
-            {:ok, %{size: size}} = Cache.Disk.stat(account_handle, project_handle, artifact_id)
-
-            :telemetry.execute([:cache, :cas, :download, :s3_hit], %{size: size}, %{
-              cas_id: artifact_id,
-              account_handle: account_handle,
-              project_handle: project_handle
-            })
-
-            :ok
+            {:ok, :hit}
 
           {:error, :rate_limited} = error ->
             Logger.warning("S3 download rate limited for artifact: #{key}")
@@ -135,14 +125,8 @@ defmodule Cache.S3 do
         end
 
       {:ok, false} ->
-        :telemetry.execute([:cache, :cas, :download, :s3_miss], %{}, %{
-          cas_id: artifact_id,
-          account_handle: account_handle,
-          project_handle: project_handle
-        })
-
         Logger.info("Artifact not found in S3, skipping download: #{key}")
-        :ok
+        {:ok, :miss}
 
       {:error, :rate_limited} = error ->
         Logger.warning("S3 exists check rate limited for artifact: #{key}")
