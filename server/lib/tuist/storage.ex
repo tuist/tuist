@@ -285,7 +285,8 @@ defmodule Tuist.Storage do
          s3_access_key_id: access_key,
          s3_secret_access_key: secret_key
        })
-       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key),
+       do: true
 
   defp has_custom_storage?(_), do: false
 
