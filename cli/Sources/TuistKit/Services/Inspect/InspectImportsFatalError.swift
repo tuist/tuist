@@ -24,7 +24,8 @@ enum InspectImportsServiceError: FatalError, Equatable {
                     """
                     The following implicit dependencies were found:
                     \(
-                        implicit.sorted().map { " - \($0.target) implicitly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
+                        implicit.sorted()
+                            .map { " - \($0.target) implicitly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
                             .joined(separator: "\n")
                     )
                     """
@@ -35,7 +36,8 @@ enum InspectImportsServiceError: FatalError, Equatable {
                     """
                     The following redundant dependencies were found:
                     \(
-                        redundant.sorted().map { " - \($0.target) redundantly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
+                        redundant.sorted()
+                            .map { " - \($0.target) redundantly depends on: \($0.dependencies.sorted().joined(separator: ", "))" }
                             .joined(separator: "\n")
                     )
                     """
