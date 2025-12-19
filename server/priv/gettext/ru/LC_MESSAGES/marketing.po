@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 16:34+0000\nLast-Translator: Sofia Kalinina <sofya.kalinina@gmail.com>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -395,7 +395,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "Управляйте и масштабируйте проекты Xcode проще"
 
 msgid "Make mobile"
-msgstr "Сделать мобильным"
+msgstr "Сделайте мобильную разработку"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "Упростите работу с модульными проектами Xcode"
@@ -767,7 +767,7 @@ msgid "We prioritize developer happiness because it's closely tied to creating b
 msgstr "Мы ставим счастье разработчиков в приоритет, потому что оно напрямую влияет на создание лучших приложений."
 
 msgid "We want to enable teams to scale with joy"
-msgstr "Мы хотим дать командам возможность масштабироваться с радостью"
+msgstr "Мы хотим помочь командам расти с удовольствием"
 
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
 msgstr "Мы – команда создателей, которые верят: масштабирование приложения не должно убивать креативность. Мы сами сталкивались с тем, как перспективные Swift-проекты со временем превращаются в ад бесконечных сборок и головную боль из-за инструментов. Поэтому мы решили сделать что-то лучше."
