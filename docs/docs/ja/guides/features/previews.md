@@ -151,7 +151,7 @@ Swift Packageの依存関係としてTuist SDKを追加する：
 
 ### アップデートの監視{#sdk-monitor-updates}。
 
-Use `monitorPreviewUpdates` to periodically check for new preview versions:
+`monitorPreviewUpdates` を使用して、新しいプレビュー・バージョンを定期的にチェックしてください：
 
 ```swift
 import TuistSDK
@@ -189,7 +189,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### アップデート監視の停止{#sdk-stop-monitoring}。
 
-`monitorPreviewUpdates` returns a `Task` that can be cancelled:
+`monitorPreviewUpdates` ` キャンセル可能なタスク` を返す：
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
