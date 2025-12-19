@@ -51,8 +51,7 @@ dostępu Tuist.
 ### Konfigurowanie uwierzytelniania OIDC {#setting-up-oidc-authentication}
 
 1. **Połącz swoje repozytorium z Tuist**: Postępuj zgodnie z
-   <LocalizedLink href="/guides/integrations/gitforge/github"> przewodnikiem
-   integracji GitHub</LocalizedLink>, aby połączyć swoje repozytorium GitHub z
+   <LocalizedLink href="/guides/integrations/gitforge/github">przewodnikiem integracji GitHub</LocalizedLink>, aby połączyć swoje repozytorium GitHub z
    projektem Tuist.
 
 2. **Uruchom `tuist auth login`**: W przepływie pracy CI należy uruchomić `tuist
@@ -60,8 +59,7 @@ dostępu Tuist.
    automatycznie wykryje środowisko CI i uwierzytelni się przy użyciu OIDC.
 
 Przykłady konfiguracji dla poszczególnych dostawców można znaleźć w przewodniku
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration</LocalizedLink>.
 
 ### Zakresy tokenów OIDC {#oidc-token-scopes}
 
@@ -173,7 +171,7 @@ Tokeny konta powinny być zdefiniowane jako zmienna środowiskowa `TUIST_TOKEN`:
 export TUIST_TOKEN=your-account-token
 ```
 
-::: wskazówka KIEDY UŻYWAĆ TOKENÓW DO KONTA
+::: tip KIEDY UŻYWAĆ TOKENÓW DO KONTA
 <!-- -->
 Korzystaj z tokenów konta, gdy tego potrzebujesz:
 - Uwierzytelnianie w środowiskach CI, które nie obsługują OIDC

@@ -19,13 +19,13 @@
 - スペイン語
 - ポルトガル語
 
-::: ヒント 新しい言語をリクエストする
+::: tip 新しい言語をリクエストする
 <!-- -->
 Tuistが新しい言語をサポートすることが有益だと思われる場合は、新しい[コミュニティフォーラムのトピック](https://community.tuist.io/c/general/4)を作成してコミュニティと議論してください。
 <!-- -->
 :::
 
-## どのように翻訳するか{#how-to-translate}。
+## どのように翻訳するか{#how-to-translate}
 
 Weblate](https://weblate.org/en-gb/)のインスタンスが[translate.tuist.dev](https://translate.tuist.dev)で動いています。プロジェクト](https://translate.tuist.dev/engage/tuist/)にアクセスしてアカウントを作成し、翻訳を始めることができます。
 
@@ -41,7 +41,7 @@ Weblateは、ソース言語とターゲット言語をバインドするため�
 
 以下は、私たちが翻訳を行う際のガイドラインです。
 
-### カスタムコンテナとGitHubアラート{#custom-containers-and-github-alerts}。
+### カスタムコンテナとGitHubアラート{#custom-containers-and-github-alerts}
 
 カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers)を翻訳する場合、タイトルとコンテンツ**のみを翻訳しますが、アラートのタイプ**
 は翻訳しません。

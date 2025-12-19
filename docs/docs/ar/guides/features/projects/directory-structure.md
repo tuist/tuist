@@ -5,7 +5,7 @@
   "description": "Learn about the structure of Tuist projects and how to organize them."
 }
 ---
-# هيكل الدليل {#هيكل الدليل-هيكل الدليل}
+# هيكل الدليل {#directory-structure}
 
 على الرغم من أن مشاريع Tuist تُستخدم عادةً لتحل محل مشاريع Xcode، إلا أنها لا
 تقتصر على حالة الاستخدام هذه. تُستخدم مشاريع تويست أيضًا لإنشاء أنواع أخرى من
@@ -13,7 +13,7 @@
 بنية مشاريع تويست وكيفية تنظيمها. في أقسام لاحقة، سنغطي كيفية تعريف القوالب
 والإضافات والمهام.
 
-## مشاريع تويست القياسية {#مشاريع تويست القياسية}
+## مشاريع تويست القياسية {#standard-tuist-projects}
 
 مشاريع تويست هي **النوع الأكثر شيوعًا من المشاريع التي يتم إنشاؤها بواسطة
 تويست.** تُستخدم لبناء التطبيقات والأطر والمكتبات وغيرها. على عكس مشاريع Xcode،
@@ -44,8 +44,7 @@ Workspace.swift
   - **Package.swift:** يحتوي هذا الملف على تبعيات Swift Package لتويست لدمجها
     باستخدام مشاريع وأهداف Xcode (مثل [CocoaPods] (https://cococapods)}) القابلة
     للتكوين والتحسين. تعرف على المزيد
-    <LocalizedLink href="/guides/features/projects/dependencies">
-    هنا</LocalizedLink>.
+    <LocalizedLink href="/guides/features/projects/dependencies"> هنا</LocalizedLink>.
 
 - **الدليل الجذر**: الدليل الجذر لمشروعك الذي يحتوي أيضًا على الدليل `Tuist`.
   - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>
@@ -64,7 +63,7 @@ Workspace.swift
 يجب أن يكون البيان في دليل أو دليل فرعي لدليل يحتوي على دليل `Tuist` الذي يمثل
 جذر المشروع.
 
-:::: إكرامية
+::: tip
 <!-- -->
 سمحت مساحات عمل Xcode بتقسيم المشاريع إلى مشاريع Xcode متعددة لتقليل احتمالية
 تعارضات الدمج. إذا كان هذا ما كنت تستخدم مساحات العمل من أجله، فلن تحتاج إليها
@@ -72,7 +71,7 @@ Workspace.swift
 <!-- -->
 :::
 
-## باقة سويفت <Badge type="warning" text="beta" /> {#Swift-package-badge-typewarning-textbeta-}
+## باقة سويفت <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
 يدعم Tuist أيضًا مشاريع حزم SPM. إذا كنت تعمل على حزمة SPM، فلن تحتاج إلى تحديث
 أي شيء. يلتقط تويست تلقائيًا على الجذر الخاص بك `Package.swift` وتعمل جميع ميزات

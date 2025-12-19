@@ -39,8 +39,7 @@ CLI 在向服务器发出请求时会自动查找凭据。如果访问令牌已�
 ### 设置 OIDC 身份验证 {#setting-up-oidc-authentication}
 
 1. **将仓库连接到 Tuist**
-   ：按照<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
-   集成指南</LocalizedLink>，将 GitHub 仓库连接到 Tuist 项目。
+   ：按照<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 集成指南</LocalizedLink>，将 GitHub 仓库连接到 Tuist 项目。
 
 2. **运行 `tuist auth login`** ：在您的 CI 工作流程中，在任何需要身份验证的命令之前运行`tuist auth login`
    。CLI 将自动检测 CI 环境并使用 OIDC 进行身份验证。

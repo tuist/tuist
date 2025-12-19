@@ -11,7 +11,7 @@ TuistはXcodeコンパイルキャッシュのサポートを提供し、ビル�
 
 ## セットアップ {#setup}
 
-警告 要件
+::: warning 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 - Xcode 26.0以降
@@ -37,7 +37,7 @@ tuist setup cache
 
 CIでキャッシュを設定するには、<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証されている</LocalizedLink>ことを確認してください。
 
-### Xcodeのビルド設定を構成する{#configure-xcode-build-settings}。
+### Xcodeのビルド設定を構成する{#configure-xcode-build-settings}
 
 Xcodeプロジェクトに以下のビルド設定を追加する：
 
@@ -68,7 +68,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-情報 ジェネレイテッド・プロジェクト
+::: info ジェネレイテッド・プロジェクト
 <!-- -->
 プロジェクトがTuistによって生成されている場合は、手動で設定する必要はない。
 

@@ -7,7 +7,7 @@
 ---
 # Xcodeプロジェクト {#xcode-project}
 
-警告 要件
+::: warning 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
@@ -37,8 +37,7 @@ Xcode プロジェクトのテストをコマンドラインから選択的に�
 | `tuist xcodebuild test` 呼び出し | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests` `FeatureBTests` 、および`CoreTests` の新しいハッシュが永続化される。 |
 
 CI で`tuist xcodebuild test`
-を使うには、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-integration guide</LocalizedLink> の指示に従ってください。
+を使うには、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink> の指示に従ってください。
 
 次のビデオで、セレクティブ・テストの様子をご覧ください：
 

@@ -21,7 +21,7 @@ Logger.current
 <!-- -->
 :::
 
-## 何を記録するか{#what-to-log}。
+## 何を記録するか{#what-to-log}
 
 ログはCLIのUIではない。問題が発生したときに診断するためのツールです。したがって、提供する情報は多ければ多いほど良い。新しい機能を作るときは、予想外の動作に出くわした開発者の立場になって、彼らにとってどんな情報が役に立つかを考えてください。正しい
 [ログレベル](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)

@@ -7,9 +7,9 @@
 ---
 # Xcode 프로젝트 {#xcode-project}
 
-경고 요구 사항 ::: 경고 요구 사항
+경고 요구 사항 ::: warning 요구 사항
 <!-- -->
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -37,8 +37,7 @@
 | `튜이스트 엑스코드 빌드 테스트` 호출 | `CoreTests`, `FeatureATests`, `FeatureBTests에서 테스트를 실행합니다.` | `FeatureATests` `FeatureBTests`, `CoreTests` 의 새 해시는 유지됩니다. |
 
 CI에서 `tuist xcodebuild test` 를 사용하려면
-<LocalizedLink href="/guides/integrations/continuous-integration">연속 통합
-가이드</LocalizedLink>의 지침을 따르세요.
+<LocalizedLink href="/guides/integrations/continuous-integration">연속 통합 가이드</LocalizedLink>의 지침을 따르세요.
 
 다음 동영상을 통해 선택적 테스트가 실제로 작동하는 모습을 확인하세요:
 

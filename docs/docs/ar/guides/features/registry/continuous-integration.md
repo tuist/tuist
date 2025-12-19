@@ -5,12 +5,12 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# التكامل المستمر (CI) {#التكامل المستمر-التكامل-سي}
+# التكامل المستمر (CI) {#continuous-integration-ci}
 
 لاستخدام السجل على CI الخاص بك، تحتاج إلى التأكد من تسجيل الدخول إلى السجل عن
 طريق تشغيل `tuist تسجيل الدخول إلى السجل` كجزء من سير عملك.
 
-:::: المعلومات فقط XCODE INTEGRATION
+::: info فقط XCODE INTEGRATION
 <!-- -->
 لا يلزم إنشاء سلسلة مفاتيح جديدة غير مؤمّنة مسبقًا إلا إذا كنت تستخدم تكامل حزم
 Xcode.
@@ -38,8 +38,7 @@ tuist`.
 
 بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_CONFIG_TOKEN`.
 يمكنك إنشاء واحد باتباع الوثائق
-<LocalizedLink href="/guides/server/authentication#as-a-project"> هنا
-</LocalizedLink>.
+<LocalizedLink href="/guides/server/authentication#as-a-project">هنا </LocalizedLink>.
 
 مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
 ```yaml
@@ -65,7 +64,7 @@ jobs:
       - # Your build steps
 ```
 
-### دقة متزايدة عبر البيئات {#دقة متزايدة عبر البيئات}
+### دقة متزايدة عبر البيئات {#incremental-resolution-across-environments}
 
 تكون عمليات الحل النظيف/البارد أسرع قليلاً مع السجل الخاص بنا، ويمكنك تجربة
 تحسينات أكبر إذا واصلت التبعيات التي تم حلها عبر إنشاءات CI. لاحظ أنه بفضل

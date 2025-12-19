@@ -14,12 +14,10 @@
 的选择性测试基于我们的<LocalizedLink href="/guides/features/projects/hashing">哈希算法</LocalizedLink>，只运行上次成功运行测试后发生变化的测试，从而帮助您大大加快测试运行速度。
 
 选择性测试可与`xcodebuild` 一起使用，它支持任何 Xcode 项目；如果使用 Tuist 生成项目，则可以使用`tuist test`
-命令，它提供了一些额外的便利，例如与 <LocalizedLink href="/guides/features/cache">
-二进制缓存</LocalizedLink>的集成。要开始选择性测试，请根据您的项目设置遵循相关说明：
+命令，它提供了一些额外的便利，例如与 <LocalizedLink href="/guides/features/cache"> 二进制缓存</LocalizedLink>的集成。要开始选择性测试，请根据您的项目设置遵循相关说明：
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
 警告模块与文件级的一致性
 <!-- -->
@@ -38,9 +36,7 @@
 
 警告 需要与 GIT 平台集成
 <!-- -->
-要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-平台</LocalizedLink>集成。
+要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
 <!-- -->
 :::
 

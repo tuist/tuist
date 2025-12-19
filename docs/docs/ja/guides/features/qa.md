@@ -39,7 +39,7 @@ PRコメントがリンクしているダッシュボードのレポートの一
 
 QAタイムライン](/images/guides/features/qa/qa-timeline.png)。
 
-1}iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
+<LocalizedLink href="/guides/features/previews">iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
 https://tuist.dev/tuist/tuist/qa
 
 ::: 情報

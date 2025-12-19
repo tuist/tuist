@@ -119,8 +119,7 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 
 警告 需要与 GIT 平台集成
 <!-- -->
-要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-平台</LocalizedLink>集成。
+要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
 <!-- -->
 :::
 

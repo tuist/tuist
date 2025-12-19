@@ -7,10 +7,9 @@
 ---
 # Wgląd w pakiet {#bundle-size}
 
-::: ostrzeżenie WYMAGANIA
+::: warning WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -74,7 +73,7 @@ pakietu](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>

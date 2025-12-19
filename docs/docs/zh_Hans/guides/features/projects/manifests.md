@@ -75,15 +75,13 @@ Tuist 将解析依赖关系图，并将依赖关系的项目包含在工作区�
 冲突并不是问题。因此，您可以自行决定在工作区中使用单个项目还是多个项目。
 
 在 Tuist 项目中，我们倾向于使用单项目，因为冷生成时间更快（需要编译的清单文件更少），而且我们利用
-<LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手
-</LocalizedLink> 作为封装单元。不过，您可能希望使用 Xcode 项目作为封装单元，以代表应用程序的不同领域，这与 Xcode
+<LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手 </LocalizedLink> 作为封装单元。不过，您可能希望使用 Xcode 项目作为封装单元，以代表应用程序的不同领域，这与 Xcode
 推荐的项目结构更为接近。
 
 ## Tuist.swift {#tuistswift}
 
 Tuist 提供了
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">
-合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
+<LocalizedLink href="/contributors/principles.html#default-to-conventions"> 合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 来自定义配置，Tuist 会使用它来确定项目的根目录。
 

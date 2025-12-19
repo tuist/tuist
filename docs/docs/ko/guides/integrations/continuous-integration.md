@@ -20,8 +20,7 @@
 ### GitHub 액션 {#github-actions}
 
 GitHub 작업](https://docs.github.com/en/actions)에서
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 안전하고 비밀 없는 인증을 할 수 있습니다:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 안전하고 비밀 없는 인증을 할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -115,14 +114,12 @@ jobs:
 <!-- -->
 :::
 
-::: 정보 OIDC 설정
+::: info OIDC 설정
 <!-- -->
 OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
-저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id-token: write` 권한이
+<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id-token: write` 권한이
 필요합니다. 또는 `TUIST_TOKEN` 시크릿과 함께
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 사용할 수 있습니다.
+<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 사용할 수 있습니다.
 <!-- -->
 :::
 
@@ -163,9 +160,9 @@ tuist generate
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+정보 인증::: info 인증
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
+<LocalizedLink href="/guides/features/cache">프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
 설정합니다.
 <!-- -->
 :::
@@ -173,8 +170,7 @@ tuist generate
 ### CircleCI {#circleci}
 
 CircleCI](https://circleci.com)에서는
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -225,22 +221,19 @@ jobs:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+정보 인증::: info 인증
 <!-- -->
 OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
+<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist 프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
 Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
 <!-- -->
 :::
 
 ### Bitrise {#bitrise}
 
 Bitrise](https://bitrise.io)에서는
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -293,14 +286,12 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+정보 인증::: info 인증
 <!-- -->
 OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
+<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist 프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
 Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
 <!-- -->
 :::
 
@@ -345,8 +336,8 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+정보 인증::: info 인증
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+<LocalizedLink href="/guides/features/cache">프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
 <!-- -->
 :::

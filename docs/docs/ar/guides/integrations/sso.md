@@ -7,7 +7,7 @@
 ---
 # SSO {#sso}
 
-## جوجل {#جوجل}
+## جوجل {#google}
 
 إذا كان لديك منتدى مؤسسة Google Workspace وتريد أن تتم إضافة أي مطوِّر يقوم
 بتسجيل الدخول بنفس النطاق المستضاف من Google إلى منتدى مؤسسة Tuist، يمكنك إعداده
@@ -16,14 +16,14 @@
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-:::: تحذير
+::: warning
 <!-- -->
 يجب أن تتم مصادقتك مع Google باستخدام بريد إلكتروني مرتبط بالمؤسسة التي تقوم
 بإعداد نطاقها.
 <!-- -->
 :::
 
-## أوكتا {#أوكتا}
+## أوكتا {#okta}
 
 يتوفر SSO مع Okta لعملاء المؤسسات فقط. إذا كنت مهتمًا بإعداده، يرجى الاتصال بنا
 على [contact@tuist.dev] (mailto:contact@tuist.dev).
@@ -58,7 +58,7 @@ tuist organization update sso my-organization --provider google --organization-i
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-:::: تحذير
+::: warning
 <!-- -->
 يحتاج المستخدمون إلى تسجيل الدخول في البداية عبر لوحة تحكم Okta الخاصة بهم لأن
 Tuist لا يدعم حاليًا التوفير التلقائي وإلغاء التوفير التلقائي للمستخدمين من

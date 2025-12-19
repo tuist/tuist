@@ -5,7 +5,7 @@
   "description": "Learn how to declare dependencies in your Tuist project."
 }
 ---
-# 依赖项 {#dependencies｝
+# 依赖项 {#dependencies}
 
 当一个项目发展壮大时，通常会将其拆分为多个目标，以共享代码、定义边界并缩短构建时间。多个目标意味着要定义它们之间的依赖关系，形成**依赖关系图**
 ，其中可能还包括外部依赖关系。
@@ -30,7 +30,7 @@ Tuist，您只需描述什么依赖于什么，剩下的就交给我们吧。错
 
 在以下章节中，您将学习如何在项目中声明依赖关系。
 
-提示图形验证
+::: tip 图形验证
 <!-- -->
 Tuist 在生成项目时会对图形进行验证，以确保不存在循环，并且所有依赖关系都是有效的。正因为如此，任何团队都可以参与依赖关系图的演进，而不必担心会破坏它。
 <!-- -->
@@ -48,7 +48,7 @@ Tuist 在生成项目时会对图形进行验证，以确保不存在循环，�
 - `SDK` ：声明与系统 SDK 的依赖关系。
 - `XCTest` ：声明与 XCTest 的依赖关系。
 
-信息依赖条件
+::: info 依赖条件
 <!-- -->
 每种依赖关系类型都接受`condition` 选项，用于根据平台有条件地链接依赖关系。默认情况下，它会为目标支持的所有平台链接依赖关系。
 <!-- -->
@@ -73,7 +73,7 @@ XcodeProj 的集成更有可能需要更多时间来支持新的 Swift 包功能
 
 要添加外部依赖项，必须在`Tuist/` 或项目根目录下创建`Package.swift` 。
 
-代码组
+::: code-group
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -107,7 +107,7 @@ let package = Package(
 <!-- -->
 :::
 
-提示软件包设置
+::: tip 软件包设置
 <!-- -->
 `PackageSettings`
 实例封装在编译器指令中，允许你配置软件包的集成方式。例如，在上面的示例中，它用于覆盖用于软件包的默认产品类型。默认情况下，您不需要它。
@@ -149,7 +149,7 @@ Xcode 并准备编译。我们认为，随着项目的增长，苹果与 Swift �
 
 然后，您可以在项目目标中使用`TargetDependency.external` 依赖关系类型引用这些依赖关系：
 
-代码组
+::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -175,7 +175,7 @@ let project = Project(
 <!-- -->
 :::
 
-::: 信息 不为外部软件包生成程序
+::: info 不为外部软件包生成程序
 <!-- -->
 **schemes** 不会为 Swift Package 项目自动创建，以保持方案列表的整洁。您可以通过 Xcode 的用户界面创建它们。
 <!-- -->
@@ -201,7 +201,7 @@ let target = .target(name: "MyTarget", dependencies: [
 
 对于 Swift 宏和构建工具插件，您需要分别使用`.macro` 和`.plugin` 类型。
 
-警告SPM构建工具插件
+::: warning SPM构建工具插件
 <!-- -->
 必须使用 [Xcode 的默认集成](#xcode-s-default-integration)机制声明 SPM 构建工具插件，即使在使用 Tuist 的
 [基于 XcodeProj 的集成](#tuist-s-xcodeproj-based-integration)来声明项目依赖关系时也是如此。
@@ -269,7 +269,7 @@ carthage update
 tuist generate
 ```
 
-警告：构建和测试
+::: warning 构建和测试
 <!-- -->
 如果通过`tuist build` 和`tuist test` 来构建和测试项目，同样需要在运行`tuist build` 或`tuist test`
 命令之前，运行`carthage update` 命令，以确保存在已解决的 Carthage 依赖项。
@@ -288,7 +288,7 @@ tuist generate
 pod install
 ```
 
-:: 警告
+::: warning
 <!-- -->
 CocoaPods 依赖关系与`build` 或`test` 等工作流不兼容，这些工作流会在生成项目后立即运行`xcodebuild`
 。它们还与二进制缓存和选择性测试不兼容，因为指纹识别逻辑没有考虑 Pods 依赖关系。
@@ -321,12 +321,11 @@ func productType() -> Product {
 }
 ```
 
-请注意，由于成本问题</LocalizedLink>，Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">并不会通过隐式配置默认为便捷型。这意味着，我们需要您设置链接类型，以及有时需要的其他构建设置（如[`-ObjC`
+请注意，Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">由于成本问题，并不会通过隐式配置默认为便捷型</LocalizedLink>。这意味着，我们需要您设置链接类型，以及有时需要的其他构建设置（如[`-ObjC`
 linker
 flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)），以确保生成的二进制文件正确无误。因此，我们的立场是为您提供资源，通常是以文档的形式，让您做出正确的决定。
 
-提示 示例：可组合建筑
+::: tip 示例：可组合建筑
 <!-- -->
 许多项目都集成了[可组合架构](https://github.com/pointfreeco/swift-composable-architecture)这个
 Swift 软件包。更多详情，请参阅 [本节](#the-composable-architecture)。
@@ -484,8 +483,7 @@ let packageSettings = PackageSettings(
 
 当动态框架或库通过`import StaticSwiftModule` 来依赖静态框架或库时，动态框架或库的`.swiftmodule`
 中就会包含这些符号，从而可能<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">导致编译失败</LocalizedLink>。为了避免这种情况，您必须使用
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink> 来导入静态依赖关系：
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink> 来导入静态依赖关系：
 
 ```swift
 internal import StaticModule

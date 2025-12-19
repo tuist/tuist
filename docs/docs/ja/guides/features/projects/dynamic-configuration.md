@@ -10,7 +10,7 @@
 生成時にプロジェクトを動的に設定する必要があるシナリオがあります。たとえば、プロジェクトが生成される環境に基づいて、アプリの名前、バンドル識別子、またはデプロイメントターゲットを変更したい場合があります。Tuist
 は、マニフェストファイルからアクセス可能な環境変数によってこれをサポートします。
 
-## 環境変数による設定 {#configuration-through-environment-variables}。
+## 環境変数による設定 {#configuration-through-environment-variables}
 
 Tuistでは、マニフェストファイルからアクセス可能な環境変数を通して設定を渡すことができます。例えば
 
@@ -50,8 +50,7 @@ func appName() -> String {
 変数を取得することもできます。これらのメソッドでは、ユーザーが毎回一貫した結果を得られるように、デフォルト値を渡す必要があります。これにより、上で定義した関数
 appName() を定義する必要がなくなります。
 
-コードグループ
-
+::: code-group
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")
 ```

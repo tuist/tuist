@@ -5,12 +5,11 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# 始めよう{#get-started}。
+# 始めよう{#get-started}
 
 任意のディレクトリ、またはXcodeプロジェクトやワークスペースのディレクトリでTuistを始める最も簡単な方法：
 
-コードグループ
-
+::: code-group
 ```bash [Mise]
 mise x tuist@latest -- tuist init
 ```
@@ -23,7 +22,7 @@ tuist init
 
 このコマンドは、<LocalizedLink href="/guides/features/projects">生成されたプロジェクトを作成したり、</LocalizedLink>既存の
 Xcode
-プロジェクトやワークスペースを統合するための手順を説明します。3}選択的テスト</LocalizedLink>、<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>、<LocalizedLink href="/guides/features/registry">レジストリ</LocalizedLink>のような機能にアクセスできるように、リモートサーバにセットアップを接続するのに役立ちます。
+プロジェクトやワークスペースを統合するための手順を説明します。<LocalizedLink href="/guides/features/projects">選択的テスト</LocalizedLink>、<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>、<LocalizedLink href="/guides/features/registry">レジストリ</LocalizedLink>のような機能にアクセスできるように、リモートサーバにセットアップを接続するのに役立ちます。
 
 既存のプロジェクトを移行する
 <!-- -->

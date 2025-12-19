@@ -91,8 +91,7 @@ tuist mcp setup vscode --path /path/to/project
 
 手動で設定したい場合、または別のMCPクライアントを使用している場合は、Tuist MCPサーバーをクライアントの設定に追加してください：
 
-コードグループ
-
+::: code-group
 ```json [Global Tuist installation (e.g. Homebrew)]
 {
   "mcpServers": {

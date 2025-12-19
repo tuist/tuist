@@ -29,7 +29,7 @@
 プロジェクト記述ヘルパープラグインは、プラグインの名前を宣言する`Plugin.swift` マニフェストファイルとヘルパー Swift
 ファイルを含む`ProjectDescriptionHelpers` ディレクトリを含むディレクトリによって表されます。
 
-コードグループ
+::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -47,12 +47,12 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### リソースアクセサテンプレートプラグイン {#resource-accessor-templates-plugin}
 
-1}合成されたリソース・アクセッサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
+<LocalizedLink href="/guides/features/projects/code-sharing">合成されたリソース・アクセッサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
 マニフェスト ファイルと、リソース アクセッサ テンプレート ファイルを含む`ResourceSynthesizers`
 ディレクトリを含むディレクトリで表されます。
 
 
-コードグループ
+::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -90,9 +90,9 @@ let plugin = Plugin(name: "MyPlugin")
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### タスクプラグイン <Badge type="warning" text="deprecated" />タスクプラグイン{#task-plugin-badge-typewarning-textdeprecated-}。
+### タスクプラグイン <Badge type="warning" text="deprecated" />タスクプラグイン{#task-plugin-badge-typewarning-textdeprecated-}
 
-警告 DEPRECATED
+::: warning DEPRECATED
 <!-- -->
 タスク・プラグインは非推奨です。プロジェクトの自動化ソリューションをお探しなら、[このブログ記事](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)をチェックしてください。
 <!-- -->
@@ -101,7 +101,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 タスクは`$PATH`-公開された実行可能ファイルであり、命名規則`tuist-<task-name>` に従っていれば`tuist`
 コマンドを通して呼び出すことができる。以前のバージョンでは、Tuistは`build`,`run`,`test` and`archive` tasks
 represented by executables in Swift Packagesのために、`tuist plugin`
-の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。</task-name>
+の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。
 
 タスクの分散にTuistを使用していた場合は、次のように構築することをお勧めします。
 - Tuistリリースごとに配布される`ProjectAutomation.xcframework` を使い続けることで、`let graph = try
@@ -161,7 +161,7 @@ let tuist = Tuist(
 <!-- -->
 :::
 
-::: ヒント PROJECT DESCRIPTION HELPERS PLUGINS
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 プロジェクト記述ヘルパーのプラグインを使うとき、ヘルパーを含むモジュールの名前がプラグインの名前になる
 ```swift

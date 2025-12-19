@@ -32,13 +32,12 @@ tuist inspect implicit-imports
 ::: наконечник VALIDATE IN CI
 <!-- -->
 Мы настоятельно рекомендуем запускать эту команду в рамках команды
-<LocalizedLink href="/guides/features/automate/continuous-integration">continuous
-integration</LocalizedLink> каждый раз, когда новый код выкладывается вверх по
+<LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> каждый раз, когда новый код выкладывается вверх по
 течению.
 <!-- -->
 :::
 
-::: предупреждение НЕ ВСЕ ВЗАИМНЫЕ СЛУЧАИ ВЫЯВЛЕНЫ
+::: warning НЕ ВСЕ ВЗАИМНЫЕ СЛУЧАИ ВЫЯВЛЕНЫ
 <!-- -->
 Поскольку Tuist полагается на статический анализ кода для обнаружения неявных
 зависимостей, он может уловить не все случаи. Например, Tuist не может понять

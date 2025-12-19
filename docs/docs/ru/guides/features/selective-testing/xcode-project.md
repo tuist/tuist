@@ -7,10 +7,9 @@
 ---
 # Проект Xcode {#xcode-project}
 
-::: предупреждение РЕКВИЗИТЫ
+::: warning РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
-  проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -41,8 +40,7 @@
 
 Чтобы использовать `tuist xcodebuild test` в вашем CI, следуйте инструкциям в
 руководстве
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-integration guide</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink>.
 
 Посмотрите следующее видео, чтобы увидеть выборочное тестирование в действии:
 

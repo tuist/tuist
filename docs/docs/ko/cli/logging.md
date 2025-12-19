@@ -21,7 +21,7 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 
 ::: tip
 <!-- -->
-1}디렉토리 문서</LocalizedLink>에서 Tuist의 디렉토리 구성 및 사용자 지정 디렉토리를 구성하는 방법에 대해 자세히 알아보세요.
+<LocalizedLink href="/cli/directories">디렉토리 문서</LocalizedLink>에서 Tuist의 디렉토리 구성 및 사용자 지정 디렉토리를 구성하는 방법에 대해 자세히 알아보세요.
 <!-- -->
 :::
 

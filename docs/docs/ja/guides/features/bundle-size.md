@@ -7,7 +7,7 @@
 ---
 # バンドル・インサイト {#bundle-size}
 
-警告 要件
+::: warning 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
@@ -19,7 +19,7 @@
 
 バンドルを分析するには、`tuist inspect bundle` コマンドを使います：
 
-コードグループ
+::: code-group
 ```bash [Analyze an .ipa]
 tuist inspect bundle App.ipa
 ```
@@ -37,7 +37,7 @@ tuist inspect bundle App.app
 
 分析されたバンドル](/images/guides/features/bundle-size/analyzed-bundle.png)。
 
-## 継続的インテグレーション{#continuous-integration}。
+## 継続的インテグレーション{#continuous-integration}
 
 バンドルのサイズを経時的に追跡するには、CI上のバンドルを分析する必要があります。まず、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります：
 

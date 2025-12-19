@@ -7,9 +7,9 @@
 ---
 # 洞察 {#insights}
 
-警告 要件
+::: warning 要件
 <!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
@@ -20,7 +20,7 @@ Insightsは、プロジェクトの健全性を監視し、プロジェクトの
 - この1週間で、ビルドタイムが大幅に伸びましたか？
 - 私のテストは遅くなりましたか？どのテストですか？
 
-::: 情報
+::: info
 <!-- -->
 Tuist Insightsは開発初期段階にある。
 <!-- -->
@@ -34,16 +34,15 @@ Tuist Insightsは開発初期段階にある。
 
 ![ビルド検査の事後処理](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
 
-::: 情報
+::: info
 <!-- -->
-Tuistがビルド設定を追跡できるように、"Provide build settings from
-"を実行ファイルまたはメインのビルドターゲットに設定することを推奨する。
+Tuistがビルド設定を追跡できるように、"Provide build settings from"を実行ファイルまたはメインのビルドターゲットに設定することを推奨する。
 <!-- -->
 :::
 
-::: 情報
+::: info
 <!-- -->
-1}生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
+<LocalizedLink href="/guides/features/projects">生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
 <!-- -->
 :::
 > 
@@ -64,10 +63,9 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: 先端 ミセ＆プロジェクト・パス
+::: tip ミセ＆プロジェクト・パス
 <!-- -->
-あなたの環境の`PATH` 環境変数は、scheme
-postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
+あなたの環境の`PATH` 環境変数は、scheme postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
 <!-- -->
 :::
 
@@ -75,7 +73,7 @@ postアクションによって継承されないので、Miseの絶対パスを
 Tuistアカウントにログインしている限り、ローカルのビルドが追跡されるようになりました。Tuistダッシュボードでビルドタイムにアクセスし、時間の経過とともにビルドタイムがどのように変化していくかを確認できるようになりました：
 
 
-::: チップ
+::: tip
 <!-- -->
 ダッシュボードに素早くアクセスするには、CLIから`tuist project show --web` を実行する。
 <!-- -->
@@ -98,10 +96,9 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: 先端 ミセ＆プロジェクト・パス
+::: tip ミセ＆プロジェクト・パス
 <!-- -->
-あなたの環境の`PATH` 環境変数は、scheme
-postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
+あなたの環境の`PATH` 環境変数は、scheme postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
 <!-- -->
 :::
 
@@ -113,9 +110,9 @@ Tuistアカウントにログインしている限り、テスト実行が追跡
 
 テスト詳細](/images/guides/features/insights/test-detail.png)。
 
-## 生成されたプロジェクト{#generated-projects}。
+## 生成されたプロジェクト {#generated-projects}
 
-::: 情報
+::: info
 <!-- -->
 自動生成されたスキームには、`tuist inspect build` と`tuist inspect test` の両方のポストアクションが自動的に含まれる。
 <!-- -->
@@ -194,14 +191,13 @@ testAction: .testAction(
 )
 ```
 
-## 継続的インテグレーション{#continuous-integration}。
+## 継続的インテグレーション{#continuous-integration}
 
 CIでビルドとテストのインサイトを追跡するには、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証されていることを確認する必要がある</LocalizedLink>。
 
 さらに、以下のいずれかが必要となる：
 - `xcodebuild`
-  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> コマンドを使用する。
+  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> コマンドを使用する。
 - `xcodebuild` の呼び出しに`-resultBundlePath` を追加する。
 
 `xcodebuild` が、`-resultBundlePath`

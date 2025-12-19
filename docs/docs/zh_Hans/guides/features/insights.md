@@ -42,8 +42,7 @@ Tuist Insights 处于早期开发阶段。
 
 信息
 <!-- -->
-如果不使用 <LocalizedLink href="/guides/features/projects">
-生成的项目</LocalizedLink>，则在构建失败的情况下不会执行方案后操作。
+如果不使用 <LocalizedLink href="/guides/features/projects"> 生成的项目</LocalizedLink>，则在构建失败的情况下不会执行方案后操作。
 <!-- -->
 :::
 > 
@@ -201,13 +200,11 @@ testAction: .testAction(
 ## 持续集成 {#continuous-integration｝
 
 要跟踪 CI 上的构建和测试洞察，您需要确保您的 CI 已通过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
-验证</LocalizedLink>。
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>。
 
 此外，您还需要
 - 在调用`xcodebuild` 操作时，使用
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> 命令。
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> 命令。
 - 在`xcodebuild` 调用中添加`-resultBundlePath` 。
 
 当`xcodebuild` 在没有`-resultBundlePath` 的情况下构建或测试您的项目时，不会生成所需的活动日志和结果包文件。`tuist

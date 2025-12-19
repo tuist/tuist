@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 継続的インテグレーション（CI）{#continuous-integration-ci}。
+# 継続的インテグレーション（CI）{#continuous-integration-ci}
 
 CIでレジストリを使用するには、ワークフローの一環として`tuist registry login`
 を実行して、レジストリにログインしていることを確認する必要がある。

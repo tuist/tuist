@@ -23,7 +23,7 @@ Xcodeを大規模なプロジェクトで使用する際に不便な点の一つ
 <!-- -->
 :::
 
-## プロジェクト記述ヘルパー{#project-description-helpers}。
+## プロジェクト記述ヘルパー{#project-description-helpers}
 
 プロジェクト記述ヘルパーは、マニフェストファイルがインポートできるモジュール`ProjectDescriptionHelpers` にコンパイルされる
 Swift ファイルです。モジュールは、`Tuist/ProjectDescriptionHelpers`
@@ -47,7 +47,7 @@ import ProjectDescriptionHelpers
 以下のスニペットには、`Project` モデルを拡張して静的コンストラクタを追加する方法と、`Project.swift`
 ファイルからそれらを使用する方法の例が含まれています：
 
-コードグループ
+::: code-group
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -91,7 +91,7 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: ヒント 協約を確立するためのツール
+::: tip 協約を確立するためのツール
 <!-- -->
 この関数を通して、ターゲットの名前、バンドル識別子、フォルダー構造に関する規約を定義していることに注目してほしい。
 <!-- -->

@@ -9,8 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 <!-- -->
 :::
 
@@ -140,10 +139,8 @@ your previews.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">remote
-project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
 <!-- -->
 :::
 
@@ -154,8 +151,7 @@ request contained a link to the build that would automatically run the app on a
 device you selected in the Tuist macOS app?*
 
 Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
+[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
 link directly in your pull requests: ![GitHub app comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)
 

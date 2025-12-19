@@ -91,7 +91,7 @@ Manager](https://www.swift.org/documentation/package-manager/)を使って依存
 <!-- -->
 :::
 
-## プロジェクトを可視化する{#visualize-the-project}。
+## プロジェクトを可視化する{#visualize-the-project}
 
 を実行することで、プロジェクトの構造を可視化することができる：
 

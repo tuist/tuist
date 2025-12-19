@@ -5,11 +5,11 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# 번들 인사이트 {#번들 크기}
+# 번들 인사이트 {#bundle-size}
 
-경고 요구 사항 ::: 경고 요구 사항
+경고 요구 사항 ::: warning 요구 사항
 <!-- -->
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -17,7 +17,7 @@
 번들 간에 중복되지 않도록 하거나 사용하지 않는 바이너리 심볼을 제거하는 등 여러 가지 방법으로 크기를 최소화할 수 있습니다. 튜이스트는 앱
 크기를 작게 유지하는 데 도움이 되는 도구와 인사이트를 제공하며, 시간이 지남에 따라 앱 크기를 모니터링합니다.
 
-## 사용량 {#사용량}
+## 사용량 {#usage}
 
 번들을 분석하려면 `tuist inspect bundle` 명령을 사용할 수 있습니다:
 
@@ -64,14 +64,12 @@ jobs:
 
 ![번들 크기 그래프](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## 요청 댓글 풀/병합 {#풀머지-요청-댓글}
+## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
-::: 경고 GIT 플랫폼과의 통합이 필요합니다.
+::: warning GIT 플랫폼과의 통합이 필요합니다.
 <!-- -->
 자동 풀/병합 요청 코멘트를 받으려면
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git
-플랫폼</LocalizedLink>과 통합하세요.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
 <!-- -->
 :::
 

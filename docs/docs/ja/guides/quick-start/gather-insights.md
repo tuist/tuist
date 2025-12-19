@@ -5,7 +5,7 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# 洞察力を高める{#gather-insights}。
+# 洞察力を高める{#gather-insights}
 
 Tuistはサーバーと統合してその機能を拡張することができる。その機能のひとつが、プロジェクトやビルドに関するインサイトを収集することだ。必要なのは、サーバーにプロジェクトを持つアカウントがあることだけだ。
 
@@ -15,7 +15,7 @@ Tuistはサーバーと統合してその機能を拡張することができる
 tuist auth login
 ```
 
-## プロジェクトの作成{#create-a-project}。
+## プロジェクトの作成{#create-a-project}
 
 プロジェクトを作成するには
 

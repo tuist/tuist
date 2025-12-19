@@ -5,7 +5,7 @@
   "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
 }
 ---
-# Tuist v3からv4へ{#from-tuist-v3-to-v4}。
+# Tuist v3からv4へ{#from-tuist-v3-to-v4}
 
 Tuist
 4](https://github.com/tuist/tuist/releases/tag/4.0.0)のリリースに伴い、私たちはプロジェクトにいくつかの変更点を導入する機会を得ました。この文書では、Tuist
@@ -19,8 +19,7 @@ Tuist 4以前では、インストールスクリプトは`tuistenv` という�
 を使用していた場合、`curl -Ls https://uninstall.tuist.io | bash`
 を実行して現在のバージョンのTuistをアンインストールし、その後お好みのインストール方法でインストールする必要があります。Miseの利用を強くお勧めします。なぜならMiseは環境間で決定論的にインストールとアクティベーションができるからです。
 
-コードグループ
-
+::: code-group
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
@@ -63,7 +62,7 @@ APIの可読性と表現力を向上させる目的で、`ProjectDescription` �
 業界の慣例に合わせるため、`tuist fetch` コマンドの名前を`tuist install` に変更しました。`tuist fetch`
 コマンドを使っていた場合は、代わりに`tuist install` コマンドを使うようにプロジェクトを更新する必要があります。
 
-### [`Package.swift` を依存関係の DSL として採用](https://github.com/tuist/tuist/pull/5862)。{#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}。
+### [`Package.swift` を依存関係の DSL として採用](https://github.com/tuist/tuist/pull/5862)。{#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
 Tuist 4以前は、`Dependencies.swift`
 ファイルで依存関係を定義できました。この独自形式は、[Dependabot](https://github.com/dependabot)や[Renovatebot](https://github.com/renovatebot/renovate)のようなツールで依存関係を自動的に更新するサポートを壊していた。さらに、ユーザーにとって不必要な間接参照を導入していました。そこで、`Package.swift`
@@ -84,7 +83,7 @@ warm` コマンドを使っていた場合は、代わりに`tuist cache` コマ
 に変更し、`tuist cache` コマンドのフラグであることを明確にすることにしました。`tuist cache print-hashes`
 コマンドを使っていた場合は、代わりに`tuist cache --print-hashes` フラグを使うようにプロジェクトを更新する必要があります。
 
-### キャッシング・プロファイルの削除{#removed-caching-profiles}。
+### キャッシング・プロファイルの削除{#removed-caching-profiles}
 
 Tuist 4以前は、`Tuist/Config.swift`
 にキャッシュ用の設定を含むキャッシュ・プロファイルを定義できました。この機能を削除することにしたのは、プロジェクトの生成に使用したプロファイル以外のプロファイルを生成プロセスで使用すると混乱につながる可能性があったからです。さらに、ユーザーがアプリのリリースバージョンをビルドするためにデバッグプロファイルを使用することにつながり、予期しない結果につながる可能性があります。その代わりに、`--configuration`
@@ -97,8 +96,7 @@ Tuist 4以前は、`Tuist/Config.swift`
 フラグを削除し、引数を使用してバイナリキャッシュをスキップするターゲットを制御するようにしました。`--skip-cache`
 フラグを使用していた場合は、代わりに引数を使用するようにプロジェクトを更新する必要があります。
 
-コードグループ
-
+::: code-group
 ```bash [Before]
 tuist generate --skip-cache Foo
 ```
@@ -109,7 +107,7 @@ tuist generate Foo
 <!-- -->
 :::
 
-### [削除された署名機能](https://github.com/tuist/tuist/pull/5716)。{#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}。
+### [削除された署名機能](https://github.com/tuist/tuist/pull/5716)。{#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
 署名は、[Fastlane](https://fastlane.tools/)やXcode自体のようなコミュニティツールによってすでに解決されており、それらの方がはるかに良い仕事をしている。私たちは、署名はTuistのストレッチゴールであり、プロジェクトのコア機能に集中した方が良いと考えました。リポジトリ内の証明書とプロファイルを暗号化し、生成時に適切な場所にインストールすることで構成されるTuistの署名機能を使用していた場合、プロジェクト生成前に実行する独自のスクリプトでそのロジックを複製したいと思うかもしれません。特に
   - ファイルシステムまたは環境変数に格納されているキーを使用して証明書とプロ
@@ -145,7 +143,7 @@ Tuist 4以前は、`TargetDependency.packagePlugin`
 caseを使用してパッケージプラグイン依存関係を定義することができました。Swiftパッケージマネージャが新しいパッケージタイプを導入するのを見た後、私たちはより柔軟で将来性のあるものに向けてAPIを反復することにしました。`TargetDependency.packagePlugin`
 を使用していた場合、代わりに`TargetDependency.package` を使用し、引数として使用したいパッケージのタイプを渡す必要があります。
 
-### [廃止された非推奨API](https://github.com/tuist/tuist/pull/5560)。{#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}。
+### [廃止された非推奨API](https://github.com/tuist/tuist/pull/5560)。{#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
 Tuist
 3で非推奨とされたAPIを削除しました。非推奨APIのいずれかを使用していた場合は、新しいAPIを使用するようにプロジェクトを更新する必要があります。

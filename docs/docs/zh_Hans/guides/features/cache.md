@@ -20,14 +20,12 @@ Tuist 通过缓存功能解决了这些难题，大大缩短了本地开发和 C
 
 ## 模块缓存 {#module-cache}
 
-对于使用 Tuist 的 <LocalizedLink href="/guides/features/projects"> 项目生成
-</LocalizedLink> 功能的项目，我们提供了强大的缓存系统，可将单个模块缓存为二进制文件，并在团队和 CI 环境中共享。
+对于使用 Tuist 的 <LocalizedLink href="/guides/features/projects">项目生成 </LocalizedLink> 功能的项目，我们提供了强大的缓存系统，可将单个模块缓存为二进制文件，并在团队和 CI 环境中共享。
 
 虽然您也可以使用新的 Xcode
 缓存，但该功能目前已针对本地构建进行了优化，与生成的项目缓存相比，您的缓存命中率可能会更低。不过，使用哪种缓存解决方案取决于您的具体需求和偏好。您也可以将两种缓存解决方案结合使用，以达到最佳效果。
 
-<LocalizedLink href="/guides/features/cache/module-cache">了解有关模块缓存的更多信息
-→</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">了解有关模块缓存的更多信息 →</LocalizedLink>
 
 ## Xcode 缓存 {#xcode-cache}
 
@@ -39,8 +37,6 @@ Xcode 缓存目前针对本地增量构建进行了优化，而且整个构建�
 :::
 
 Apple 一直致力于在构建级别开发一种新的缓存解决方案，类似于 Bazel 和 Buck 等其他构建系统。新的缓存功能从 Xcode 26
-开始提供，无论您是否使用 Tuist 的 <LocalizedLink href="/guides/features/projects"> 项目生成
-</LocalizedLink> 功能，Tuist 现在都能与之无缝集成。
+开始提供，无论您是否使用 Tuist 的 <LocalizedLink href="/guides/features/projects">项目生成 </LocalizedLink> 功能，Tuist 现在都能与之无缝集成。
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">了解有关 Xcode 缓存的更多信息
-→</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">了解有关 Xcode 缓存的更多信息 →</LocalizedLink>

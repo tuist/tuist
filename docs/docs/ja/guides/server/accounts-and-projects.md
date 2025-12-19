@@ -5,7 +5,7 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# アカウントとプロジェクト{#accounts-and-projects}。
+# アカウントとプロジェクト{#accounts-and-projects}
 
 Tuistの機能の中には、データの永続性を追加し、他のサービスと相互作用できるサーバーを必要とするものがある。サーバーと対話するには、アカウントとローカルプロジェクトに接続するプロジェクトが必要です。
 
@@ -27,7 +27,7 @@ Tuistの機能の中には、データの永続性を追加し、他のサービ
 <!-- -->
 :::
 
-1}`tuist
+<LocalizedLink href="/cli/organization">`tuist
 organization`</LocalizedLink>のサブコマンドで組織を管理できます。新しい組織アカウントを作成するには、以下を実行する：
 ```bash
 tuist organization create {account-handle}
@@ -35,7 +35,7 @@ tuist organization create {account-handle}
 
 ## プロジェクト {#projects}
 
-あなたのプロジェクトは、Tuistのものであれ、生のXcodeのものであれ、リモートプロジェクトを通してあなたのアカウントと統合される必要がある。GitHubとの比較を続けると、変更をプッシュするローカルとリモートのリポジトリがあるようなものです。1}`tuist
+あなたのプロジェクトは、Tuistのものであれ、生のXcodeのものであれ、リモートプロジェクトを通してあなたのアカウントと統合される必要がある。GitHubとの比較を続けると、変更をプッシュするローカルとリモートのリポジトリがあるようなものです。<LocalizedLink href="/cli/organization">`tuist
 project`</LocalizedLink>を使ってプロジェクトを作成・管理できます。
 
 プロジェクトは、組織ハンドルとプロジェクトハンドルを連結したフルハンドルで識別されます。例えば、`tuist` というハンドルの組織と、`tuist`
@@ -50,7 +50,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::警告 TUISTプロジェクト限定機能
 <!-- -->
-1}バイナリキャッシュ</LocalizedLink>のように、Tuistプロジェクトを持っていることを必要とする機能があることに注意してください。生のXcodeプロジェクトを使用している場合、これらの機能を使用することはできません。
+<LocalizedLink href="/cli/organization">バイナリキャッシュ</LocalizedLink>のように、Tuistプロジェクトを持っていることを必要とする機能があることに注意してください。生のXcodeプロジェクトを使用している場合、これらの機能を使用することはできません。
 <!-- -->
 :::
 

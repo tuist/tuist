@@ -7,10 +7,9 @@
 ---
 # Проницательность пучка {#bundle-size}
 
-::: предупреждение РЕКВИЗИТЫ
+::: warning РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
-  проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -73,7 +72,7 @@ jobs:
 
 ## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
 
-::: предупреждение ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш

@@ -24,7 +24,7 @@ Xcode
 
 Tuistは、**、バンドルとリソースにアクセスするための統一されたインターフェイスを合成し、** 、実装の詳細を抽象化することで、上記の問題を解決している。
 
-警告 推奨
+::: warning 推奨
 <!-- -->
 Tuist-synthesizedインターフェイスを通してリソースにアクセスすることは必須ではないが、コードの推論が容易になり、リソースの移動が容易になるため、我々はそれを推奨している。
 <!-- -->
@@ -71,7 +71,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 <!-- -->
 :::
 
-::: ヒント バンドルを通して図書館のリソースをサポートする
+::: tip バンドルを通して図書館のリソースをサポートする
 <!-- -->
 ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistはそのリソースを製品タイプ`バンドル`
 のターゲットに含めることで、最終的な製品が完成し、インターフェイスが正しいバンドルを指すようにする。
@@ -120,7 +120,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-情報参照
+::: info 参照
 <!-- -->
 このフィクスチャ](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができます。
 <!-- -->

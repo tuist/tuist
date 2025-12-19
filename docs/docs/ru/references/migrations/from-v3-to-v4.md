@@ -35,7 +35,7 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: предупреждение MISE в CI ENVIRONMENTS и XCODE PROJECTS
+::: warning MISE в CI ENVIRONMENTS и XCODE PROJECTS
 <!-- -->
 Если вы решили использовать детерминизм, который привносит Mise, мы рекомендуем
 ознакомиться с документацией по использованию Mise в
@@ -96,8 +96,7 @@ Tuist. Если вы использовали файл `Dependencies.swift`, в�
 содержимое файла `Tuist/Dependencies.swift` в корневой файл `Package.swift` и
 использовать директиву `#if TUIST` для настройки интеграции. Подробнее о том,
 как интегрировать зависимости Swift Package
-<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">, вы
-можете прочитать здесь</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">, вы можете прочитать здесь</LocalizedLink>
 
 ### Переименование `tuist cache warm` в `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
 

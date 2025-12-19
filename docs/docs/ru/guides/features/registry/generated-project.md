@@ -8,8 +8,7 @@
 # Сгенерированный проект с интеграцией пакетов Xcode {#generated-project-with-xcode-based-integration}
 
 Если вы используете интеграцию пакетов
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode
-по умолчанию</LocalizedLink> с Tuist Projects, вам нужно использовать
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode по умолчанию</LocalizedLink> с Tuist Projects, вам нужно использовать
 идентификатор реестра вместо URL при добавлении пакета:
 ```swift
 import ProjectDescription

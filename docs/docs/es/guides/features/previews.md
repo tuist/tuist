@@ -9,8 +9,7 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
-  proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -147,10 +146,8 @@ agilizan el acceso y la ejecución de tus previsualizaciones.
 ::: aviso SE REQUIERE INTEGRACIÓN CON LA PLATAFORMA GIT
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu
-<LocalizedLink href="/guides/server/accounts-and-projects">proyecto
-remoto</LocalizedLink> con una
-<LocalizedLink href="/guides/server/authentication">plataforma
-Git</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
+<LocalizedLink href="/guides/server/authentication">plataforma Git</LocalizedLink>.
 <!-- -->
 :::
 
@@ -162,8 +159,7 @@ enlace a la compilación que ejecutaría automáticamente la aplicación en un
 dispositivo seleccionado en la aplicación macOS de Tuist?*
 
 Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
-[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
+[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
 un enlace de Vista Previa directamente en tus pull requests: ![GitHub app
 comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)

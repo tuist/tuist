@@ -5,18 +5,16 @@
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# 生成されたプロジェクト{#generated-projects}。
+# 生成されたプロジェクト{#generated-projects}
 
-警告 要件
+::: warning 要件
 <!-- -->
-- 1}生成プロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">生成プロジェクト</LocalizedLink>
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
-生成されたプロジェクトでテストを選択的に実行するには、`tuist test`
-コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/projects/hashing">キャッシュを温める<LocalizedLink href="/guides/features/cache#cache-warming">のと同じように</LocalizedLink>あなたの
-Xcode プロジェクトをハッシュ化し、成功すると、将来の実行で何が変更されたかを判断するためにハッシュを持続させます。
+生成されたプロジェクトでテストを選択的に実行するには、`tuist test` コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/cache#cache-warming">キャッシュを温める</LocalizedLink>のと同じように、あなたのXcodeプロジェクトを<LocalizedLink href="/guides/features/projects/hashing">ハッシュ化</LocalizedLink>し、成功すると、将来の実行で何が変更されたかを判断するためにハッシュを持続させます。
 
 今後の実行では、`tuist test` 、透過的にハッシュを使用してテストを絞り込み、最後に成功したテストの実行以降に変更されたものだけを実行する。
 

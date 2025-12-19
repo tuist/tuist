@@ -23,7 +23,7 @@ Code](https://code.visualstudio.com) قابلة للتشغيل البيني مع
 
 ستتعرف في هذه الصفحة على كيفية إعداده وإمكانياته.
 
-:::: المعلومات
+::: info
 <!-- -->
 يستخدم خادم تويست MCP أحدث مشاريع Xcode كمصدر للحقيقة للمشاريع التي تريد التفاعل
 معها.
@@ -101,7 +101,7 @@ tuist mcp setup vscode --path /path/to/project
 إذا كنت تفضل التهيئة يدويًا أو كنت تستخدم عميل MCP مختلف، أضف خادم Tuist MCP إلى
 تهيئة العميل:
 
-:::: مجموعة الرموز
+::: code-group
 
 ```json [Global Tuist installation (e.g. Homebrew)]
 {

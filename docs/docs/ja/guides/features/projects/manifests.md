@@ -23,7 +23,7 @@ Manager](https://www.swift.org/documentation/package-manager/)に触発されま
 
 ## Project.swift {#projectswift}.
 
-1}`Project.swift`</LocalizedLink> マニフェストは Xcode プロジェクトを宣言します。プロジェクトは、`name`
+<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink> マニフェストは Xcode プロジェクトを宣言します。プロジェクトは、`name`
 プロパティに示された名前で、マニフェストファイルがあるのと同じディレクトリに生成されます。
 
 ```swift
@@ -37,7 +37,7 @@ let project = Project(
 ```
 
 
-警告 ROOT VARIABLES
+::: warning ROOT VARIABLES
 <!-- -->
 マニフェストのルートにあるべき唯一の変数は`let project = Project(...)`
 です。マニフェストのさまざまな部分でコードを再利用する必要がある場合、Swift 関数を使用することができます。
@@ -68,13 +68,13 @@ Tuistは依存関係グラフを解決し、依存関係のプロジェクトを
 <!-- -->
 :::
 
-### マルチまたはモノプロジェクト{#multi-or-mono-project}。
+### マルチまたはモノプロジェクト{#multi-or-mono-project}
 
 よく出てくる疑問は、ワークスペースで単一のプロジェクトを使うか、複数のプロジェクトを使うかということだ。Tuistのない世界では、単一プロジェクトのセットアップが頻繁なGitコンフリクトにつながるため、ワークスペースの使用が推奨されます。しかし、私たちはTuistが生成したXcodeプロジェクトをGitリポジトリに含めることを推奨していないので、Gitの衝突は問題ではない。したがって、ワークスペースに単一のプロジェクトを使うか、複数のプロジェクトを使うかは、あなた次第です。
 
 Tuistプロジェクトでは、コールド生成時間がより速く（コンパイルするマニフェストファイルがより少ない）、カプセル化の単位として<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>を活用するため、モノプロジェクトに傾いています。しかし、アプリケーションの異なるドメインを表すカプセル化の単位としてXcodeプロジェクトを使用したいかもしれません。
 
-## Tuist.swift{#tuistswift}。
+## Tuist.swift{#tuistswift}
 
 Tuistは<LocalizedLink href="/contributors/principles.html#default-to-conventions">分かりやすいデフォルト</LocalizedLink>を提供し、プロジェクト構成を簡素化します。しかし、<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>をプロジェクトのルートに定義することで設定をカスタマイズすることができます。
 

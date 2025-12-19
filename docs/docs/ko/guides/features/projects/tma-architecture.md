@@ -13,13 +13,13 @@ TMA는 확장성을 지원하고 빌드 및 테스트 주기를 최적화하며 
 이 가이드라인에서는 아키텍처의 원칙을 소개하여 애플리케이션 기능을 여러 계층으로 식별하고 구성하는 데 도움을 줍니다. 또한 이 아키텍처를
 사용하기로 결정한 경우 유용한 팁, 도구 및 조언도 소개합니다.
 
-::: 정보 µ특징
+::: info µ특징
 <!-- -->
 이 아키텍처는 이전에는 µFeatures로 알려졌습니다. 그 목적과 원칙을 더 잘 반영하기 위해 모듈형 아키텍처(TMA)로 이름을 변경했습니다.
 <!-- -->
 :::
 
-## 핵심 원칙 {#핵심 원칙}
+## 핵심 원칙 {#core-principle}
 
 **개발자는 메인 앱과 독립적으로 빠르게 기능을 빌드, 테스트 및** 사용해 볼 수 있어야 하며, UI 미리보기, 코드 완성 및 디버깅과 같은
 Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
@@ -46,13 +46,13 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 | `기능 테스트`  | `기능인터페이스`      | 데이터 및 모의 테스트  |
 | `기능예시`    | `기능 테스트`, `기능` | 앱 예시          |
 
-::: 팁 UI 미리보기
+::: tip UI 미리보기
 <!-- -->
 `Feature` 는 `FeatureTesting` 을 개발 에셋으로 사용하여 UI 미리 보기를 허용할 수 있습니다.
 <!-- -->
 :::
 
-::: 경고 컴파일러가 테스트 대상 대신 지시합니다.
+::: warning 컴파일러가 테스트 대상 대신 지시합니다.
 <!-- -->
 또는 컴파일러 지시어를 사용하여 `디버그` 를 위해 컴파일할 때 `Feature` 또는 `FeatureInterface` 타깃에 테스트 데이터와
 모의 코드를 포함할 수 있습니다. 그래프를 단순화할 수 있지만 앱 실행에 필요하지 않은 코드를 컴파일하게 됩니다.
@@ -74,7 +74,7 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 기능을 개별적으로 테스트하고 시도할 수 있습니다. 또한 기능을 작동시키는 데 필요한 컴포넌트만 컴파일하는 선택적 컴파일이 가능하기 때문에 개발
 주기가 훨씬 빨라집니다. 전체 앱의 컴파일은 기능을 앱에 통합해야 하는 작업의 맨 마지막에만 필요합니다.
 
-### 재사용 가능성 {#재사용 가능성}
+### 재사용 가능성 {#reusability}
 
 프레임워크나 라이브러리를 사용하여 앱과 확장 프로그램과 같은 다른 제품에서 코드를 재사용하는 것이 좋습니다. 모듈을 구축하여 재사용하는 것은
 매우 간단합니다. 기존 모듈을 결합하고 _(필요한 경우)_ 플랫폼별 UI 레이어를 추가하기만 하면 iMessage 확장 프로그램, Today
@@ -99,12 +99,11 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 되지 않습니다.
 
 개발 중에
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들
-접근자</LocalizedLink>를 사용하여 동적 라이브러리 또는 프레임워크를 사용하면 번들 액세스 로직을 대상의 라이브러리 또는 프레임워크
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 사용하여 동적 라이브러리 또는 프레임워크를 사용하면 번들 액세스 로직을 대상의 라이브러리 또는 프레임워크
 특성에서 분리하는 것이 좋습니다. 이는 컴파일 시간을 단축하고 [SwiftUI
 미리보기](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가
 안정적으로 작동하도록 하기 위한 핵심 요소입니다. 또한 릴리스 빌드를 위한 정적 라이브러리 또는 프레임워크는 앱이 빠르게 부팅되도록 합니다.
-4}동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -125,7 +124,7 @@ func productType() -> Product {
 ```
 
 
-::: 경고 병합 가능한 라이브러리
+::: warning 병합 가능한 라이브러리
 <!-- -->
 Apple은 [병합 가능한
 라이브러리](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)를
@@ -134,7 +133,7 @@ Apple은 [병합 가능한
 <!-- -->
 :::
 
-## 코드 {#코드}
+## 코드 {#code}
 
 TMA는 모듈의 코드 아키텍처와 패턴에 대해 의견을 제시하지 않습니다. 하지만 저희의 경험을 바탕으로 몇 가지 팁을 공유하고자 합니다:
 

@@ -7,10 +7,9 @@
 ---
 # Zapowiedzi {#previews}
 
-::: ostrzeżenie WYMAGANIA
+::: warning WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -24,7 +23,7 @@ szybkiej informacji zwrotnej od współpracownika lub znajomego.
 Aby usprawnić ten proces, Tuist zapewnia sposób generowania i udostępniania
 podglądów aplikacji każdemu.
 
-::: ostrzeżenie URZĄDZENIA MUSZĄ BYĆ PODPISANE
+::: warning URZĄDZENIA MUSZĄ BYĆ PODPISANE
 <!-- -->
 Podczas tworzenia aplikacji na urządzenie użytkownik jest obecnie odpowiedzialny
 za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
@@ -94,7 +93,7 @@ Jest to przydatne dla:
 - **Filtrowanie**: Łatwe wyszukiwanie i zarządzanie podglądami według utworów na
   pulpicie nawigacyjnym Tuist.
 
-::: ostrzeżenie WIDOCZNOŚĆ PRZEGLĄDÓW
+::: warning WIDOCZNOŚĆ PRZEGLĄDÓW
 <!-- -->
 Tylko osoby z dostępem do organizacji, do której należy projekt, mogą uzyskać
 dostęp do podglądu. Planujemy dodać obsługę wygasających linków.
@@ -119,7 +118,7 @@ tuist/tuist/tuist`.
 Po kliknięciu przycisku "Uruchom" na stronie podglądu, aplikacja macOS
 automatycznie uruchomi się na aktualnie wybranym urządzeniu.
 
-::: ostrzeżenie WYMAGANIA
+::: warning WYMAGANIA
 <!-- -->
 Musisz mieć zainstalowany lokalnie Xcode i korzystać z systemu macOS 14 lub
 nowszego.
@@ -142,11 +141,10 @@ podglądów i ich uruchamianie.
 
 ## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
-<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny
-projekt</LocalizedLink> z platformą
+<LocalizedLink href="/guides/server/accounts-and-projects">zdalny projekt</LocalizedLink> z platformą
 <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
@@ -159,8 +157,7 @@ link do kompilacji, która automatycznie uruchamiałaby aplikację na urządzeni
 wybranym w aplikacji Tuist macOS?*
 
 Po połączeniu projektu Tuist z platformą Git, taką jak
-[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
+[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
 link do podglądu bezpośrednio w żądaniach ściągnięcia: ![Komentarz do aplikacji
 GitHub z linkiem do podglądu
 Tuist](/images/guides/features/github-app-with-preview.png)

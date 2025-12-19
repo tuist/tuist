@@ -50,8 +50,7 @@ Xcode 会在每个产品的派生数据目录内使用一个目录。其中存�
 提示 TUIST 检测隐含依赖性
 <!-- -->
 Tuist 提供了一个用于检测隐式依赖关系的
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">
-命令</LocalizedLink>。您可以使用该命令在 CI 中验证所有依赖关系都是显式的。
+<LocalizedLink href="/guides/features/inspect/implicit-dependencies"> 命令</LocalizedLink>。您可以使用该命令在 CI 中验证所有依赖关系都是显式的。
 <!-- -->
 :::
 

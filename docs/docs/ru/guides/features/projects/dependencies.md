@@ -98,8 +98,7 @@ Xcode или с помощью интеграции на основе XcodeProj 
 этому мы можем не только предоставить вам больше контроля над интеграцией, но и
 сделать ее совместимой с такими рабочими процессами, как
 <LocalizedLink href="/guides/features/cache">кэширование</LocalizedLink> и
-<LocalizedLink href="/guides/features/test/selective-testing">выборочный прогон
-тестов</LocalizedLink>.
+<LocalizedLink href="/guides/features/test/selective-testing">выборочный прогон тестов</LocalizedLink>.
 
 Интеграция в XcodeProj, скорее всего, потребует больше времени для поддержки
 новых функций Swift Package или дескриптора большего количества конфигураций
@@ -254,7 +253,7 @@ let target = .target(name: "MyTarget", dependencies: [
 Для макросов Swift и плагинов Build Tool необходимо использовать типы `.macro` и
 `.plugin` соответственно.
 
-::: Предупреждение Плагины SPM Build Tool
+::: warning Плагины SPM Build Tool
 <!-- -->
 Плагины инструментов сборки SPM должны быть объявлены с помощью механизма
 [Xcode's default integration](#xcode-s-default-integration), даже если вы
@@ -330,7 +329,7 @@ carthage update
 tuist generate
 ```
 
-::: предупреждение BUILD AND TEST
+::: warning BUILD AND TEST
 <!-- -->
 Если вы собираете и тестируете свой проект с помощью `tuist build` и `tuist
 test`, вам также необходимо убедиться в наличии разрешенных Карфагеном
@@ -388,11 +387,9 @@ Libraries](https://developer.apple.com/documentation/xcode/configuring-your-proj
 
 К счастью, Tuist концептуально сжимает сложность, связанную с переключением
 между статическим и динамическим типом, и синтезирует
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">объединенные
-аксессоры</LocalizedLink>, которые являются стандартными для всех типов
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">объединенные аксессоры</LocalizedLink>, которые являются стандартными для всех типов
 связывания. В сочетании с
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">динамическими
-конфигурациями через переменные окружения</LocalizedLink>, вы можете передавать
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">динамическими конфигурациями через переменные окружения</LocalizedLink>, вы можете передавать
 тип связывания во время вызова и использовать это значение в ваших манифестах
 для установки типа продукта ваших целей.
 
@@ -408,9 +405,7 @@ func productType() -> Product {
 ```
 
 Обратите внимание, что Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience"> по
-умолчанию не использует удобство через неявную конфигурацию из-за своих
-затрат</LocalizedLink>. Это означает, что мы полагаемся на то, что вы зададите
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">по умолчанию не использует удобство через неявную конфигурацию из-за своих затрат</LocalizedLink>. Это означает, что мы полагаемся на то, что вы зададите
 тип линковки и любые дополнительные настройки сборки, которые иногда требуются,
 например [`-ObjC` флаг
 линкера](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -616,11 +611,9 @@ let packageSettings = PackageSettings(
 Когда динамический фреймворк или библиотека зависят от статических через `import
 StaticSwiftModule`, символы включаются в `.swiftmodule` динамического фреймворка
 или библиотеки, что потенциально
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">
-может привести к сбою компиляции</LocalizedLink>. Чтобы избежать этого,
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1"> может привести к сбою компиляции</LocalizedLink>. Чтобы избежать этого,
 необходимо импортировать статическую зависимость с помощью
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink>:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule

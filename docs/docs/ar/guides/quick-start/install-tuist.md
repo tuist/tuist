@@ -12,11 +12,11 @@
 [المصادر] (https://github.com/tuist/tuist)، **نوصي باستخدام إحدى طرق التثبيت
 التالية لضمان تثبيت صالح.**
 
-### <a href="https://github.com/jdx/mise">Mise</a> {# يوصى بـ}
+### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-:::: المعلومات
+::: info
 <!-- -->
-يعد Mise بديلاً موصى به لـ [Homebrew] (https://brew.sh) إذا كنت فريقًا أو مؤسسة
+يعد Mise بديلاً موصى به لـ [Homebrew](https://brew.sh) إذا كنت فريقًا أو مؤسسة
 تحتاج إلى ضمان إصدارات حتمية من الأدوات عبر بيئات مختلفة.
 <!-- -->
 :::
@@ -40,7 +40,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">البيرة المنزلية</a> {#موصى به-البيرة المنزلية}
+### <a href="https://brew.sh">البيرة المنزلية</a> {#recommended-homebrew}
 
 يمكنك تثبيت تويست باستخدام [Homebrew] (https://brew.sh) و [صيغنا]
 (https://github.com/tuist/homebrew-tuist):
@@ -51,7 +51,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-:::: إكرامية التحقق من صحة البينات
+::: tip التحقق من صحة الثنائيات
 <!-- -->
 يمكنك التحقق من أن ثنائيات التثبيت الخاصة بك قد تم بناؤها من خلال تشغيل الأمر
 التالي، والذي يتحقق مما إذا كان فريق الشهادة هو `U6LC622NKF`:

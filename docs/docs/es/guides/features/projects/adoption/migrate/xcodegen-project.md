@@ -97,8 +97,7 @@ es que no permite la reutilización de archivos YAML. Esta es una necesidad com�
 al describir proyectos, que XcodeGen tuvo que resolver con su propia solución
 propietaria llamada *"templates"*. Con Tuist la reutilización está integrada en
 el propio lenguaje, Swift, y a través de un módulo Swift llamado
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink>, que permite la reutilización de código en todos los
+<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, que permite la reutilización de código en todos los
 archivos de manifiesto.
 
 ::: grupo de códigos
