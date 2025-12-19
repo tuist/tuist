@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-18 14:28+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -394,9 +394,8 @@ msgstr "Устойчивость"
 msgid "Make Xcode projects easier to manage and scale"
 msgstr "Управляйте и масштабируйте проекты Xcode проще"
 
-#, fuzzy
 msgid "Make mobile"
-msgstr "Сделать мобильным"
+msgstr "Сделайте мобильную разработку"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "Упростите работу с модульными проектами Xcode"
@@ -422,7 +421,6 @@ msgstr "Мы рассылаем новости раз в 6 недель, и вы
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr "Нет, минимальный срок договора не установлен. Вы можете расторгнуть его в любое время."
 
-#, fuzzy
 msgid "Ongoing incident"
 msgstr "Текущий инцидент"
 
@@ -432,7 +430,6 @@ msgstr "Откройте документацию функции %{feature}"
 msgid "Openness"
 msgstr "Открытость"
 
-#, fuzzy
 msgid "Optimized app bundles"
 msgstr "Оптимизированные пакеты приложений"
 
@@ -499,7 +496,6 @@ msgstr "Читайте историю Trendyol"
 msgid "Registry"
 msgstr "Реестр"
 
-#, fuzzy
 msgid "Requires a generated project"
 msgstr "Требуется сгенерированный проект"
 
@@ -683,9 +679,8 @@ msgstr "Tuist Digest"
 msgid "Tuist Digest Newsletter"
 msgstr "Рассылка Tuist Digest"
 
-#, fuzzy
 msgid "Tuist Icon"
-msgstr "Туистская икона"
+msgstr "Иконка Tuist"
 
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
 msgstr "Tuist Pro включает поддержку через форум сообщества и GitHub Issues. В планах Enterprise доступна выделенная поддержка через Slack с высоким приоритетом ответов."
@@ -729,7 +724,6 @@ msgstr "Раскройте весь потенциал вашей команды
 msgid "Updates to Tuist's features and improvements."
 msgstr "Обновления функциональности и улучшения Tuist."
 
-#, fuzzy
 msgid "Usage-based pricing after free tier."
 msgstr "Ценообразование на основе использования после бесплатного уровня."
 
@@ -773,7 +767,7 @@ msgid "We prioritize developer happiness because it's closely tied to creating b
 msgstr "Мы ставим счастье разработчиков в приоритет, потому что оно напрямую влияет на создание лучших приложений."
 
 msgid "We want to enable teams to scale with joy"
-msgstr "Мы хотим дать командам возможность масштабироваться с радостью"
+msgstr "Мы хотим помочь командам расти с удовольствием"
 
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
 msgstr "Мы – команда создателей, которые верят: масштабирование приложения не должно убивать креативность. Мы сами сталкивались с тем, как перспективные Swift-проекты со временем превращаются в ад бесконечных сборок и головную боль из-за инструментов. Поэтому мы решили сделать что-то лучше."
@@ -853,7 +847,6 @@ msgstr "в одной платформе"
 msgid "open source"
 msgstr "open source"
 
-#, fuzzy
 msgid "pay as you go"
 msgstr "оплата по факту"
 
@@ -893,39 +886,30 @@ msgstr "per additional unit"
 msgid "AI writes faster. So should your builds."
 msgstr "AI writes faster. So should your builds."
 
-#, fuzzy
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "Выполнение команды Tuist, которая взаимодействует с сервером и извлекает информацию о результатах тестирования. По приблизительным оценкам, это примерно равно количеству прогонов тестов на CI."
 
-#, fuzzy
 msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
 msgstr "Выполнение команды Tuist, которая взаимодействует с сервером для извлечения бинарных файлов модулей. По приблизительным оценкам, это примерно равно количеству чистых сборок на CI, плюс локальные генерации проектов, которые не кэшируются локально."
 
-#, fuzzy
 msgid "About us"
 msgstr "О нас"
 
-#, fuzzy
 msgid "Hits"
-msgstr "Хиты"
+msgstr "Обращения"
 
-#, fuzzy
 msgid "Read customer story"
 msgstr "Прочитать историю клиента"
 
-#, fuzzy
 msgid "Explore Tuist's features"
 msgstr "Изучите возможности Tuist"
 
-#, fuzzy
 msgid "Explore features"
 msgstr "Изучите особенности"
 
-#, fuzzy
 msgid "live on our dashboard"
 msgstr "в прямом эфире на нашей приборной панели"
 
-#, fuzzy
 msgid "Language"
 msgstr "Язык"
 
