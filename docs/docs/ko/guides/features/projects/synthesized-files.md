@@ -74,8 +74,8 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: warning 내부 Target 제한
 <!-- -->
-현재 튜이스트는 Objective-C 소스만 포함된 내부 대상에 대한 리소스 번들 접근자를 생성하지 않습니다. 이는 [이슈
-#6456](https://github.com/tuist/tuist/issues/6456)에서 추적된 알려진 제한 사항입니다.
+현재 Tuist는 Objective-C 소스만 가지는 내부 Target에 대한 Resource 번들 접근자를 생성하지 않는데, [이슈
+#6456](https://github.com/tuist/tuist/issues/6456)에서 보고되어 알려진 제한 사항입니다.
 <!-- -->
 :::
 
