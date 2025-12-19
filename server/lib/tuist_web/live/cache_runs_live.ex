@@ -5,6 +5,7 @@ defmodule TuistWeb.CacheRunsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -65,6 +66,16 @@ defmodule TuistWeb.CacheRunsLive do
         type: :percentage,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "cache_endpoint",
+        field: :cache_endpoint,
+        display_name: dgettext("dashboard_cache", "Cache Endpoint"),
+        type: :option,
+        options: cache_endpoint_options(),
+        options_display_names: cache_endpoint_display_names(dgettext("dashboard_cache", "None (Legacy)")),
+        operator: :==,
+        value: nil
       }
     ]
 

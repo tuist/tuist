@@ -6714,6 +6714,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The cache endpoint URL used for this command (regional module cache).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/cache_endpoint`.
+                    public var cache_endpoint: Swift.String?
                     /// The client id of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/client_id`.
@@ -7287,6 +7291,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The build run identifier.
+                    ///   - cache_endpoint: The cache endpoint URL used for this command (regional module cache).
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
@@ -7309,6 +7314,7 @@ public enum Operations {
                     ///   - xcode_graph: The schema for the Xcode graph.
                     public init(
                         build_run_id: Swift.String? = nil,
+                        cache_endpoint: Swift.String? = nil,
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Int,
@@ -7331,6 +7337,7 @@ public enum Operations {
                         xcode_graph: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.cache_endpoint = cache_endpoint
                         self.client_id = client_id
                         self.command_arguments = command_arguments
                         self.duration = duration
@@ -7354,6 +7361,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case cache_endpoint
                         case client_id
                         case command_arguments
                         case duration

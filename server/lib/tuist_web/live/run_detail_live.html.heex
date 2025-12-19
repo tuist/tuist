@@ -107,6 +107,15 @@
               </span>
             </div>
           </div>
+          <div :if={@run.cache_endpoint != ""} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Cache Endpoint")}</div>
+              <span data-part="label">
+                <.server />
+                {format_cache_endpoint(@run.cache_endpoint)}
+              </span>
+            </div>
+          </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
