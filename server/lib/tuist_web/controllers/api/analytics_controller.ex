@@ -559,7 +559,7 @@ defmodule TuistWeb.API.AnalyticsController do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
     Runs.create_test(%{
-      id: Ecto.UUID.generate(),
+      id: UUIDv7.generate(),
       duration: body_params.duration,
       macos_version: body_params.macos_version,
       xcode_version: body_params.swift_version,

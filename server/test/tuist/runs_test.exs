@@ -2366,7 +2366,7 @@ defmodule Tuist.RunsTest do
 
     test "returns {:error, :not_found} when test case does not exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       result = Runs.get_test_case_by_id(non_existent_id)

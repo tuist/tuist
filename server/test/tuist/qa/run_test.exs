@@ -136,7 +136,7 @@ defmodule Tuist.QA.RunTest do
 
     test "create_changeset is invalid with non-existent app_build_id" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       changeset =

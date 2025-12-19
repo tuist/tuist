@@ -5,7 +5,7 @@ defmodule TuistWeb.Components.EmptyStateBackground do
   use Phoenix.Component
 
   def empty_state_background(assigns) do
-    unique_id = Ecto.UUID.generate()
+    unique_id = UUIDv7.generate()
     mask_id = "mask0_#{unique_id}"
     radial_gradient_id = "paint0_radial_#{unique_id}"
     linear_gradient_1_id = "paint1_linear_#{unique_id}"

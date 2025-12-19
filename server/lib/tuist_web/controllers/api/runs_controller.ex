@@ -822,7 +822,7 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_test(params) do
-    test_id = Map.get(params, :id, Ecto.UUID.generate())
+    test_id = Map.get(params, :id, UUIDv7.generate())
 
     case Runs.get_test(test_id) do
       {:ok, test_run} ->

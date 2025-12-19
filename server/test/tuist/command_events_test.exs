@@ -130,7 +130,7 @@ defmodule Tuist.CommandEventsTest do
 
     test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
       # Given - a valid UUID that doesn't exist in the database
-      non_existent_uuid = Ecto.UUID.generate()
+      non_existent_uuid = UUIDv7.generate()
 
       # When
       got = CommandEvents.get_command_event_by_id(non_existent_uuid)
@@ -491,7 +491,7 @@ defmodule Tuist.CommandEventsTest do
 
     test "returns {:error, :not_found} for non-existent UUID" do
       # When
-      result = CommandEvents.get_command_event_by_id(Ecto.UUID.generate())
+      result = CommandEvents.get_command_event_by_id(UUIDv7.generate())
 
       # Then
       assert result == {:error, :not_found}
@@ -1227,7 +1227,7 @@ defmodule Tuist.CommandEventsTest do
   describe "get_command_event_by_test_run_id/1" do
     test "returns a command event when test_run_id exists" do
       # Given
-      test_run_id = Ecto.UUID.generate()
+      test_run_id = UUIDv7.generate()
 
       command_event =
         CommandEventsFixtures.command_event_fixture(
@@ -1245,7 +1245,7 @@ defmodule Tuist.CommandEventsTest do
 
     test "returns {:error, :not_found} when test_run_id does not exist" do
       # Given
-      non_existent_test_run_id = Ecto.UUID.generate()
+      non_existent_test_run_id = UUIDv7.generate()
 
       # When
       got = CommandEvents.get_command_event_by_test_run_id(non_existent_test_run_id)

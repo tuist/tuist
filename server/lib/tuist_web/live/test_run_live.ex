@@ -497,7 +497,8 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_test_cases_sort_params(_value), do: :name
 
   defp ensure_allowed_test_suites_sort_params(value)
-       when value in ["name", "duration", "avg_test_case_duration", "test_case_count"], do: String.to_existing_atom(value)
+       when value in ["name", "duration", "avg_test_case_duration", "test_case_count"],
+       do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_suites_sort_params(_value), do: :name
 
