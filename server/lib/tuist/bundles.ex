@@ -140,12 +140,12 @@ defmodule Tuist.Bundles do
             missing_size = parent.size - children_total_size
 
             unknown_child = %{
-              id: Ecto.UUID.generate(),
+              id: UUIDv7.generate(),
               size: missing_size,
               path: parent.path <> "/Unknown",
               children: [],
               artifact_type: :unknown,
-              shasum: Ecto.UUID.generate(),
+              shasum: UUIDv7.generate(),
               artifact_id: parent.id
             }
 

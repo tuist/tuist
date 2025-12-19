@@ -381,7 +381,7 @@
                             "text": "Sürekli entegrasyon"
                         },
                         "sso": {
-                            "text": "SSO"
+                            "text": "Tek oturum açma"
                         },
                         "git-forges": {
                             "items": {
@@ -412,7 +412,7 @@
                                     "text": "Kurulum"
                                 }
                             },
-                            "text": "Kendi kendine barındırma"
+                            "text": "Yerel barındırma"
                         },
                         "accounts-and-projects": {
                             "text": "Hesaplar ve projeler"

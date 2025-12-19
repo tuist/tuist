@@ -1,4 +1,4 @@
-defmodule Cache.CASArtifact do
+defmodule Cache.CacheArtifact do
   @moduledoc false
 
   use Ecto.Schema

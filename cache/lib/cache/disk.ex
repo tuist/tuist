@@ -1,6 +1,6 @@
 defmodule Cache.Disk do
   @moduledoc """
-  Local disk storage backend for CAS (Content Addressable Storage).
+  Local disk storage backend for CAS and module cache artifacts.
 
   Stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.
@@ -9,14 +9,14 @@ defmodule Cache.Disk do
   require Logger
 
   @doc """
-  Checks if an artifact exists on disk.
+  Checks if a CAS artifact exists on disk.
 
   ## Examples
 
-      iex> Cache.Disk.exists?("account", "project", "abc123")
+      iex> Cache.Disk.cas_exists?("account", "project", "abc123")
       true
   """
-  def exists?(account_handle, project_handle, id) do
+  def cas_exists?(account_handle, project_handle, id) do
     account_handle
     |> cas_key(project_handle, id)
     |> artifact_path()
@@ -24,7 +24,7 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Writes data to disk for given account, project, and artifact ID.
+  Writes CAS artifact data to disk for given account, project, and artifact ID.
 
   Accepts either binary data or a file path. For file paths, file is moved
   into place without reading into memory (efficient for large uploads).
@@ -33,26 +33,21 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
+      iex> Cache.Disk.cas_put("account", "project", "abc123", <<1, 2, 3>>)
       :ok
 
-      iex> Cache.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
+      iex> Cache.Disk.cas_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-  def put(account_handle, project_handle, id, {:file, tmp_path}) do
+  def cas_put(account_handle, project_handle, id, {:file, tmp_path}) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
-    with :ok <- ensure_directory(path),
-         :ok <- move_file(tmp_path, path) do
-      :ok
-    else
-      {:error, _} = error ->
-        File.rm(tmp_path)
-        error
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
     end
   end
 
-  def put(account_handle, project_handle, id, data) when is_binary(data) do
+  def cas_put(account_handle, project_handle, id, data) when is_binary(data) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path),
@@ -103,7 +98,7 @@ defmodule Cache.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical CAS storage directory.
   """
-  def local_accel_path(account_handle, project_handle, id) do
+  def cas_local_accel_path(account_handle, project_handle, id) do
     "/internal/local/" <> cas_key(account_handle, project_handle, id)
   end
 
@@ -117,14 +112,14 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns local file path for a given account, project, and artifact ID if the file exists.
+  Returns local file path for a given CAS artifact if the file exists.
 
   ## Examples
 
-      iex> Cache.Disk.get_local_path("account", "project", "ABCD1234")
+      iex> Cache.Disk.cas_get_local_path("account", "project", "ABCD1234")
       {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
   """
-  def get_local_path(account_handle, project_handle, id) do
+  def cas_get_local_path(account_handle, project_handle, id) do
     path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     if File.exists?(path) do
@@ -135,14 +130,14 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns file stat information for an artifact.
+  Returns file stat information for a CAS artifact.
 
   ## Examples
 
-      iex> Cache.Disk.stat("account", "project", "ABCD1234")
+      iex> Cache.Disk.cas_stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  def stat(account_handle, project_handle, id) do
+  def cas_stat(account_handle, project_handle, id) do
     account_handle
     |> cas_key(project_handle, id)
     |> artifact_path()
@@ -157,6 +152,115 @@ defmodule Cache.Disk do
     |> Path.join("**/*")
     |> Path.wildcard(match_dot: true)
     |> Enum.filter(&File.regular?/1)
+  end
+
+  @doc """
+  Constructs a sharded module cache key from account handle, project handle, category, hash, and name.
+
+  Uses a two-level directory sharding based on the first 4 characters of the hash
+  to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
+
+  ## Examples
+
+      iex> Cache.Disk.module_key("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
+      "account/project/module/builds/AB/CD/ABCD1234/MyModule.xcframework.zip"
+  """
+  def module_key(account_handle, project_handle, category, hash, name) do
+    {shard1, shard2} = shards_for_id(hash)
+    "#{account_handle}/#{project_handle}/module/#{category}/#{shard1}/#{shard2}/#{hash}/#{name}"
+  end
+
+  @doc """
+  Checks if a module artifact exists on disk.
+  """
+  def module_exists?(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.exists?()
+  end
+
+  @doc """
+  Writes module artifact data to disk.
+
+  Accepts either binary data or a file path tuple.
+  """
+  def module_put(account_handle, project_handle, category, hash, name, {:file, tmp_path}) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
+    end
+  end
+
+  def module_put(account_handle, project_handle, category, hash, name, data) when is_binary(data) do
+    path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write module artifact to #{path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  def module_put_from_parts(account_handle, project_handle, category, hash, name, part_paths) do
+    dest_path = account_handle |> module_key(project_handle, category, hash, name) |> artifact_path()
+
+    with :ok <- ensure_directory(dest_path),
+         false <- File.exists?(dest_path) do
+      tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
+
+      with {:ok, dest_file} <- File.open(tmp_dest, [:write, :append, :binary]),
+           :ok <- copy_parts_to_file(part_paths, dest_file),
+           :ok <- File.close(dest_file),
+           :ok <- File.rename(tmp_dest, dest_path) do
+        :ok
+      else
+        {:error, :eexist} ->
+          File.rm(tmp_dest)
+          {:error, :exists}
+
+        {:error, reason} ->
+          Logger.error("Failed to assemble artifact to #{dest_path}: #{inspect(reason)}")
+          File.rm(tmp_dest)
+          {:error, reason}
+      end
+    else
+      true -> {:error, :exists}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp copy_parts_to_file(part_paths, dest_file) do
+    Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
+      with {:ok, source} <- File.open(part_path, [:read, :binary, :raw]),
+           {:ok, _bytes_copied} <- :file.copy(source, dest_file),
+           :ok <- File.close(source) do
+        {:cont, :ok}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  @doc """
+  Returns file stat information for a module artifact.
+  """
+  def module_stat(account_handle, project_handle, category, hash, name) do
+    account_handle
+    |> module_key(project_handle, category, hash, name)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
+  Build the internal X-Accel-Redirect path for a module artifact.
+  """
+  def module_local_accel_path(account_handle, project_handle, category, hash, name) do
+    "/internal/local/" <> module_key(account_handle, project_handle, category, hash, name)
   end
 
   @doc """
@@ -195,11 +299,9 @@ defmodule Cache.Disk do
       :ok
     else
       true ->
-        File.rm(tmp_path)
         {:error, :exists}
 
       {:error, reason} ->
-        File.rm(tmp_path)
         Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
         {:error, reason}
     end

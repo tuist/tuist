@@ -78,6 +78,34 @@ defmodule TuistWeb.PreviewsControllerTest do
              }
     end
 
+    test "starts multipart upload with track", %{conn: conn, user: user, project: project, account: account} do
+      # Given
+      upload_id = "upload-id"
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "name",
+          track: "beta"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+
+      {:ok, app_build} =
+        AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
+
+      assert app_build.preview.track == "beta"
+    end
+
     test "starts multipart upload of a bundle app build", %{
       conn: conn,
       user: user,
@@ -589,6 +617,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
+               "track" => "",
                "version" => "1.0.0",
                "builds" => [
                  %{
@@ -609,6 +638,52 @@ defmodule TuistWeb.PreviewsControllerTest do
                },
                "created_from_ci" => false
              }
+    end
+
+    test "completes multipart upload with track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "1234"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_commit_sha: "commit-sha",
+          git_branch: "main",
+          track: "beta"
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        :ok
+      end)
+
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+          preview_id: app_build.id,
+          multipart_upload_parts: %{
+            parts: [],
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["track"] == "beta"
     end
 
     test "returns error when project doesn't exist", %{
@@ -962,6 +1037,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
+                 "track" => "",
                  "version" => "1.0.0",
                  "builds" => [
                    %{

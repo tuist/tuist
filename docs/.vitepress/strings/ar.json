@@ -258,7 +258,7 @@
                     "text": "الأمثلة",
                     "items": {
                         "generated-projects": {
-                            "text": "المشاريع التي تم إنشاؤها"
+                            "text": "المشروع المُنشأ"
                         }
                     }
                 },
@@ -266,7 +266,7 @@
                     "text": "التطوير",
                     "items": {
                         "generated-projects": {
-                            "text": "المشاريع التي تم إنشاؤها",
+                            "text": "المشروع المُنشأ",
                             "items": {
                                 "adoption": {
                                     "text": "التبني",
@@ -284,7 +284,7 @@
                                                     "text": "مشروع Xcode"
                                                 },
                                                 "swift-package": {
-                                                    "text": "حزمة سويفت"
+                                                    "text": "الحزمة السريعة"
                                                 },
                                                 "xcodegen-project": {
                                                     "text": "مشروع XcodeGen"

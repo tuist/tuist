@@ -5,7 +5,7 @@ defmodule CacheWeb.CASControllerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Authentication
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.S3Transfers
 
@@ -29,10 +29,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, ^body ->
         :ok
       end)
 
@@ -53,7 +53,8 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_id == id
+      assert upload.artifact_type == :cas
+      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -67,10 +68,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         assert File.stat!(tmp_path).size == byte_size(large_body)
         File.rm(tmp_path)
@@ -95,7 +96,8 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_id == id
+      assert upload.artifact_type == :cas
+      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -108,7 +110,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         true
       end)
 
@@ -133,10 +135,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, ^body ->
         {:error, :enospc}
       end)
 
@@ -164,10 +166,10 @@ defmodule CacheWeb.CASControllerTest do
       end)
 
       Disk
-      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+      |> expect(:cas_exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
+      |> expect(:cas_put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         File.rm(tmp_path)
         {:error, :exists}
@@ -234,11 +236,11 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
@@ -266,11 +268,11 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
@@ -304,11 +306,11 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
-      expect(CASArtifacts, :track_artifact_access, fn key ->
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         :ok
       end)
@@ -339,7 +341,8 @@ defmodule CacheWeb.CASControllerTest do
       assert download.type == :download
       assert download.account_handle == account_handle
       assert download.project_handle == project_handle
-      assert download.artifact_id == id
+      assert download.artifact_type == :cas
+      assert download.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do

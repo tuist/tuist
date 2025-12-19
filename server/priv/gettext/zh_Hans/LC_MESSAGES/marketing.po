@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-25 14:36+0000\n"
-"PO-Revision-Date: 2025-12-11 14:20+0000\n"
-"Last-Translator: Anonymous <noreply@weblate.org>\n"
-"Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\n"
-"Language: zh_Hans\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
 
 # # This file is a PO Template file.
 # #
@@ -49,9 +37,7 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr ""
-"<p>开源承诺与核心价值，成就了我们独特的定价理念。不同于其他商家用「联系销售」、限制性演示等手段牟利，我们崇尚公平透明。一视同仁，价格公道。选择我们，您不仅能获得优秀产品，更能支持开源项目发展。我们视基业长青为长期旅程，而非急功近利的短期行为。您可%{read_more}了解我们的发展理念。</p>\n"
-"<p>支持 Tuist，就是为 Swift 生态贡献更多开源力量。</p>\n"
+msgstr "<p>开源承诺与核心价值，成就了我们独特的定价理念。不同于其他商家用「联系销售」、限制性演示等手段牟利，我们崇尚公平透明。一视同仁，价格公道。选择我们，您不仅能获得优秀产品，更能支持开源项目发展。我们视基业长青为长期旅程，而非急功近利的短期行为。您可%{read_more}了解我们的发展理念。</p>\n<p>支持 Tuist，就是为 Swift 生态贡献更多开源力量。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "确认邮件已发送至您的账户，详情请查收。"
@@ -87,7 +73,7 @@ msgid "All systems normal"
 msgstr "所有系统正常"
 
 msgid "All the features you need,"
-msgstr "您需要的所有功能，"
+msgstr "你需要的所有功能，"
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "结合环境、Xcode 版本、提交等元数据，深度分析目标、文件的构建时间。"
@@ -408,7 +394,7 @@ msgid "Make Xcode projects easier to manage and scale"
 msgstr "让 Xcode 项目更容易管理和扩展"
 
 msgid "Make mobile"
-msgstr "打造移动应用"
+msgstr "让移动开发成为"
 
 msgid "Make modular Xcode projects more manageable"
 msgstr "让模块化 Xcode 项目更易于管理"
@@ -600,7 +586,7 @@ msgid "Start free,"
 msgstr "免费开始，"
 
 msgid "Start free, scale as you grow"
-msgstr "免费开始，随增长扩展"
+msgstr "免费开始，随需扩展"
 
 msgid "Stay in touch"
 msgstr "保持联系"
@@ -621,7 +607,7 @@ msgid "Successfully Subscribed!"
 msgstr "订阅成功！"
 
 msgid "Supercharge your app development"
-msgstr "加速您的应用开发"
+msgstr "加速你的应用开发"
 
 msgid "Support"
 msgstr "支持"
@@ -780,7 +766,7 @@ msgid "We prioritize developer happiness because it's closely tied to creating b
 msgstr "开发者体验至上，因为幸福感是打造卓越应用的基石。"
 
 msgid "We want to enable teams to scale with joy"
-msgstr "助力团队快乐成长"
+msgstr "我们希望帮助团队快乐成长"
 
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
 msgstr "我们是一群建造者，坚信应用扩展不该扼杀创造力。亲历过激动人心的 Swift 项目随规模增长沦为构建噩梦、工具难题，我们决心创造更好的解决方案。"
@@ -855,7 +841,7 @@ msgid "core development experience\""
 msgstr "核心开发体验\""
 
 msgid "in one platform"
-msgstr "在一个平台上"
+msgstr "一个平台搞定"
 
 msgid "open source"
 msgstr "开源"
@@ -882,7 +868,7 @@ msgid "via dedicated Slack"
 msgstr "通过专用 Slack"
 
 msgid "your competitive advantage"
-msgstr "您的竞争优势"
+msgstr "你的竞争优势"
 
 msgid "Custom"
 msgstr "定制"
@@ -890,7 +876,6 @@ msgstr "定制"
 msgid "Free"
 msgstr "免费"
 
-#, fuzzy
 msgid "and up"
 msgstr "及以上"
 
@@ -913,16 +898,16 @@ msgid "Hits"
 msgstr "命中次数"
 
 msgid "Read customer story"
-msgstr ""
+msgstr "阅读客户故事"
 
 msgid "Explore Tuist's features"
-msgstr ""
+msgstr "探索 Tuist 的功能"
 
 msgid "Explore features"
-msgstr ""
+msgstr "探索功能"
 
 msgid "live on our dashboard"
-msgstr ""
+msgstr "在我们的仪表板上实时显示"
 
 msgid "Language"
-msgstr ""
+msgstr "语言"

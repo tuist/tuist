@@ -89,7 +89,11 @@ defmodule TuistWeb.API.PreviewsController do
            },
            binary_id: %Schema{
              type: :string,
-             description: "The Mach-O UUID of the binary."
+             description: "The Mach-O UUID of the binary"
+           },
+           track: %Schema{
+             type: :string,
+             description: "The track for the preview (e.g., 'beta', 'nightly')."
            },
            build_version: %Schema{
              type: :string,
@@ -160,7 +164,8 @@ defmodule TuistWeb.API.PreviewsController do
         display_name: Map.get(body_params, :display_name),
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
-        supported_platforms: []
+        supported_platforms: [],
+        track: Map.get(body_params, :track)
       })
 
     binary_id = Map.get(body_params, :binary_id)
@@ -871,6 +876,7 @@ defmodule TuistWeb.API.PreviewsController do
       display_name: preview.display_name,
       git_commit_sha: preview.git_commit_sha,
       git_branch: preview.git_branch,
+      track: preview.track,
       builds: builds,
       supported_platforms: preview.supported_platforms,
       inserted_at: preview.inserted_at,

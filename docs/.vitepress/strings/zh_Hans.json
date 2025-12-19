@@ -418,13 +418,13 @@
                             "text": "自主托管"
                         },
                         "accounts-and-projects": {
-                            "text": "账户和项目"
+                            "text": "Accounts and projects"
                         },
                         "authentication": {
-                            "text": "认证"
+                            "text": "Authentication"
                         }
                     },
-                    "text": "服务器"
+                    "text": "Server"
                 }
             }
         }
