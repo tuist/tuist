@@ -58,7 +58,7 @@ You can check out [the project documentation](https://docs.tuist.dev).
 
 ### Sample projects
 
-You can find some sample projects in the [fixtures folder](cli/Fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+You can find some sample projects in the [examples folder](examples/xcode) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
 ## Development
 

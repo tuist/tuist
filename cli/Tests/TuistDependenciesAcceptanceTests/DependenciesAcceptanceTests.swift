@@ -227,7 +227,7 @@ struct DependenciesAcceptanceTests {
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.appWithSpmDependencies)
+        try await setUpFixture("generated_app_with_spm_dependencies")
         do {
             try await run(GenerateCommand.self)
         } catch {
@@ -243,7 +243,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: Tuis
 
 final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
     func test_app_with_alamofire() async throws {
-        try await setUpFixture(.appWithAlamofire)
+        try await setUpFixture("generated_app_with_alamofire")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -252,7 +252,7 @@ final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
     func test_app_with_pocket_svg() async throws {
-        try await setUpFixture(.appWithPocketSVG)
+        try await setUpFixture("generated_app_with_pocket_svg")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -261,7 +261,7 @@ final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppSBTUITestTunnel: TuistAcceptanceTestCase {
     func test_app_with_sbtuitesttunnel() async throws {
-        try await setUpFixture(.appWithSBTUITestTunnel)
+        try await setUpFixture("generated_app_with_sbtuitesttunnel")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -270,7 +270,7 @@ final class DependenciesAcceptanceTestAppSBTUITestTunnel: TuistAcceptanceTestCas
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies() async throws {
-        try await setUpFixture(.iosAppWithSpmDependencies)
+        try await setUpFixture("generated_ios_app_with_spm_dependencies")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -281,7 +281,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptance
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies_force_resolved_versions() async throws {
-        try await setUpFixture(.iosAppWithSpmDependenciesForceResolvedVersions)
+        try await setUpFixture("generated_ios_app_with_spm_dependencies_forced_resolved_versions")
         try await run(InstallCommand.self)
         let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
         let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
@@ -296,7 +296,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try await withMockedDependencies {
-            try await setUpFixture(.iosAppWithSpmDependencies)
+            try await setUpFixture("generated_ios_app_with_spm_dependencies")
             try await run(InstallCommand.self)
             let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
             let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
@@ -320,7 +320,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
 
 final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAcceptanceTestCase {
     func test_app_with_composable_architecture() async throws {
-        try await setUpFixture(.appWithComposableArchitecture)
+        try await setUpFixture("generated_app_with_composable_architecture")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -329,7 +329,7 @@ final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAccept
 
 final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
     func test_app_with_realm() async throws {
-        try await setUpFixture(.appWithRealm)
+        try await setUpFixture("generated_app_with_realm")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -338,7 +338,7 @@ final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppSPMXCFrameworkDependency: TuistAcceptanceTestCase {
     func test_app_spm_xcframework_dependency() async throws {
-        try await setUpFixture(.appWithSpmXcframeworkDependency)
+        try await setUpFixture("generated_app_with_spm_xcframework_dependency")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -347,7 +347,7 @@ final class DependenciesAcceptanceTestAppSPMXCFrameworkDependency: TuistAcceptan
 
 final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase {
     func test_app_with_airship_sdk() async throws {
-        try await setUpFixture(.appWithAirshipSDK)
+        try await setUpFixture("generated_app_with_airship_sdk")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)

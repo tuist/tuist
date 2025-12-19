@@ -1,5 +1,5 @@
-[submodule "fixtures/tuist_plugin"]
-	path = fixtures/tuist_plugin
+[submodule "examples/xcode/generated_tuist_plugin"]
+	path = examples/xcode/generated_tuist_plugin
 	url = https://github.com/fortmarek/ExampleTuistPlugin/
 [submodule "cli/TuistCacheEE"]
 	path = cli/TuistCacheEE
