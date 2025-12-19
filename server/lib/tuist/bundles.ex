@@ -384,9 +384,9 @@ defmodule Tuist.Bundles do
     |> Enum.map(fn bundle ->
       date =
         case date_period do
-          :hour -> DateTime.truncate(bundle.inserted_at, :second) |> truncate_to_hour()
+          :hour -> bundle.inserted_at |> DateTime.truncate(:second) |> truncate_to_hour()
           :day -> DateTime.to_date(bundle.inserted_at)
-          :month -> DateTime.to_date(bundle.inserted_at) |> Timex.beginning_of_month()
+          :month -> bundle.inserted_at |> DateTime.to_date() |> Timex.beginning_of_month()
         end
 
       Map.put(bundle, :date, date)

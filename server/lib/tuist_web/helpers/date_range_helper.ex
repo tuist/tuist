@@ -59,43 +59,12 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
     }
   end
 
-  @doc """
-  Parses an ISO 8601 date string into a Date.
-
-  Handles both DateTime strings (with time component) and Date strings.
-  Returns nil for nil input or invalid strings.
-
-  ## Examples
-
-      iex> parse_custom_date("2024-01-15")
-      ~D[2024-01-15]
-
-      iex> parse_custom_date("2024-01-15T10:30:00Z")
-      ~D[2024-01-15]
-
-      iex> parse_custom_date(nil)
-      nil
-
-  """
-  def parse_custom_date(nil), do: nil
-
-  def parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} ->
-        DateTime.to_date(datetime)
-
-      {:error, _} ->
-        case Date.from_iso8601(date_string) do
-          {:ok, date} -> date
-          {:error, _} -> nil
-        end
-    end
-  end
   # Private functions
+
   def start_date_for_preset(preset) do
     # Normalize preset to underscore format for matching
     normalized = String.replace(preset, "-", "_")
-    today = DateTime.utc_now() |> DateTime.to_date()
+    today = DateTime.to_date(DateTime.utc_now())
 
     case normalized do
       "last_24_hours" -> Date.add(today, -1)
@@ -106,9 +75,8 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
     end
   end
 
-
   defp parse_dates(params, "custom", start_key, end_key, default_days) do
-    today = DateTime.utc_now() |> DateTime.to_date()
+    today = DateTime.to_date(DateTime.utc_now())
     start_date = parse_custom_date(params[start_key]) || Date.add(today, -default_days)
     end_date = parse_custom_date(params[end_key]) || today
     {start_date, end_date}

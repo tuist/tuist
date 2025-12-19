@@ -346,5 +346,4 @@ defmodule TuistWeb.OverviewLive do
 
     Tuist.Tasks.parallel_tasks(queries)
   end
-
 end
