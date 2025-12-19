@@ -18,7 +18,7 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixture("framework_with_native_swift_macro")
+        .withFixture("generated_framework_with_native_swift_macro")
     ) func framework_with_native_swift_macro() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

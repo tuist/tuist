@@ -10,7 +10,7 @@ import XCTest
 
 struct TestAcceptanceTests {
     @Test(
-        .withFixture("ios_app_with_frameworks"),
+        .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
@@ -27,7 +27,7 @@ struct TestAcceptanceTests {
     }
 
     @Test(
-        .withFixture("app_with_framework_and_tests"),
+        .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()

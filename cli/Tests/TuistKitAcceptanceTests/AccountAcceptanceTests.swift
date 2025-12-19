@@ -13,7 +13,7 @@ struct AccountAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func account_with_logged_in_user() async throws {
         // By default, the CLI refreshes in the background spawning itself in a subprocess.
@@ -42,7 +42,7 @@ struct AccountAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func create_list_revoke_account_token() async throws {
         // Given

@@ -160,7 +160,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
 
     func test_framework_with_macros_redundant_imports() async throws {
         try await withMockedDependencies {
-            try await setUpFixture("framework_with_macros_and_tests")
+            try await setUpFixture("generated_framework_with_macros_and_tests")
             try await run(InstallCommand.self)
             try await run(InspectRedundantImportsCommand.self)
             XCTAssertStandardOutput(pattern: "We did not find any redundant dependencies in your project.")

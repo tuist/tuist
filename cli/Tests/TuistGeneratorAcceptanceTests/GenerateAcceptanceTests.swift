@@ -8,7 +8,7 @@ import XcodeProj
 import XCTest
 
 struct GeneratorAcceptanceTests {
-    @Test(.withFixture("app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
+    @Test(.withFixture("generated_app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
@@ -20,7 +20,7 @@ struct GeneratorAcceptanceTests {
         try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
     }
 
-    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
+    @Test(.withFixture("generated_app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
@@ -30,7 +30,7 @@ struct GeneratorAcceptanceTests {
     }
 
     @Test(
-        .withFixture("framework_with_environment_variables"),
+        .withFixture("generated_framework_with_environment_variables"),
         .withMockedLogger(),
         .withMockedEnvironment()
     ) func framework_with_environment_variables() async throws {
@@ -1371,7 +1371,7 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
 
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
-        .withFixture("ios_app_with_sandbox_disabled")
+        .withFixture("generated_ios_app_with_sandbox_disabled")
     )
     func sandbox_disabled() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -1382,7 +1382,7 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
 
     // This test should be reenabled once https://github.com/tuist/tuist/issues/8206 is resolved
 //    @Test(
-//        .withFixture("ios_app_with_sandbox_disabled"),
+//        .withFixture("generated_ios_app_with_sandbox_disabled"),
 //        .withMockedEnvironment()
 //    )
 //    func sandbox_enabled_fails() async throws {
