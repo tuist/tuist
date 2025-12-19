@@ -310,6 +310,10 @@
 
   & > [data-part="file-breakdown-card"] {
     & > [data-part="file-breakdown-card-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+
       & > [data-part="filters"] {
         display: flex;
         flex-direction: row;
@@ -318,6 +322,13 @@
         & .noora-dropdown-item:not([data-selected]) svg {
           visibility: hidden;
         }
+      }
+
+      & > [data-part="active-filters"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: var(--noora-spacing-3);
       }
     }
   }

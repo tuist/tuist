@@ -3,11 +3,13 @@ defmodule TuistWeb.BundleLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Filter
   import TuistWeb.Bundles.UploadedByBadgeCell
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.TrendBadge
   import TuistWeb.Previews.PlatformIcon
 
+  alias Noora.Filter
   alias Tuist.Bundles
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
@@ -43,6 +45,8 @@ defmodule TuistWeb.BundleLive do
     artifacts_by_path =
       Map.put(artifacts_by_path, base_path, bundle)
 
+    file_breakdown_filters = define_file_breakdown_filters()
+
     socket =
       socket
       |> assign(:bundle, bundle)
@@ -55,8 +59,32 @@ defmodule TuistWeb.BundleLive do
       |> assign(:artifacts_by_id, artifacts_by_id)
       |> assign(:artifacts_by_path, artifacts_by_path)
       |> assign(:base_path, base_path)
+      |> assign(:file_breakdown_available_filters, file_breakdown_filters)
+      |> assign(:available_filters, file_breakdown_filters)
 
     {:ok, socket}
+  end
+
+  defp define_file_breakdown_filters do
+    [
+      %Filter.Filter{
+        id: "artifact_type",
+        field: :artifact_type,
+        display_name: dgettext("dashboard_cache", "Type"),
+        type: :option,
+        options: [:binary, :localization, :asset, :font, :file, :unknown],
+        options_display_names: %{
+          binary: dgettext("dashboard_cache", "Binary"),
+          localization: dgettext("dashboard_cache", "Localization"),
+          asset: dgettext("dashboard_cache", "Asset"),
+          font: dgettext("dashboard_cache", "Font"),
+          file: dgettext("dashboard_cache", "File"),
+          unknown: dgettext("dashboard_cache", "Other")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
   end
 
   def handle_params(
@@ -68,6 +96,11 @@ defmodule TuistWeb.BundleLive do
     bundle_size_analysis_page_params =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "bundle-size-analysis-table-page-") end)
+      |> Enum.map(fn {key, _value} -> key end)
+
+    filter_params =
+      params
+      |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "filter_") end)
       |> Enum.map(fn {key, _value} -> key end)
 
     uri =
@@ -83,7 +116,7 @@ defmodule TuistWeb.BundleLive do
                 "file-breakdown-page",
                 "tab",
                 "current-path"
-              ] ++ bundle_size_analysis_page_params
+              ] ++ bundle_size_analysis_page_params ++ filter_params
             )
           )
       )
@@ -106,12 +139,17 @@ defmodule TuistWeb.BundleLive do
           end
       end
 
+    file_breakdown_active_filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.file_breakdown_available_filters)
+
     socket =
       socket
       |> assign(series: series)
       |> assign(filter: filter)
       |> assign(uri: uri)
       |> assign(:selected_tab, params["tab"] || "overview")
+      |> assign(:file_breakdown_active_filters, file_breakdown_active_filters)
+      |> assign(:active_filters, file_breakdown_active_filters)
       |> assign_module_breakdown(params)
       |> assign_file_breakdown(params)
       |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle))
@@ -125,16 +163,27 @@ defmodule TuistWeb.BundleLive do
     {:noreply, socket}
   end
 
-  defp assign_file_breakdown(%{assigns: %{all_artifacts: all_artifacts}} = socket, params) do
+  defp assign_file_breakdown(
+         %{assigns: %{all_artifacts: all_artifacts, file_breakdown_active_filters: active_filters}} = socket,
+         params
+       ) do
     file_breakdown_filter = params["file-breakdown-filter"] || ""
     file_breakdown_sort_by = params["file-breakdown-sort-by"] || "size"
     file_breakdown_sort_order = params["file-breakdown-sort-order"] || "desc"
     file_breakdown_page = String.to_integer(params["file-breakdown-page"] || "1")
 
+    type_filter = Enum.find(active_filters, &(&1.id == "artifact_type"))
+
     file_breakdown_filtered_artifacts =
       Enum.filter(all_artifacts, fn artifact ->
-        String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter)) &&
-          Enum.empty?(artifact.children)
+        path_matches =
+          String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter))
+
+        type_matches =
+          is_nil(type_filter) || is_nil(type_filter.value) ||
+            artifact.artifact_type == type_filter.value
+
+        path_matches && type_matches && Enum.empty?(artifact.children)
       end)
 
     file_breakdown_page_count =
@@ -239,6 +288,39 @@ defmodule TuistWeb.BundleLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.drop(["file-breakdown-page"])
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{updated_params}"
+     )
+     |> push_event("close-dropdown", %{all: true})
+     |> push_event("close-popover", %{all: true})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.drop(["file-breakdown-page"])
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{updated_query_params}"
+     )
+     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
+     |> push_event("close-dropdown", %{all: true})
+     |> push_event("close-popover", %{all: true})}
   end
 
   def handle_event(
