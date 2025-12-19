@@ -2,21 +2,11 @@ import Foundation
 import HTTPTypes
 import Logging
 import OpenAPIRuntime
+import TuistHTTP
 
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
-
-public enum ServerClientAuthenticationError: LocalizedError, Equatable {
-    case notAuthenticated
-
-    public var errorDescription: String? {
-        switch self {
-        case .notAuthenticated:
-            return "You must be logged in to do this."
-        }
-    }
-}
 
 /// Injects an authorization header to every request.
 struct ServerClientAuthenticationMiddleware: ClientMiddleware {
@@ -52,7 +42,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             serverURL: urlForAuthentication
         )
         else {
-            throw ServerClientAuthenticationError.notAuthenticated
+            throw ClientAuthenticationError.notAuthenticated
         }
         request.headerFields.append(
             .init(

@@ -24,7 +24,7 @@ defmodule Tuist.Cache do
   """
   def create_entry(attrs \\ %{}) do
     entry_attrs = %{
-      id: Ecto.UUID.generate(),
+      id: UUIDv7.generate(),
       cas_id: attrs[:cas_id],
       value: attrs[:value],
       project_id: attrs[:project_id],
@@ -76,7 +76,7 @@ defmodule Tuist.Cache do
     entries =
       Enum.map(events, fn event ->
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           action: event.action,
           size: event.size,
           cas_id: event.cas_id,

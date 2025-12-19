@@ -17,7 +17,7 @@ defmodule TuistWeb.CacheRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_cache", "Cache Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -32,7 +32,7 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "name",
         field: :name,
-        display_name: gettext("Command"),
+        display_name: dgettext("dashboard_cache", "Command"),
         type: :text,
         operator: :=~,
         value: ""
@@ -40,12 +40,12 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_cache", "Status"),
         type: :option,
         options: [0, 1],
         options_display_names: %{
-          0 => gettext("Passed"),
-          1 => gettext("Failed")
+          0 => dgettext("dashboard_cache", "Passed"),
+          1 => dgettext("dashboard_cache", "Failed")
         },
         operator: :==,
         value: nil
@@ -53,7 +53,7 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_cache", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -61,7 +61,7 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "hit_rate",
         field: :hit_rate,
-        display_name: gettext("Hit rate"),
+        display_name: dgettext("dashboard_cache", "Hit rate"),
         type: :percentage,
         operator: :>,
         value: ""
@@ -77,7 +77,7 @@ defmodule TuistWeb.CacheRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_cache", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:

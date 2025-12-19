@@ -23,6 +23,14 @@
             )
         }
 
+        public init(cachedValueStore: CachedValueStoring) {
+            self.init(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: GetCacheEndpointsService(),
+                endpointLatencyService: EndpointLatencyService()
+            )
+        }
+
         init(
             cachedValueStore: CachedValueStoring,
             getCacheEndpointsService: GetCacheEndpointsServicing,

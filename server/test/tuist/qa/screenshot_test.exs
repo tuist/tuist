@@ -7,7 +7,7 @@ defmodule Tuist.QA.ScreenshotTest do
     test "valid changeset with all required fields" do
       # Given
       attrs = %{
-        qa_run_id: Ecto.UUID.generate()
+        qa_run_id: UUIDv7.generate()
       }
 
       # When
@@ -20,8 +20,8 @@ defmodule Tuist.QA.ScreenshotTest do
     test "valid changeset with optional qa_step_id" do
       # Given
       attrs = %{
-        qa_run_id: Ecto.UUID.generate(),
-        qa_step_id: Ecto.UUID.generate()
+        qa_run_id: UUIDv7.generate(),
+        qa_step_id: UUIDv7.generate()
       }
 
       # When

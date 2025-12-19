@@ -2,7 +2,6 @@
     import Foundation
     import Mockable
     import Path
-    import TuistCache
     import TuistCore
     import XcodeGraph
 

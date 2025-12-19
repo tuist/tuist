@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Автозавершения Shell"
+                        },
+                        "directories": {
+                            "text": "Справочники"
                         }
                     }
                 },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "Лучшие практики"
+                                },
+                                "metadata-tags": {
+                                    "text": "Теги метаданных"
                                 }
                             }
                         },
@@ -376,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Непрерывная интеграция (CI)"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "text": "Гит формирует",
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            }
                         }
                     }
                 },
@@ -386,6 +403,28 @@
                             "text": "Превью"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Телеметрия"
+                                },
+                                "installation": {
+                                    "text": "Установка"
+                                }
+                            },
+                            "text": "Самостоятельный хостинг"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Аккаунты и проекты"
+                        },
+                        "authentication": {
+                            "text": "Авторизация"
+                        }
+                    },
+                    "text": "Сервер"
                 }
             }
         }

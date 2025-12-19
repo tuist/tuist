@@ -13,8 +13,6 @@ defmodule Tuist.Analytics do
     [:analytics, :page, :view],
     [:analytics, :preview, :upload],
     [:analytics, :preview, :download],
-    [:analytics, :cache_artifact, :upload],
-    [:analytics, :cache_artifact, :download],
     [:analytics, :authentication, :token_refresh, :error]
   ]
 
@@ -67,22 +65,6 @@ defmodule Tuist.Analytics do
       [:analytics, :preview, :download],
       %{},
       Map.merge(%{}, subject_parameters(subject))
-    )
-  end
-
-  def cache_artifact_upload(%{size: size, category: category}, subject) do
-    :telemetry.execute(
-      [:analytics, :cache_artifact, :upload],
-      %{size: size},
-      Map.merge(%{category: category}, subject_parameters(subject))
-    )
-  end
-
-  def cache_artifact_download(%{size: size, category: category}, subject) do
-    :telemetry.execute(
-      [:analytics, :cache_artifact, :download],
-      %{size: size},
-      Map.merge(%{category: category}, subject_parameters(subject))
     )
   end
 

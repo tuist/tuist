@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 import TuistSimulator
 
 public enum ListPreviewsDistinctField {
@@ -28,7 +29,7 @@ public enum ListPreviewsServiceError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The previews could not be listed due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The previews could not be listed due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .unauthorized(message):
             return message
         }

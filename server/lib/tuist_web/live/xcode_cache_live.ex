@@ -16,7 +16,7 @@ defmodule TuistWeb.XcodeCacheLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    socket = assign(socket, :head_title, "#{gettext("Xcode Cache")} · #{slug} · Tuist")
+    socket = assign(socket, :head_title, "#{dgettext("dashboard_cache", "Xcode Cache")} · #{slug} · Tuist")
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -104,7 +104,7 @@ defmodule TuistWeb.XcodeCacheLive do
           %{
             dates: uploads_analytics.dates,
             values: uploads_analytics.values,
-            name: gettext("Cache uploads"),
+            name: dgettext("dashboard_cache", "Cache uploads"),
             value_formatter: "fn:formatBytes"
           }
 
@@ -112,7 +112,7 @@ defmodule TuistWeb.XcodeCacheLive do
           %{
             dates: downloads_analytics.dates,
             values: downloads_analytics.values,
-            name: gettext("Cache downloads"),
+            name: dgettext("dashboard_cache", "Cache downloads"),
             value_formatter: "fn:formatBytes"
           }
 
@@ -120,7 +120,7 @@ defmodule TuistWeb.XcodeCacheLive do
           %{
             dates: hit_rate_analytics.dates,
             values: hit_rate_analytics.values,
-            name: gettext("Cache hit rate"),
+            name: dgettext("dashboard_cache", "Cache hit rate"),
             value_formatter: "{value}%"
           }
       end
@@ -180,9 +180,9 @@ defmodule TuistWeb.XcodeCacheLive do
   defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]

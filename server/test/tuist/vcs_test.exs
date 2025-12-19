@@ -154,6 +154,8 @@ defmodule Tuist.VCSTest do
         AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
+          bundle_identifier: "dev.tuist.app",
+          version: "1.0.0",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~N[2024-04-30 03:00:00]
@@ -170,6 +172,8 @@ defmodule Tuist.VCSTest do
         AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
+          bundle_identifier: "dev.tuist.app",
+          version: "1.0.1",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~N[2024-04-30 02:00:00]
@@ -186,6 +190,7 @@ defmodule Tuist.VCSTest do
         AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "WatchApp",
+          bundle_identifier: "dev.tuist.watchapp",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~N[2024-04-30 01:00:00]
@@ -342,6 +347,7 @@ defmodule Tuist.VCSTest do
         AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
+          bundle_identifier: "dev.tuist.app",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~N[2024-04-30 03:00:00]
@@ -360,6 +366,7 @@ defmodule Tuist.VCSTest do
         AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "WatchApp",
+          bundle_identifier: "dev.tuist.watchapp",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~N[2024-04-30 01:00:00]

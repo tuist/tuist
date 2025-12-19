@@ -75,6 +75,8 @@ jobs:
           working_directory: docs
       - name: Authenticate with Tuist
         run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Generate CLI docs
         working-directory: docs
         run: mise run generate-cli-docs

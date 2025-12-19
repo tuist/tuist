@@ -1,5 +1,5 @@
 {
-  "originHash" : "768bb670bde491d7f780f5a7e4a63cd6c35fb3c6d7b6356b0bcc448ff75faafc",
+  "originHash" : "6acea3541734d2e6524cf8f612a168d77f4ea9f2ba5ab45490b9c5dfeb41b8c2",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -150,7 +150,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.8.3"
+        "version" : "1.9.0"
       }
     },
     {
@@ -600,6 +600,14 @@
       "location" : "",
       "state" : {
         "version" : "0.6.63"
+      }
+    },
+    {
+      "identity" : "tuist.sdk",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.0"
       }
     },
     {

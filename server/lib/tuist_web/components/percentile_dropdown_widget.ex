@@ -112,15 +112,15 @@ defmodule TuistWeb.PercentileDropdownWidget do
       <span data-part="label">{percentile_label(@type)}</span>
       <span data-part="separator">-</span>
       <span data-part="value">
-        {Map.get(@metrics, String.to_atom(@type), gettext("N/A"))}
+        {Map.get(@metrics, String.to_atom(@type), dgettext("dashboard", "N/A"))}
       </span>
     </div>
     """
   end
 
-  defp percentile_label("avg"), do: gettext("Avg.")
-  defp percentile_label("p99"), do: gettext("p99")
-  defp percentile_label("p90"), do: gettext("p90")
-  defp percentile_label("p50"), do: gettext("p50")
-  defp percentile_label(_), do: gettext("Avg.")
+  defp percentile_label("avg"), do: dgettext("dashboard", "Avg.")
+  defp percentile_label("p99"), do: dgettext("dashboard", "p99")
+  defp percentile_label("p90"), do: dgettext("dashboard", "p90")
+  defp percentile_label("p50"), do: dgettext("dashboard", "p50")
+  defp percentile_label(_), do: dgettext("dashboard", "Avg.")
 end

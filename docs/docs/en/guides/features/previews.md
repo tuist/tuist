@@ -58,6 +58,22 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+## Tracks {#tracks}
+
+Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.
+
+To share a preview on a specific track, use the `--track` option:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+This is useful for:
+- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`, `internal`)
+- **In-app updates**: The Tuist SDK uses tracks to determine which updates to notify users about
+- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
 Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
@@ -108,6 +124,78 @@ Testing new functionality should be a part of any code review. But having to bui
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
+
+
+## In-app update notifications {#in-app-update-notifications}
+
+The [Tuist SDK](https://github.com/tuist/sdk) enables your app to detect when a newer preview version is available and notify users. This is useful for keeping testers on the latest build.
+
+The SDK checks for updates within the same **preview track**. When you share a preview with an explicit track using `--track`, the SDK will look for updates on that track. If no track is specified, the git branch is used as the track — so a preview built from the `main` branch will only notify about newer previews also built from `main`.
+
+### Installation {#sdk-installation}
+
+Add Tuist SDK as a Swift Package dependency:
+
+```swift
+.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
+```
+
+### Monitor for updates {#sdk-monitor-updates}
+
+Use `monitorPreviewUpdates` to periodically check for new preview versions:
+
+```swift
+import TuistSDK
+
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .task {
+                    TuistSDK(
+                        fullHandle: "myorg/myapp",
+                        apiKey: "your-api-key"
+                    )
+                    .monitorPreviewUpdates()
+                }
+        }
+    }
+}
+```
+
+### Single update check {#sdk-single-check}
+
+For manual update checking:
+
+```swift
+let sdk = TuistSDK(
+    fullHandle: "myorg/myapp",
+    apiKey: "your-api-key"
+)
+
+if let preview = try await sdk.checkForUpdate() {
+    print("New version available: \(preview.version ?? "unknown")")
+}
+```
+
+### Stopping update monitoring {#sdk-stop-monitoring}
+
+`monitorPreviewUpdates` returns a `Task` that can be cancelled:
+
+```swift
+let task = sdk.monitorPreviewUpdates { preview in
+    // Handle update
+}
+
+// Later, to stop monitoring:
+task.cancel()
+```
+
+::: info
+<!-- -->
+Update checking is automatically disabled on simulators and App Store builds.
+<!-- -->
+:::
 
 ## README badge {#readme-badge}
 

@@ -4,8 +4,8 @@ defmodule Cache.DiskEvictionWorkerTest do
 
   import Ecto.Query
 
-  alias Cache.CASArtifact
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifact
+  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.DiskEvictionWorker
   alias Cache.Repo
@@ -28,7 +28,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, :binary.copy("a", 1024))
 
-    :ok = CASArtifacts.track_artifact_access(key)
+    :ok = CacheArtifacts.track_artifact_access(key)
 
     expect(Disk, :usage, fn ^storage_dir ->
       {:ok,
@@ -59,9 +59,9 @@ defmodule Cache.DiskEvictionWorkerTest do
     File.write!(newer, :binary.copy("n", 300_000))
     File.write!(newest, :binary.copy("N", 200_000))
 
-    :ok = CASArtifacts.track_artifact_access(key_old)
-    :ok = CASArtifacts.track_artifact_access(key_new)
-    :ok = CASArtifacts.track_artifact_access(key_newest)
+    :ok = CacheArtifacts.track_artifact_access(key_old)
+    :ok = CacheArtifacts.track_artifact_access(key_new)
+    :ok = CacheArtifacts.track_artifact_access(key_newest)
 
     set_last_access(key_old, ~U[2024-01-01 00:00:00Z])
     set_last_access(key_new, ~U[2024-06-01 00:00:00Z])
@@ -83,13 +83,13 @@ defmodule Cache.DiskEvictionWorkerTest do
     assert File.exists?(newer)
     assert File.exists?(newest)
 
-    assert [] = Repo.all(from a in CASArtifact, where: a.key == ^key_old)
-    assert [_] = Repo.all(from a in CASArtifact, where: a.key == ^key_new)
-    assert [_] = Repo.all(from a in CASArtifact, where: a.key == ^key_newest)
+    assert [] = Repo.all(from a in CacheArtifact, where: a.key == ^key_old)
+    assert [_] = Repo.all(from a in CacheArtifact, where: a.key == ^key_new)
+    assert [_] = Repo.all(from a in CacheArtifact, where: a.key == ^key_newest)
   end
 
   defp set_last_access(key, timestamp) do
-    Repo.update_all(from(a in CASArtifact, where: a.key == ^key),
+    Repo.update_all(from(a in CacheArtifact, where: a.key == ^key),
       set: [last_accessed_at: timestamp, updated_at: timestamp]
     )
 

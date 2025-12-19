@@ -101,21 +101,21 @@ defmodule Tuist.Accounts.UserNotifier do
   def deliver_confirmation_instructions(%{user: user, confirmation_url: confirmation_url}) do
     deliver(
       user.email,
-      gettext("Confirmation instructions"),
+      dgettext("dashboard_account", "Confirmation instructions"),
       html_email(
         """
             <div class="container">
-                <h1>#{gettext("You're Almost Set!")}</h1>
+                <h1>#{dgettext("dashboard_account", "You're Almost Set!")}</h1>
                 <p>
-                  #{gettext("To start using Tuist, verify your email and you are good to go:")}
+                  #{dgettext("dashboard_account", "To start using Tuist, verify your email and you are good to go:")}
                 </p>
                 <p style="padding-top: 16px; padding-bottom: 16px;">
-                  <a href="#{confirmation_url}" style="color: #ffffff;" class="button">#{gettext("Confirm your email")}</a>
+                  <a href="#{confirmation_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Confirm your email")}</a>
                 </p>
                 <p style="font-size: 14px; color: #555555;">
-                 #{gettext("You received this email because you recently signed up for a Tuist account.")}
+                 #{dgettext("dashboard_account", "You received this email because you recently signed up for a Tuist account.")}
                  <br/>
-                 #{gettext("If you didn't make this request, feel free to ignore this email.")}
+                 #{dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")}
                 </p>
             </div>
         """,
@@ -130,21 +130,21 @@ defmodule Tuist.Accounts.UserNotifier do
   def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
     deliver(
       user.email,
-      gettext("Reset password instructions"),
+      dgettext("dashboard_account", "Reset password instructions"),
       html_email(
         """
             <div class="container">
-              <h1>#{gettext("Did you request to reset your password?")}</h1>
+              <h1>#{dgettext("dashboard_account", "Did you request to reset your password?")}</h1>
               <p>
-                #{gettext("Hola %{name}, you can reset your password by clicking the button below:", name: user.account.name)}
+                #{dgettext("dashboard_account", "Hola %{name}, you can reset your password by clicking the button below:", name: user.account.name)}
               </p>
               <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{reset_password_url}" style="color: #ffffff;" class="button">#{gettext("Reset your password")}</a>
+                <a href="#{reset_password_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Reset your password")}</a>
               </p>
               <p style="font-size: 14px; color: #555555; text-align: center;">
-                 #{gettext("You received this email because you requested a password reset for your Tuist account.")}
+                 #{dgettext("dashboard_account", "You received this email because you requested a password reset for your Tuist account.")}
                  <br/>
-                 #{gettext("If you didn't make this request, feel free to ignore this email.")}
+                 #{dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")}
                 </p>
             </div>
         """,
@@ -163,16 +163,16 @@ defmodule Tuist.Accounts.UserNotifier do
       }) do
     deliver(
       invitee_email,
-      gettext("Invitation to %{organization_name}", organization_name: organization_name),
+      dgettext("dashboard_account", "Invitation to %{organization_name}", organization_name: organization_name),
       html_email(
         """
             <div class="container">
-              <h1>#{gettext("You were invited to join the %{organization_name} Tuist organization by %{inviter_email}", organization_name: organization_name, inviter_email: inviter_email)}</h1>
+              <h1>#{dgettext("dashboard_account", "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}", organization_name: organization_name, inviter_email: inviter_email)}</h1>
               <p>
-                #{gettext("Hola %{invitee_email}, you can join the organization by clicking the button below:", invitee_email: invitee_email)}
+                #{dgettext("dashboard_account", "Hola %{invitee_email}, you can join the organization by clicking the button below:", invitee_email: invitee_email)}
               </p>
               <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{url}" style="color: #ffffff;" class="button">#{gettext("Accept invitation")}</a>
+                <a href="#{url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Accept invitation")}</a>
               </p>
             </div>
         """,

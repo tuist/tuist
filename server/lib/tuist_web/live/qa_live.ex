@@ -18,7 +18,7 @@ defmodule TuistWeb.QALive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("QA")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_qa", "QA")} · #{slug} · Tuist")
       |> assign(:qa_runs, [])
       |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
@@ -121,7 +121,7 @@ defmodule TuistWeb.QALive do
           %{
             dates: qa_runs_analytics.dates,
             values: qa_runs_analytics.values,
-            name: gettext("QA run count"),
+            name: dgettext("dashboard_qa", "QA run count"),
             value_formatter: "{value}"
           }
 
@@ -129,7 +129,7 @@ defmodule TuistWeb.QALive do
           %{
             dates: qa_issues_analytics.dates,
             values: qa_issues_analytics.values,
-            name: gettext("App issues found"),
+            name: dgettext("dashboard_qa", "App issues found"),
             value_formatter: "{value}"
           }
 
@@ -141,7 +141,7 @@ defmodule TuistWeb.QALive do
                 qa_duration_analytics.values,
                 &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
               ),
-            name: gettext("Avg. QA duration"),
+            name: dgettext("dashboard_qa", "Avg. QA duration"),
             value_formatter: "fn:formatSeconds"
           }
       end
@@ -163,11 +163,11 @@ defmodule TuistWeb.QALive do
   defp start_date("last_30_days"), do: Date.add(Date.utc_today(), -30)
   defp start_date("last_7_days"), do: Date.add(Date.utc_today(), -7)
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_qa", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_qa", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_qa", "since last month")
 
-  defp analytics_app_label("any", _available_apps), do: gettext("Any")
+  defp analytics_app_label("any", _available_apps), do: dgettext("dashboard_qa", "Any")
 
   defp analytics_app_label(app_name, available_apps) when is_binary(app_name) do
     case Enum.find(available_apps, fn {bundle_id, _display_name} -> bundle_id == app_name end) do
@@ -176,7 +176,7 @@ defmodule TuistWeb.QALive do
     end
   end
 
-  defp analytics_app_label(_app_name, _available_apps), do: gettext("Any")
+  defp analytics_app_label(_app_name, _available_apps), do: dgettext("dashboard_qa", "Any")
 
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]

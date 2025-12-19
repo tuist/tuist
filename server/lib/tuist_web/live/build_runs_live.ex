@@ -20,7 +20,7 @@ defmodule TuistWeb.BuildRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Build Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project, configurations))
 
     if connected?(socket) do
@@ -219,7 +219,7 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "scheme",
         field: :scheme,
-        display_name: gettext("Scheme"),
+        display_name: dgettext("dashboard_builds", "Scheme"),
         type: :text,
         operator: :=~,
         value: ""
@@ -227,7 +227,7 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "configuration",
         field: :configuration,
-        display_name: gettext("Configuration"),
+        display_name: dgettext("dashboard_builds", "Configuration"),
         type: :option,
         options: configurations,
         options_display_names: Map.new(configurations, &{&1, &1}),
@@ -237,12 +237,12 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
         options: [:success, :failure],
         options_display_names: %{
-          success: gettext("Passed"),
-          failure: gettext("Failed")
+          success: dgettext("dashboard_builds", "Passed"),
+          failure: dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
@@ -250,7 +250,7 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_builds", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -258,13 +258,13 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "category",
         field: :category,
-        display_name: gettext("Category"),
+        display_name: dgettext("dashboard_builds", "Category"),
         type: :option,
         options: [:incremental, :clean],
         options_display_names: %{
-          build: gettext("Build"),
-          test: gettext("Test"),
-          archive: gettext("Archive")
+          build: dgettext("dashboard_builds", "Build"),
+          test: dgettext("dashboard_builds", "Test"),
+          archive: dgettext("dashboard_builds", "Archive")
         },
         operator: :==,
         value: nil
@@ -272,7 +272,7 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "xcode_version",
         field: :xcode_version,
-        display_name: gettext("Xcode version"),
+        display_name: dgettext("dashboard_builds", "Xcode version"),
         type: :text,
         operator: :=~,
         value: ""
@@ -280,7 +280,7 @@ defmodule TuistWeb.BuildRunsLive do
       %Filter.Filter{
         id: "macos_version",
         field: :macos_version,
-        display_name: gettext("macOS version"),
+        display_name: dgettext("dashboard_builds", "macOS version"),
         type: :text,
         operator: :=~,
         value: ""
@@ -296,7 +296,7 @@ defmodule TuistWeb.BuildRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_builds", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:

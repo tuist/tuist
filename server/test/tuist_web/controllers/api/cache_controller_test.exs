@@ -49,7 +49,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
-      size = 1024
       project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
@@ -64,9 +63,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
-
-      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -146,7 +142,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
       object_key = "myaccount/myproject/#{cache_category}/#{hash}/#{name}"
-      size = 1024
       date = ~N[2024-04-30 10:20:30Z]
 
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
@@ -154,9 +149,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
-
-      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -589,7 +581,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       upload_id = "1234"
       object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
-      size = 1024
       date = ~N[2024-04-30 10:20:30Z]
 
       parts = [
@@ -605,10 +596,6 @@ defmodule TuistWeb.API.CacheControllerTest do
                                                      [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
                                                      _actor ->
         :ok
-      end)
-
-      expect(Storage, :get_object_size, fn ^object_key, _ ->
-        {:ok, size}
       end)
 
       conn = Authentication.put_current_project(conn, project)

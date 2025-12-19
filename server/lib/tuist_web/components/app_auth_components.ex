@@ -6,7 +6,7 @@ defmodule TuistWeb.AppAuthComponents do
   use Phoenix.Component
 
   def dots_light(assigns) do
-    unique_id = Ecto.UUID.generate()
+    unique_id = UUIDv7.generate()
     mask_id = "mask0_#{unique_id}"
     radial_gradient_id = "paint0_radial_#{unique_id}"
 
@@ -293,7 +293,7 @@ defmodule TuistWeb.AppAuthComponents do
   end
 
   def dots_dark(assigns) do
-    unique_id = Ecto.UUID.generate()
+    unique_id = UUIDv7.generate()
     mask_id = "mask0_#{unique_id}"
     radial_gradient_id = "paint0_radial_#{unique_id}"
 

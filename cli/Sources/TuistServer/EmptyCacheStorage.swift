@@ -1,7 +1,6 @@
 #if canImport(TuistCore)
     import Foundation
     import Path
-    import TuistCache
     import TuistCore
 
     /// Empty `CacheStoring` implementation as we noop cache storing in the opensource repository

@@ -1,12 +1,12 @@
 defmodule Cache.DiskEvictionWorker do
   @moduledoc """
-  Oban worker that evicts least-recently-used CAS artifacts when local disk
+  Oban worker that evicts least-recently-used cache artifacts when local disk
   usage crosses the configured high watermark.
   """
 
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
 
   require Logger
@@ -69,7 +69,7 @@ defmodule Cache.DiskEvictionWorker do
     if current_percent <= config.target_percent do
       log_summary(stats, config, used_bytes, summary)
     else
-      batch = CASArtifacts.oldest(@batch_size)
+      batch = CacheArtifacts.oldest(@batch_size)
 
       if batch == [] do
         Logger.warning(
@@ -110,7 +110,7 @@ defmodule Cache.DiskEvictionWorker do
         end
       end)
 
-    :ok = CASArtifacts.delete_by_keys(keys_to_delete)
+    :ok = CacheArtifacts.delete_by_keys(keys_to_delete)
 
     {final_used, final_summary, length(keys_to_delete)}
   end

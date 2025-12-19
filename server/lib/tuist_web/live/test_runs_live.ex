@@ -19,7 +19,7 @@ defmodule TuistWeb.TestRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -34,13 +34,13 @@ defmodule TuistWeb.TestRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
         options: ["success", "failure", "skipped"],
         options_display_names: %{
-          "success" => gettext("Passed"),
-          "failure" => gettext("Failed"),
-          "skipped" => gettext("Skipped")
+          "success" => dgettext("dashboard_tests", "Passed"),
+          "failure" => dgettext("dashboard_tests", "Failed"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -48,7 +48,7 @@ defmodule TuistWeb.TestRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_tests", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -64,7 +64,7 @@ defmodule TuistWeb.TestRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
@@ -243,7 +243,7 @@ defmodule TuistWeb.TestRunsLive do
           %{
             dates: test_runs_analytics.dates,
             values: test_runs_analytics.values,
-            name: gettext("Test run count"),
+            name: dgettext("dashboard_tests", "Test run count"),
             value_formatter: "{value}"
           }
 
@@ -251,7 +251,7 @@ defmodule TuistWeb.TestRunsLive do
           %{
             dates: failed_test_runs_analytics.dates,
             values: failed_test_runs_analytics.values,
-            name: gettext("Failed run count"),
+            name: dgettext("dashboard_tests", "Failed run count"),
             value_formatter: "{value}"
           }
 
@@ -259,16 +259,16 @@ defmodule TuistWeb.TestRunsLive do
           {values, name} =
             case selected_duration_type do
               "p99" ->
-                {test_runs_duration_analytics.p99_values, gettext("p99 test run duration")}
+                {test_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test run duration")}
 
               "p90" ->
-                {test_runs_duration_analytics.p90_values, gettext("p90 test run duration")}
+                {test_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test run duration")}
 
               "p50" ->
-                {test_runs_duration_analytics.p50_values, gettext("p50 test run duration")}
+                {test_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test run duration")}
 
               _ ->
-                {test_runs_duration_analytics.values, gettext("Avg. test run duration")}
+                {test_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test run duration")}
             end
 
           %{
@@ -297,20 +297,20 @@ defmodule TuistWeb.TestRunsLive do
   defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
   defp analytics_environment_label("any") do
-    gettext("Any")
+    dgettext("dashboard_tests", "Any")
   end
 
   defp analytics_environment_label("local") do
-    gettext("Local")
+    dgettext("dashboard_tests", "Local")
   end
 
   defp analytics_environment_label("ci") do
-    gettext("CI")
+    dgettext("dashboard_tests", "CI")
   end
 
   defp date_range(params) do

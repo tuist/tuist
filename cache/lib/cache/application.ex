@@ -18,6 +18,7 @@ defmodule Cache.Application do
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.KeyValueStore,
+      Cache.MultipartUploads,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},

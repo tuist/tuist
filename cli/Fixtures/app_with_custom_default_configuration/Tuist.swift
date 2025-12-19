@@ -1,7 +1,9 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    generationOptions: .options(
-        defaultConfiguration: "Release"
+    project: .tuist(
+        generationOptions: .options(
+            defaultConfiguration: "Release"
+        )
     )
 )

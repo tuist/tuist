@@ -16,7 +16,7 @@ defmodule TuistWeb.GenerateRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Generate Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_builds", "Generate Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -251,7 +251,7 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "name",
         field: :name,
-        display_name: gettext("Command"),
+        display_name: dgettext("dashboard_builds", "Command"),
         type: :text,
         operator: :=~,
         value: ""
@@ -259,12 +259,12 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
         options: [0, 1],
         options_display_names: %{
-          0 => gettext("Passed"),
-          1 => gettext("Failed")
+          0 => dgettext("dashboard_builds", "Passed"),
+          1 => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
@@ -272,7 +272,7 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_builds", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -280,7 +280,7 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "hit_rate",
         field: :hit_rate,
-        display_name: gettext("Hit rate"),
+        display_name: dgettext("dashboard_builds", "Hit rate"),
         type: :percentage,
         operator: :>,
         value: ""
@@ -296,7 +296,7 @@ defmodule TuistWeb.GenerateRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_builds", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:

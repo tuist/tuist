@@ -15,7 +15,7 @@ defmodule TuistWeb.ModuleCacheLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    socket = assign(socket, :head_title, "#{gettext("Module Cache")} · #{slug} · Tuist")
+    socket = assign(socket, :head_title, "#{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -122,7 +122,7 @@ defmodule TuistWeb.ModuleCacheLive do
           %{
             dates: hits_analytics.dates,
             values: hits_analytics.values,
-            name: gettext("Cache hits"),
+            name: dgettext("dashboard_cache", "Cache hits"),
             value_formatter: "{value}"
           }
 
@@ -130,7 +130,7 @@ defmodule TuistWeb.ModuleCacheLive do
           %{
             dates: misses_analytics.dates,
             values: misses_analytics.values,
-            name: gettext("Cache misses"),
+            name: dgettext("dashboard_cache", "Cache misses"),
             value_formatter: "{value}"
           }
 
@@ -138,7 +138,7 @@ defmodule TuistWeb.ModuleCacheLive do
           %{
             dates: hit_rate_analytics.dates,
             values: hit_rate_analytics.values,
-            name: gettext("Cache hit rate"),
+            name: dgettext("dashboard_cache", "Cache hit rate"),
             value_formatter: "{value}%"
           }
       end
@@ -227,9 +227,9 @@ defmodule TuistWeb.ModuleCacheLive do
   defp start_date("last_30_days"), do: Date.add(Date.utc_today(), -30)
   defp start_date("last_7_days"), do: Date.add(Date.utc_today(), -7)
 
-  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
-  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
-  defp analytics_trend_label(_), do: gettext("since last month")
+  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
+  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]
@@ -251,9 +251,9 @@ defmodule TuistWeb.ModuleCacheLive do
     end
   end
 
-  defp environment_label("any"), do: gettext("Any")
-  defp environment_label("local"), do: gettext("Local")
-  defp environment_label("ci"), do: gettext("CI")
+  defp environment_label("any"), do: dgettext("dashboard_cache", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
 
   defp combined_module_cache_analytics(project_id, opts) do
     queries = [

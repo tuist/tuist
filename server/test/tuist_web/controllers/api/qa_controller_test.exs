@@ -160,7 +160,7 @@ defmodule TuistWeb.API.QAControllerTest do
           scopes: ["project:qa_step:create"]
         })
 
-      non_existent_run_id = Ecto.UUID.generate()
+      non_existent_run_id = UUIDv7.generate()
 
       # When
       conn =
@@ -269,7 +269,7 @@ defmodule TuistWeb.API.QAControllerTest do
           scopes: ["project:qa_screenshot:create"]
         })
 
-      non_existent_run_id = Ecto.UUID.generate()
+      non_existent_run_id = UUIDv7.generate()
 
       # When
       conn =
@@ -278,7 +278,7 @@ defmodule TuistWeb.API.QAControllerTest do
         |> post(
           ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/screenshots",
           %{
-            "step_id" => Ecto.UUID.generate()
+            "step_id" => UUIDv7.generate()
           }
         )
 
@@ -373,7 +373,7 @@ defmodule TuistWeb.API.QAControllerTest do
           scopes: ["project:qa_step:update"]
         })
 
-      non_existent_step_id = Ecto.UUID.generate()
+      non_existent_step_id = UUIDv7.generate()
 
       # When
       conn =
@@ -509,7 +509,7 @@ defmodule TuistWeb.API.QAControllerTest do
           scopes: ["project:qa_run:update"]
         })
 
-      non_existent_run_id = Ecto.UUID.generate()
+      non_existent_run_id = UUIDv7.generate()
 
       # When
       conn =

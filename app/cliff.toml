@@ -89,16 +89,16 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    # Include commits with (app) scope
-    { message = "^feat\\(app\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\(app\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\(app\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\(app\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\(app\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\(app\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\(app\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\(app\\)", skip = true },
-    { message = "^ci\\(app\\)", skip = true },
+    # Include commits with (app) scope (supports multi-scope like "feat(cache,app)")
+    { message = "^feat\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test\\([^)]*\\bapp\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\([^)]*\\bapp\\b[^)]*\\)", skip = true },
+    { message = "^ci\\([^)]*\\bapp\\b[^)]*\\)", skip = true },
     # Skip any other scoped commits
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]

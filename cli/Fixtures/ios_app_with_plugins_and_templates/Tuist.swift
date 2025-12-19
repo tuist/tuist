@@ -1,3 +1,7 @@
 import ProjectDescription
 
-let tuist = Tuist(plugins: [.local(path: "../LocalPlugin")])
+let tuist = Tuist(
+    project: .tuist(
+        plugins: [.local(path: "../LocalPlugin")]
+    )
+)

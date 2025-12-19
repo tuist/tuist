@@ -124,6 +124,8 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -172,6 +174,8 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -220,6 +224,8 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Authenticate with Tuist
         run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install

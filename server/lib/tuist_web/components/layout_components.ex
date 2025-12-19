@@ -53,7 +53,7 @@ defmodule TuistWeb.LayoutComponents do
   def head_meta_meta_tags(assigns) do
     ~H"""
     <% default_description =
-      gettext("Tuist extends Apple's tools, helping you ship apps that stand out.") %>
+      dgettext("dashboard", "Tuist extends Apple's tools, helping you ship apps that stand out.") %>
     <meta name="description" content={assigns[:head_description] || default_description} />
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />

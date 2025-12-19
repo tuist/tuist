@@ -43,7 +43,7 @@ defmodule Tuist.QA.LaunchArgumentGroupTest do
 
     test "validates name format" do
       attrs = %{
-        project_id: Ecto.UUID.generate(),
+        project_id: UUIDv7.generate(),
         name: "invalid name!",
         value: "--test"
       }
@@ -55,7 +55,7 @@ defmodule Tuist.QA.LaunchArgumentGroupTest do
 
     test "validates name length" do
       attrs = %{
-        project_id: Ecto.UUID.generate(),
+        project_id: UUIDv7.generate(),
         name: String.duplicate("a", 101),
         value: "--test"
       }
@@ -80,7 +80,7 @@ defmodule Tuist.QA.LaunchArgumentGroupTest do
 
     test "enforces project_id is valid" do
       attrs = %{
-        project_id: Ecto.UUID.generate(),
+        project_id: UUIDv7.generate(),
         name: "test-group",
         value: "--test"
       }
@@ -93,7 +93,7 @@ defmodule Tuist.QA.LaunchArgumentGroupTest do
   describe "update_changeset/2" do
     test "updates allowed fields" do
       launch_args_group = %LaunchArgumentGroup{
-        project_id: Ecto.UUID.generate(),
+        project_id: UUIDv7.generate(),
         name: "original",
         value: "--original"
       }
@@ -113,12 +113,12 @@ defmodule Tuist.QA.LaunchArgumentGroupTest do
 
     test "cannot update project_id" do
       launch_args_group = %LaunchArgumentGroup{
-        project_id: Ecto.UUID.generate(),
+        project_id: UUIDv7.generate(),
         name: "test",
         value: "--test"
       }
 
-      changeset = LaunchArgumentGroup.update_changeset(launch_args_group, %{project_id: Ecto.UUID.generate()})
+      changeset = LaunchArgumentGroup.update_changeset(launch_args_group, %{project_id: UUIDv7.generate()})
       assert changeset.valid?
       refute get_change(changeset, :project_id)
     end

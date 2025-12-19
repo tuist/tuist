@@ -198,11 +198,17 @@ struct SetupCacheCommandServiceTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
-        let misePath = temporaryDirectory.appending(
+        let currentMisePath = temporaryDirectory.appending(
             components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
         )
         environment.homeDirectory = temporaryDirectory
-        environment.currentExecutablePathStub = misePath
+        environment.currentExecutablePathStub = currentMisePath
+
+        let expectedBinaryPath = temporaryDirectory.appending(
+            components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
+        )
+        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
+        try await fileSystem.writeText("", at: expectedBinaryPath)
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -223,10 +229,77 @@ struct SetupCacheCommandServiceTests {
             components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
         )
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_miseManagedOldPath() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        let currentMisePath = temporaryDirectory.appending(
+            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
+        )
+        environment.homeDirectory = temporaryDirectory
+        environment.currentExecutablePathStub = currentMisePath
+
         let expectedBinaryPath = temporaryDirectory.appending(
             components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
         )
+        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
+        try await fileSystem.writeText("", at: expectedBinaryPath)
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
         #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_miseManagedFallbackToCurrentPath() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        let currentMisePath = temporaryDirectory.appending(
+            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
+        )
+        environment.homeDirectory = temporaryDirectory
+        environment.currentExecutablePathStub = currentMisePath
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(plistContent.contains(currentMisePath.pathString.replacingOccurrences(of: "/private", with: "")))
     }
 
     @Test(.withMockedEnvironment()) func setupCache_missingFullHandle() async throws {

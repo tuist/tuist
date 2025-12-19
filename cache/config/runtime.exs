@@ -56,6 +56,10 @@ if config_env() == :prod do
     disk_usage_target_percent: Cache.Config.float_env("CAS_DISK_TARGET_PERCENT", 70.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY")
 
+  config :cache, :oban_web_basic_auth,
+    username: System.get_env("OBAN_WEB_USERNAME") || raise("environment variable OBAN_WEB_USERNAME is missing"),
+    password: System.get_env("OBAN_WEB_PASSWORD") || raise("environment variable OBAN_WEB_PASSWORD is missing")
+
   config :cache, :s3, bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing")
 
   config :ex_aws, :s3,

@@ -7,7 +7,7 @@ defmodule TuistWeb.Components.Terminal do
   use Noora
 
   attr :id, :string, required: true
-  attr :title, :string, default: gettext("bash")
+  attr :title, :string, default: dgettext("dashboard", "bash")
   attr :command, :string, required: true
 
   def terminal(assigns) do

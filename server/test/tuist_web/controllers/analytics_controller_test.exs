@@ -1321,7 +1321,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       # Use a random UUID that doesn't exist in the database
-      nonexistent_run_id = Ecto.UUID.generate()
+      nonexistent_run_id = UUIDv7.generate()
       upload_id = "12344"
 
       # The endpoint should construct the object key even without the run existing
@@ -1438,7 +1438,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       # Use a random UUID that doesn't exist in the database
-      nonexistent_run_id = Ecto.UUID.generate()
+      nonexistent_run_id = UUIDv7.generate()
       upload_id = "12344"
       part_number = 3
       upload_url = "https://url.com"

@@ -45,6 +45,7 @@ defmodule Tuist.Runs.Test do
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Runs.Build, foreign_key: :build_run_id, define_field: false
+    has_many :test_case_runs, Tuist.Runs.TestCaseRun, foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
   end

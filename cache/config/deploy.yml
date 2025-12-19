@@ -36,6 +36,8 @@ env:
     - TUIST_CACHE_API_KEY
     - RELEASE_COOKIE
     - GUARDIAN_SECRET_KEY
+    - OBAN_WEB_USERNAME
+    - OBAN_WEB_PASSWORD
 
 volumes:
   - /cas:/cas:rw

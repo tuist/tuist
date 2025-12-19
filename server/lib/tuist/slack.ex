@@ -33,6 +33,8 @@ defmodule Tuist.Slack do
         {:ok, _} -> :ok
         {:error, reason} -> {:error, reason}
       end
+    else
+      :ok
     end
   end
 

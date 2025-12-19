@@ -68,16 +68,16 @@ bir deneyime dönüştürür.
 
 ## Geçiş yapan binlerce yazılımcının arasına katılın
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
+**[Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
 [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
-Spoons](https://bendingspoons.com/), and 100+ other companies** have already
-transformed their Apple platform development with Tuist. Here's what they're
-experiencing:
+Spoons](https://bendingspoons.com/) ve 100’den fazla diğer şirketteki ekipler**
+Apple platformu geliştirmelerini Tuist ile çoktan dönüştürdü. İşte
+deneyimledikleri şeyler:
 
-- **65% faster builds** with intelligent caching
-- **Zero merge conflicts** in Xcode projects
-- **Minutes to seconds** package resolution
-- **Happy developers** who can focus on building features
+- Akıllı önbellekleme ile **%65 daha hızlı derleme**
+- Xcode projelerinde **sıfır merge conflict**
+- Paketlerin çözümlenmesinde**dakikalardan saniyelere**
+- Özelliklerin inşasına odaklanabilen **mutlu geliştiriciler**
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -100,18 +100,18 @@ experiencing:
 </HomeCards>
 
 
-## See Tuist in action
+## Tuist'i iş başında görün
 
-**Learn from real implementations** and get inspired by what's possible when
-your toolchain just works.
+**Gerçek uygulamalardan öğrenin** ve araç setiniz sorunsuz çalıştığında nelerin
+mümkün olabileceğinden ilham alın.
 
 <HomeVideos/>
 
-## Join a thriving community
+## Gelişen bir topluluğa katılın
 
-**Connect with thousands of Apple platform developers** who are shipping better
-apps with Tuist. Get help, share wins, and shape the future of Apple platform
-development.
+Tuist ile daha iyi uygulamalar yayınlayan **binlerce Apple platform
+geliştiricisiyle bağlantı kurun** . Yardım alın, başarılarınızı paylaşın ve
+Apple platform geliştirmelerinin geleceğini şekillendirin.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

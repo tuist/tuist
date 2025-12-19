@@ -31,7 +31,7 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:run, run)
      |> assign(:user, user)
      |> assign(:project, project)
-     |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
+     |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
      |> assign_initial_analytics_state()
      |> assign(:available_filters, define_binary_cache_filters())
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))
@@ -354,13 +354,13 @@ defmodule TuistWeb.RunDetailLive do
       %Filter.Filter{
         id: "binary_cache_hit",
         field: :binary_cache_hit,
-        display_name: gettext("Hit"),
+        display_name: dgettext("dashboard_builds", "Hit"),
         type: :option,
         options: [:local, :remote, :miss],
         options_display_names: %{
-          remote: gettext("Remote"),
-          local: gettext("Local"),
-          miss: gettext("Missed")
+          remote: dgettext("dashboard_builds", "Remote"),
+          local: dgettext("dashboard_builds", "Local"),
+          miss: dgettext("dashboard_builds", "Missed")
         },
         operator: :==,
         value: nil

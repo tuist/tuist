@@ -11,13 +11,13 @@
 
     <.tab_menu_horizontal data-part="tabs">
       <.tab_menu_horizontal_item
-        label={gettext("Projects")}
+        label={dgettext("dashboard", "Projects")}
         selected={@selected_tab == "projects"}
         navigate={~p"/#{@selected_account.name}"}
       />
       <.tab_menu_horizontal_item
         :if={Tuist.Accounts.organization?(@selected_account)}
-        label={gettext("Members")}
+        label={dgettext("dashboard", "Members")}
         selected={@selected_tab == "members"}
         navigate={~p"/#{@selected_account.name}/members"}
       />
@@ -29,7 +29,7 @@
             @selected_account
           ) == :ok
         }
-        label={gettext("Billing")}
+        label={dgettext("dashboard", "Billing")}
         selected={@selected_tab == "billing"}
         navigate={~p"/#{@selected_account.name}/billing"}
       />
@@ -41,7 +41,7 @@
             @selected_account
           ) == :ok
         }
-        label={gettext("Integrations")}
+        label={dgettext("dashboard", "Integrations")}
         selected={@selected_tab == "integrations"}
         navigate={~p"/#{@selected_account.name}/integrations"}
       />
@@ -53,7 +53,7 @@
             @selected_account
           ) == :ok
         }
-        label={gettext("Settings")}
+        label={dgettext("dashboard", "Settings")}
         selected={@selected_tab == "settings"}
         navigate={~p"/#{@selected_account.name}/settings"}
       />

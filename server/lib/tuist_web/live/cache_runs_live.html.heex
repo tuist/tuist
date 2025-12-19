@@ -1,21 +1,21 @@
 <div id="cache-runs">
-  <.card title={gettext("Cache Runs")} icon="schema" data-part="cache-runs">
+  <.card title={dgettext("dashboard_cache", "Cache Runs")} icon="schema" data-part="cache-runs">
     <.card_section data-part="cache-runs-section">
       <div data-part="filters">
         <.dropdown
           id="cache-runs-sort-by"
           label={
             case @cache_runs_sort_by do
-              "duration" -> gettext("Duration")
-              "hit_rate" -> gettext("Hit rate")
-              _ -> gettext("Ran at")
+              "duration" -> dgettext("dashboard_cache", "Duration")
+              "hit_rate" -> dgettext("dashboard_cache", "Hit rate")
+              _ -> dgettext("dashboard_cache", "Ran at")
             end
           }
-          secondary_text={gettext("Sort by:")}
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
         >
           <.dropdown_item
             value="hit_rate"
-            label={gettext("Hit rate")}
+            label={dgettext("dashboard_cache", "Hit rate")}
             patch={cache_runs_dropdown_item_patch_sort("hit_rate", @uri)}
             data-selected={@cache_runs_sort_by == "hit_rate"}
           >
@@ -23,7 +23,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="duration"
-            label={gettext("Duration")}
+            label={dgettext("dashboard_cache", "Duration")}
             patch={cache_runs_dropdown_item_patch_sort("duration", @uri)}
             data-selected={@cache_runs_sort_by == "duration"}
           >
@@ -31,7 +31,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="ran_at"
-            label={gettext("Ran at")}
+            label={dgettext("dashboard_cache", "Ran at")}
             patch={cache_runs_dropdown_item_patch_sort("ran_at", @uri)}
             data-selected={@cache_runs_sort_by == "ran_at"}
           >
@@ -40,7 +40,7 @@
         </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
-          label={gettext("Filter")}
+          label={dgettext("dashboard_cache", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
@@ -61,12 +61,12 @@
             end
           }
         >
-          <:col :let={cache_run} label={gettext("Command")}>
+          <:col :let={cache_run} label={dgettext("dashboard_cache", "Command")}>
             <.text_and_description_cell label={"tuist " <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: "")} />
           </:col>
           <:col
             :let={cache_run}
-            label={gettext("Hit rate")}
+            label={dgettext("dashboard_cache", "Hit rate")}
             patch={@cache_runs_sort_by == "hit_rate" && column_patch_sort(assigns, "hit_rate")}
             icon={
               @cache_runs_sort_by == "hit_rate" &&
@@ -74,7 +74,7 @@
             }
           >
             <.text_cell label={
-              gettext("%{hit_rate}%",
+              dgettext("dashboard_cache", "%{hit_rate}%",
                 hit_rate:
                   if is_nil(cache_run.hit_rate) do
                     0
@@ -88,20 +88,20 @@
           </:col>
           <:col :let={cache_run} label="Status">
             <%= if cache_run.status == :success do %>
-              <.status_badge_cell label={gettext("Passed")} status="success" />
+              <.status_badge_cell label={dgettext("dashboard_cache", "Passed")} status="success" />
             <% else %>
-              <.status_badge_cell label={gettext("Failed")} status="error" />
+              <.status_badge_cell label={dgettext("dashboard_cache", "Failed")} status="error" />
             <% end %>
           </:col>
-          <:col :let={cache_run} label={gettext("Branch")}>
+          <:col :let={cache_run} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell icon="git_branch" label={cache_run.git_branch || "None"} />
           </:col>
-          <:col :let={cache_run} label={gettext("Ran by")}>
+          <:col :let={cache_run} label={dgettext("dashboard_cache", "Ran by")}>
             <.run_ran_by_badge_cell run={cache_run} ran_by_name={cache_run.user_account_name} />
           </:col>
           <:col
             :let={cache_run}
-            label={gettext("Duration")}
+            label={dgettext("dashboard_cache", "Duration")}
             patch={@cache_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
             icon={
               @cache_runs_sort_by == "duration" &&
@@ -110,7 +110,7 @@
           >
             <.text_cell
               label={
-                gettext("%{run_duration}s",
+                dgettext("dashboard_cache", "%{run_duration}s",
                   run_duration:
                     (cache_run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
                 )
@@ -120,7 +120,7 @@
           </:col>
           <:col
             :let={cache_run}
-            label={gettext("Ran at")}
+            label={dgettext("dashboard_cache", "Ran at")}
             patch={@cache_runs_sort_by == "ran_at" && column_patch_sort(assigns, "ran_at")}
             icon={
               @cache_runs_sort_by == "ran_at" &&
@@ -141,7 +141,7 @@
 
       <div :if={Enum.empty?(@cache_runs)} data-part="empty-cache-runs">
         <.empty_card_section
-          title={gettext("No data yet")}
+          title={dgettext("dashboard_cache", "No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/develop/cache"
           data-part="empty-cache-runs-table-card-section"
         >

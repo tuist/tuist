@@ -85,7 +85,7 @@ defmodule Tuist.Accounts.User do
     |> cast(attrs, [:password])
     |> validate_required([:password])
     |> validate_password_strength()
-    |> validate_confirmation(:password, message: gettext("Passwords don't match"))
+    |> validate_confirmation(:password, message: dgettext("dashboard_account", "Passwords don't match"))
     |> encrypt_password()
   end
 

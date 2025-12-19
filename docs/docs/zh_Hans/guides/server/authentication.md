@@ -10,7 +10,8 @@
 To interact with the server, the CLI needs to authenticate the requests using
 [bearer
 authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-The CLI supports authenticating as a user or as a project.
+The CLI supports authenticating as a user, as an account, or using an OIDC
+token.
 
 ## As a user {#as-a-user}
 
@@ -32,33 +33,54 @@ The CLI will automatically look up the credentials when making requests to the
 server. If the access token is expired, the CLI will use the refresh token to
 get a new access token.
 
-## As a project {#as-a-project}
+## OIDC tokens {#oidc-tokens}
 
-In non-interactive environments like continuous integrations', you can't
-authenticate through an interactive flow. For those environments, we recommend
-authenticating as a project by using a project-scoped token:
+For CI environments that support OpenID Connect (OIDC), Tuist can authenticate
+automatically without requiring you to manage long-lived secrets. When running
+in a supported CI environment, the CLI will automatically detect the OIDC token
+provider and exchange the CI-provided token for a Tuist access token.
 
-```bash
-tuist project tokens create
-```
+### Supported CI providers {#supported-ci-providers}
 
-The CLI expects the token to be defined as the environment variable
-`TUIST_TOKEN`, and the `CI=1` environment variable to be set. The CLI will use
-the token to authenticate the requests.
+- GitHub Actions
+- CircleCI
+- Bitrise
 
-::: warning LIMITED SCOPE
+### Setting up OIDC authentication {#setting-up-oidc-authentication}
+
+1. **Connect your repository to Tuist**: Follow the
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
+   guide</LocalizedLink> to connect your GitHub repository to your Tuist
+   project.
+
+2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
+   before any commands that require authentication. The CLI will automatically
+   detect the CI environment and authenticate using OIDC.
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for provider-specific configuration examples.
+
+### OIDC token scopes {#oidc-token-scopes}
+
+OIDC tokens are granted the `ci` scope group, which provides access to all
+projects connected to the repository. See [Scope groups](#scope-groups) for
+details about what the `ci` scope includes.
+
+::: tip SECURITY BENEFITS
 <!-- -->
-The permissions of the project-scoped token are limited to the actions that we
-consider safe for projects to perform from a CI environment. We plan to document
-the permissions that the token has in the future.
+OIDC authentication is more secure than long-lived tokens because:
+- No secrets to rotate or manage
+- Tokens are short-lived and scoped to individual workflow runs
+- Authentication is tied to your repository identity
 <!-- -->
 :::
 
 ## Account tokens {#account-tokens}
 
-For more fine-grained control over permissions in CI environments, you can use
-account tokens. Unlike project tokens, account tokens allow you to specify
-exactly which scopes and projects the token can access.
+For CI environments that don't support OIDC, or when you need fine-grained
+control over permissions, you can use account tokens. Account tokens allow you
+to specify exactly which scopes and projects the token can access.
 
 ### Creating an account token {#creating-an-account-token}
 
@@ -98,6 +120,32 @@ The command accepts the following options:
 | `project:tests:write`    | Upload test results                   |
 | `project:builds:read`    | Read build analytics                  |
 | `project:builds:write`   | Upload build analytics                |
+| `project:runs:read`      | Read command runs                     |
+| `project:runs:write`     | Create and update command runs        |
+
+### Scope groups {#scope-groups}
+
+Scope groups provide a convenient way to grant multiple related scopes with a
+single identifier. When you use a scope group, it automatically expands to
+include all the individual scopes it contains.
+
+| Scope Group | Included Scopes                                                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+
+### Continuous Integration {#continuous-integration}
+
+For CI environments that don't support OIDC, you can create an account token
+with the `ci` scope group to authenticate your CI workflows:
+
+```bash
+tuist account tokens create my-account --scopes ci --name ci
+```
+
+This creates a token with all the scopes needed for typical CI operations
+(cache, previews, bundles, tests, builds, and runs). Store the generated token
+as a secret in your CI environment and set it as the `TUIST_TOKEN` environment
+variable.
 
 ### Managing account tokens {#managing-account-tokens}
 
@@ -115,8 +163,8 @@ tuist account tokens revoke my-account ci-cache-token
 
 ### Using account tokens {#using-account-tokens}
 
-Like project tokens, account tokens are expected to be defined as the
-environment variable `TUIST_TOKEN`:
+Account tokens are expected to be defined as the environment variable
+`TUIST_TOKEN`:
 
 ```bash
 export TUIST_TOKEN=your-account-token
@@ -125,6 +173,7 @@ export TUIST_TOKEN=your-account-token
 ::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
 Use account tokens when you need:
+- Authentication in CI environments that don't support OIDC
 - Fine-grained control over which operations the token can perform
 - A token that can access multiple projects within an account
 - Time-limited tokens that automatically expire

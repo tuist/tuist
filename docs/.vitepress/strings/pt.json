@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell completions"
+                        },
+                        "directories": {
+                            "text": ""
                         }
                     }
                 },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "Best practices"
+                                },
+                                "metadata-tags": {
+                                    "text": ""
                                 }
                             }
                         },
@@ -308,6 +314,9 @@
                                     "text": ""
                                 },
                                 "xcode-cache": {
+                                    "text": ""
+                                },
+                                "module-cache": {
                                     "text": ""
                                 }
                             }
@@ -373,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Continuous integration"
+                        },
+                        "sso": {
+                            "text": ""
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
                         }
                     }
                 },
@@ -383,6 +403,28 @@
                             "text": "Previews"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": ""
+                                },
+                                "installation": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
+                        },
+                        "accounts-and-projects": {
+                            "text": "Accounts and projects"
+                        },
+                        "authentication": {
+                            "text": "Authentication"
+                        }
+                    },
+                    "text": "Server"
                 }
             }
         }

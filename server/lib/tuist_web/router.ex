@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
@@ -18,6 +19,7 @@ defmodule TuistWeb.Router do
 
   pipeline :content_security_policy do
     plug :put_content_security_policy,
+      frame_ancestors: "'self'",
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
       media_src:
@@ -47,6 +49,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -58,6 +61,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -84,6 +88,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -98,6 +103,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -117,6 +123,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug AppsignalAttributionPlug
     plug TuistWeb.RateLimit.Registry
   end
 
@@ -126,10 +133,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug AppsignalAttributionPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug AppsignalAttributionPlug
   end
 
   pipeline :on_premise_api do
@@ -340,6 +349,7 @@ defmodule TuistWeb.Router do
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           post "/:preview_id/icons", PreviewsController, :upload_icon
+          get "/latest", PreviewsController, :latest
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
           delete "/:preview_id", PreviewsController, :delete

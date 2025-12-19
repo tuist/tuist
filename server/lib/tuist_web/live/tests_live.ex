@@ -16,7 +16,7 @@ defmodule TuistWeb.TestsLive do
       socket
       |> assign(
         :head_title,
-        "#{gettext("Tests")} · #{account.name}/#{project.name} · Tuist"
+        "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign_recent_test_runs()
       |> assign_slowest_test_cases()
@@ -245,11 +245,11 @@ defmodule TuistWeb.TestsLive do
   defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
 
-  defp trend_label("last_7_days"), do: gettext("since last week")
-  defp trend_label("last_12_months"), do: gettext("since last year")
-  defp trend_label(_), do: gettext("since last month")
+  defp trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
+  defp trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
+  defp trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp environment_label("any"), do: gettext("Any")
-  defp environment_label("local"), do: gettext("Local")
-  defp environment_label("ci"), do: gettext("CI")
+  defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 end

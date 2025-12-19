@@ -110,6 +110,19 @@ defmodule TuistWeb.TestCasesLiveTest do
       # Then - verify the page loads with the date range param
       assert has_element?(lv, "[data-part='analytics']")
     end
+
+    test "handles invalid sort_by parameter gracefully", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # When - navigate with an invalid sort_by parameter (ran_at instead of last_ran_at)
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?sort_by=ran_at")
+
+      # Then - page should load successfully with default sort
+      assert has_element?(lv, "[data-part='test-cases']")
+    end
   end
 
   defp create_test_run_with_cases(project, account) do

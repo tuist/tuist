@@ -3,6 +3,8 @@ import GRPCCore
 import Mockable
 import OpenAPIRuntime
 import Testing
+import TuistCache
+import TuistHTTP
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -16,6 +18,7 @@ struct KeyValueServiceTests {
     private let getCacheValueService: MockGetCacheValueServicing
     private let nodeStore: MockCASNodeStoring
     private let metadataStore: MockKeyValueMetadataStoring
+    private let serverAuthenticationController: MockServerAuthenticationControlling
     private let fullHandle = "tuist/tuist"
     private let serverURL = URL(string: "https://example.com")!
     private let cacheURL = URL(string: "https://cache.example.com")!
@@ -30,10 +33,15 @@ struct KeyValueServiceTests {
         getCacheValueService = MockGetCacheValueServicing()
         nodeStore = MockCASNodeStoring()
         metadataStore = MockKeyValueMetadataStoring()
+        serverAuthenticationController = MockServerAuthenticationControlling()
 
         given(cacheURLStore)
             .getCacheURL(for: .any)
             .willReturn(URL(string: "https://cache.example.com")!)
+
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(AuthenticationToken.project("mock-token"))
 
         subject = KeyValueService(
             fullHandle: fullHandle,
@@ -42,7 +50,8 @@ struct KeyValueServiceTests {
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
             nodeStore: nodeStore,
-            metadataStore: metadataStore
+            metadataStore: metadataStore,
+            serverAuthenticationController: serverAuthenticationController
         )
     }
 
@@ -64,7 +73,8 @@ struct KeyValueServiceTests {
                 entries: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
-                authenticationURL: .value(URL(string: "https://example.com")!)
+                authenticationURL: .value(URL(string: "https://example.com")!),
+                serverAuthenticationController: .any
             )
             .willReturn()
 
@@ -84,7 +94,8 @@ struct KeyValueServiceTests {
                 entries: .value(["key1": valueData.base64EncodedString()]),
                 fullHandle: .any,
                 serverURL: .any,
-                authenticationURL: .any
+                authenticationURL: .any,
+                serverAuthenticationController: .any
             )
             .called(1)
 
@@ -112,7 +123,14 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(expectedError)
 
         // When
@@ -134,11 +152,9 @@ struct KeyValueServiceTests {
 
         let context = ServerContext.test()
 
-        let mockResponse = Operations.getCacheValue.Output.Ok.Body.jsonPayload(
+        let mockResponse = KeyValueResponse(
             entries: [
-                Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload(
-                    value: Data(valueData.utf8).base64EncodedString()
-                ),
+                KeyValueEntry(value: Data(valueData.utf8).base64EncodedString()),
             ]
         )
 
@@ -147,7 +163,8 @@ struct KeyValueServiceTests {
                 casId: .any,
                 fullHandle: .any,
                 serverURL: .any,
-                authenticationURL: .any
+                authenticationURL: .any,
+                serverAuthenticationController: .any
             )
             .willReturn(mockResponse)
 
@@ -187,7 +204,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn(nil)
 
         given(metadataStore)
@@ -220,7 +243,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(expectedError)
 
         given(metadataStore)
@@ -246,7 +275,7 @@ struct KeyValueServiceTests {
     func putValue_when_client_error_with_auth_error() async throws {
         // Given
         let key = Data("0test-key".utf8)
-        let authError = ServerClientAuthenticationError.notAuthenticated
+        let authError = ClientAuthenticationError.notAuthenticated
         let clientError = ClientError(
             operationID: "putCacheValue",
             operationInput: "",
@@ -260,7 +289,14 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(clientError)
 
         // When
@@ -283,7 +319,13 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willThrow(genericError)
 
         given(metadataStore)
@@ -317,7 +359,14 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn()
 
         given(nodeStore)
@@ -357,16 +406,20 @@ struct KeyValueServiceTests {
 
         let context = ServerContext.test()
 
-        let mockResponse = Operations.getCacheValue.Output.Ok.Body.jsonPayload(
+        let mockResponse = KeyValueResponse(
             entries: [
-                Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload(
-                    value: compileJobResultEntry.base64EncodedString()
-                ),
+                KeyValueEntry(value: compileJobResultEntry.base64EncodedString()),
             ]
         )
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn(mockResponse)
 
         given(nodeStore)
@@ -408,7 +461,14 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn()
 
         // Configure node store to fail
@@ -452,7 +512,14 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
             .willReturn()
 
         given(nodeStore)

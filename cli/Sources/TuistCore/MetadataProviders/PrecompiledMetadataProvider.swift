@@ -50,6 +50,8 @@ public protocol PrecompiledMetadataProviding {
 /// - https://opensource.apple.com/source/cctools/cctools-809/misc/lipo.c
 /// - https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
+    public init() {}
+
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let metadata = try readMetadatas(binaryPath: binaryPath)
         return metadata.map(\.0)

@@ -56,7 +56,7 @@ defmodule Cache.AuthenticationTest do
 
       result = Authentication.ensure_project_accessible(conn, "account", "project")
 
-      assert result == {:error, 404, "Unauthorized or not found"}
+      assert result == {:error, 403, "You don't have access to this project"}
     end
 
     test "returns error when server returns 401" do
@@ -76,7 +76,7 @@ defmodule Cache.AuthenticationTest do
 
       result = Authentication.ensure_project_accessible(conn, "account", "project")
 
-      assert result == {:error, 404, "Unauthorized or not found"}
+      assert result == {:error, 403, "You don't have access to this project"}
     end
 
     test "handles other server error status codes" do
@@ -154,7 +154,7 @@ defmodule Cache.AuthenticationTest do
       cache_key = {generate_cache_key(@test_auth_header), "account/project"}
       {:ok, cached_result} = Cachex.get(@cache_name, cache_key)
 
-      assert cached_result == {:error, 404, "Unauthorized or not found"}
+      assert cached_result == {:error, 403, "You don't have access to this project"}
     end
 
     test "different auth headers have different cache keys" do
@@ -266,11 +266,11 @@ defmodule Cache.AuthenticationTest do
 
       result = Authentication.ensure_project_accessible(conn, "nonexistent", "project")
 
-      assert result == {:error, 404, "Unauthorized or not found"}
+      assert result == {:error, 403, "You don't have access to this project"}
 
       cache_key = {generate_cache_key(auth_header), "nonexistent/project"}
       {:ok, cached_result} = Cachex.get(@cache_name, cache_key)
-      assert cached_result == {:error, 404, "Unauthorized or not found"}
+      assert cached_result == {:error, 403, "You don't have access to this project"}
     end
 
     test "falls back to API call when JWT verification fails" do
