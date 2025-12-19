@@ -361,10 +361,12 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:failed_builds_count, failed_builds_count)
   end
 
+  defp start_date("last-24-hours"), do: Date.add(DateTime.utc_now(), -1)
   defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
   defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
 
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_builds", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_builds", "since last period")

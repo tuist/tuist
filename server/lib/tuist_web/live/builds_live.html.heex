@@ -119,6 +119,11 @@
         on_value_change="analytics_date_range_changed"
         presets={[
           %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
             id: "last-7-days",
             label: dgettext("dashboard_builds", "Last 7 days"),
             period: {7, :day}
@@ -335,9 +340,12 @@
                 formatter: "fn:formatSeconds"
               }
             },
-            tooltip: %{
-              valueFormat: "fn:formatSeconds"
-            }
+            tooltip:
+              if @analytics_date_range == "last-24-hours" do
+                %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatSeconds"}
+              end
           }
         }
         series={[
@@ -438,7 +446,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_date_range == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -496,7 +510,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_date_range == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -552,9 +572,12 @@
             legend: %{
               show: false
             },
-            tooltip: %{
-              valueFormat: "{value}%"
-            }
+            tooltip:
+              if @analytics_date_range == "last-24-hours" do
+                %{valueFormat: "{value}%", dateFormat: "hour"}
+              else
+                %{valueFormat: "{value}%"}
+              end
           }
         }
         series={[
@@ -630,6 +653,11 @@
         name="configuration-insights-date-range"
         on_value_change="configuration_insights_date_range_changed"
         presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
           %{
             id: "last-7-days",
             label: dgettext("dashboard_builds", "Last 7 days"),
@@ -714,9 +742,12 @@
             legend: %{
               show: false
             },
-            tooltip: %{
-              valueFormat: "fn:formatMilliseconds"
-            }
+            tooltip:
+              if @configuration_insights_date_range == "last-24-hours" do
+                %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatMilliseconds"}
+              end
           }
         }
         series={[

@@ -37,6 +37,11 @@
         on_value_change="analytics_date_range_changed"
         presets={[
           %{
+            id: "last_24_hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
             id: "last_7_days",
             label: dgettext("dashboard_tests", "Last 7 days"),
             period: {7, :day}
@@ -229,9 +234,12 @@
                 formatter: "fn:formatMilliseconds"
               }
             },
-            tooltip: %{
-              valueFormat: "fn:formatMilliseconds"
-            }
+            tooltip:
+              if @analytics_date_range == "last_24_hours" do
+                %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatMilliseconds"}
+              end
           }
         }
         series={[
@@ -328,7 +336,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_date_range == "last_24_hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -386,7 +400,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_date_range == "last_24_hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -459,6 +479,11 @@
         name="selective_testing_date_range"
         on_value_change="selective_testing_date_range_changed"
         presets={[
+          %{
+            id: "last_24_hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
           %{
             id: "last_7_days",
             label: dgettext("dashboard_tests", "Last 7 days"),
@@ -568,9 +593,12 @@
               },
               axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
             },
-            tooltip: %{
-              valueFormat: "{value}%"
-            }
+            tooltip:
+              if @selective_testing_date_range == "last_24_hours" do
+                %{valueFormat: "{value}%", dateFormat: "hour"}
+              else
+                %{valueFormat: "{value}%"}
+              end
           }
         }
         series={[

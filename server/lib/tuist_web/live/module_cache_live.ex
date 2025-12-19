@@ -257,10 +257,12 @@ defmodule TuistWeb.ModuleCacheLive do
     end
   end
 
+  defp start_date("last_24_hours"), do: Date.add(Date.utc_today(), -1)
   defp start_date("last_12_months"), do: Date.add(Date.utc_today(), -365)
   defp start_date("last_30_days"), do: Date.add(Date.utc_today(), -30)
   defp start_date("last_7_days"), do: Date.add(Date.utc_today(), -7)
 
+  defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_cache", "since yesterday")
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")

@@ -332,10 +332,12 @@ defmodule TuistWeb.TestRunsLive do
     |> assign(:uri, uri)
   end
 
+  defp start_date("last_24_hours"), do: Date.add(DateTime.utc_now(), -1)
   defp start_date("last_12_months"), do: Date.add(DateTime.utc_now(), -365)
   defp start_date("last_30_days"), do: Date.add(DateTime.utc_now(), -30)
   defp start_date("last_7_days"), do: Date.add(DateTime.utc_now(), -7)
 
+  defp analytics_trend_label("last_24_hours"), do: dgettext("dashboard_tests", "since yesterday")
   defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_tests", "since last week")
   defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_tests", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")

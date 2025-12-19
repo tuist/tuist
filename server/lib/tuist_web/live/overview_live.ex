@@ -214,6 +214,7 @@ defmodule TuistWeb.OverviewLive do
 
     start_date =
       case builds_date_range do
+        "last_24_hours" -> Date.add(DateTime.utc_now(), -1)
         "last_12_months" -> Date.add(DateTime.utc_now(), -365)
         "last_30_days" -> Date.add(DateTime.utc_now(), -30)
         "last_7_days" -> Date.add(DateTime.utc_now(), -7)
