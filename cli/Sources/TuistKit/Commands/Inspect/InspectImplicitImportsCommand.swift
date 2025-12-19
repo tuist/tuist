@@ -19,7 +19,12 @@ struct InspectImplicitImportsCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        AlertController.current.warning(.alert("The 'tuist inspect implicit-imports' command is deprecated. Use 'tuist inspect dependencies --only implicit' instead."))
+        AlertController.current
+            .warning(
+                .alert(
+                    "The 'tuist inspect implicit-imports' command is deprecated. Use 'tuist inspect dependencies --only implicit' instead."
+                )
+            )
 
         try await InspectDependenciesCommandService()
             .run(path: path, inspectionTypes: [.implicit])
