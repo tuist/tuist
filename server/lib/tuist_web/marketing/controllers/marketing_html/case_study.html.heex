@@ -29,25 +29,24 @@
     </header>
 
     <section data-part="metadata">
-      <header data-part="header">
-        {dgettext("marketing", "What %{company} does...", company: @case_study.company)}
-      </header>
       <main data-part="content">
         <div data-part="entry">
-          <span>{@case_study.company}</span>
-          <.link href={@case_study.url}>
+          <span data-part="label">{@case_study.company}</span>
+          <.link data-part="value" href={@case_study.url} target="_blank">
             {@case_study.url |> URI.parse() |> Map.get(:host)}
             <.external_link aria-hidden="true" />
             <span class="sr-only">{dgettext("marketing", "(opens in new tab)")}</span>
           </.link>
         </div>
         <div data-part="entry">
-          <span>{dgettext("marketing", "Founded")}</span>
-          <span>{@case_study.founded_date}</span>
+          <span data-part="label">{dgettext("marketing", "Founded")}</span>
+          <span data-part="value">{@case_study.founded_date}</span>
         </div>
         <div data-part="entry">
-          <span>{dgettext("marketing", "Onboarded")}</span>
-          <span>{Timex.format!(@case_study.onboarded_date, "{Mfull} {YYYY}")}</span>
+          <span data-part="label">{dgettext("marketing", "Onboarded")}</span>
+          <span data-part="value">
+            {Timex.format!(@case_study.onboarded_date, "{Mfull} {YYYY}")}
+          </span>
         </div>
       </main>
     </section>

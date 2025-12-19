@@ -11,7 +11,7 @@
     <header data-part="header">
       <img data-part="logo" src={~p"/marketing/images/case-studies/logo.webp"} alt="" />
       <h1 data-part="title">
-        {dgettext("marketing", "Case Studies,")}
+        {dgettext("marketing", "Case Studies")}
       </h1>
       <p data-part="description">
         {dgettext(
@@ -33,24 +33,6 @@
             show_suffix={false}
           />
         </form>
-        <.button
-          variant="secondary"
-          icon_only={true}
-          size="large"
-          aria-label={dgettext("marketing", "RSS feed")}
-          href={~p"/case-studies/rss.xml"}
-        >
-          <.rss aria-hidden="true" />
-        </.button>
-        <.button
-          variant="secondary"
-          icon_only={true}
-          size="large"
-          aria-label={dgettext("marketing", "Atom feed")}
-          href={~p"/case-studies/atom.xml"}
-        >
-          <.atom aria-hidden="true" />
-        </.button>
       </div>
     </section>
 

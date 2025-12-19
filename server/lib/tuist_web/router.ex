@@ -164,10 +164,6 @@ defmodule TuistWeb.Router do
 
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
-    get "/case-studies/rss.xml", MarketingController, :case_studies_rss, metadata: %{type: :marketing}
-
-    get "/case-studies/atom.xml", MarketingController, :case_studies_atom, metadata: %{type: :marketing}
-
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
