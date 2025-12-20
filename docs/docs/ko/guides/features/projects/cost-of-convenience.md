@@ -5,141 +5,100 @@
   "description": "Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it."
 }
 ---
-# The cost of convenience {#the-cost-of-convenience}
+# 편리함의 대가 {#the-cost-of-convenience}
 
-Designing a code editor that the spectrum **from small to large-scale projects
-can use** is a challenging task. Many tools approach the problem by layering
-their solution and providing extensibility. The bottom-most layer is very
-low-level and close to the underlying build system, and the top-most layer is a
-high-level abstraction that's convenient to use but less flexible. By doing so,
-they make the simple things easy, and everything else possible.
+소규모 프로젝트부터 대규모 프로젝트까지 다양한 범위( **)에서 사용할 수 있는 코드 편집기(** )를 설계하는 것은 쉽지 않은 작업입니다.
+많은 도구가 솔루션을 계층화하고 확장성을 제공하는 방식으로 이 문제에 접근합니다. 가장 아래층은 매우 낮은 수준으로 기본 빌드 시스템에 가깝고,
+가장 위층은 높은 수준의 추상화로 사용하기는 편리하지만 유연성은 떨어집니다. 이렇게 함으로써 간단한 것은 쉽게, 그 외의 모든 것은 가능하게
+만듭니다.
 
-However, **[Apple](https://www.apple.com) decided to take a different approach
-with Xcode**. The reason is unknown, but it's likely that optimizing for the
-challenges of large-scale projects has never been their goal. They overinvested
-in convenience for small projects, provided little flexibility, and strongly
-coupled the tools with the underlying build system. To achieve the convenience,
-they provide sensible defaults, which you can easily replace, and added a lot of
-implicit build-time-resolved behaviors that are the culprit of many issues at
-scale.
+그러나 **[Apple](https://www.apple.com)은 Xcode** 를 사용하여 다른 접근 방식을 취하기로 결정했습니다. 이유는
+알 수 없지만 대규모 프로젝트의 문제를 최적화하는 것이 그들의 목표가 아니었기 때문일 가능성이 높습니다. 소규모 프로젝트의 편의성에 과도하게
+투자하고, 유연성을 거의 제공하지 않았으며, 툴을 기본 빌드 시스템과 강력하게 결합시켰기 때문입니다. 편의성을 위해 쉽게 바꿀 수 있는 합리적인
+기본값을 제공하고, 대규모 프로젝트에서 많은 문제의 원인이 되는 빌드 시간에 해결되는 암시적 동작을 많이 추가했습니다.
 
-## Explicitness and scale {#explicitness-and-scale}
+## 설명성 및 규모 {#explicitness-and-scale}
 
-When working at scale, **explicitness is key**. It allows the build system to
-analyze and understand the project structure and dependencies ahead of time, and
-perform optimizations that would be impossible otherwise. The same explicitness
-is also key in ensuring that editor features such as [SwiftUI
-previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-or [Swift
-Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/)
-work reliably and predictably. Because Xcode and Xcode projects embraced
-implicitness as a valid design choice to achieve convenience, a principle that
-the Swift Package Manager has inherited, the difficulties of using Xcode are
-also present in the Swift Package Manager.
+대규모로 작업할 때는 **명시성이 핵심입니다**. 이를 통해 빌드 시스템은 프로젝트 구조와 종속성을 미리 분석하고 이해하여 다른 방법으로는
+불가능한 최적화를 수행할 수 있습니다. 동일한 명시성은 [SwiftUI
+미리보기](https://developer.apple.com/documentation/swiftui/previews-in-xcode) 또는
+[Swift
+매크로](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/)와
+같은 에디터 기능이 안정적이고 예측 가능하게 작동하도록 보장하는 데에도 핵심입니다. Xcode와 Xcode 프로젝트는 편의성을 달성하기 위한
+유효한 디자인 선택으로 암시성을 받아들였고, 이는 Swift 패키지 관리자도 그 원칙을 이어받았기 때문에 Xcode 사용의 어려움은 Swift
+패키지 관리자에도 존재합니다.
 
-::: info THE ROLE OF TUIST
+::: info 튜이스트의 역할
 <!-- -->
-We could summarize Tuist's role as a tool that prevents implicitly-defined
-projects and leverages explicitness to provide a better developer experience
-(e.g. validations, optimizations). Tools like [Bazel](https://bazel.build) take
-it further by bringing it down to the build system level.
+튜이스트의 역할은 암시적으로 정의된 프로젝트를 방지하고 명시성을 활용하여 더 나은 개발자 경험(예: 검증, 최적화)을 제공하는 도구로 요약할 수
+있습니다. Bazel](https://bazel.build)과 같은 도구는 빌드 시스템 수준까지 내려가서 한 단계 더 발전시킵니다.
 <!-- -->
 :::
 
-This is an issue that's barely discussed in the community, but it's a
-significant one. While working on Tuist, we've noticed many organizations and
-developers thinking that the current challenges they face will be addressed by
-the [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/), but what they
-don't realize is that because it's building on the same principles, even though
-it mitigates the so well-known Git conflicts, they degrade the developer
-experience in other areas and continue to make the projects non-optimizable.
+이것은 커뮤니티에서 거의 논의되지 않는 문제이지만 중요한 문제입니다. 튜이스트에서 작업하면서 많은 조직과 개발자가 현재 직면한 문제가
+[Swift 패키지 관리자](https://www.swift.org/documentation/package-manager/)로 해결될 것이라고
+생각하는 것을 보았습니다. 그러나 그들이 깨닫지 못하는 것은 동일한 원칙에 기반하고 있기 때문에 잘 알려진 Git 충돌을 완화하더라도 다른
+영역의 개발자 경험을 저하시키고 프로젝트를 계속 최적화할 수 없게 만든다는 사실입니다.
 
-In the following sections, we'll discuss some real examples of how implicitness
-affects the developer experience and the project's health. The list is not
-exhaustive, but it should give you a good idea of the challenges that you might
-face when working with Xcode projects or Swift Packages.
+다음 섹션에서는 암시성이 개발자 경험과 프로젝트의 상태에 미치는 영향에 대한 몇 가지 실제 사례를 살펴보겠습니다. 이 목록이 전부는 아니지만
+Xcode 프로젝트 또는 Swift 패키지로 작업할 때 직면할 수 있는 문제에 대한 좋은 아이디어를 얻을 수 있을 것입니다.
 
-## Convenience getting in your way {#convenience-getting-in-your-way}
+## 방해가 되는 편의성 {#convenience-getting-in-your-way}
 
-### Shared built products directory {#shared-built-products-directory}
+### 공유 빌드 제품 디렉터리 {#shared-built-products-directory}
 
-Xcode uses a directory inside the derived data directory for each product.
-Inside it, it stores the build artifacts, such as the compiled binaries, the
-dSYM files, and the logs. Because all the products of a project go into the same
-directory, which is visible by default from other targets to link against, **you
-might end up with targets that implicitly depend on each other.** While this
-might not be a problem when having just a few targets, it might manifest as
-failing builds that are hard to debug when the project grows.
+Xcode는 각 제품에 대해 파생된 데이터 디렉터리 내부의 디렉터리를 사용합니다. 이 디렉터리에는 컴파일된 바이너리, dSYM 파일 및 로그와
+같은 빌드 아티팩트가 저장됩니다. 프로젝트의 모든 제품은 기본적으로 링크할 다른 대상에서 볼 수 있는 동일한 디렉토리( **)에 들어가기 때문에
+서로 암시적으로 의존하는 대상이 생길 수 있습니다.** 타깃이 몇 개만 있을 때는 문제가 되지 않을 수 있지만, 프로젝트가 커지면 디버깅하기
+어려운 빌드 실패로 나타날 수 있습니다.
 
-The consequence of this design decision is that many projects acidentally
-compile with a graph that is not well-defined.
+이러한 설계 결정의 결과로 많은 프로젝트가 실수로 잘 정의되지 않은 그래프로 컴파일됩니다.
 
-::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
+팁 암시적 종속성 탐지::: 암시적 종속성 탐지 팁
 <!-- -->
-Tuist provides a
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>
-to detect implicit dependencies. You can use the command to validate in CI that
-all your dependencies are explicit.
+튜이스트는 암시적 종속성을 감지하는
+<LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>를
+제공합니다. 이 명령을 사용하여 모든 종속성이 명시적인지 CI에서 확인할 수 있습니다.
 <!-- -->
 :::
 
-### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
+### 스키마에서 암시적 종속성 찾기 {#find-implicit-dependencies-in-schemes}
 
-Defining and maintaining a dependency graph in Xcode gets harder as the project
-grows. It's hard because they are codified in the `.pbxproj` files as build
-phases and build settings, there are no tools to visualize and work with the
-graph, and the changes in the graph (e.g. adding a new dynamic precompiled
-framework), might require configuration changes upstream (e.g. adding a new
-build phase to copy the framework into the bundle).
+프로젝트가 커질수록 Xcode에서 종속성 그래프를 정의하고 유지 관리하는 것은 점점 더 어려워집니다. 그래프가 빌드 단계 및 빌드 설정으로
+`.pbxproj` 파일에 코드화되어 있고, 그래프를 시각화하고 작업할 수 있는 도구가 없으며, 그래프를 변경(예: 새로운 동적 사전 컴파일된
+프레임워크 추가)하면 업스트림에서 구성 변경(예: 프레임워크를 번들에 복사하기 위해 새로운 빌드 단계 추가)이 필요할 수 있기 때문에
+어렵습니다.
 
-Apple decided at some point that instead of evolving the graph model into
-something more manageable, it'd make more sense to add an option to resolve
-implicit dependencies at build time. This is once again a questionable design
-choice because you might end up with slower build times or unpredictable builds.
-For example, a build might pass locally due to some state in derive data, which
-acts as a [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), but then
-fail to compile on CI because the state is different.
+Apple은 어느 시점에서 그래프 모델을 더 관리하기 쉬운 것으로 발전시키는 대신 빌드 시점에 암시적 종속성을 해결하는 옵션을 추가하는 것이 더
+합리적이라고 결정했습니다. 이는 빌드 시간이 느려지거나 예측할 수 없는 빌드가 발생할 수 있기 때문에 다시 한 번 의심스러운 설계 선택입니다.
+예를 들어, [싱글톤](https://en.wikipedia.org/wiki/Singleton_pattern)으로 작동하는 파생 데이터의 일부
+상태로 인해 빌드가 로컬로 전달되지만 상태가 달라서 CI에서 컴파일되지 않을 수 있습니다.
 
 ::: tip
 <!-- -->
-We recommend disabling this in your project schemes, and use like Tuist that
-eases the management of the dependency graph.
+프로젝트 구성표에서 이 기능을 비활성화하고, 종속성 그래프 관리를 용이하게 해주는 Tuist와 같은 도구를 사용하는 것이 좋습니다.
 <!-- -->
 :::
 
-### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
+### SwiftUI 프리뷰 및 정적 라이브러리/프레임워크 {#swiftui-previews-and-static-librariesframeworks}
 
-Some editor features like SwiftUI Previews or Swift Macros require the
-compilation of the dependency graph from the file that's being edited. This
-integration between the editor requires that the build system resolves any
-implicitness and output the right artifacts that are necessary for those
-features to work. As you can imagine, **the more implicit the graph is, the more
-challenging the task is for the build system**, and therefore it's not
-surprising that many of these features don't work reliably. We often hear from
-developers that they stopped using SwiftUI previews long time ago because they
-were too unreliable. Instead, they are using either example apps, or avoiding
-certaing things, like the usage of static libraries or script build phases,
-because they cause the feature to break.
+SwiftUI 미리보기 또는 Swift 매크로와 같은 일부 에디터 기능은 편집 중인 파일에서 종속성 그래프를 컴파일해야 합니다. 에디터 간의
+이러한 통합을 위해서는 빌드 시스템이 모든 암시성을 해결하고 해당 기능이 작동하는 데 필요한 올바른 아티팩트를 출력해야 합니다. **그래프에
+암시성이 많을수록 빌드 시스템(**)의 작업은 더 어려워지므로 이러한 기능 중 상당수가 안정적으로 작동하지 않는 것은 놀라운 일이 아닙니다.
+개발자들로부터 너무 불안정해서 오래 전에 SwiftUI 미리 보기 사용을 중단했다는 이야기를 자주 듣습니다. 대신 예제 앱을 사용하거나 정적
+라이브러리 사용이나 스크립트 빌드 단계와 같이 기능이 중단되는 원인이 될 수 있는 인증 작업을 피하고 있습니다.
 
-### Mergeable libraries {#mergeable-libraries}
+### 병합 가능한 라이브러리 {#mergeable-libraries}
 
-Dynamic frameworks, while more flexible and easier to work with, have a negative
-impact in the launch time of apps. On the other side, static libraries are
-faster to launch, but impact the compilation time and are a bit harder to work
-with, specially in complex graph scenarios. *Wouldn't it be great if you could
-change between one or the other depending on the configuration?* That's what
-Apple must have thought when they decided to work on mergeable libraries. But
-once again, they moved more build-time inference to the build-time. If reasoning
-about a dependency graph, imagine having to do so when the static or dynamic
-nature of the target will be resolved at build-time based on some build settings
-in some targets. Good luck making that work reliably while ensuring features
-like SwiftUI previews don't break.
+동적 프레임워크는 더 유연하고 작업하기 쉽지만 앱 실행 시간에 부정적인 영향을 미칩니다. 반면에 정적 라이브러리는 실행 속도가 빠르지만 컴파일
+시간에 영향을 미치며 특히 복잡한 그래프 시나리오에서 작업하기가 조금 더 어렵습니다. *구성에 따라 둘 중 하나를 선택할 수 있다면 좋지
+않을까요?* 병합 가능한 라이브러리를 개발하기로 결정했을 때 Apple은 그렇게 생각했을 것입니다. 하지만 다시 한 번 빌드 시간 추론을 빌드
+시간으로 옮겼습니다. 종속성 그래프를 추론하는 경우, 일부 대상의 빌드 설정에 따라 대상의 정적 또는 동적 특성이 빌드 시점에 해결될 때 그렇게
+해야 한다고 상상해 보세요. SwiftUI 미리보기와 같은 기능이 중단되지 않도록 하면서 안정적으로 작동하도록 하세요.
 
-**Many users come to Tuist wanting to use mergeable libraries and our answer is
-always the same. You don't need to.** You can control the static or dynamic
-nature of your targets at generation-time leading to a project whose graph is
-known ahead of compilation. No variables need to be resolved at build-time.
+**많은 사용자가 병합 가능한 라이브러리를 사용하고 싶다고 Tuist에 문의하지만 저희는 항상 같은 대답을 합니다. 그럴 필요가 없습니다.**
+생성 시점에 타깃의 정적 또는 동적 특성을 제어하여 컴파일 전에 그래프를 미리 알 수 있는 프로젝트를 만들 수 있습니다. 빌드 시점에 변수를
+해결할 필요가 없습니다.
 
 ```bash
 # The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
@@ -147,45 +106,32 @@ known ahead of compilation. No variables need to be resolved at build-time.
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## Explicit, explicit, and explicit {#explicit-explicit-and-explicit}
+## 명시적, 명시적, 명시적 {#explicit-explicit-and-explicit}
 
-If there's an important non-written principle that we recommend every developer
-or organization that wants their development with Xcode to scale, is that they
-should embrace explicitness. And if explicitness is hard to manage with raw
-Xcode projects, they should consider something else, either
-[Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then
-reliability, predicability, and optimizations will be possible.**
+Xcode로 개발을 확장하고자 하는 모든 개발자나 조직에 권장하는 중요한 비문서적 원칙이 있다면, 바로 명시성을 수용해야 한다는 것입니다.
+그리고 원시 Xcode 프로젝트로 명시성을 관리하기 어렵다면 [Tuist](https://tuist.io) 또는
+[Bazel](https://bazel.build)와 같은 다른 방법을 고려해야 합니다. **그래야만 신뢰성, 예측 가능성 및 최적화가
+가능해집니다.**
 
-## Future {#future}
+## 미래 {#future}
 
-Whether Apple will do something to prevent all the above issues is unknown.
-Their continuous decisions embedded into Xcode and the Swift Package Manager
-don't suggest that they will. Once you allow implicit configuration as a valid
-state, **it's hard to move from there without introducing breaking changes.**
-Going back to first principles and rethinking the design of the tools might lead
-to breaking many Xcode projects that accidentally compiled for years. Imagine
-the community uproar if that happened.
+Apple이 위의 모든 문제를 방지하기 위해 무언가를 할지는 알 수 없습니다. Xcode와 Swift 패키지 관리자에 내장된 그들의 지속적인
+결정은 그들이 그렇게 할 것이라는 것을 시사하지 않습니다. 일단 암시적 구성을 유효한 상태로 허용하고 나면( **), 거기서부터는 획기적인
+변경을 도입하지 않고는 이동하기 어렵습니다.** 첫 번째 원칙으로 돌아가서 도구의 설계를 다시 생각하면 수년 동안 실수로 컴파일한 많은
+Xcode 프로젝트가 깨질 수 있습니다. 그런 일이 발생하면 커뮤니티가 얼마나 혼란스러울지 상상해 보세요.
 
-Apple finds itself in a bit of a chicken-and-egg problem. Convenience is what
-helps developers get started quickly and build more apps for their ecosystem.
-But their decisions to make the experience convenience at that scale, is making
-it hard for them to ensure some of the Xcode features work reliably.
+Apple은 약간의 닭과 달걀 문제에 봉착해 있습니다. 편의성은 개발자가 빠르게 시작하고 생태계를 위해 더 많은 앱을 개발하는 데 도움이
+됩니다. 하지만 그 규모에 맞는 편리한 환경을 만들기 위한 결정으로 인해 일부 Xcode 기능이 안정적으로 작동하는지 확인하기가 어려워지고
+있습니다.
 
-Because the future is unknown, we try to **be as close as possible to the
-industry standards and Xcode projects**. We prevent the above issues, and
-leverage the knowledge that we have to provide a better developer experience.
-Ideally we wouldn't have to resort to project generation for that, but the lack
-of extensibility of Xcode and the Swift Package Manager make it the only viable
-option. And it's also a safe option because they'll have to break the Xcode
-projects to break Tuist projects.
+미래는 알 수 없으므로, 저희는 **업계 표준 및 Xcode 프로젝트** 에 최대한 근접하도록 노력합니다. 이를 통해 위의 문제를 방지하고 더
+나은 개발자 경험을 제공하기 위해 필요한 지식을 활용합니다. 이를 위해 프로젝트 생성에 의존하지 않는 것이 가장 이상적이지만, Xcode와
+Swift 패키지 관리자의 확장성이 부족하기 때문에 유일한 실행 가능한 옵션입니다. 또한 Tuist 프로젝트를 중단하려면 Xcode 프로젝트를
+중단해야 하기 때문에 안전한 옵션이기도 합니다.
 
-Ideally, **the build system was more extensible**, but wouldn't it be a bad idea
-to have plugins/extensions that contract with a world of implicitness? It
-doesn't seem like a good idea. So it seems like we'll need external tools like
-Tuist or [Bazel](https://bazel.build) to provide a better developer experience.
-Or maybe Apple will surprise us all and make Xcode more extensible and
-explicit...
+**빌드 시스템이 더 확장 가능한** 이 이상적이지만, 플러그인/확장 기능이 암시적인 세계와 계약하는 것은 나쁜 생각이 아닐까요? 좋은 생각이
+아닌 것 같습니다. 따라서 더 나은 개발자 경험을 제공하려면 Tuist나 [Bazel](https://bazel.build)과 같은 외부 도구가
+필요할 것 같습니다. 아니면 Apple이 우리 모두를 놀라게 하고 Xcode를 더 확장 가능하고 명시적으로 만들 수도 있겠죠...
 
-Until that happens, you have to choose whether you want to embrace the
-convencience of Xcode and take on the debt that comes with it, or trust us on
-this journey to provide a better developer experience. We won't disappoint you.
+그때까지 Xcode의 편리함을 받아들이고 그에 따른 부담을 감수할 것인지, 아니면 더 나은 개발자 경험을 제공하기 위한 이 여정에서 저희를
+신뢰할 것인지 선택해야 합니다. 실망시키지 않겠습니다.

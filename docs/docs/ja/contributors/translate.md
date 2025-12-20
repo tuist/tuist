@@ -5,59 +5,46 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Translate {#translate}
+# 翻訳する {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is
-accessible to as many people as possible. If you speak a language that Tuist
-doesn't support, you can help us by translating the various surfaces of Tuist.
+言語が理解の障壁になることがあります。私たちは、Tuistができるだけ多くの人にとって利用しやすいものであるようにしたいと考えています。もしあなたがTuistがサポートしていない言語を話すなら、Tuistの様々な面を翻訳することで私たちを助けることができます。
 
-Since maintaining translations is a continuous effort, we add languages as we
-see contributors willing to help us maintain them. The following languages are
-currently supported:
+翻訳を維持することは継続的な努力であるため、私たちは、私たちがそれらを維持するのを助けるために喜んで貢献者を見るように言語を追加します。現在、以下の言語がサポートされています：
 
-- English
-- Korean
-- Japanese
-- Russian
-- Chinese
-- Spanish
-- Portuguese
+- 英語
+- 韓国語
+- 日本語
+- ロシア語
+- 中国語
+- スペイン語
+- ポルトガル語
 
-::: tip REQUEST A NEW LANGUAGE
+::: tip 新しい言語をリクエストする
 <!-- -->
-If you believe Tuist would benefit from supporting a new language, please create
-a new [topic in the community forum](https://community.tuist.io/c/general/4) to
-discuss it with the community.
+Tuistが新しい言語をサポートすることが有益だと思われる場合は、新しい[コミュニティフォーラムのトピック](https://community.tuist.io/c/general/4)を作成してコミュニティと議論してください。
 <!-- -->
 :::
 
-## How to translate {#how-to-translate}
+## どのように翻訳するか{#how-to-translate}
 
-We have an instance of [Weblate](https://weblate.org/en-gb/) running at
-[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
-project](https://translate.tuist.dev/engage/tuist/), create an account, and
-start translating.
+Weblate](https://weblate.org/en-gb/)のインスタンスが[translate.tuist.dev](https://translate.tuist.dev)で動いています。プロジェクト](https://translate.tuist.dev/engage/tuist/)にアクセスしてアカウントを作成し、翻訳を始めることができます。
 
-Translations are synchronized back to the source repository using GitHub pull
-requests which maintainers will review and merge.
+翻訳はGitHubのプルリクエストを使ってソースリポジトリに同期され、メンテナがレビューしてマージする。
 
-::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+::: 警告 対象言語のリソースを変更しないでください。
 <!-- -->
-Weblate segments the files to bind source and target languages. If you modify
-the source language, you'll break the binding, and the reconciliation might
-yield unexpected results.
+Weblateは、ソース言語とターゲット言語をバインドするためにファイルをセグメント化します。ソース言語を変更すると、バインディングが壊れ、リコンシリエーションが予期せぬ結果をもたらすかもしれません。
 <!-- -->
 :::
 
-## Guidelines {#guidelines}
+## ガイドライン
 
-The following are the guidelines we follow when translating.
+以下は、私たちが翻訳を行う際のガイドラインです。
 
-### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+### カスタムコンテナとGitHubアラート{#custom-containers-and-github-alerts}
 
-When translating [custom
-containers](https://vitepress.dev/guide/markdown#custom-containers) only
-translate the title and the content **but not the type of alert**.
+カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers)を翻訳する場合、タイトルとコンテンツ**のみを翻訳しますが、アラートのタイプ**
+は翻訳しません。
 
 ```markdown
 <!-- -->
@@ -68,16 +55,15 @@ translate the title and the content **but not the type of alert**.
 :::
 ```
 
-### Heading titles {#heading-titles}
+### 見出しタイトル {#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example,
-when translating the following heading:
+見出しを翻訳するときは、タイトルだけを翻訳し、idは翻訳しないでください。例えば、以下の見出しを翻訳する場合：
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+と訳すべきである（idは訳されていないことに注意）：
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

@@ -5,50 +5,41 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# Editing {#editing}
+# 編集
 
-Unlike traditional Xcode projects or Swift Packages, where changes are done
-through Xcode's UI, Tuist-managed projects are defined in Swift code contained
-in **manifest files**. If you're familiar with Swift Packages and the
-`Package.swift` file, the approach is very similar.
+変更がXcodeのUIを通して行われる従来のXcodeプロジェクトやSwiftパッケージとは異なり、Tuist管理プロジェクトは、**マニフェストファイル**
+に含まれるSwiftコードで定義されます。もしあなたがSwift Packagesと`Package.swift`
+ファイルに精通しているなら、アプローチは非常に似ています。
 
-You could edit these files using any text editor, but we recommend to use
-Tuist-provided workflow for that, `tuist edit`. The workflow creates an Xcode
-project that contains all manifest files and allows you to edit and compile
-them. Thanks to using Xcode, you get all the benefits of **code completion,
-syntax highlighting, and error checking**.
+任意のテキストエディタを使用してこれらのファイルを編集することができますが、私たちはそのためにTuist-providedワークフロー、`tuist edit`
+を使用することをお勧めします。このワークフローは、すべてのマニフェスト・ファイルを含むXcodeプロジェクトを作成し、それらの編集とコンパイルを可能にします。Xcodeを使用するおかげで、**コード補完、シンタックスハイライト、エラーチェックのすべての利点を得ることができます**
+。
 
-## Edit the project {#edit-the-project}
+## プロジェクトを編集する {#edit-the-project}
 
-To edit your project, you can run the following command in a Tuist project
-directory or a sub-directory:
+プロジェクトを編集するには、Tuistプロジェクトのディレクトリまたはサブディレクトリで次のコマンドを実行します：
 
 ```bash
 tuist edit
 ```
 
-The command creates an Xcode project in a global directory and opens it in
-Xcode. The project includes a `Manifests` directory that you can build to ensure
-all your manifests are valid.
+コマンドは、グローバルディレクトリに Xcode プロジェクトを作成し、Xcode
+で開きます。プロジェクトには、すべてのマニフェストが有効であることを確認するためにビルドできる`Manifests` ディレクトリが含まれています。
 
-::: info GLOB-RESOLVED MANIFESTS
+::: 情報 地球上で解決された遺物
 <!-- -->
-`tuist edit` resolves the manifests to be included by using the glob
-`**/{Manifest}.swift` from the project's root directory (the one containing the
-`Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the
-project.
+`tuist edit` は、プロジェクトのルート・ディレクトリ（`Tuist.swift`
+ファイルを含むディレクトリ）から`**/{Manifest}.swift`
+というグロブを使用して、インクルードするマニフェストを解決します。プロジェクトのルートに有効な`Tuist.swift` があることを確認してください。
 <!-- -->
 :::
 
-### Ignoring manifest files {#ignoring-manifest-files}
+### マニフェストファイルの無視 {#ignoring-manifest-files}
 
-If your project contains Swift files with the same name as manifest files (e.g.,
-`Project.swift`) in subdirectories that are not actual Tuist manifests, you can
-create a `.tuistignore` file at the root of your project to exclude them from
-the editing project.
+あなたのプロジェクトに、実際の Tuist マニフェストではない、マニフェストファイルと同じ名前の Swift ファイル（例:`Project.swift`
+）がサブディレクトリに含まれている場合、`.tuistignore` ファイルをプロジェクトのルートに作成し、編集プロジェクトから除外することができます。
 
-The `.tuistignore` file uses glob patterns to specify which files should be
-ignored:
+`.tuistignore` ファイルは、グロブパターンを使用して、無視するファイルを指定します：
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -58,16 +49,11 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-This is particularly useful when you have test fixtures or example code that
-happens to use the same naming convention as Tuist manifest files.
+これは、Tuistマニフェストファイルと同じ命名規則を使用するテストフィクスチャやサンプルコードがある場合に特に便利です。
 
-## Edit and generate workflow {#edit-and-generate-workflow}
+## ワークフローの編集と生成{#edit-and-generate-workflow}
 
-As you might have noticed, the editing can't be done from the generated Xcode
-project. That's by design to prevent the generated project from having a
-dependency on Tuist, ensuring you can move from Tuist in the future with little
-effort.
+お気づきかもしれないが、編集は生成されたXcodeプロジェクトからはできない。これは生成されたプロジェクトがTuistに依存しないようにするための設計であり、将来Tuistから移行する際に労力をかけずに移行できるようにするためである。
 
-When iterating on a project, we recommend running `tuist edit` from a terminal
-session to get an Xcode project to edit the project, and use another terminal
-session to run `tuist generate`.
+プロジェクトを反復するときは、Xcode プロジェクトを編集するために、ターミナルセッションから`tuist edit`
+を実行し、別のターミナルセッションを使って`tuist generate` を実行することを推奨します。

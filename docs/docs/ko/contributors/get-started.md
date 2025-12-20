@@ -41,8 +41,7 @@ Tuist에 기여하기 위한 최소 요구사항:
 - [Install](https://mise.jdx.dev/getting-started.html) 개발 환경을 맞추기 위한 Mise.
 - Tuist에 필요한 의존성을 설치하기 위해 `mise install` 를 실행하세요
 - Tuist에 필요한 외부 의존성을 설치하기 위해 `tuist install` 를 실행하세요
-- (선택사항) <LocalizedLink href="/guides/features/cache">Tuist Cache에 접근하기 위해
-  `tuist auth login`를 실행하세요</LocalizedLink>
+- (선택사항) <LocalizedLink href="/guides/features/cache">Tuist Cache에 접근하기 위해 `tuist auth login`를 실행하세요</LocalizedLink>
 - Tuist Xcode 프로젝트를 Tuist 스스로 행성 하기 위해 `tuist generate` 를 실행하세요
 
 **생성된 프로젝트는 자동으로 열립니다**. 생성하지 않고 다시 열고 싶으면 `open Tuist.xcworkspace` 를 실행하거나
@@ -55,11 +54,10 @@ Tuist로 만든 프로젝트를 권장 합니다.
 <!-- -->
 :::
 
-## 프로젝트 수정 {#edit-the-project}
+## 프로젝트 편집 {#edit-the-project}
 
 의존성을 추가하거나 Target을 조정하는 등, 프로젝트를 수정해야 한다면,
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit` 명령을 사용할 수
-있습니다</LocalizedLink>. 드물게 사용되지만 알아두면 좋습니다.
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit` 명령을 사용할 수 있습니다</LocalizedLink>. 드물게 사용되지만 알아두면 좋습니다.
 
 ## Tuist 실행 {#run-tuist}
 
@@ -78,7 +76,7 @@ Tuist로 만든 프로젝트를 권장 합니다.
 
 ![Tuist를 실행하기 위한 작업 폴더 설정 예 ](/images/contributors/scheme-working-directory.png)
 
-::: 경고 PROJECTDESCRIPTION 컴파일
+::: warning PROJECTDESCRIPTION 컴파일
 <!-- -->
 `tuist` CLI는 만들어진 products 폴더에 있는 `ProjectDescription` framework에 의존 합니다.
 `ProjectDescription` framework가 없다고 `tuist`가 실행되지 않는다면, `Tuist-Workspace`

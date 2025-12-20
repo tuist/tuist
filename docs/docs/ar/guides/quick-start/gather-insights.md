@@ -5,21 +5,20 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# اجمع الرؤى {#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those
-capabilities is gathering insights about your project and builds. All you need
-is to have an account with a project in the server.
+يمكن أن يتكامل تويست مع خادم لتوسيع قدراته. إحدى هذه الإمكانيات هي جمع رؤى حول
+مشروعك وبنياته. كل ما تحتاجه هو أن يكون لديك حساب بمشروع في الخادم.
 
-First of all, you'll need to authenticate by running:
+أولاً، ستحتاج أولاً إلى المصادقة عن طريق التشغيل:
 
 ```bash
 tuist auth login
 ```
 
-## Create a project {#create-a-project}
+## إنشاء مشروع {#create-a-project}
 
-You can then create a project by running:
+يمكنك بعد ذلك إنشاء مشروع عن طريق تشغيل:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,13 +26,12 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+انسخ `مقبضي/موقعي` ، والذي يمثل المقبض الكامل للمشروع.
 
-## Connect projects {#connect-projects}
+## ربط المشروعات {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your
-local project. Run `tuist edit` and edit the `Tuist.swift` file to include the
-full handle of the project:
+بعد إنشاء المشروع على الخادم، سيكون عليك ربطه بمشروعك المحلي. قم بتشغيل `tuist
+edit` وقم بتحرير ملف `Tuist.swift.swift` لتضمين المقبض الكامل للمشروع:
 
 ```swift
 import ProjectDescription
@@ -41,21 +39,20 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run
-`tuist test` to run the tests reporting the results to the server.
+ها نحن ذا! أنت الآن جاهز لجمع رؤى حول مشروعك وبنياته. قم بتشغيل `اختبار تويست`
+لتشغيل الاختبارات التي تبلغ الخادم بالنتائج.
 
 ::: info
 <!-- -->
-Tuist enqueues the results locally and tries to send them without blocking the
-command. Therefore, they might not be sent immediately after the command
-finishes. In CI, the results are sent immediately.
+يقوم تويست بتخزين النتائج محليًا ويحاول إرسالها دون حظر الأمر. لذلك، قد لا يتم
+إرسالها فور انتهاء الأمر. في CI، يتم إرسال النتائج على الفور.
 <!-- -->
 :::
 
 
-![An image that shows a list of runs in the
-server](/images/guides/quick-start/runs.png)
+![صورة تُظهر قائمة عمليات التشغيل في
+الخادم](/images/guides/quick-start/runs.png)
 
-Having data from your projects and builds is crucial in making informed
-decisions. Tuist will continue to extend its capabilities, and you'll benefit
-from them without having to change your project configuration. Magic, right? 🪄
+إن الحصول على بيانات من مشاريعك وعمليات الإنشاء أمر بالغ الأهمية في اتخاذ قرارات
+مستنيرة. سيستمر Tuist في توسيع قدراته، وستستفيد منها دون الحاجة إلى تغيير تكوين
+مشروعك. سحر، أليس كذلك؟ 🪄
