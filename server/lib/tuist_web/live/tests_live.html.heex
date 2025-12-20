@@ -34,7 +34,6 @@
       <.date_picker
         id="tests-analytics-date-range-picker"
         name="analytics-date-range"
-        on_value_change="analytics_date_range_changed"
         presets={[
           %{
             id: "last-24-hours",
@@ -58,8 +57,9 @@
           },
           %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
         ]}
-        selected_preset={@analytics_date_range}
-        value={@analytics_date_range_value}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
         max={Date.utc_today()}
       >
         <:actions>
@@ -235,7 +235,7 @@
               }
             },
             tooltip:
-              if @analytics_date_range == "last-24-hours" do
+              if @analytics_preset == "last-24-hours" do
                 %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
               else
                 %{valueFormat: "fn:formatMilliseconds"}
@@ -338,7 +338,7 @@
               show: false
             },
             tooltip:
-              if @analytics_date_range == "last-24-hours" do
+              if @analytics_preset == "last-24-hours" do
                 %{dateFormat: "hour"}
               else
                 %{}
@@ -402,7 +402,7 @@
               show: false
             },
             tooltip:
-              if @analytics_date_range == "last-24-hours" do
+              if @analytics_preset == "last-24-hours" do
                 %{dateFormat: "hour"}
               else
                 %{}
@@ -477,7 +477,6 @@
       <.date_picker
         id="selective-testing-date-range-picker"
         name="selective-testing-date-range"
-        on_value_change="selective_testing_date_range_changed"
         presets={[
           %{
             id: "last-24-hours",
@@ -501,8 +500,9 @@
           },
           %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
         ]}
-        selected_preset={@selective_testing_date_range}
-        value={@selective_testing_date_range_value}
+        selected_preset={@selective_testing_preset}
+        period={@selective_testing_period}
+        on_period_change="selective_testing_period_changed"
         max={Date.utc_today()}
       >
         <:actions>
@@ -594,7 +594,7 @@
               axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
             },
             tooltip:
-              if @selective_testing_date_range == "last-24-hours" do
+              if @selective_testing_preset == "last-24-hours" do
                 %{valueFormat: "{value}%", dateFormat: "hour"}
               else
                 %{valueFormat: "{value}%"}

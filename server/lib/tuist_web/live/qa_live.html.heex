@@ -28,7 +28,6 @@
         <.date_picker
           id="qa-analytics-date-range-picker"
           name="analytics-date-range"
-          on_value_change="analytics_date_range_changed"
           presets={[
             %{
               id: "last-24-hours",
@@ -52,8 +51,9 @@
             },
             %{id: "custom", label: dgettext("dashboard_qa", "Custom")}
           ]}
-          selected_preset={@analytics_date_range}
-          value={@analytics_date_range_value}
+          selected_preset={@analytics_preset}
+          period={@analytics_period}
+          on_period_change="analytics_period_changed"
           max={Date.utc_today()}
         >
           <:actions>
@@ -179,7 +179,7 @@
                   }
                 },
                 tooltip:
-                  if @analytics_date_range == "last-24-hours" do
+                  if @analytics_preset == "last-24-hours" do
                     %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
                   else
                     %{valueFormat: @analytics_chart_data.value_formatter}

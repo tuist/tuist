@@ -105,8 +105,8 @@ defmodule Tuist.Cache.Analytics do
   """
   def cache_hit_rate_analytics(opts) do
     project_id = Keyword.get(opts, :project_id)
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
     days_delta = Date.diff(end_date, start_date)

@@ -67,15 +67,11 @@ defmodule TuistWeb.BuildsLive do
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
 
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "analytics")
 
-    opts = [
-      project_id: project.id,
-      start_date: start_date
-    ]
-
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [project_id: project.id, start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     opts =
       opts
@@ -117,8 +113,8 @@ defmodule TuistWeb.BuildsLive do
       trend_label(preset)
     )
     |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_date_range, preset)
-    |> assign(:analytics_date_range_value, date_picker_value)
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
@@ -165,17 +161,17 @@ defmodule TuistWeb.BuildsLive do
   defp assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "configuration-insights")
 
-    opts = [start_date: start_date]
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     socket =
       socket
       |> assign(:configuration_insights_type, configuration_insights_type)
-      |> assign(:configuration_insights_date_range, preset)
-      |> assign(:configuration_insights_date_range_value, date_picker_value)
+      |> assign(:configuration_insights_preset, preset)
+      |> assign(:configuration_insights_period, period)
 
     configuration_insights_analytics =
       Analytics.build_duration_analytics_by_category(
@@ -258,7 +254,7 @@ defmodule TuistWeb.BuildsLive do
   end
 
   def handle_event(
-        "analytics_date_range_changed",
+        "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do
@@ -276,7 +272,7 @@ defmodule TuistWeb.BuildsLive do
   end
 
   def handle_event(
-        "configuration_insights_date_range_changed",
+        "configuration_insights_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do

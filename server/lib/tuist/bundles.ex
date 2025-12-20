@@ -234,7 +234,8 @@ defmodule Tuist.Bundles do
       if is_nil(inserted_before) do
         query
       else
-        where(query, [b], b.inserted_at < ^DateTime.new!(inserted_before, ~T[00:00:00]))
+        inserted_before_dt = to_datetime(inserted_before)
+        where(query, [b], b.inserted_at < ^inserted_before_dt)
       end
 
     git_branch = Keyword.get(opts, :git_branch)
@@ -268,8 +269,8 @@ defmodule Tuist.Bundles do
   end
 
   def project_bundle_install_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
     date_period = date_period(start_date: start_date, end_date: end_date)
     # Group bundles by date
     bundle_install_sizes =
@@ -319,8 +320,8 @@ defmodule Tuist.Bundles do
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
     date_period = date_period(start_date: start_date, end_date: end_date)
     # Group bundles by date
     bundle_download_sizes =
@@ -361,8 +362,8 @@ defmodule Tuist.Bundles do
   end
 
   defp project_bundles_by_date(%Project{} = project, opts) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
     date_period = date_period(start_date: start_date, end_date: end_date)
@@ -502,4 +503,7 @@ defmodule Tuist.Bundles do
       [current_artifact | child_artifacts]
     end)
   end
+
+  defp to_datetime(%DateTime{} = dt), do: dt
+  defp to_datetime(%Date{} = date), do: DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
 end

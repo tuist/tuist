@@ -105,7 +105,6 @@
         <.date_picker
           id="bundles-date-range-picker"
           name="bundle-size-date-range"
-          on_value_change="bundle_size_date_range_changed"
           presets={[
             %{
               id: "last-7-days",
@@ -124,8 +123,9 @@
             },
             %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
           ]}
-          selected_preset={@bundle_size_date_range}
-          value={@bundle_size_date_range_value}
+          selected_preset={@bundle_size_preset}
+          period={@bundle_size_period}
+          on_period_change="bundle_size_period_changed"
           max={Date.utc_today()}
         >
           <:actions>
@@ -168,7 +168,7 @@
               0.0
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
@@ -192,7 +192,7 @@
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
       </div>

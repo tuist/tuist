@@ -46,7 +46,6 @@
       <.date_picker
         id="analytics-date-range-picker"
         name="analytics-date-range"
-        on_value_change="analytics_date_range_changed"
         presets={[
           %{
             id: "last-24-hours",
@@ -70,8 +69,9 @@
           },
           %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
         ]}
-        selected_preset={@analytics_date_range}
-        value={@analytics_date_range_value}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
         max={Date.utc_today()}
       >
         <:actions>
@@ -227,7 +227,7 @@
                   axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
                 },
                 tooltip:
-                  if @analytics_date_range == "last-24-hours" do
+                  if @analytics_preset == "last-24-hours" do
                     %{valueFormat: "{value}%", dateFormat: "hour"}
                   else
                     %{valueFormat: "{value}%"}
@@ -524,7 +524,6 @@
       <.date_picker
         id="bundle-size-date-range-picker"
         name="bundle-size-date-range"
-        on_value_change="bundle_size_date_range_changed"
         presets={[
           %{
             id: "last-7-days",
@@ -543,8 +542,9 @@
           },
           %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
         ]}
-        selected_preset={@bundle_size_date_range}
-        value={@bundle_size_date_range_value}
+        selected_preset={@bundle_size_preset}
+        period={@bundle_size_period}
+        on_period_change="bundle_size_period_changed"
         max={Date.utc_today()}
       >
         <:actions>
@@ -677,7 +677,6 @@
       <.date_picker
         id="builds-date-range-picker"
         name="builds-date-range"
-        on_value_change="builds_date_range_changed"
         presets={[
           %{
             id: "last-24-hours",
@@ -701,8 +700,9 @@
           },
           %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
         ]}
-        selected_preset={@builds_date_range}
-        value={@builds_date_range_value}
+        selected_preset={@builds_preset}
+        period={@builds_period}
+        on_period_change="builds_period_changed"
         max={Date.utc_today()}
       >
         <:actions>
@@ -860,7 +860,7 @@
                   }
                 },
                 tooltip:
-                  if @builds_date_range == "last-24-hours" do
+                  if @builds_preset == "last-24-hours" do
                     %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
                   else
                     %{valueFormat: "fn:formatSeconds"}

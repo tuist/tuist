@@ -54,7 +54,7 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
-    %{preset: preset, start_date: bundle_start_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: bundle_start_date, end_datetime: _end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
     {
@@ -70,8 +70,8 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundles_type, bundles_type)
       |> assign(:bundle_size_selected_app, bundle_size_selected_app)
       |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-      |> assign(:bundle_size_date_range, preset)
-      |> assign(:bundle_size_date_range_value, date_picker_value)
+      |> assign(:bundle_size_preset, preset)
+      |> assign(:bundle_size_period, period)
       |> assign(:bundle_size_branch, bundle_size_branch)
       |> assign(
         :bundle_size_last_bundle,
@@ -214,17 +214,17 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_type = string_to_bundle_type(bundles_type)
 
-    %{start_date: start_date, end_date: end_date} =
+    %{start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
     opts = [
       project_id: project.id,
-      start_date: start_date,
+      start_date: start_datetime,
       git_branch: git_branch,
       type: bundle_type
     ]
 
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     bundle_size_analytics =
       case bundle_size_selected_widget do
@@ -356,7 +356,7 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_event(
-        "bundle_size_date_range_changed",
+        "bundle_size_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do

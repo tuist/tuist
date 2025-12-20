@@ -27,7 +27,7 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_event(
-        "analytics_date_range_changed",
+        "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         socket
       ) do
@@ -45,7 +45,7 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_event(
-        "bundle_size_date_range_changed",
+        "bundle_size_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         socket
       ) do
@@ -63,7 +63,7 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_event(
-        "builds_date_range_changed",
+        "builds_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         socket
       ) do
@@ -164,11 +164,11 @@ defmodule TuistWeb.OverviewLive do
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
 
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
-    opts = [project_id: project.id, start_date: start_date]
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [project_id: project.id, start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     bundle_size_analytics =
       project
@@ -183,19 +183,19 @@ defmodule TuistWeb.OverviewLive do
     socket
     |> assign(:bundle_size_selected_app, bundle_size_selected_app)
     |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-    |> assign(:bundle_size_date_range, preset)
-    |> assign(:bundle_size_date_range_value, date_picker_value)
+    |> assign(:bundle_size_preset, preset)
+    |> assign(:bundle_size_period, period)
     |> assign(:bundle_size_analytics, bundle_size_analytics)
   end
 
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "builds")
 
     builds_environment = params["builds-environment"] || "any"
 
-    opts = [project_id: project.id, start_date: start_date]
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [project_id: project.id, start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     opts =
       case builds_environment do
@@ -220,8 +220,8 @@ defmodule TuistWeb.OverviewLive do
       Runs.recent_build_status_counts(project.id, limit: 30)
 
     socket
-    |> assign(:builds_date_range, preset)
-    |> assign(:builds_date_range_value, date_picker_value)
+    |> assign(:builds_preset, preset)
+    |> assign(:builds_period, period)
     |> assign(
       :builds_environment,
       builds_environment
@@ -263,13 +263,13 @@ defmodule TuistWeb.OverviewLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "analytics")
 
     analytics_environment = params["analytics-environment"] || "any"
 
-    opts = [project_id: project.id, start_date: start_date]
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [project_id: project.id, start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     opts =
       case analytics_environment do
@@ -279,8 +279,8 @@ defmodule TuistWeb.OverviewLive do
       end
 
     socket
-    |> assign(:analytics_date_range, preset)
-    |> assign(:analytics_date_range_value, date_picker_value)
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
     |> assign(
       :analytics_trend_label,
       analytics_trend_label(preset)

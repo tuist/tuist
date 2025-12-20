@@ -109,7 +109,7 @@ defmodule TuistWeb.TestsLive do
   end
 
   def handle_event(
-        "analytics_date_range_changed",
+        "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do
@@ -127,7 +127,7 @@ defmodule TuistWeb.TestsLive do
   end
 
   def handle_event(
-        "selective_testing_date_range_changed",
+        "selective_testing_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do
@@ -166,14 +166,11 @@ defmodule TuistWeb.TestsLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
 
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "analytics")
 
-    opts = [
-      start_date: start_date
-    ]
-
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     opts =
       case analytics_environment do
@@ -198,8 +195,8 @@ defmodule TuistWeb.TestsLive do
     |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:analytics_date_range, preset)
-    |> assign(:analytics_date_range_value, date_picker_value)
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
@@ -209,15 +206,11 @@ defmodule TuistWeb.TestsLive do
     selective_testing_environment = params["selective-testing-environment"] || "any"
     selective_testing_duration_type = params["selective-testing-duration-type"] || "avg"
 
-    %{preset: preset, start_date: start_date, end_date: end_date, date_picker_value: date_picker_value} =
+    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "selective-testing")
 
-    opts = [
-      project_id: project.id,
-      start_date: start_date
-    ]
-
-    opts = if end_date, do: Keyword.put(opts, :end_date, end_date), else: opts
+    opts = [project_id: project.id, start_date: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
 
     opts =
       case selective_testing_environment do
@@ -232,8 +225,8 @@ defmodule TuistWeb.TestsLive do
     |> assign(:selective_testing_analytics, selective_testing_analytics)
     |> assign(:selective_testing_environment, selective_testing_environment)
     |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
-    |> assign(:selective_testing_date_range, preset)
-    |> assign(:selective_testing_date_range_value, date_picker_value)
+    |> assign(:selective_testing_preset, preset)
+    |> assign(:selective_testing_period, period)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
   end
 

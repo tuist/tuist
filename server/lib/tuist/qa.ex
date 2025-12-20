@@ -780,8 +780,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date),
         select: count(qa.id)
       )
 
@@ -797,8 +797,8 @@ defmodule Tuist.QA do
         join: step in assoc(qa, :run_steps),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             fragment("array_length(?, 1)", step.issues) > 0,
         select: fragment("SUM(array_length(?, 1))", step.issues)
       )
@@ -814,8 +814,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             qa.status in ["completed", "failed"] and
             not is_nil(qa.finished_at),
         select:
@@ -847,8 +847,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date),
         group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
         select: %{
           date: fragment("date_trunc('hour', ?)", qa.inserted_at),
@@ -877,8 +877,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date),
         group_by: fragment("DATE(?)", qa.inserted_at),
         select: %{
           date: fragment("DATE(?)", qa.inserted_at),
@@ -908,8 +908,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             qa.status in ["completed", "failed"] and
             not is_nil(qa.finished_at),
         group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
@@ -952,8 +952,8 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             qa.status in ["completed", "failed"] and
             not is_nil(qa.finished_at),
         group_by: fragment("DATE(?)", qa.inserted_at),
@@ -998,8 +998,8 @@ defmodule Tuist.QA do
         join: step in assoc(qa, :run_steps),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             fragment("array_length(?, 1)", step.issues) > 0,
         group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
         select: %{
@@ -1030,8 +1030,8 @@ defmodule Tuist.QA do
         join: step in assoc(qa, :run_steps),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^to_start_datetime(start_date) and
+            qa.inserted_at < ^to_end_datetime(end_date) and
             fragment("array_length(?, 1)", step.issues) > 0,
         group_by: fragment("DATE(?)", qa.inserted_at),
         select: %{
@@ -1060,8 +1060,8 @@ defmodule Tuist.QA do
   end
 
   defp generate_hourly_range(start_date, end_date) do
-    start_datetime = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
-    end_datetime = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+    start_datetime = to_start_datetime(start_date)
+    end_datetime = to_end_datetime(end_date)
     hours_diff = DateTime.diff(end_datetime, start_datetime, :hour)
 
     for h <- 0..hours_diff do
@@ -1332,4 +1332,10 @@ defmodule Tuist.QA do
   end
 
   defp extract_metadata_from_text_content(_), do: nil
+
+  defp to_start_datetime(%DateTime{} = dt), do: dt
+  defp to_start_datetime(%Date{} = date), do: DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+
+  defp to_end_datetime(%DateTime{} = dt), do: dt
+  defp to_end_datetime(%Date{} = date), do: DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
 end
