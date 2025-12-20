@@ -360,7 +360,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      duration = Map.get(durations_map, date)
+      normalized_date = normalise_date(date, date_period)
+      duration = Map.get(durations_map, normalized_date)
 
       %{
         date: date,
@@ -546,7 +547,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      success_rate_metadata = Map.get(success_rate_metadata_map, date)
+      normalized_date = normalise_date(date, date_period)
+      success_rate_metadata = Map.get(success_rate_metadata_map, normalized_date)
 
       if is_nil(success_rate_metadata) or success_rate_metadata.total_builds == 0 do
         %{
@@ -664,7 +666,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      cache_hit_rate_metadata = Map.get(cache_hit_rate_metadata_map, date)
+      normalized_date = normalise_date(date, date_period)
+      cache_hit_rate_metadata = Map.get(cache_hit_rate_metadata_map, normalized_date)
 
       if is_nil(cache_hit_rate_metadata) or (cache_hit_rate_metadata.cacheable_tasks || 0) == 0 do
         %{
@@ -832,7 +835,9 @@ defmodule Tuist.Runs.Analytics do
       Map.new(percentile_data, fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
 
     Enum.map(dates, fn date ->
-      case Map.get(percentile_map, date) do
+      normalized_date = normalise_date(date, date_period)
+
+      case Map.get(percentile_map, normalized_date) do
         nil -> 0.0
         value -> value / 100.0
       end
@@ -886,7 +891,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      selective_testing_hit_rate_metadata = Map.get(selective_testing_hit_rate_metadata_map, date)
+      normalized_date = normalise_date(date, date_period)
+      selective_testing_hit_rate_metadata = Map.get(selective_testing_hit_rate_metadata_map, normalized_date)
 
       if is_nil(selective_testing_hit_rate_metadata) or
            (selective_testing_hit_rate_metadata.test_targets || 0) == 0 do
