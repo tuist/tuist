@@ -244,7 +244,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns hourly duration analytics for a single day range" do
       # Given - stub DateTime.utc_now to a known time
-      # Hourly range generates 24 hours ending at utc_now
+      # Hourly range generates hours from start of day up to utc_now
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -277,9 +277,9 @@ defmodule Tuist.Runs.AnalyticsTest do
           end_date: ~D[2024-04-30]
         )
 
-      # Then
-      assert length(got.dates) == 24
-      assert length(got.values) == 24
+      # Then - shows hours from 00:00 to 11:00 (current time), which is 12 hours
+      assert length(got.dates) == 12
+      assert length(got.values) == 12
       # Hourly ranges return DateTime structs
       assert ~U[2024-04-30 03:00:00Z] in got.dates
       assert ~U[2024-04-30 08:00:00Z] in got.dates

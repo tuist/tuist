@@ -1038,31 +1038,48 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp date_range_for_date_period(:hour, _opts) do
-    # For hourly ranges, generate exactly 24 hours ending at the current hour
+  defp date_range_for_date_period(:hour, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+
     end_dt = DateTime.truncate(DateTime.utc_now(), :second)
-    start_dt = DateTime.add(end_dt, -23, :hour)
+
+    start_dt =
+      case start_date do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        %Date{} = date -> date |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+        nil -> DateTime.add(end_dt, -23, :hour)
+      end
+
+    actual_end_dt =
+      case end_date do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        %Date{} = date -> min(DateTime.new!(date, ~T[23:59:59], "Etc/UTC"), end_dt)
+        nil -> end_dt
+      end
 
     start_dt
     |> Stream.iterate(&DateTime.add(&1, 1, :hour))
-    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+    |> Enum.take_while(&(DateTime.compare(&1, actual_end_dt) != :gt))
   end
 
-  defp date_range_for_date_period(date_period, opts) do
+  defp date_range_for_date_period(:month, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+
+    start_date
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(end_date))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_range_for_date_period(:day, opts) do
     start_date = Keyword.get(opts, :start_date)
     end_date = Keyword.get(opts, :end_date)
 
     start_date
     |> Date.range(end_date)
-    |> Enum.filter(fn date ->
-      case date_period do
-        :month ->
-          date.day == 1
-
-        :day ->
-          true
-      end
-    end)
+    |> Enum.to_list()
   end
 
   defp normalise_date(date_input, :hour) do
