@@ -234,8 +234,7 @@ defmodule Tuist.Bundles do
       if is_nil(inserted_before) do
         query
       else
-        inserted_before_dt = to_datetime(inserted_before)
-        where(query, [b], b.inserted_at < ^inserted_before_dt)
+        where(query, [b], b.inserted_at < ^inserted_before)
       end
 
     git_branch = Keyword.get(opts, :git_branch)
@@ -269,9 +268,9 @@ defmodule Tuist.Bundles do
   end
 
   def project_bundle_install_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     # Group bundles by date
     bundle_install_sizes =
       project
@@ -294,7 +293,7 @@ defmodule Tuist.Bundles do
       |> Map.new(fn %{date: date, install_size: install_size} -> {date, install_size} end)
 
     date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
       average = Map.get(bundle_install_sizes, date)
 
@@ -320,9 +319,9 @@ defmodule Tuist.Bundles do
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     # Group bundles by date
     bundle_download_sizes =
       project
@@ -345,7 +344,7 @@ defmodule Tuist.Bundles do
       |> Map.new(fn %{date: date, download_size: download_size} -> {date, download_size} end)
 
     date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
       average = Map.get(bundle_download_sizes, date)
 
@@ -362,11 +361,11 @@ defmodule Tuist.Bundles do
   end
 
   defp project_bundles_by_date(%Project{} = project, opts) do
-    start_date = Keyword.get(opts, :start_date, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_date = Keyword.get(opts, :end_date, DateTime.utc_now())
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
 
     query =
       from(b in Bundle)
@@ -400,9 +399,9 @@ defmodule Tuist.Bundles do
   end
 
   defp date_period(opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
-    days_delta = Date.diff(end_date, start_date)
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
     cond do
       days_delta <= 1 -> :hour
@@ -422,8 +421,10 @@ defmodule Tuist.Bundles do
   end
 
   defp date_range_for_date_period(date_period, opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
 
     start_date
     |> Date.range(end_date)
@@ -503,7 +504,4 @@ defmodule Tuist.Bundles do
       [current_artifact | child_artifacts]
     end)
   end
-
-  defp to_datetime(%DateTime{} = dt), do: dt
-  defp to_datetime(%Date{} = date), do: DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
 end

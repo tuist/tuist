@@ -384,7 +384,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main"
         )
 
@@ -432,7 +432,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90),
+          start_datetime: DateTime.add(DateTime.utc_now(), -90, :day),
           git_branch: "main"
         )
 
@@ -483,7 +483,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -9),
+          start_datetime: DateTime.add(DateTime.utc_now(), -9, :day),
           git_branch: "main"
         )
 
@@ -543,7 +543,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main",
           type: :ipa
         )
@@ -581,8 +581,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: ~D[2024-04-30],
-          end_date: ~D[2024-04-30],
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
           git_branch: "main"
         )
 
@@ -640,7 +640,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main"
         )
 
@@ -688,7 +688,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90),
+          start_datetime: DateTime.add(DateTime.utc_now(), -90, :day),
           git_branch: "main"
         )
 
@@ -737,7 +737,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -9),
+          start_datetime: DateTime.add(DateTime.utc_now(), -9, :day),
           git_branch: "main"
         )
 
@@ -799,7 +799,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main",
           type: :ipa
         )
@@ -836,8 +836,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: ~D[2024-04-30],
-          end_date: ~D[2024-04-30],
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
           git_branch: "main"
         )
 
