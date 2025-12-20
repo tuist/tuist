@@ -654,6 +654,7 @@ defmodule Tuist.QA do
   def qa_runs_analytics(project_id, opts \\ []) do
     {start_date, end_date} = date_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    date_period = date_period(start_date, end_date)
 
     current_count = count_qa_runs(project_id, start_date, end_date, app_name)
 
@@ -665,13 +666,13 @@ defmodule Tuist.QA do
         app_name
       )
 
-    runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
+    runs_data = qa_runs_by_period(project_id, start_date, end_date, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(runs_data, & &1.count),
-      dates: Enum.map(runs_data, &Date.to_string(&1.date))
+      dates: Enum.map(runs_data, & &1.date)
     }
   end
 
@@ -681,6 +682,7 @@ defmodule Tuist.QA do
   def qa_issues_analytics(project_id, opts \\ []) do
     {start_date, end_date} = date_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    date_period = date_period(start_date, end_date)
 
     current_count = count_qa_issues(project_id, start_date, end_date, app_name)
 
@@ -692,13 +694,13 @@ defmodule Tuist.QA do
         app_name
       )
 
-    issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
+    issues_data = qa_issues_by_period(project_id, start_date, end_date, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(issues_data, & &1.count),
-      dates: Enum.map(issues_data, &Date.to_string(&1.date))
+      dates: Enum.map(issues_data, & &1.date)
     }
   end
 
@@ -708,6 +710,7 @@ defmodule Tuist.QA do
   def qa_duration_analytics(project_id, opts \\ []) do
     {start_date, end_date} = date_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    date_period = date_period(start_date, end_date)
 
     current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
 
@@ -719,13 +722,13 @@ defmodule Tuist.QA do
         app_name
       )
 
-    duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
+    duration_data = qa_duration_by_period(project_id, start_date, end_date, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_avg, current_avg),
       total_average_duration: current_avg,
       values: Enum.map(duration_data, & &1.average_duration),
-      dates: Enum.map(duration_data, &Date.to_string(&1.date))
+      dates: Enum.map(duration_data, & &1.date)
     }
   end
 
@@ -750,6 +753,16 @@ defmodule Tuist.QA do
     start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -10))
     end_date = Keyword.get(opts, :end_date, Date.utc_today())
     {start_date, end_date}
+  end
+
+  defp date_period(start_date, end_date) do
+    days_delta = Date.diff(end_date, start_date)
+
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta <= 90 -> :day
+      true -> :month
+    end
   end
 
   defp calculate_trend(previous_value, current_value) do
@@ -827,7 +840,37 @@ defmodule Tuist.QA do
     end
   end
 
-  defp qa_runs_by_day(project_id, start_date, end_date, app_name) do
+  defp qa_runs_by_period(project_id, start_date, end_date, app_name, :hour) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+        group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        select: %{
+          date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+          count: count(qa.id)
+        },
+        order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {format_hour(result.date), result.count} end)
+
+    # Fill in missing hours with zero counts
+    generate_hourly_range(start_date, end_date)
+    |> Enum.map(fn datetime ->
+      key = format_hour(datetime)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
+    end)
+  end
+
+  defp qa_runs_by_period(project_id, start_date, end_date, app_name, _date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -846,18 +889,63 @@ defmodule Tuist.QA do
 
     query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
     results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+    results_map = Map.new(results, fn result -> {Date.to_string(result.date), result.count} end)
 
     # Fill in missing days with zero counts
     start_date
     |> Date.range(end_date)
     |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
+      key = Date.to_string(date)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
     end)
   end
 
-  defp qa_duration_by_day(project_id, start_date, end_date, app_name) do
+  defp qa_duration_by_period(project_id, start_date, end_date, app_name, :hour) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.status in ["completed", "failed"] and
+            not is_nil(qa.finished_at),
+        group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        select: %{
+          date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+          average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+        },
+        order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+
+    results_map =
+      Map.new(results, fn result ->
+        value =
+          case result.average_duration do
+            nil -> 0
+            %Decimal{} = avg -> Decimal.to_float(avg)
+            avg when is_float(avg) -> avg
+            _ -> 0
+          end
+
+        {format_hour(result.date), value}
+      end)
+
+    # Fill in missing hours with zero averages
+    generate_hourly_range(start_date, end_date)
+    |> Enum.map(fn datetime ->
+      key = format_hour(datetime)
+      value = Map.get(results_map, key, 0)
+      %{date: key, average_duration: value}
+    end)
+  end
+
+  defp qa_duration_by_period(project_id, start_date, end_date, app_name, _date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -889,19 +977,52 @@ defmodule Tuist.QA do
             _ -> 0
           end
 
-        {result.date, value}
+        {Date.to_string(result.date), value}
       end)
 
     # Fill in missing days with zero averages
     start_date
     |> Date.range(end_date)
     |> Enum.map(fn date ->
-      value = Map.get(results_map, date, 0)
-      %{date: date, average_duration: value}
+      key = Date.to_string(date)
+      value = Map.get(results_map, key, 0)
+      %{date: key, average_duration: value}
     end)
   end
 
-  defp qa_issues_by_day(project_id, start_date, end_date, app_name) do
+  defp qa_issues_by_period(project_id, start_date, end_date, app_name, :hour) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: step in assoc(qa, :run_steps),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            fragment("array_length(?, 1)", step.issues) > 0,
+        group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        select: %{
+          date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+          count: fragment("SUM(array_length(?, 1))", step.issues)
+        },
+        order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {format_hour(result.date), result.count} end)
+
+    # Fill in missing hours with zero counts
+    generate_hourly_range(start_date, end_date)
+    |> Enum.map(fn datetime ->
+      key = format_hour(datetime)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
+    end)
+  end
+
+  defp qa_issues_by_period(project_id, start_date, end_date, app_name, _date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -922,15 +1043,30 @@ defmodule Tuist.QA do
 
     query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
     results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+    results_map = Map.new(results, fn result -> {Date.to_string(result.date), result.count} end)
 
     # Fill in missing days with zero counts
     start_date
     |> Date.range(end_date)
     |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
+      key = Date.to_string(date)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
     end)
+  end
+
+  defp format_hour(datetime) do
+    Calendar.strftime(datetime, "%Y-%m-%d %H:00")
+  end
+
+  defp generate_hourly_range(start_date, end_date) do
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_datetime = DateTime.new!(end_date, ~T[23:00:00], "Etc/UTC")
+    hours_diff = DateTime.diff(end_datetime, start_datetime, :hour)
+
+    for h <- 0..hours_diff do
+      DateTime.add(start_datetime, h, :hour)
+    end
   end
 
   defp apply_app_filter(query, nil, _bindings), do: query
