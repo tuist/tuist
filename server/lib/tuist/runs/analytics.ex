@@ -116,7 +116,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      count = Map.get(builds_data, date, 0)
+      normalized_date = normalise_date(date, date_period)
+      count = Map.get(builds_data, normalized_date, 0)
       %{date: date, count: count}
     end)
   end
@@ -427,7 +428,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      count = Map.get(runs_map, date, 0)
+      normalized_date = normalise_date(date, date_period)
+      count = Map.get(runs_map, normalized_date, 0)
       %{date: date, count: count}
     end)
   end
@@ -1655,7 +1657,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      size = Map.get(cas_map, date, 0)
+      normalized_date = normalise_date(date, date_period)
+      size = Map.get(cas_map, normalized_date, 0)
       %{date: date, size: size}
     end)
   end
@@ -1899,7 +1902,8 @@ defmodule Tuist.Runs.Analytics do
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      hit_rate = Map.get(hit_rate_map, date, 0.0)
+      normalized_date = normalise_date(date, date_period)
+      hit_rate = Map.get(hit_rate_map, normalized_date, 0.0)
       %{date: date, hit_rate: hit_rate}
     end)
   end

@@ -283,6 +283,18 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Hourly ranges return DateTime structs
       assert ~U[2024-04-30 03:00:00Z] in got.dates
       assert ~U[2024-04-30 08:00:00Z] in got.dates
+
+      # Verify the actual values match the dates
+      # At 03:00, there are 2 builds with duration 2000 and 1000, so average is 1500
+      hour_03_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 03:00:00Z]))
+      assert Enum.at(got.values, hour_03_index) == 1500.0
+
+      # At 08:00, there's 1 build with duration 1500
+      hour_08_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 08:00:00Z]))
+      assert Enum.at(got.values, hour_08_index) == 1500.0
+
+      # Other hours should have 0 values
+      assert Enum.count(got.values, &(&1 == 0)) == 10
     end
   end
 
@@ -459,6 +471,59 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0, 1, 2]
       assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
       assert got.trend == 200
+      assert got.count == 3
+    end
+
+    test "returns hourly build counts for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_analytics(
+          project.id,
+          start_date: ~D[2024-04-30],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then - 12 hours from 00:00 to 11:00
+      assert length(got.dates) == 12
+      assert length(got.values) == 12
+
+      # At 03:00, there are 2 builds
+      hour_03_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 03:00:00Z]))
+      assert Enum.at(got.values, hour_03_index) == 2
+
+      # At 08:00, there is 1 build
+      hour_08_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 08:00:00Z]))
+      assert Enum.at(got.values, hour_08_index) == 1
+
+      # Other hours should have 0 builds
+      assert Enum.count(got.values, &(&1 == 0)) == 10
+
+      # Total count
       assert got.count == 3
     end
   end
