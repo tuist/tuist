@@ -2194,7 +2194,8 @@ defmodule Tuist.Runs.Analytics do
         cacheable = item.cacheable_targets || 0
         local = item.local_cache_target_hits || 0
         remote = item.remote_cache_target_hits || 0
-        {item.date, calculate_hit_rate_percentage(local + remote, cacheable)}
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, calculate_hit_rate_percentage(local + remote, cacheable)}
       end)
 
     {hit_rate_dates, hit_rate_values} =
@@ -2249,7 +2250,8 @@ defmodule Tuist.Runs.Analytics do
     hits_map =
       Map.new(hit_rate_time_series, fn item ->
         hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-        {item.date, hits}
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, hits}
       end)
 
     {hit_rate_dates, hits_values} =
@@ -2327,7 +2329,8 @@ defmodule Tuist.Runs.Analytics do
       Map.new(hit_rate_time_series, fn item ->
         cacheable = item.cacheable_targets || 0
         hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
-        {item.date, max(0, cacheable - hits)}
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, max(0, cacheable - hits)}
       end)
 
     {hit_rate_dates, misses_values} =
@@ -2426,7 +2429,8 @@ defmodule Tuist.Runs.Analytics do
     percentile_map =
       Map.new(percentile_time_series, fn item ->
         value = if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
-        {item.date, value}
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, value}
       end)
 
     {percentile_dates, percentile_values} =
@@ -2505,6 +2509,23 @@ defmodule Tuist.Runs.Analytics do
 
   defp date_to_string(date, :month) do
     Timex.format!(date, "%Y-%m", :strftime)
+  end
+
+  # Normalizes ClickHouse date strings to match the format used by date_to_string
+  # ClickHouse returns dates in formats like:
+  #   - "2024-04-30 11:00:00" for hourly (needs to become "2024-04-30 11:00")
+  #   - "2024-04-30" for daily (stays as is)
+  #   - "2024-04" for monthly (stays as is)
+  defp normalize_clickhouse_date(date_string, :hour) when is_binary(date_string) do
+    # Extract "YYYY-MM-DD HH:00" from "YYYY-MM-DD HH:00:00"
+    date_string
+    |> String.slice(0, 13)
+    |> Kernel.<>(":00")
+  end
+
+  defp normalize_clickhouse_date(date_string, _date_period) when is_binary(date_string) do
+    # For day and month, the format already matches
+    date_string
   end
 
   @doc """
