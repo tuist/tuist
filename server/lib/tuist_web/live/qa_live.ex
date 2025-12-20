@@ -120,7 +120,7 @@ defmodule TuistWeb.QALive do
 
     opts = [
       project_id: project.id,
-      start_date: start_datetime,
+      start_datetime: start_datetime,
       app_name:
         case analytics_app do
           "any" -> nil
@@ -128,7 +128,7 @@ defmodule TuistWeb.QALive do
         end
     ]
 
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     uri = URI.new!("?" <> URI.encode_query(params))
 

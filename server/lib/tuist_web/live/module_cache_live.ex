@@ -118,10 +118,10 @@ defmodule TuistWeb.ModuleCacheLive do
 
     opts = [
       project_id: project.id,
-      start_date: start_datetime
+      start_datetime: start_datetime
     ]
 
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     opts =
       case analytics_environment do

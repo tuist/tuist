@@ -167,8 +167,8 @@ defmodule TuistWeb.OverviewLive do
     %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "bundle-size")
 
-    opts = [project_id: project.id, start_date: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     bundle_size_analytics =
       project
@@ -194,8 +194,8 @@ defmodule TuistWeb.OverviewLive do
 
     builds_environment = params["builds-environment"] || "any"
 
-    opts = [project_id: project.id, start_date: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     opts =
       case builds_environment do
@@ -268,8 +268,8 @@ defmodule TuistWeb.OverviewLive do
 
     analytics_environment = params["analytics-environment"] || "any"
 
-    opts = [project_id: project.id, start_date: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     opts =
       case analytics_environment do

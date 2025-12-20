@@ -219,12 +219,12 @@ defmodule TuistWeb.BundlesLive do
 
     opts = [
       project_id: project.id,
-      start_date: start_datetime,
+      start_datetime: start_datetime,
       git_branch: git_branch,
       type: bundle_type
     ]
 
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     bundle_size_analytics =
       case bundle_size_selected_widget do

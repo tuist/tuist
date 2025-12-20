@@ -169,8 +169,8 @@ defmodule TuistWeb.TestsLive do
     %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "analytics")
 
-    opts = [start_date: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = [start_datetime: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     opts =
       case analytics_environment do
@@ -209,8 +209,8 @@ defmodule TuistWeb.TestsLive do
     %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
       DateRangeHelper.parse_date_range_params(params, "selective-testing")
 
-    opts = [project_id: project.id, start_date: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_date, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime]
+    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     opts =
       case selective_testing_environment do

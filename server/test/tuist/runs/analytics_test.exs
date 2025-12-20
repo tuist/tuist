@@ -53,7 +53,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         Analytics.build_duration_analytics_by_category(
           project.id,
           :xcode_version,
-          start_date: Date.add(DateTime.utc_now(), -30)
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
         )
 
       # Then
@@ -98,7 +98,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         Analytics.build_duration_analytics_by_category(
           project.id,
           :model_identifier,
-          start_date: Date.add(DateTime.utc_now(), -30)
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
         )
 
       # Then
@@ -142,7 +142,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         Analytics.build_duration_analytics_by_category(
           project.id,
           :macos_version,
-          start_date: Date.add(DateTime.utc_now(), -30)
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
         )
 
       # Then
@@ -191,7 +191,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -233,7 +233,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           configuration: "Debug"
         )
 
@@ -273,11 +273,11 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_duration_analytics(
           project.id,
-          start_date: ~D[2024-04-30],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 11:00:00Z]
         )
 
-      # Then - shows hours from 00:00 to 11:00 (current time), which is 12 hours
+      # Then - shows hours from 00:00 to 11:00, which is 12 hours
       assert length(got.dates) == 12
       assert length(got.values) == 12
       # Hourly ranges return DateTime structs
@@ -351,7 +351,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         Analytics.build_percentile_durations(
           project.id,
           0.5,
-          start_date: ~D[2024-04-28]
+          start_datetime: ~U[2024-04-28 00:00:00Z]
         )
 
       # Then
@@ -414,14 +414,16 @@ defmodule Tuist.Runs.AnalyticsTest do
         Analytics.build_percentile_durations(
           project.id,
           0.5,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
         )
 
       # Then
+      # days_delta = 3, so previous period is April 25-28
+      # Previous p50([500, 1000, 1500]) = 1000, Current p50([1000, 2000, 3000]) = 2000
       # Trend from 1000 to 2000 = +100%
       assert got.trend == 100.0
-      assert got.values == [1000.0, 2000.0, 3000.0]
+      assert got.values == [1000.0, 2000.0, 3000.0, 0]
       # P50 of [1000, 2000, 3000] = 2000
       assert got.total_percentile_duration == 2000.0
     end
@@ -465,7 +467,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       assert got.values == [0, 1, 2]
@@ -504,8 +506,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_analytics(
           project.id,
-          start_date: ~D[2024-04-30],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 11:00:00Z]
         )
 
       # Then - 12 hours from 00:00 to 11:00
@@ -559,7 +561,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.runs_duration_analytics("generate",
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -601,7 +603,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.runs_duration_analytics("generate",
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           is_ci: false
         )
 
@@ -646,7 +648,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate", start_date: Date.add(DateTime.utc_now(), -2))
+        Analytics.runs_analytics(project.id, "generate", start_datetime: DateTime.add(DateTime.utc_now(), -2, :day))
 
       # Then
       assert got.values == [0, 1, 2]
@@ -690,7 +692,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate", start_date: Date.add(DateTime.utc_now(), -365))
+        Analytics.runs_analytics(project.id, "generate", start_datetime: DateTime.add(DateTime.utc_now(), -365, :day))
 
       # Then
       assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]
@@ -742,8 +744,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       assert got.cache_hit_rate == 0.5
@@ -786,8 +788,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now()),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now(),
           is_ci: true
         )
 
@@ -832,8 +834,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -880,8 +882,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -928,8 +930,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now()),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now(),
           is_ci: true
         )
 
@@ -976,8 +978,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.selective_testing_analytics_with_percentiles(
           project_id: project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1041,8 +1043,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1077,8 +1079,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1109,8 +1111,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1127,8 +1129,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1142,20 +1144,19 @@ defmodule Tuist.Runs.AnalyticsTest do
       project = ProjectsFixtures.project_fixture()
 
       # Previous period: 1 success out of 2 builds = 50%
+      # Note: builds must be after 10:20:30 to be in the previous period window
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
         status: :success,
-        # -4 days from test date
-        inserted_at: ~U[2024-04-26 03:00:00Z]
+        inserted_at: ~U[2024-04-26 12:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
         status: :failure,
-        # -4 days from test date
-        inserted_at: ~U[2024-04-26 02:00:00Z]
+        inserted_at: ~U[2024-04-26 11:00:00Z]
       )
 
       # Current period (last 2 days): 3 success out of 4 builds = 75%
@@ -1191,8 +1192,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
-          end_date: DateTime.to_date(DateTime.utc_now())
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
       # Then
@@ -1253,8 +1254,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -3),
-          end_date: DateTime.to_date(DateTime.utc_now()),
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
           scheme: "AppOne"
         )
 
@@ -1311,8 +1312,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_success_rate_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -3),
-          end_date: DateTime.to_date(DateTime.utc_now()),
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
           configuration: "Debug"
         )
 
@@ -1358,6 +1359,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "build_time_analytics/1" do
     test "returns build time analytics with real data" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
 
       project = ProjectsFixtures.project_fixture()
@@ -1405,6 +1407,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles empty results correctly" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1419,6 +1422,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by project_id correctly" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
@@ -1466,6 +1470,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by is_ci correctly" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1551,8 +1556,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_time_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-15],
-          end_date: ~D[2024-04-29]
+          start_datetime: ~U[2024-04-15 00:00:00Z],
+          end_datetime: ~U[2024-04-29 23:59:59Z]
         )
 
       # Then - only the first event should be included
@@ -1563,6 +1568,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles nil duration events correctly" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1621,8 +1627,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -1638,8 +1644,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -1675,8 +1681,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           is_ci: true
         )
 
@@ -1706,8 +1712,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -1742,8 +1748,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rates(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           []
         )
@@ -1768,8 +1774,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rates(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           []
         )
@@ -1808,8 +1814,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rates(
           project.id,
-          ~D[2024-03-01],
-          ~D[2024-04-30],
+          ~U[2024-03-01 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 month",
           []
         )
@@ -1852,8 +1858,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.build_cache_hit_rates(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           is_ci: true
         )
@@ -1870,6 +1876,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "module_cache_hit_rate_analytics/1" do
     test "returns module cache hit rate analytics with correct calculations" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1899,7 +1906,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-04-30 10:00:00]
       )
 
-      # Previous period (2024-03-03 to 2024-04-01): 40% hit rate
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         cacheable_targets: ["AA", "BB", "CC", "DD", "EE"],
@@ -1908,12 +1914,20 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-03-15 10:00:00]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["ZZ"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
       # When
       got =
         Analytics.module_cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -1933,6 +1947,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns zero hit rate when no cacheable targets exist" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1940,8 +1955,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.module_cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -1953,6 +1968,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "module_cache_hits_analytics/1" do
     test "returns module cache hits analytics with correct totals" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1981,7 +1997,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-04-30 10:00:00]
       )
 
-      # Previous period events
+      # Previous period events (need 5 total hits for 140% trend: (12-5)/5*100 = 140%)
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         cacheable_targets: ["M", "N"],
@@ -1990,12 +2006,20 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-03-15 10:00:00]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["O", "P", "Q"],
+        local_cache_target_hits: ["O", "P"],
+        remote_cache_target_hits: ["Q"],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
       # When
       got =
         Analytics.module_cache_hits_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2012,6 +2036,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns zero when no hits exist" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -2019,8 +2044,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.module_cache_hits_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2032,6 +2057,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "module_cache_misses_analytics/1" do
     test "returns module cache misses analytics with correct calculations" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -2060,7 +2086,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-04-30 10:00:00]
       )
 
-      # Previous period
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         cacheable_targets: ["P", "Q", "R"],
@@ -2069,12 +2094,20 @@ defmodule Tuist.Runs.AnalyticsTest do
         created_at: ~N[2024-03-15 10:00:00]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["S", "T", "U"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
       # When
       got =
         Analytics.module_cache_misses_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2091,6 +2124,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns zero when no misses exist" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -2107,8 +2141,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.module_cache_misses_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2121,6 +2155,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "module_cache_hit_rate_percentile/3" do
     test "returns module cache hit rate percentile analytics with descending order calculation" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -2167,8 +2202,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           project.id,
           0.99,
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2183,6 +2218,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns zero percentile when no data exists" do
       # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -2192,8 +2228,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           project.id,
           0.99,
           project_id: project.id,
-          start_date: ~D[2024-04-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
       # Then
@@ -2582,7 +2618,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -2678,7 +2714,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           is_ci: true
         )
 
@@ -2756,7 +2792,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           status: "failure"
         )
 
@@ -2773,7 +2809,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -2853,7 +2889,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -2881,7 +2917,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -2970,7 +3006,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_case_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           is_ci: true
         )
 
@@ -2998,7 +3034,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           macos_version: "14.0",
           xcode_version: "15.0",
           is_ci: true,
-          ran_at: ~N[2024-04-30 10:00:00.000000],
+          ran_at: ~N[2024-04-30 07:00:00.000000],
           test_modules: []
         })
 
@@ -3015,7 +3051,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           macos_version: "14.0",
           xcode_version: "15.0",
           is_ci: true,
-          ran_at: ~N[2024-04-30 11:00:00.000000],
+          ran_at: ~N[2024-04-30 08:00:00.000000],
           test_modules: []
         })
 
@@ -3032,7 +3068,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           macos_version: "14.0",
           xcode_version: "15.0",
           is_ci: true,
-          ran_at: ~N[2024-04-30 12:00:00.000000],
+          ran_at: ~N[2024-04-30 09:00:00.000000],
           test_modules: []
         })
 
@@ -3040,7 +3076,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -3067,7 +3103,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
         )
 
       # Then
@@ -3125,7 +3161,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       got =
         Analytics.test_run_duration_analytics(
           project.id,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           is_ci: true
         )
 

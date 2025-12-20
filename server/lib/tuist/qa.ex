@@ -862,7 +862,8 @@ defmodule Tuist.QA do
     results_map = Map.new(results, fn result -> {format_hour(result.date), result.count} end)
 
     # Fill in missing hours with zero counts
-    generate_hourly_range(start_date, end_date)
+    start_date
+    |> generate_hourly_range(end_date)
     |> Enum.map(fn datetime ->
       key = format_hour(datetime)
       count = Map.get(results_map, key, 0)
@@ -937,7 +938,8 @@ defmodule Tuist.QA do
       end)
 
     # Fill in missing hours with zero averages
-    generate_hourly_range(start_date, end_date)
+    start_date
+    |> generate_hourly_range(end_date)
     |> Enum.map(fn datetime ->
       key = format_hour(datetime)
       value = Map.get(results_map, key, 0)
@@ -1014,7 +1016,8 @@ defmodule Tuist.QA do
     results_map = Map.new(results, fn result -> {format_hour(result.date), result.count} end)
 
     # Fill in missing hours with zero counts
-    generate_hourly_range(start_date, end_date)
+    start_date
+    |> generate_hourly_range(end_date)
     |> Enum.map(fn datetime ->
       key = format_hour(datetime)
       count = Map.get(results_map, key, 0)
