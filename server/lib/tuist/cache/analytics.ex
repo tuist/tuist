@@ -183,13 +183,12 @@ defmodule Tuist.Cache.Analytics do
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{months: 1}), do: "1 month"
 
   defp generate_date_range(start_datetime, end_datetime, :hour) do
-    end_dt = DateTime.truncate(DateTime.utc_now(), :second)
-    start_dt = DateTime.truncate(start_datetime, :second)
-    actual_end_dt = min(DateTime.truncate(end_datetime, :second), end_dt)
+    start_datetime = DateTime.truncate(start_datetime, :second)
+    end_datetime = DateTime.truncate(end_datetime, :second)
 
-    start_dt
+    start_datetime
     |> Stream.iterate(&DateTime.add(&1, 1, :hour))
-    |> Enum.take_while(&(DateTime.compare(&1, actual_end_dt) != :gt))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
   end
 
   defp generate_date_range(start_datetime, end_datetime, :day) do
