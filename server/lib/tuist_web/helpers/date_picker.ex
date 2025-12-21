@@ -53,20 +53,18 @@ defmodule TuistWeb.Helpers.DatePicker do
   end
 
   defp period_for_preset(preset) do
-    normalized = String.replace(preset, "-", "_")
     now = DateTime.utc_now()
-    end_datetime = now
 
     start_datetime =
-      case normalized do
-        "last_24_hours" -> DateTime.add(now, -24, :hour)
-        "last_7_days" -> DateTime.add(now, -7, :day)
-        "last_30_days" -> DateTime.add(now, -30, :day)
-        "last_12_months" -> DateTime.add(now, -365, :day)
+      case preset do
+        "last-24-hours" -> DateTime.add(now, -24, :hour)
+        "last-7-days" -> DateTime.add(now, -7, :day)
+        "last-30-days" -> DateTime.add(now, -30, :day)
+        "last-12-months" -> DateTime.add(now, -365, :day)
         _ -> DateTime.add(now, -30, :day)
       end
 
-    {start_datetime, end_datetime}
+    {start_datetime, now}
   end
 
   defp parse_custom_datetime(nil), do: nil
