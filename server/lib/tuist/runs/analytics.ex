@@ -1047,26 +1047,12 @@ defmodule Tuist.Runs.Analytics do
   end
 
   defp date_range_for_date_period(:hour, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime)
-    end_datetime = Keyword.get(opts, :end_datetime)
+    start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)
+    end_datetime = DateTime.truncate(Keyword.fetch!(opts, :end_datetime), :second)
 
-    end_dt = DateTime.truncate(DateTime.utc_now(), :second)
-
-    start_dt =
-      case start_datetime do
-        %DateTime{} = dt -> DateTime.truncate(dt, :second)
-        nil -> DateTime.add(end_dt, -23, :hour)
-      end
-
-    actual_end_dt =
-      case end_datetime do
-        %DateTime{} = dt -> DateTime.truncate(dt, :second)
-        nil -> end_dt
-      end
-
-    start_dt
+    start_datetime
     |> Stream.iterate(&DateTime.add(&1, 1, :hour))
-    |> Enum.take_while(&(DateTime.compare(&1, actual_end_dt) != :gt))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
   end
 
   defp date_range_for_date_period(:month, opts) do
