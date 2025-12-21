@@ -4,6 +4,7 @@ defmodule TuistWeb.RunDetailLive do
   use Noora
 
   import Noora.Filter
+  import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
