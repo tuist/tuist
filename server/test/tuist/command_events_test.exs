@@ -712,8 +712,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_count(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -742,8 +742,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_count(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -782,8 +782,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_count(
           project.id,
-          ~D[2024-01-15],
-          ~D[2024-01-15],
+          ~U[2024-01-15 00:00:00Z],
+          ~U[2024-01-15 23:59:59Z],
           :hour,
           "1 hour",
           "test",
@@ -830,8 +830,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -870,8 +870,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -902,8 +902,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -940,8 +940,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-15],
-          ~D[2024-01-15],
+          ~U[2024-01-15 00:00:00Z],
+          ~U[2024-01-15 23:59:59Z],
           :hour,
           "1 hour",
           "test",
@@ -1076,8 +1076,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1122,8 +1122,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.9,
@@ -1178,8 +1178,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1222,8 +1222,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1266,8 +1266,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 hour",
           0.5,
@@ -1293,8 +1293,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1384,8 +1384,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1435,8 +1435,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           is_ci: true
         )
@@ -1474,8 +1474,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1590,8 +1590,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1634,8 +1634,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.9,
           []
@@ -1689,8 +1689,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           is_ci: true
@@ -1732,8 +1732,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1775,8 +1775,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 hour",
           0.5,
           []
@@ -1801,8 +1801,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1860,8 +1860,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1911,8 +1911,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           is_ci: true
         )
@@ -1950,8 +1950,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )

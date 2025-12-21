@@ -367,8 +367,8 @@ defmodule Tuist.CommandEvents do
       from(e in Event,
         as: :event,
         where:
-          e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id
       )
 
@@ -390,8 +390,8 @@ defmodule Tuist.CommandEvents do
           as: :event,
           group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           where:
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-              e.ran_at < ^to_end_naive_datetime(end_datetime) and e.name == ^name and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+              e.ran_at < ^DateTime.to_naive(end_datetime) and e.name == ^name and
               e.project_id == ^project_id,
           select: %{
             date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -423,8 +423,8 @@ defmodule Tuist.CommandEvents do
           as: :event,
           group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           where:
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-              e.ran_at < ^to_end_naive_datetime(end_datetime) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+              e.ran_at < ^DateTime.to_naive(end_datetime) and
               e.project_id == ^project_id,
           select: %{
             date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -450,8 +450,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime),
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime),
         select: %{
           cacheable_targets_count: sum(e.cacheable_targets_count),
           local_cache_hits_count: sum(e.local_cache_hits_count),
@@ -472,8 +472,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -500,8 +500,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.cacheable_targets_count > 0,
         select: %{
@@ -532,8 +532,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.cacheable_targets_count > 0,
         select:
           fragment(
@@ -556,8 +556,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime),
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime),
         select: %{
           test_targets_count: sum(e.test_targets_count),
           local_test_hits_count: sum(e.local_test_hits_count),
@@ -582,8 +582,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.test_targets_count > 0,
         select: %{
@@ -614,8 +614,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.test_targets_count > 0,
         select:
           fragment(
@@ -640,8 +640,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^to_start_naive_datetime(start_datetime) and
-            e.ran_at < ^to_end_naive_datetime(end_datetime) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -660,8 +660,8 @@ defmodule Tuist.CommandEvents do
     ClickHouseRepo.aggregate(
       from(e in Event,
         where:
-          e.ran_at >= ^to_start_naive_datetime(start_datetime) and
-            e.ran_at <= ^to_end_naive_datetime(end_datetime)
+          e.ran_at >= ^DateTime.to_naive(start_datetime) and
+            e.ran_at <= ^DateTime.to_naive(end_datetime)
       ),
       :count
     )
@@ -711,8 +711,8 @@ defmodule Tuist.CommandEvents do
 
   defp build_analytics_query(project_id, start_datetime, end_datetime, opts) do
     from(e in Event, as: :event)
-    |> where([event: e], e.ran_at > ^to_start_naive_datetime(start_datetime))
-    |> where([event: e], e.ran_at < ^to_end_naive_datetime(end_datetime))
+    |> where([event: e], e.ran_at > ^DateTime.to_naive(start_datetime))
+    |> where([event: e], e.ran_at < ^DateTime.to_naive(end_datetime))
     |> where([event: e], e.project_id == ^project_id)
     |> apply_analytics_filters(opts)
   end
@@ -811,8 +811,8 @@ defmodule Tuist.CommandEvents do
         )
 
       :day ->
-        start_date = to_date(start_datetime)
-        end_date = to_date(end_datetime)
+        start_date = DateTime.to_date(start_datetime)
+        end_date = DateTime.to_date(end_datetime)
 
         from(
           d in fragment(
@@ -823,7 +823,7 @@ defmodule Tuist.CommandEvents do
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
             """,
-            ^to_start_naive_datetime(start_datetime),
+            ^DateTime.to_naive(start_datetime),
             ^date_format,
             ^start_date,
             ^end_date
@@ -832,8 +832,8 @@ defmodule Tuist.CommandEvents do
         )
 
       :month ->
-        start_date = to_date(start_datetime)
-        end_date = to_date(end_datetime)
+        start_date = DateTime.to_date(start_datetime)
+        end_date = DateTime.to_date(end_datetime)
 
         from(
           d in fragment(
@@ -882,13 +882,4 @@ defmodule Tuist.CommandEvents do
       {run.id, user_name}
     end)
   end
-
-  defp to_start_naive_datetime(%DateTime{} = dt), do: DateTime.to_naive(dt)
-  defp to_start_naive_datetime(%Date{} = date), do: NaiveDateTime.new!(date, ~T[00:00:00])
-
-  defp to_end_naive_datetime(%DateTime{} = dt), do: DateTime.to_naive(dt)
-  defp to_end_naive_datetime(%Date{} = date), do: NaiveDateTime.new!(date, ~T[23:59:59])
-
-  defp to_date(%DateTime{} = dt), do: DateTime.to_date(dt)
-  defp to_date(%Date{} = date), do: date
 end
