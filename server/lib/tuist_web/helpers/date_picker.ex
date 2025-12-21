@@ -42,12 +42,9 @@ defmodule TuistWeb.Helpers.DatePicker do
     preset = params[range_key] || default_preset
 
     if preset == "custom" do
-      today = DateTime.to_date(DateTime.utc_now())
-      start_date = parse_custom_date(params[start_key]) || Date.add(today, -default_days)
-      end_date = parse_custom_date(params[end_key]) || today
-
-      start_datetime = date_to_start_of_day_datetime(start_date)
-      end_datetime = date_to_end_of_day_datetime(end_date)
+      now = DateTime.utc_now()
+      start_datetime = parse_custom_datetime(params[start_key]) || DateTime.add(now, -default_days, :day)
+      end_datetime = parse_custom_datetime(params[end_key]) || now
 
       %{preset: preset, period: {start_datetime, end_datetime}}
     else
@@ -72,26 +69,12 @@ defmodule TuistWeb.Helpers.DatePicker do
     {start_datetime, end_datetime}
   end
 
-  defp date_to_start_of_day_datetime(%Date{} = date) do
-    DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
-  end
+  defp parse_custom_datetime(nil), do: nil
 
-  defp date_to_end_of_day_datetime(%Date{} = date) do
-    DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
-  end
-
-  defp parse_custom_date(nil), do: nil
-
-  defp parse_custom_date(date_string) when is_binary(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _offset} ->
-        DateTime.to_date(datetime)
-
-      {:error, _} ->
-        case Date.from_iso8601(date_string) do
-          {:ok, date} -> date
-          {:error, _} -> nil
-        end
+  defp parse_custom_datetime(datetime_string) when is_binary(datetime_string) do
+    case DateTime.from_iso8601(datetime_string) do
+      {:ok, datetime, _offset} -> datetime
+      {:error, _} -> nil
     end
   end
 end
