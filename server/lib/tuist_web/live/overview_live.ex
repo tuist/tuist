@@ -10,7 +10,7 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Cache
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
-  alias TuistWeb.Helpers.DateRangeHelper
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -164,11 +164,10 @@ defmodule TuistWeb.OverviewLive do
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
 
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "bundle-size")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "bundle-size")
 
-    opts = [project_id: project.id, start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     bundle_size_analytics =
       project
@@ -189,13 +188,12 @@ defmodule TuistWeb.OverviewLive do
   end
 
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "builds")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "builds")
 
     builds_environment = params["builds-environment"] || "any"
 
-    opts = [project_id: project.id, start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       case builds_environment do
@@ -263,13 +261,12 @@ defmodule TuistWeb.OverviewLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "analytics")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
     analytics_environment = params["analytics-environment"] || "any"
 
-    opts = [project_id: project.id, start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       case analytics_environment do

@@ -9,7 +9,7 @@ defmodule TuistWeb.BuildsLive do
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
-  alias TuistWeb.Helpers.DateRangeHelper
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -67,11 +67,10 @@ defmodule TuistWeb.BuildsLive do
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
 
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "analytics")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
-    opts = [project_id: project.id, start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       opts
@@ -161,11 +160,10 @@ defmodule TuistWeb.BuildsLive do
   defp assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "configuration-insights")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "configuration-insights")
 
-    opts = [start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 
     socket =
       socket

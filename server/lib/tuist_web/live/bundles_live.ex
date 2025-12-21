@@ -13,7 +13,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
-  alias TuistWeb.Helpers.DateRangeHelper
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -54,8 +54,8 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
-    %{preset: preset, period: period, start_datetime: bundle_start_date, end_datetime: _end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "bundle-size")
+    %{preset: preset, period: {bundle_start_date, _} = period} =
+      DatePicker.date_picker_params(params, "bundle-size")
 
     {
       :noreply,
@@ -214,17 +214,16 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_type = string_to_bundle_type(bundles_type)
 
-    %{start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "bundle-size")
+    %{period: {start_datetime, end_datetime}} =
+      DatePicker.date_picker_params(params, "bundle-size")
 
     opts = [
       project_id: project.id,
       start_datetime: start_datetime,
+      end_datetime: end_datetime,
       git_branch: git_branch,
       type: bundle_type
     ]
-
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     bundle_size_analytics =
       case bundle_size_selected_widget do

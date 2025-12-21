@@ -1,6 +1,6 @@
-defmodule TuistWeb.Helpers.DateRangeHelper do
+defmodule TuistWeb.Helpers.DatePicker do
   @moduledoc """
-  Helper functions for parsing date range parameters from LiveView params.
+  Helper functions for parsing date picker parameters from LiveView params.
 
   This module consolidates the common pattern of parsing date range presets
   and custom date ranges used across multiple LiveView modules.
@@ -9,7 +9,7 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
   """
 
   @doc """
-  Parses date range parameters and returns a map with preset, period, and date boundaries.
+  Parses date picker parameters and returns a map with preset and period.
 
   ## Parameters
 
@@ -23,17 +23,15 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
 
   A map with the following keys:
     * `:preset` - The selected preset string
-    * `:period` - Tuple {start_datetime, end_datetime} for the date picker (nil for non-custom presets)
-    * `:start_datetime` - Start DateTime for queries
-    * `:end_datetime` - End DateTime for queries (nil for non-custom presets)
+    * `:period` - Tuple {start_datetime, end_datetime}
 
   ## Examples
 
-      parse_date_range_params(params, "analytics", default_preset: "last-7-days")
-      parse_date_range_params(params, "bundle-size", default_preset: "last-30-days")
+      date_picker_params(params, "analytics", default_preset: "last-7-days")
+      date_picker_params(params, "bundle-size", default_preset: "last-30-days")
 
   """
-  def parse_date_range_params(params, prefix, opts \\ []) do
+  def date_picker_params(params, prefix, opts \\ []) do
     default_preset = Keyword.get(opts, :default_preset, "last-30-days")
     default_days = Keyword.get(opts, :default_days, 30)
 
@@ -51,36 +49,27 @@ defmodule TuistWeb.Helpers.DateRangeHelper do
       start_datetime = date_to_start_of_day_datetime(start_date)
       end_datetime = date_to_end_of_day_datetime(end_date)
 
-      %{
-        preset: preset,
-        period: {start_datetime, end_datetime},
-        start_datetime: start_datetime,
-        end_datetime: end_datetime
-      }
+      %{preset: preset, period: {start_datetime, end_datetime}}
     else
-      %{
-        preset: preset,
-        period: nil,
-        start_datetime: start_of_day_for_preset(preset),
-        end_datetime: nil
-      }
+      %{preset: preset, period: period_for_preset(preset)}
     end
   end
 
-  defp start_of_day_for_preset(preset) do
+  defp period_for_preset(preset) do
     normalized = String.replace(preset, "-", "_")
-    today = DateTime.to_date(DateTime.utc_now())
+    now = DateTime.utc_now()
+    end_datetime = now
 
-    date =
+    start_datetime =
       case normalized do
-        "last_24_hours" -> Date.add(today, -1)
-        "last_7_days" -> Date.add(today, -7)
-        "last_30_days" -> Date.add(today, -30)
-        "last_12_months" -> Date.add(today, -365)
-        _ -> Date.add(today, -30)
+        "last_24_hours" -> DateTime.add(now, -24, :hour)
+        "last_7_days" -> DateTime.add(now, -7, :day)
+        "last_30_days" -> DateTime.add(now, -30, :day)
+        "last_12_months" -> DateTime.add(now, -365, :day)
+        _ -> DateTime.add(now, -30, :day)
       end
 
-    date_to_start_of_day_datetime(date)
+    {start_datetime, end_datetime}
   end
 
   defp date_to_start_of_day_datetime(%Date{} = date) do

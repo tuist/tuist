@@ -10,7 +10,7 @@ defmodule TuistWeb.TestCasesLive do
   alias Noora.Filter
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
-  alias TuistWeb.Helpers.DateRangeHelper
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -201,11 +201,10 @@ defmodule TuistWeb.TestCasesLive do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"
 
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "analytics")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
-    opts = [start_datetime: start_datetime]
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       case analytics_environment do

@@ -10,7 +10,7 @@ defmodule TuistWeb.QALive do
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
-  alias TuistWeb.Helpers.DateRangeHelper
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -115,20 +115,19 @@ defmodule TuistWeb.QALive do
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_app = params["analytics-app"] || "any"
 
-    %{preset: preset, period: period, start_datetime: start_datetime, end_datetime: end_datetime} =
-      DateRangeHelper.parse_date_range_params(params, "analytics")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
     opts = [
       project_id: project.id,
       start_datetime: start_datetime,
+      end_datetime: end_datetime,
       app_name:
         case analytics_app do
           "any" -> nil
           app_name -> app_name
         end
     ]
-
-    opts = if end_datetime, do: Keyword.put(opts, :end_datetime, end_datetime), else: opts
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
