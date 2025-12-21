@@ -45,6 +45,7 @@ defmodule Tuist do
       API.Pipeline,
       Accounts,
       Accounts.Account,
+      Accounts.AccountCacheEndpoint,
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
