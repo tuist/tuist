@@ -28,7 +28,7 @@ import TuistSupport
         let endpointTwo = "https://cache.example.two.com"
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([endpoint, endpointTwo])
 
         given(latencyService)
@@ -39,15 +39,15 @@ import TuistSupport
             .measureLatency(for: .value(URL(string: endpointTwo)!))
             .willReturn(0.243)
 
-        _ = try await subject.getCacheURL(for: serverURL)
+        _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
 
         // When - second call should use cache
-        let result = try await subject.getCacheURL(for: serverURL)
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
 
         // Then
         #expect(result.absoluteString == endpoint)
         verify(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .called(1)
     }
 
@@ -58,16 +58,16 @@ import TuistSupport
         let endpoint = "https://cache.example.com"
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([endpoint])
 
         // When
-        let result = try await subject.getCacheURL(for: serverURL)
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
 
         // Then
         #expect(result.absoluteString == endpoint)
         verify(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .called(1)
         // Should NOT measure latency for single endpoint
         verify(latencyService)
@@ -84,7 +84,7 @@ import TuistSupport
         let mediumEndpoint = "https://medium.example.com"
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([slowEndpoint, fastEndpoint, mediumEndpoint])
 
         given(latencyService)
@@ -100,7 +100,7 @@ import TuistSupport
             .willReturn(0.200)
 
         // When
-        let result = try await subject.getCacheURL(for: serverURL)
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
 
         // Then
         #expect(result.absoluteString == fastEndpoint)
@@ -114,7 +114,7 @@ import TuistSupport
         let reachableEndpoint = "https://reachable.example.com"
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([unreachableEndpoint, reachableEndpoint])
 
         given(latencyService)
@@ -126,7 +126,7 @@ import TuistSupport
             .willReturn(0.123)
 
         // When
-        let result = try await subject.getCacheURL(for: serverURL)
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
 
         // Then
         #expect(result.absoluteString == reachableEndpoint)
@@ -140,7 +140,7 @@ import TuistSupport
         let endpoint2 = "https://endpoint2.example.com"
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([endpoint1, endpoint2])
 
         given(latencyService)
@@ -149,7 +149,7 @@ import TuistSupport
 
         // When/Then
         await #expect(throws: CacheURLStoreError.noReachableEndpoints) {
-            _ = try await subject.getCacheURL(for: serverURL)
+            _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
         }
     }
 
@@ -159,12 +159,33 @@ import TuistSupport
         let serverURL = URL(string: "https://tuist.dev")!
 
         given(getCacheEndpoints)
-            .getCacheEndpoints(serverURL: .value(serverURL))
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
             .willReturn([])
 
         // When/Then
         await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
-            _ = try await subject.getCacheURL(for: serverURL)
+            _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
         }
+    }
+
+    @Test(.withMockedEnvironment())
+    func uses_account_handle_for_cache_key() async throws {
+        // Given
+        let serverURL = URL(string: "https://tuist.dev")!
+        let endpoint = "https://cache.example.com"
+        let accountHandle = "my-org"
+
+        given(getCacheEndpoints)
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle))
+            .willReturn([endpoint])
+
+        // When
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: accountHandle)
+
+        // Then
+        #expect(result.absoluteString == endpoint)
+        verify(getCacheEndpoints)
+            .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle))
+            .called(1)
     }
 }

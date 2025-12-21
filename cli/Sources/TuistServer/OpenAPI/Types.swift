@@ -304,7 +304,7 @@ public protocol APIProtocol: Sendable {
     func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -1130,12 +1130,18 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
-    public func getCacheEndpoints(headers: Operations.getCacheEndpoints.Input.Headers = .init()) async throws -> Operations.getCacheEndpoints.Output {
-        try await getCacheEndpoints(Operations.getCacheEndpoints.Input(headers: headers))
+    public func getCacheEndpoints(
+        query: Operations.getCacheEndpoints.Input.Query = .init(),
+        headers: Operations.getCacheEndpoints.Input.Headers = .init()
+    ) async throws -> Operations.getCacheEndpoints.Output {
+        try await getCacheEndpoints(Operations.getCacheEndpoints.Input(
+            query: query,
+            headers: headers
+        ))
     }
     /// It completes a multi-part upload.
     ///
@@ -21525,13 +21531,28 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
     public enum getCacheEndpoints {
         public static let id: Swift.String = "getCacheEndpoints"
         public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The name of the account to get custom cache endpoints for.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/account_handle`.
+                public var account_handle: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The name of the account to get custom cache endpoints for.
+                public init(account_handle: Swift.String? = nil) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var query: Operations.getCacheEndpoints.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>]
@@ -21547,8 +21568,13 @@ public enum Operations {
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.getCacheEndpoints.Input.Headers = .init()) {
+            public init(
+                query: Operations.getCacheEndpoints.Input.Query = .init(),
+                headers: Operations.getCacheEndpoints.Input.Headers = .init()
+            ) {
+                self.query = query
                 self.headers = headers
             }
         }

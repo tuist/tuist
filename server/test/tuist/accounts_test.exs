@@ -3696,4 +3696,100 @@ defmodule Tuist.AccountsTest do
       assert Map.has_key?(errors, :name)
     end
   end
+
+  describe "list_account_cache_endpoints/1" do
+    test "returns empty list when account has no cache endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert endpoints == []
+    end
+
+    test "returns cache endpoints for account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint1} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, endpoint2} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert length(endpoints) == 2
+      endpoint_ids = Enum.map(endpoints, & &1.id)
+      assert endpoint1.id in endpoint_ids
+      assert endpoint2.id in endpoint_ids
+    end
+  end
+
+  describe "create_account_cache_endpoint/2" do
+    test "creates cache endpoint with valid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert endpoint.url == "https://cache.example.com"
+      assert endpoint.account_id == account.id
+    end
+
+    test "returns error for invalid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "not-a-url"})
+
+      # Then
+      assert %{url: ["must be a valid HTTP or HTTPS URL"]} = errors_on(changeset)
+    end
+  end
+
+  describe "delete_account_cache_endpoint/1" do
+    test "deletes the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+
+      # Then
+      assert Accounts.list_account_cache_endpoints(account) == []
+    end
+  end
+
+  describe "get_account_cache_endpoint!/1" do
+    test "returns the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      fetched_endpoint = Accounts.get_account_cache_endpoint!(endpoint.id)
+
+      # Then
+      assert fetched_endpoint.id == endpoint.id
+      assert fetched_endpoint.url == endpoint.url
+    end
+
+    test "raises when endpoint does not exist" do
+      # Given / When / Then
+      assert_raise Ecto.NoResultsError, fn ->
+        Accounts.get_account_cache_endpoint!(Ecto.UUID.generate())
+      end
+    end
+  end
 end

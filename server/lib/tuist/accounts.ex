@@ -7,6 +7,7 @@ defmodule Tuist.Accounts do
   alias Ecto.Changeset
   alias Ecto.Multi
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AccountTokenProject
   alias Tuist.Accounts.DeviceCode
@@ -1688,6 +1689,36 @@ defmodule Tuist.Accounts do
 
   def organization?(account), do: !is_nil(account.organization_id)
   def user?(account), do: !is_nil(account.user_id)
+
+  @doc """
+  Lists all custom cache endpoints for the given account.
+  """
+  def list_account_cache_endpoints(%Account{} = account) do
+    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id))
+  end
+
+  @doc """
+  Creates a custom cache endpoint for the given account.
+  """
+  def create_account_cache_endpoint(%Account{} = account, attrs) do
+    %AccountCacheEndpoint{}
+    |> AccountCacheEndpoint.create_changeset(Map.put(attrs, :account_id, account.id))
+    |> Repo.insert()
+  end
+
+  @doc """
+  Deletes a custom cache endpoint.
+  """
+  def delete_account_cache_endpoint(%AccountCacheEndpoint{} = endpoint) do
+    Repo.delete(endpoint)
+  end
+
+  @doc """
+  Gets a custom cache endpoint by its ID.
+  """
+  def get_account_cache_endpoint!(id) do
+    Repo.get!(AccountCacheEndpoint, id)
+  end
 
   defp default_confirmed_at do
     if Environment.skip_email_confirmation?() do
