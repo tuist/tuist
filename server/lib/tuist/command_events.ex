@@ -791,9 +791,9 @@ defmodule Tuist.CommandEvents do
   defp build_date_range_query(start_datetime, end_datetime, date_period, date_format) do
     case date_period do
       :hour ->
-        # For hourly ranges, generate exactly 24 hours ending at the current hour
-        now = DateTime.truncate(DateTime.utc_now(), :second)
-        start_dt = DateTime.add(now, -23, :hour)
+        start_datetime = DateTime.truncate(start_datetime, :second)
+        end_datetime = DateTime.truncate(end_datetime, :second)
+        hours_count = max(div(DateTime.diff(end_datetime, start_datetime, :second), 3600) + 1, 1)
 
         from(
           d in fragment(
@@ -802,10 +802,11 @@ defmodule Tuist.CommandEvents do
                 toDateTime(?) + INTERVAL number HOUR,
                 ?
               ) AS date
-              FROM numbers(24)
+              FROM numbers(?)
             """,
-            ^DateTime.to_naive(start_dt),
-            ^date_format
+            ^DateTime.to_naive(start_datetime),
+            ^date_format,
+            ^hours_count
           ),
           select: %{date: d.date}
         )
