@@ -411,14 +411,12 @@ defmodule Tuist.Bundles do
   end
 
   defp date_range_for_date_period(:hour, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime)
-    end_datetime = Keyword.get(opts, :end_datetime)
-    start_dt = DateTime.truncate(start_datetime, :second)
-    end_dt = DateTime.truncate(end_datetime, :second)
+    start_datetime = DateTime.truncate(Keyword.get(opts, :start_datetime), :second)
+    end_datetime = DateTime.truncate(Keyword.get(opts, :end_datetime), :second)
 
-    start_dt
+    start_datetime
     |> Stream.iterate(&DateTime.add(&1, 1, :hour))
-    |> Enum.take_while(&(DateTime.compare(&1, end_dt) != :gt))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
   end
 
   defp date_range_for_date_period(date_period, opts) do
