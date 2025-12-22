@@ -25,6 +25,18 @@ When building for device, it is currently your responsibility to ensure the app 
 <!-- -->
 :::
 
+::: tip UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Uploading a build with the same `CFBundleVersion` (build number) as an existing preview will fail. When sharing previews from CI, ensure each build has a unique build number. Most CI providers expose a run number or build ID that you can use. For example, in GitHub Actions:
+
+```yaml
+- name: Update CFBundleVersion
+  run: |
+    sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "App/Project.swift"
+```
+<!-- -->
+:::
+
 ::: code-group
 ```bash [Tuist Project]
 tuist build App # Build the app for the simulator
