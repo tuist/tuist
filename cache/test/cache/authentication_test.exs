@@ -300,6 +300,48 @@ defmodule Cache.AuthenticationTest do
     end
   end
 
+  describe "JWT verification skipped when Guardian secret key not configured" do
+    test "falls back to API call when Guardian secret key is nil" do
+      original_config = Application.get_env(:cache, Cache.Guardian)
+
+      try do
+        Application.put_env(:cache, Cache.Guardian, issuer: "tuist", secret_key: nil)
+
+        auth_header = "Bearer some-jwt-token"
+        conn = build_conn([{"authorization", auth_header}])
+
+        projects = [%{"full_name" => "account/project"}]
+        stub_api_call(200, %{"projects" => projects})
+
+        result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+        assert {:ok, ^auth_header} = result
+      after
+        Application.put_env(:cache, Cache.Guardian, original_config)
+      end
+    end
+
+    test "falls back to API call when Guardian secret key is empty string" do
+      original_config = Application.get_env(:cache, Cache.Guardian)
+
+      try do
+        Application.put_env(:cache, Cache.Guardian, issuer: "tuist", secret_key: "")
+
+        auth_header = "Bearer some-jwt-token"
+        conn = build_conn([{"authorization", auth_header}])
+
+        projects = [%{"full_name" => "account/project"}]
+        stub_api_call(200, %{"projects" => projects})
+
+        result = Authentication.ensure_project_accessible(conn, "account", "project")
+
+        assert {:ok, ^auth_header} = result
+      after
+        Application.put_env(:cache, Cache.Guardian, original_config)
+      end
+    end
+  end
+
   describe "JWT cache TTL based on exp claim" do
     test "uses token expiration time for cache TTL when exp is present" do
       exp_time = System.system_time(:second) + 300

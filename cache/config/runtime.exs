@@ -30,13 +30,16 @@ if config_env() == :prod do
         ]
     end
 
+  appsignal_push_api_key = System.get_env("APPSIGNAL_PUSH_API_KEY")
+
   config :appsignal, :config,
-    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
-    env: System.get_env("APPSIGNAL_ENV")
+    push_api_key: appsignal_push_api_key,
+    env: System.get_env("APPSIGNAL_ENV"),
+    active: appsignal_push_api_key != nil
 
   config :cache, Cache.Guardian,
     issuer: "tuist",
-    secret_key: System.get_env("GUARDIAN_SECRET_KEY") || raise("environment variable GUARDIAN_SECRET_KEY is missing")
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY")
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
