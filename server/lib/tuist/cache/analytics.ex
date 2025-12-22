@@ -15,9 +15,9 @@ defmodule Tuist.Cache.Analytics do
 
   Returns the average hit rate as a float between 0.0 and 1.0.
   """
-  def cache_hit_rate(project_id, start_date, end_date, opts) do
-    event_result = CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
-    build_result = Analytics.build_cache_hit_rate(project_id, start_date, end_date, opts)
+  def cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
+    event_result = CommandEvents.cache_hit_rate(project_id, start_datetime, end_datetime, opts)
+    build_result = Analytics.build_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
     module_hit_rate =
       calculate_hit_rate(
@@ -43,14 +43,16 @@ defmodule Tuist.Cache.Analytics do
   - date: The date string for the period
   - cache_hit_rate: The average hit rate for this period
   """
-  def cache_hit_rates(project_id, start_date, end_date, date_period, time_bucket, opts) do
-    event_results = CommandEvents.cache_hit_rates(project_id, start_date, end_date, date_period, time_bucket, opts)
-    build_results = Analytics.build_cache_hit_rates(project_id, start_date, end_date, time_bucket, opts)
+  def cache_hit_rates(project_id, start_datetime, end_datetime, date_period, time_bucket, opts) do
+    event_results =
+      CommandEvents.cache_hit_rates(project_id, start_datetime, end_datetime, date_period, time_bucket, opts)
+
+    build_results = Analytics.build_cache_hit_rates(project_id, start_datetime, end_datetime, time_bucket, opts)
 
     event_map = Map.new(event_results, &{&1.date, &1})
     build_map = Map.new(build_results, &{&1.date, &1})
 
-    all_dates = generate_date_range(start_date, end_date, date_period)
+    all_dates = generate_date_range(start_datetime, end_datetime, date_period)
 
     Enum.map(all_dates, fn date ->
       lookup_key = date_to_string(date, date_period)
@@ -105,35 +107,35 @@ defmodule Tuist.Cache.Analytics do
   """
   def cache_hit_rate_analytics(opts) do
     project_id = Keyword.get(opts, :project_id)
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
-    days_delta = Date.diff(end_date, start_date)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     time_bucket = time_bucket_for_date_period(date_period)
 
     current_cache_hit_rate =
       cache_hit_rate(
         project_id,
-        start_date,
-        end_date,
+        start_datetime,
+        end_datetime,
         is_ci: is_ci
       )
 
     previous_cache_hit_rate =
       cache_hit_rate(
         project_id,
-        Date.add(start_date, -days_delta),
-        start_date,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
         is_ci: is_ci
       )
 
     cache_hit_rates_data =
       cache_hit_rates(
         project_id,
-        start_date,
-        end_date,
+        start_datetime,
+        end_datetime,
         date_period,
         time_bucket_to_clickhouse_interval(time_bucket),
         is_ci: is_ci
@@ -157,38 +159,59 @@ defmodule Tuist.Cache.Analytics do
   defp average_hit_rates(rate1, rate2), do: (rate1 + rate2) / 2
 
   defp date_period(opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
-    days_delta = Date.diff(end_date, start_date)
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
-    if days_delta >= 60 do
-      :month
-    else
-      :day
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
     end
   end
 
   defp time_bucket_for_date_period(date_period) do
     case date_period do
+      :hour -> %Postgrex.Interval{secs: 3600}
       :day -> %Postgrex.Interval{days: 1}
       :month -> %Postgrex.Interval{months: 1}
     end
   end
 
+  defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{secs: 3600}), do: "1 hour"
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{days: 1}), do: "1 day"
   defp time_bucket_to_clickhouse_interval(%Postgrex.Interval{months: 1}), do: "1 month"
 
-  defp generate_date_range(start_date, end_date, :day) do
+  defp generate_date_range(start_datetime, end_datetime, :hour) do
+    start_datetime = DateTime.truncate(start_datetime, :second)
+    end_datetime = DateTime.truncate(end_datetime, :second)
+
+    start_datetime
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
+  end
+
+  defp generate_date_range(start_datetime, end_datetime, :day) do
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
+
     start_date
     |> Date.range(end_date)
     |> Enum.to_list()
   end
 
-  defp generate_date_range(start_date, end_date, :month) do
+  defp generate_date_range(start_datetime, end_datetime, :month) do
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
+
     start_date
     |> Date.beginning_of_month()
     |> Date.range(Date.beginning_of_month(end_date))
     |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_to_string(%DateTime{} = dt, :hour) do
+    Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
   end
 
   defp date_to_string(date, :day) do

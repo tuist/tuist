@@ -712,8 +712,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_count(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -742,8 +742,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_count(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -754,6 +754,47 @@ defmodule Tuist.CommandEventsTest do
       # Then
       # 11 days in range
       assert length(result) == 11
+    end
+
+    test "returns hourly count data for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-15 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 03:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 08:00:00Z],
+        is_ci: false
+      )
+
+      # When - time_bucket is "1 hour" string for hourly format
+      result =
+        CommandEvents.run_count(
+          project.id,
+          ~U[2024-01-15 00:00:00Z],
+          ~U[2024-01-15 23:59:59Z],
+          :hour,
+          "1 hour",
+          "test",
+          []
+        )
+
+      # Then
+      assert length(result) == 24
+      dates = Enum.map(result, & &1.date)
+      assert "2024-01-15 03:00:00" in dates
+      assert "2024-01-15 08:00:00" in dates
     end
   end
 
@@ -789,8 +830,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -829,8 +870,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -861,8 +902,8 @@ defmodule Tuist.CommandEventsTest do
       result =
         CommandEvents.run_average_durations(
           project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
+          ~U[2024-01-10 00:00:00Z],
+          ~U[2024-01-20 00:00:00Z],
           :day,
           :day,
           "test",
@@ -871,6 +912,47 @@ defmodule Tuist.CommandEventsTest do
 
       # Then - should not raise an exception and return expected data
       assert length(result) == 11
+    end
+
+    test "returns hourly average duration data for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-15 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 03:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 08:00:00Z],
+        is_ci: false
+      )
+
+      # When - time_bucket is "1 hour" string for hourly format
+      result =
+        CommandEvents.run_average_durations(
+          project.id,
+          ~U[2024-01-15 00:00:00Z],
+          ~U[2024-01-15 23:59:59Z],
+          :hour,
+          "1 hour",
+          "test",
+          []
+        )
+
+      # Then
+      assert length(result) == 24
+      dates = Enum.map(result, & &1.date)
+      assert "2024-01-15 03:00:00" in dates
+      assert "2024-01-15 08:00:00" in dates
     end
   end
 
@@ -994,8 +1076,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1040,8 +1122,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.9,
@@ -1096,8 +1178,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1140,8 +1222,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1184,8 +1266,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 hour",
           0.5,
@@ -1211,8 +1293,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           0.5,
@@ -1302,8 +1384,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1353,8 +1435,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           is_ci: true
         )
@@ -1392,8 +1474,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.cache_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1508,8 +1590,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1552,8 +1634,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.9,
           []
@@ -1607,8 +1689,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           is_ci: true
@@ -1650,8 +1732,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1693,8 +1775,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 hour",
           0.5,
           []
@@ -1719,8 +1801,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_percentiles(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           "1 day",
           0.5,
           []
@@ -1778,8 +1860,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
@@ -1829,8 +1911,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           is_ci: true
         )
@@ -1868,8 +1950,8 @@ defmodule Tuist.CommandEventsTest do
       got =
         CommandEvents.selective_testing_hit_rate_period_percentile(
           project.id,
-          ~D[2024-04-30],
-          ~D[2024-04-30],
+          ~U[2024-04-30 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           0.5,
           []
         )
