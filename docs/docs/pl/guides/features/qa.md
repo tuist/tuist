@@ -7,87 +7,90 @@
 ---
 # QA {#qa}
 
-::: warning EARLY PREVIEW
+::: warning WCZESNY PRZEGLĄD
 <!-- -->
-Tuist QA is currently in early preview. Sign up at
-[tuist.dev/qa](https://tuist.dev/qa) to get access.
-<!-- -->
-:::
-
-Quality mobile app development relies on comprehensive testing, but traditional
-approaches have limitations. Unit tests are fast and cost-effective, yet they
-miss real-world user scenarios. Acceptance testing and manual QA can capture
-these gaps, but they're resource-intensive and don't scale well.
-
-Tuist's QA agent solves this challenge by simulating authentic user behavior. It
-autonomously explores your app, recognizes interface elements, executes
-realistic interactions, and flags potential issues. This approach helps you
-identify bugs and usability problems early in development while avoiding the
-overhead and maintenance burden of conventional acceptance and QA testing.
-
-## Prerequisities {#prerequisites}
-
-To start using Tuist QA, you need to:
-- Set up uploading
-  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> from
-  your PR CI workflow, which the agent can then use for testing
-- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink>
-  with GitHub, so you can trigger the agent directly from your PR
-
-## Usage {#usage}
-
-Tuist QA is currently triggered directly from a PR. Once you have a preview
-associated with your PR, you can trigger the QA agent by commenting `/qa test I
-want to test feature A` on the PR:
-
-![QA trigger comment](/images/guides/features/qa/qa-trigger-comment.png)
-
-The comment includes a link to the live session where you can see in realtime
-the QA agent's progress and any issues it finds. Once the agent completes its
-run, it will post a summary of the results back to the PR:
-
-![QA test summary](/images/guides/features/qa/qa-test-summary.png)
-
-As part of the report in the dashboard, which the PR comment links to, you will
-get a list of issues and a timeline, so you can inspect how the issue exactly
-happened:
-
-![QA timeline](/images/guides/features/qa/qa-timeline.png)
-
-You can see all QA runs that we do for our
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
-app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
-
-::: info
-<!-- -->
-The QA agent runs autonomously and cannot be interrupted with additional prompts
-once started. We provide detailed logs throughout the execution to help you
-understand how the agent interacted with your app. These logs are valuable for
-iterating on your app context and testing prompts to better guide the agent's
-behavior. If you have feedback about how the agent performs with your app,
-please let us know through [GitHub
-Issues](https://github.com/tuist/tuist/issues), our [Slack
-community](https://slack.tuist.dev) or our [community
-forum](https://community.tuist.dev).
+Tuist QA jest obecnie we wczesnej wersji zapoznawczej. Zarejestruj się na
+stronie [tuist.dev/qa](https://tuist.dev/qa), aby uzyskać dostęp.
 <!-- -->
 :::
 
-### App context {#app-context}
+Tworzenie wysokiej jakości aplikacji mobilnych opiera się na kompleksowym
+testowaniu, ale tradycyjne podejścia mają swoje ograniczenia. Testy jednostkowe
+są szybkie i opłacalne, ale pomijają rzeczywiste scenariusze użytkownika. Testy
+akceptacyjne i ręczna kontrola jakości mogą wychwycić te luki, ale wymagają
+dużych zasobów i nie skalują się dobrze.
 
-The agent might need more context about your app to be able to navigate it well.
-We have three types of app context:
-- App description
-- Credentials
-- Launch argument groups
+Agent QA Tuist rozwiązuje to wyzwanie, symulując autentyczne zachowanie
+użytkownika. Autonomicznie bada aplikację, rozpoznaje elementy interfejsu,
+wykonuje realistyczne interakcje i sygnalizuje potencjalne problemy. Takie
+podejście pomaga zidentyfikować błędy i problemy z użytecznością na wczesnym
+etapie rozwoju, jednocześnie unikając kosztów i obciążeń związanych z
+konwencjonalnymi testami akceptacyjnymi i QA.
 
-All of them can be configured in the dashboard settings of your project
-(`Settings` > `QA`).
+## Wymagania wstępne {#prerequisites}
 
-#### App description {#app-description}
+Aby rozpocząć korzystanie z Tuist QA, należy:
+- Skonfiguruj przesyłanie
+  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> z
+  przepływu pracy PR CI, którego agent może następnie użyć do testowania.
+- <LocalizedLink href="/guides/integrations/gitforge/github">Zintegruj</LocalizedLink>
+  z GitHub, aby móc uruchomić agenta bezpośrednio z PR.
 
-App description is for providing extra context about what your app does and how
-it works. This is a long-form text field that is passed as part of the prompt
-when kicking off the agent. An example could be:
+## Użycie {#usage}
+
+Tuist QA jest obecnie uruchamiany bezpośrednio z PR. Po skojarzeniu podglądu z
+PR można uruchomić agenta QA, komentując `/qa test Chcę przetestować funkcję A`
+w PR:
+
+![Komentarz wyzwalacza QA](/images/guides/features/qa/qa-trigger-comment.png)
+
+Komentarz zawiera link do sesji na żywo, w której można zobaczyć w czasie
+rzeczywistym postępy agenta QA i wszelkie znalezione przez niego błędy. Gdy
+agent zakończy swoje działanie, opublikuje podsumowanie wyników z powrotem do
+PR:
+
+![Podsumowanie testu QA](/images/guides/features/qa/qa-test-summary.png)
+
+W ramach raportu na pulpicie nawigacyjnym, do którego odsyła komentarz PR,
+otrzymasz listę problemów i oś czasu, dzięki czemu możesz sprawdzić, jak
+dokładnie doszło do problemu:
+
+![Oś czasu QA](/images/guides/features/qa/qa-timeline.png)
+
+Możesz zobaczyć wszystkie testy QA, które wykonujemy dla naszej
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">aplikacji iOS</LocalizedLink> w naszym publicznym dashboardzie:
+https://tuist.dev/tuist/tuist/qa.
+
+:: info
+<!-- -->
+Agent QA działa autonomicznie i nie może zostać przerwany dodatkowymi monitami
+po uruchomieniu. Zapewniamy szczegółowe dzienniki podczas wykonywania, aby pomóc
+Ci zrozumieć, w jaki sposób agent wchodził w interakcję z Twoją aplikacją.
+Dzienniki te są cenne dla iteracji kontekstu aplikacji i testowania monitów, aby
+lepiej kierować zachowaniem agenta. Jeśli masz opinie na temat działania agenta
+z Twoją aplikacją, daj nam znać za pośrednictwem [GitHub
+Issues](https://github.com/tuist/tuist/issues), naszej [społeczności
+Slack](https://slack.tuist.dev) lub naszego [forum
+społeczności](https://community.tuist.dev).
+<!-- -->
+:::
+
+### Kontekst aplikacji {#app-context}
+
+Agent może potrzebować więcej kontekstu na temat aplikacji, aby móc dobrze się
+po niej poruszać. Mamy trzy rodzaje kontekstu aplikacji:
+- Opis aplikacji
+- Poświadczenia
+- Uruchamianie grup argumentów
+
+Wszystkie z nich można skonfigurować w ustawieniach pulpitu nawigacyjnego
+projektu (`Ustawienia` > `QA`).
+
+#### Opis aplikacji {#app-description}
+
+Opis aplikacji służy do zapewnienia dodatkowego kontekstu na temat tego, co robi
+aplikacja i jak działa. Jest to długie pole tekstowe, które jest przekazywane
+jako część monitu podczas uruchamiania agenta. Przykładem może być:
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -95,24 +98,26 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### Credentials {#credentials}
+#### Poświadczenia {#credentials}
 
-In case the agent needs to sign in to the app to test some features, you can
-provide credentials for the agent to use. The agent will fill in these
-credentials if it recognizes that it needs to sign in.
+W przypadku, gdy agent musi zalogować się do aplikacji w celu przetestowania
+niektórych funkcji, można podać mu dane uwierzytelniające. Agent wypełni te
+poświadczenia, jeśli rozpozna, że musi się zalogować.
 
-#### Launch argument groups {#launch-argument-groups}
+#### Uruchamianie grup argumentów {#launch-argument-groups}.
 
-Launch argument groups are selected based on your testing prompt before running
-the agent. For example, if you don't want the agent to repeatedly sign in,
-wasting your tokens and runner minutes, you can specify your credentials here
-instead. If the agent recognizes that it should start the session signed in, it
-will use the credentials launch argument group when launching the app.
+Grupy argumentów uruchamiania są wybierane na podstawie monitu testowego przed
+uruchomieniem agenta. Na przykład, jeśli nie chcesz, aby agent wielokrotnie się
+logował, marnując tokeny i minuty runnera, możesz zamiast tego określić tutaj
+swoje poświadczenia. Jeśli agent rozpozna, że powinien rozpocząć sesję
+zalogowany, użyje grupy argumentów uruchomienia poświadczeń podczas uruchamiania
+aplikacji.
 
-![Launch argument groups](/images/guides/features/qa/launch-argument-groups.png)
+![Uruchom grupy
+argumentów](/images/guides/features/qa/launch-argument-groups.png)
 
-These launch arguments are your standard Xcode launch arguments. Here's an
-example for how to use them to automatically sign in:
+Te argumenty uruchamiania są standardowymi argumentami uruchamiania Xcode. Oto
+przykład, jak użyć ich do automatycznego logowania:
 
 ```swift
 import ArgumentParser

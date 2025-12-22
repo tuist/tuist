@@ -5,109 +5,111 @@
   "description": "Learn how to declare dependencies in your Tuist project."
 }
 ---
-# Dependencies {#dependencies}
+# Zależności {#dependencies}
 
-When a project grows, it's common to split it into multiple targets to share
-code, define boundaries, and improve build times. Multiple targets means
-defining dependencies between them forming a **dependency graph**, which might
-include external dependencies as well.
+Gdy projekt się rozrasta, często dzieli się go na wiele celów, aby współdzielić
+kod, definiować granice i skrócić czas kompilacji. Wiele celów oznacza
+definiowanie zależności między nimi, tworząc graf zależności **** , który może
+obejmować również zależności zewnętrzne.
 
-## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
+## Skodyfikowane wykresy XcodeProj {#xcodeproj-codified-graphs}
 
-Due to Xcode and XcodeProj's design, the maintenance of a dependency graph can
-be a tedious and error-prone task. Here are some examples of the problems that
-you might encounter:
+Ze względu na konstrukcję Xcode i XcodeProj, utrzymanie wykresu zależności może
+być żmudnym i podatnym na błędy zadaniem. Oto kilka przykładów problemów, które
+można napotkać:
 
-- Because Xcode's build system outputs all the project's products into the same
-  directory in derived data, targets might be able to import products that they
-  shouldn't. Compilations might fail on CI, where clean builds are more common,
-  or later on when a different configuration is used.
-- The transitive dynamic dependencies of a target need to be copied into any of
-  the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting.
-  If they aren't, the target won't be able to find them at runtime. This is easy
-  to think about and set up when the graph is small, but it becomes a problem as
-  the graph grows.
-- When a target links a static
+- Ponieważ system kompilacji Xcode wyprowadza wszystkie produkty projektu do
+  tego samego katalogu w danych pochodnych, cele mogą być w stanie importować
+  produkty, których nie powinny. Kompilacje mogą zakończyć się niepowodzeniem w
+  CI, gdzie czyste kompilacje są bardziej powszechne, lub później, gdy używana
+  jest inna konfiguracja.
+- Przechodnie zależności dynamiczne celu muszą zostać skopiowane do dowolnego z
+  katalogów, które są częścią ustawienia kompilacji `LD_RUNPATH_SEARCH_PATHS`.
+  Jeśli tak nie jest, cel nie będzie w stanie ich znaleźć w czasie wykonywania.
+  Jest to łatwe do pomyślenia i skonfigurowania, gdy wykres jest mały, ale staje
+  się problemem, gdy wykres rośnie.
+- Gdy cel łączy statyczny
   [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle),
-  the target needs an additional build phase for Xcode to process the bundle and
-  extract the right binary for the current platform and architecture. This build
-  phase is not added automatically, and it's easy to forget to add it.
+  cel wymaga dodatkowej fazy kompilacji, aby Xcode mógł przetworzyć pakiet i
+  wyodrębnić odpowiednie pliki binarne dla bieżącej platformy i architektury. Ta
+  faza kompilacji nie jest dodawana automatycznie i łatwo jest zapomnieć o jej
+  dodaniu.
 
-The above are just a few examples, but there are many more that we've
-encountered over the years. Imagine if you required a team of engineers to
-maintain a dependency graph and ensure its validity. Or even worse, that the
-intricacies were resolved at build-time by a closed-source build system that you
-can't control or customize. Sounds familiar? This is the approach that Apple
-took with Xcode and XcodeProj and that the Swift Package Manager has inherited.
+Powyższe to tylko kilka przykładów, ale jest ich znacznie więcej, z którymi
+mieliśmy do czynienia na przestrzeni lat. Wyobraź sobie, że potrzebujesz zespołu
+inżynierów do utrzymania wykresu zależności i zapewnienia jego poprawności. Albo
+jeszcze gorzej, że zawiłości zostały rozwiązane w czasie kompilacji przez
+zamknięty system kompilacji, którego nie można kontrolować ani dostosowywać.
+Brzmi znajomo? Jest to podejście przyjęte przez Apple w Xcode i XcodeProj, które
+odziedziczył Swift Package Manager.
 
-We strongly believe that the dependency graph should be **explicit** and
-**static** because only then can it be **validated** and **optimized**. With
-Tuist, you focus on describing what depends on what, and we take care of the
-rest. The intricacies and implementation details are abstracted away from you.
+Głęboko wierzymy, że graf zależności powinien być **jawny** i **statyczny**
+ponieważ tylko wtedy może być **zweryfikowany** i **zoptymalizowany**. Dzięki
+Tuist skupiasz się na opisaniu, co zależy od czego, a my zajmujemy się resztą.
+Zawiłości i szczegóły implementacji są abstrahowane od Ciebie.
 
-In the following sections you'll learn how to declare dependencies in your
-project.
+W poniższych sekcjach dowiesz się, jak zadeklarować zależności w swoim
+projekcie.
 
-::: tip GRAPH VALIDATION
+::: końcówka WALIDACJA GRAFU
 <!-- -->
-Tuist validates the graph when generating the project to ensure that there are
-no cycles and that all the dependencies are valid. Thanks to this, any team can
-take part in evolving the dependency graph without worrying about breaking it.
-<!-- -->
-:::
-
-## Local dependencies {#local-dependencies}
-
-Targets can depend on other targets in the same and different projects, and on
-binaries. When instantiating a `Target`, you can pass the `dependencies`
-argument with any of the following options:
-
-- `Target`: Declares a dependency with a target within the same project.
-- `Project`: Declares a dependency with a target in a different project.
-- `Framework`: Declares a dependency with a binary framework.
-- `Library`: Declares a dependency with a binary library.
-- `XCFramework`: Declares a dependency with a binary XCFramework.
-- `SDK`: Declares a dependency with a system SDK.
-- `XCTest`: Declares a dependency with XCTest.
-
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-Every dependency type accepts a `condition` option to conditionally link the
-dependency based on the platform. By default, it links the dependency for all
-platforms the target supports.
+Tuist waliduje graf podczas generowania projektu, aby upewnić się, że nie ma
+cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół może
+wziąć udział w ewolucji grafu zależności bez obawy o jego uszkodzenie.
 <!-- -->
 :::
 
-## External dependencies {#external-dependencies}
+## Lokalne zależności {#local-dependencies}
 
-Tuist also allows you to declare external dependencies in your project.
+Obiekty docelowe mogą zależeć od innych obiektów docelowych w tym samym lub
+różnych projektach, a także od plików binarnych. Podczas tworzenia instancji
+celu `` można przekazać argument `dependencies` z dowolną z poniższych opcji:
 
-### Swift Packages {#swift-packages}
+- `Cel`: Deklaruje zależność z celem w ramach tego samego projektu.
+- `Projekt`: Deklaruje zależność z celem w innym projekcie.
+- `Framework`: Deklaruje zależność z binarnym frameworkiem.
+- `Biblioteka`: Deklaruje zależność z biblioteką binarną.
+- `XCFramework`: Deklaruje zależność z binarnym XCFramework.
+- `SDK`: Deklaruje zależność z systemowym SDK.
+- `XCTest`: Deklaruje zależność z XCTest.
 
-Swift Packages are our recommended way of declaring dependencies in your
-project. You can integrate them using Xcode's default integration mechanism or
-using Tuist's XcodeProj-based integration.
+::: info WARUNKI ZALEŻNOŚCI
+<!-- -->
+Każdy typ zależności akceptuje `warunek` opcję warunkowego łączenia zależności w
+oparciu o platformę. Domyślnie łączy ona zależność dla wszystkich platform
+obsługiwanych przez cel.
+<!-- -->
+:::
 
-#### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}
+## Zależności zewnętrzne {#external-dependencies}
 
-Xcode's default integration while being the most convenient one, lacks
-flexibility and control that's required for medium and large projects. To
-overcome this, Tuist offers an XcodeProj-based integration that allows you to
-integrate Swift Packages in your project using XcodeProj's targets. Thanks to
-that, we can not only give you more control over the integration but also make
-it compatible with workflows like
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and
-<LocalizedLink href="/guides/features/test/selective-testing">selective test
-runs</LocalizedLink>.
+Tuist pozwala również na deklarowanie zewnętrznych zależności w projekcie.
 
-XcodeProj's integration is more likely to take more time to support new Swift
-Package features or handle more package configurations. However, the mapping
-logic between Swift Packages and XcodeProj targets is open-source and can be
-contributed to by the community. This is contrary to Xcode's default
-integration, which is closed-source and maintained by Apple.
+### Pakiety Swift {#swift-packages}
 
-To add external dependencies, you'll have to create a `Package.swift` either
-under `Tuist/` or at the root of the project.
+Pakiety Swift to zalecany przez nas sposób deklarowania zależności w projekcie.
+Można je zintegrować za pomocą domyślnego mechanizmu integracji Xcode lub
+integracji opartej na XcodeProj Tuist.
+
+#### Integracja Tuist oparta na XcodeProj {#tuists-xcodeprojbased-integration}
+
+Domyślna integracja Xcode jest najwygodniejsza, ale brakuje jej elastyczności i
+kontroli, które są wymagane w przypadku średnich i dużych projektów. Aby temu
+zaradzić, Tuist oferuje integrację opartą na XcodeProj, która umożliwia
+integrację pakietów Swift w projekcie przy użyciu celów XcodeProj. Dzięki temu
+możemy nie tylko zapewnić większą kontrolę nad integracją, ale także uczynić ją
+kompatybilną z przepływami pracy, takimi jak
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> i
+<LocalizedLink href="/guides/features/test/selective-testing">selektywne uruchamianie testów</LocalizedLink>.
+
+Integracja XcodeProj może zająć więcej czasu, aby obsługiwać nowe funkcje
+pakietów Swift lub obsługiwać więcej konfiguracji pakietów. Jednak logika
+mapowania między pakietami Swift i celami XcodeProj jest open-source i może być
+współtworzona przez społeczność. Jest to przeciwieństwo domyślnej integracji
+Xcode, która jest zamknięta i utrzymywana przez Apple.
+
+Aby dodać zewnętrzne zależności, należy utworzyć plik `Package.swift` w sekcji
+`Tuist/` lub w katalogu głównym projektu.
 
 ::: code-group
 ```swift [Tuist/Package.swift]
@@ -143,20 +145,19 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
+:: tip USTAWIENIA PAKIETU
 <!-- -->
-The `PackageSettings` instance wrapped in a compiler directive allows you to
-configure how packages are integrated. For example, in the example above it's
-used to override the default product type used for packages. By default, you
-shouldn't need it.
+Instancja `PackageSettings` opakowana w dyrektywę kompilatora pozwala
+skonfigurować sposób integracji pakietów. Na przykład w powyższym przykładzie
+służy do zastąpienia domyślnego typu produktu używanego dla pakietów. Domyślnie
+nie powinno to być potrzebne.
 <!-- -->
 :::
 
-> [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS If your project uses custom build
-> configurations (configurations other than the standard `Debug` and `Release`),
-> you must specify them in the `PackageSettings` using `baseSettings`. External
-> dependencies need to know about your project's configurations to build
-> correctly. For example:
+> [Jeśli projekt używa niestandardowych konfiguracji kompilacji (konfiguracji
+> innych niż standardowe `Debug` i `Release`), należy je określić w
+> `PackageSettings` używając `baseSettings`. Zewnętrzne zależności muszą
+> wiedzieć o konfiguracjach projektu, aby kompilować się poprawnie. Na przykład:
 > 
 > ```swift
 > #if TUIST
@@ -172,13 +173,13 @@ shouldn't need it.
 > #endif
 > ```
 > 
-> See [#8345](https://github.com/tuist/tuist/issues/8345) for more details.
+> Więcej szczegółów można znaleźć w
+> [#8345](https://github.com/tuist/tuist/issues/8345).
 
-The `Package.swift` file is just an interface to declare external dependencies,
-nothing else. That's why you don't define any targets or products in the
-package. Once you have the dependencies defined, you can run the following
-command to resolve and pull the dependencies into the `Tuist/Dependencies`
-directory:
+Plik `Package.swift` to tylko interfejs do deklarowania zewnętrznych zależności,
+nic więcej. Dlatego w pakiecie nie definiuje się żadnych obiektów docelowych ani
+produktów. Po zdefiniowaniu zależności można uruchomić następujące polecenie,
+aby rozwiązać i pobrać zależności do katalogu `Tuist/Dependencies`:
 
 ```bash
 tuist install
@@ -186,16 +187,16 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-As you might have noticed, we take an approach similar to
-[CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its
-own command. This gives control to the users over when they'd like dependencies
-to be resolved and updated, and allows opening the Xcode in project and have it
-ready to compile. This is an area where we believe the developer experience
-provided by Apple's integration with the Swift Package Manager degrades over
-time as the project grows.
+Jak być może zauważyłeś, stosujemy podejście podobne do
+[CocoaPods](https://cocoapods.org)', gdzie rozwiązywanie zależności jest osobnym
+poleceniem. Daje to użytkownikom kontrolę nad tym, kiedy chcą, aby zależności
+zostały rozwiązane i zaktualizowane, a także umożliwia otwarcie projektu Xcode i
+przygotowanie go do kompilacji. Jest to obszar, w którym uważamy, że
+doświadczenie programisty zapewniane przez integrację Apple z Menedżerem
+pakietów Swift pogarsza się z czasem wraz z rozwojem projektu.
 
-From your project targets you can then reference those dependencies using the
-`TargetDependency.external` dependency type:
+Z poziomu celów projektu można następnie odwoływać się do tych zależności za
+pomocą typu zależności `TargetDependency.external`:
 
 ::: code-group
 ```swift [Project.swift]
@@ -223,17 +224,18 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
+::: info BRAK SCHEMATÓW GENEROWANYCH DLA PAKIETÓW ZEWNĘTRZNYCH
 <!-- -->
-The **schemes** are not automatically created for Swift Package projects to keep
-the schemes list clean. You can create them via Xcode's UI.
+Schematy **** nie są automatycznie tworzone dla projektów Swift Package, aby
+zachować czystość listy schematów. Można je utworzyć za pomocą interfejsu
+użytkownika Xcode.
 <!-- -->
 :::
 
-#### Xcode's default integration {#xcodes-default-integration}
+#### Domyślna integracja Xcode {#xcodes-default-integration}
 
-If you want to use Xcode's default integration mechanism, you can pass the list
-`packages` when instantiating a project:
+Jeśli chcesz korzystać z domyślnego mechanizmu integracji Xcode, możesz
+przekazać listę `pakietów` podczas tworzenia instancji projektu:
 
 ```swift
 let project = Project(name: "MyProject", packages: [
@@ -241,7 +243,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-And then reference them from your targets:
+A następnie odwołaj się do nich ze swoich celów:
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -249,21 +251,21 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro`
-and `.plugin` respectively.
+W przypadku makr Swift i wtyczek Build Tool należy użyć odpowiednio typów
+`.macro` i `.plugin`.
 
 ::: warning SPM Build Tool Plugins
 <!-- -->
-SPM build tool plugins must be declared using [Xcode's default
-integration](#xcode-s-default-integration) mechanism, even when using Tuist's
-[XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your
-project dependencies.
+Wtyczki narzędzi kompilacji SPM muszą być zadeklarowane przy użyciu mechanizmu
+[Domyślna integracja Xcode](#xcode-s-default-integration), nawet jeśli używana
+jest integracja Tuist [Oparta na
+XcodeProj](#tuist-s-xcodeproj-based-integration) dla zależności projektu.
 <!-- -->
 :::
 
-A practical application of an SPM build tool plugin is performing code linting
-during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this
-is defined as follows:
+Praktycznym zastosowaniem wtyczki narzędzia kompilacji SPM jest wykonywanie
+lintingu kodu podczas fazy kompilacji Xcode "Run Build Tool Plug-ins". W
+manifeście pakietu jest to zdefiniowane w następujący sposób:
 
 ```swift
 // swift-tools-version: 5.9
@@ -288,9 +290,9 @@ let package = Package(
 )
 ```
 
-To generate an Xcode project with the build tool plugin intact, you must declare
-the package in the project manifest's `packages` array, and then include a
-package with type `.plugin` in a target's dependencies.
+Aby wygenerować projekt Xcode z nienaruszoną wtyczką narzędzia kompilacji,
+należy zadeklarować pakiet w manifeście projektu w tablicy `packages`, a
+następnie dołączyć pakiet o typie `.plugin` do zależności celu.
 
 ```swift
 import ProjectDescription
@@ -311,13 +313,13 @@ let project = Project(
 )
 ```
 
-### Carthage {#carthage}
+### Kartagina {#carthage}
 
-Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or
-`xcframeworks`, you can run `carthage update` to output the dependencies in the
-`Carthage/Build` directory and then use the `.framework` or `.xcframework`
-target dependency type to declare the dependency in your target. You can wrap
-this in a script that you can run before generating the project.
+Ponieważ [Carthage](https://github.com/carthage/carthage) wyświetla `frameworks`
+lub `xcframeworks`, można uruchomić `carthage update`, aby wyświetlić zależności
+w katalogu `Carthage/Build`, a następnie użyć typu zależności `.framework` lub
+`.xcframework` target, aby zadeklarować zależność w celu. Można to zawinąć w
+skrypt, który można uruchomić przed wygenerowaniem projektu.
 
 ```bash
 #!/usr/bin/env bash
@@ -326,22 +328,22 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
+::: warning BUDUJ I TESTUJ
 <!-- -->
-If you build and test your project through `tuist build` and `tuist test`, you
-will similarly need to ensure that the Carthage-resolved dependencies are
-present by running the `carthage update` command before `tuist build` or `tuist
-test` are run.
+Jeśli budujesz i testujesz swój projekt za pomocą `tuist build` i `tuist test`,
+musisz również upewnić się, że zależności rozwiązane przez Carthage są obecne,
+uruchamiając polecenie `carthage update` przed uruchomieniem `tuist build` lub
+`tuist test`.
 <!-- -->
 :::
 
 ### CocoaPods {#cocoapods}
 
-[CocoaPods](https://cocoapods.org) expects an Xcode project to integrate the
-dependencies. You can use Tuist to generate the project, and then run `pod
-install` to integrate the dependencies by creating a workspace that contains
-your project and the Pods dependencies. You can wrap this in a script that you
-can run before generating the project.
+[CocoaPods](https://cocoapods.org) oczekuje projektu Xcode w celu zintegrowania
+zależności. Możesz użyć Tuist do wygenerowania projektu, a następnie uruchomić
+`pod install`, aby zintegrować zależności, tworząc obszar roboczy zawierający
+projekt i zależności Pods. Można to zawrzeć w skrypcie, który można uruchomić
+przed wygenerowaniem projektu.
 
 ```bash
 #!/usr/bin/env bash
@@ -352,45 +354,44 @@ pod install
 
 ::: warning
 <!-- -->
-CocoaPods dependencies are not compatible with workflows like `build` or `test`
-that run `xcodebuild` right after generating the project. They are also
-incompatible with binary caching and selective testing since the fingerprinting
-logic doesn't account for the Pods dependencies.
+Zależności CocoaPods nie są kompatybilne z przepływami pracy, takimi jak `build`
+lub `test`, które uruchamiają `xcodebuild` zaraz po wygenerowaniu projektu. Są
+one również niekompatybilne z buforowaniem binarnym i testowaniem selektywnym,
+ponieważ logika fingerprintingu nie uwzględnia zależności Pods.
 <!-- -->
 :::
 
-## Static or dynamic {#static-or-dynamic}
+## Statyczny lub dynamiczny {#static-or-dynamic}
 
-Frameworks and libraries can be linked either statically or dynamically, **a
-choice that has significant implications for aspects like app size and boot
-time**. Despite its importance, this decision is often made without much
-consideration.
+Frameworki i biblioteki mogą być łączone statycznie lub dynamicznie, **wybór,
+który ma znaczący wpływ na takie aspekty jak rozmiar aplikacji i czas
+uruchamiania**. Pomimo swojego znaczenia, decyzja ta jest często podejmowana bez
+większego zastanowienia.
 
-The **general rule of thumb** is that you want as many things as possible to be
-statically linked in release builds to achieve fast boot times, and as many
-things as possible to be dynamically linked in debug builds to achieve fast
-iteration times.
+Ogólna zasada **** jest taka, że chcesz, aby jak najwięcej rzeczy było
+połączonych statycznie w kompilacjach wydania, aby osiągnąć szybki czas
+uruchamiania, a jak najwięcej rzeczy było połączonych dynamicznie w kompilacjach
+debugowania, aby osiągnąć szybki czas iteracji.
 
-The challenge with changing between static and dynamic linking in a project
-graph is that is not trivial in Xcode because a change has cascading effect on
-the entire graph (e.g. libraries can't contain resources, static frameworks
-don't need to be embedded). Apple tried to solve the problem with compile time
-solutions like Swift Package Manager's automatic decision between static and
-dynamic linking, or [Mergeable
+Wyzwanie związane ze zmianą pomiędzy statycznym i dynamicznym linkowaniem w
+grafie projektu nie jest trywialne w Xcode, ponieważ zmiana ma kaskadowy wpływ
+na cały graf (np. biblioteki nie mogą zawierać zasobów, statyczne frameworki nie
+muszą być osadzone). Apple próbowało rozwiązać ten problem za pomocą rozwiązań w
+czasie kompilacji, takich jak automatyczna decyzja Swift Package Manager
+pomiędzy statycznym i dynamicznym linkowaniem lub [Mergeable
 Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-However, this adds new dynamic variables to the compilation graph, adding new
-sources of non-determinism, and potentially causing some features like Swift
-Previews that rely on the compilation graph to become unreliable.
+Rozwiązanie to dodaje jednak nowe dynamiczne zmienne do grafu kompilacji,
+dodając nowe źródła niedeterminizmu i potencjalnie powodując, że niektóre
+funkcje, takie jak Swift Previews, które opierają się na grafie kompilacji,
+stają się zawodne.
 
-Luckily, Tuist conceptually compresses the complexity associated with changing
-between static and dynamic and synthesizes
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> that are standard across linking types. In combination
-with
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic
-configurations via environment variables</LocalizedLink>, you can pass the
-linking type at invocation time, and use the value in your manifests to set the
-product type of your targets.
+Na szczęście Tuist koncepcyjnie kompresuje złożoność związaną ze zmianą między
+statycznym i dynamicznym i syntetyzuje
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>, które są standardowe dla wszystkich typów linkowania.
+W połączeniu z
+<LocalizedLink href="/guides/features/projects/dynamic-configuration"> dynamicznymi konfiguracjami poprzez zmienne środowiskowe</LocalizedLink>, możesz
+przekazać typ łączenia w czasie wywołania i użyć wartości w swoich manifestach,
+aby ustawić typ produktu swoich celów.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -403,80 +404,81 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">does not
-default to convenience through implicit configuration due to its
-costs</LocalizedLink>. What this means is that we rely on you setting the
-linking type and any additional build settings that are sometimes required, like
-the [`-ObjC` linker
-flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
-to ensure the resulting binaries are correct. Therefore, the stance that we take
-is providing you with the resources, usually in the shape of documentation, to
-make the right decisions.
+Należy pamiętać, że Tuist
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">nie jest domyślnie wygodny poprzez niejawną konfigurację ze względu na jego koszty </LocalizedLink>. Oznacza to, że polegamy na ustawieniu typu linkowania i
+wszelkich dodatkowych ustawień kompilacji, które są czasami wymagane, takich jak
+flaga linkera [`-ObjC`
+](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
+aby zapewnić poprawność wynikowych plików binarnych. W związku z tym nasze
+stanowisko polega na dostarczaniu zasobów, zwykle w postaci dokumentacji, w celu
+podejmowania właściwych decyzji.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
+::: tip PRZYKŁAD: ARCHITEKTURA KOMPOZYTOWA
 <!-- -->
-A Swift Package that many projects integrate is [The Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture). See
-more details in [this section](#the-composable-architecture).
+Pakiet Swift, który integruje wiele projektów, to [The Composable
+Architecture](https://github.com/pointfreeco/swift-composable-architecture).
+Więcej szczegółów można znaleźć w [tej sekcji](#the-composable-architecture).
 <!-- -->
 :::
 
-### Scenarios {#scenarios}
+### Scenariusze {#scenarios}
 
-There are some scenarios where setting the linking entirely to static or dynamic
-is not feasible or a good idea. The following is a non-exhaustive list of
-scenarios where you might need to mix static and dynamic linking:
+Istnieją pewne scenariusze, w których ustawienie linkowania całkowicie na
+statyczne lub dynamiczne nie jest wykonalne lub nie jest dobrym pomysłem.
+Poniżej znajduje się niewyczerpująca lista scenariuszy, w których może być
+konieczne połączenie statycznego i dynamicznego linkowania:
 
-- **Apps with extensions:** Since apps and their extensions need to share code,
-  you might need to make those targets dynamic. Otherwise, you'll end up with
-  the same code duplicated in both the app and the extension, causing the binary
-  size to increase.
-- **Pre-compiled external dependencies:** Sometimes you are provided with
-  pre-compiled binaries that are either static or dynamic. Static binaries can
-  be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **Aplikacje z rozszerzeniami:** Ponieważ aplikacje i ich rozszerzenia muszą
+  współdzielić kod, może być konieczne uczynienie tych celów dynamicznymi. W
+  przeciwnym razie ten sam kod zostanie zduplikowany zarówno w aplikacji, jak i
+  rozszerzeniu, co spowoduje zwiększenie rozmiaru pliku binarnego.
+- **Wstępnie skompilowane zależności zewnętrzne:** Czasami dostarczane są
+  prekompilowane pliki binarne, które są statyczne lub dynamiczne. Statyczne
+  pliki binarne mogą być opakowane w dynamiczne frameworki lub biblioteki do
+  dynamicznego łączenia.
 
-When making changes to the graph, Tuist will analyze it and display a warning if
-it detects a "static side effect". This warning is meant to help you identify
-issues that might arise from linking a target statically that depends
-transitively on a static target through dynamic targets. These side effects
-often manifest as increased binary size or, in the worst cases, runtime crashes.
+Podczas wprowadzania zmian w wykresie, Tuist przeanalizuje go i wyświetli
+ostrzeżenie, jeśli wykryje "statyczny efekt uboczny". Ostrzeżenie to ma na celu
+pomóc w zidentyfikowaniu problemów, które mogą pojawić się w wyniku statycznego
+łączenia celu, który zależy tranzytowo od celu statycznego za pośrednictwem
+celów dynamicznych. Te efekty uboczne często objawiają się zwiększonym rozmiarem
+pliku binarnego lub, w najgorszych przypadkach, awariami w czasie wykonywania.
 
-## Troubleshooting {#troubleshooting}
+## Rozwiązywanie problemów {#troubleshooting}
 
-### Objective-C Dependencies {#objectivec-dependencies}
+### Zależności Objective-C {#objectivec-dependencies}
 
-When integrating Objective-C dependencies, the inclusion of certain flags on the
-consuming target may be necessary to avoid runtime crashes as detailed in [Apple
-Technical Q&A
+Podczas integrowania zależności Objective-C, włączenie pewnych flag w celu
+konsumpcji może być konieczne, aby uniknąć awarii w czasie wykonywania, jak
+opisano szczegółowo w [Apple Technical Q&A
 QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
 
-Since the build system and Tuist have no way of inferring whether the flag is
-necessary or not, and since the flag comes with potentially undesirable side
-effects, Tuist will not automatically apply any of these flags, and because
-Swift Package Manager considers `-ObjC` to be included via an `.unsafeFlag` most
-packages cannot include it as part of their default linking settings when
-required.
+Ponieważ system kompilacji i Tuist nie mają możliwości wywnioskowania, czy flaga
+jest konieczna, czy nie, i ponieważ flaga ta ma potencjalnie niepożądane skutki
+uboczne, Tuist nie zastosuje automatycznie żadnej z tych flag, a ponieważ
+Menedżer pakietów Swift uważa `-ObjC` za dołączoną za pośrednictwem
+`.unsafeFlag`, większość pakietów nie może dołączyć jej jako części swoich
+domyślnych ustawień łączenia, gdy jest to wymagane.
 
-Consumers of Objective-C dependencies (or internal Objective-C targets) should
-apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on
-consuming targets.
+Konsumenci zależności Objective-C (lub wewnętrznych celów Objective-C) powinni
+stosować flagi `-ObjC` lub `-force_load`, gdy jest to wymagane, ustawiając
+`OTHER_LDFLAGS` na konsumowanych celach.
 
-### Firebase & Other Google Libraries {#firebase-other-google-libraries}
+### Firebase i inne biblioteki Google {#firebase-other-google-libraries}
 
-Google's open source libraries — while powerful — can be difficult to integrate
-within Tuist as they often use non-standard architecture and techniques in how
-they are built.
+Biblioteki open source Google - choć potężne - mogą być trudne do zintegrowania
+z Tuist, ponieważ często wykorzystują niestandardową architekturę i techniki w
+sposobie ich tworzenia.
 
-Here are a few tips that may be necessary to follow to integrate Firebase and
-Google's other Apple-platform libraries:
+Oto kilka wskazówek, które mogą być niezbędne do zintegrowania Firebase i innych
+bibliotek Google dla platformy Apple:
 
-#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
+#### Upewnij się, że `-ObjC` jest dodany do `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
-Many of Google's libraries are written in Objective-C. Because of this, any
-consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS`
-build setting. This can either be set in an `.xcconfig` file or manually
-specified in the target's settings within your Tuist manifests. An example:
+Wiele bibliotek Google jest napisanych w Objective-C. Z tego powodu każdy
+zużywający się cel będzie musiał zawierać znacznik `-ObjC` w swoim
+`OTHER_LDFLAGS` ustawieniu kompilacji. Można to ustawić w pliku `.xcconfig` lub
+ręcznie określić w ustawieniach celu w manifestach Tuist. Przykład:
 
 ```swift
 Target.target(
@@ -488,21 +490,21 @@ Target.target(
 )
 ```
 
-Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above
-for more details.
+Więcej szczegółów znajduje się w sekcji [Zależności
+Objective-C](#objective-c-dependencies) powyżej.
 
-#### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
+#### Ustaw typ produktu dla `FBLPromises` na dynamiczny framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}.
 
-Certain Google libraries depend on `FBLPromises`, another of Google's libraries.
-You may encounter a crash that mentions `FBLPromises`, looking something like
-this:
+Niektóre biblioteki Google zależą od `FBLPromises`, innej biblioteki Google.
+Możesz napotkać awarię, która wspomina o `FBLPromises`, wyglądającą mniej więcej
+tak:
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
 ```
 
-Explicitly setting the product type of `FBLPromises` to `.framework` in your
-`Package.swift` file should fix the issue:
+Jawne ustawienie typu produktu `FBLPromises` na `.framework` w pliku
+`Package.swift` powinno rozwiązać problem:
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
@@ -524,29 +526,29 @@ let package = Package(
 ...
 ```
 
-### The Composable Architecture {#the-composable-architecture}
+### Architektura komponowalna {#the-composable-architecture}
 
-As described
-[here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
-and the [troubleshooting section](#troubleshooting), you'll need to set the
-`OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages
-statically, which is Tuist's default linking type. Alternatively, you can
-override the product type for the package to be dynamic. When linking
-statically, test and app targets typically work without any issues, but SwiftUI
-previews are broken. This can be resolved by linking everything dynamically. In
-the example below [Sharing](https://github.com/pointfreeco/swift-sharing) is
-also added as a dependency, as it's often used together with The Composable
-Architecture and has its own [configuration
-pitfalls](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
+Jak opisano
+[tutaj](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
+i [sekcja rozwiązywania problemów](#troubleshooting), musisz ustawić ustawienie
+kompilacji `OTHER_LDFLAGS` na `$(inherited) -ObjC` podczas statycznego łączenia
+pakietów, co jest domyślnym typem łączenia Tuist. Alternatywnie można zastąpić
+typ produktu, aby pakiet był dynamiczny. Podczas łączenia statycznego, cele
+testowe i aplikacji zazwyczaj działają bez żadnych problemów, ale podglądy
+SwiftUI są uszkodzone. Można to rozwiązać, łącząc wszystko dynamicznie. W
+poniższym przykładzie [Sharing](https://github.com/pointfreeco/swift-sharing)
+jest również dodane jako zależność, ponieważ jest często używane razem z The
+Composable Architecture i ma swoje własne [pułapki
+konfiguracyjne](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
 
-Following configuration will link everything dynamically - so app + test targets
-and SwiftUI previews are working.
+Poniższa konfiguracja połączy wszystko dynamicznie - więc aplikacja + cele
+testowe i podglądy SwiftUI działają.
 
-::: tip STATIC OR DYNAMIC
+::: końcówka STATYCZNA LUB DYNAMICZNA
 <!-- -->
-Dynamic linking is not always recommended. See the section [Static or
-dynamic](#static-or-dynamic) for more details. In this example, all dependencies
-are linked dynamically without conditions for simplicity.
+Dynamiczne linkowanie nie zawsze jest zalecane. Więcej szczegółów można znaleźć
+w sekcji [Statyczne lub dynamiczne](#static-or-dynamic). W tym przykładzie
+wszystkie zależności są łączone dynamicznie bez warunków dla uproszczenia.
 <!-- -->
 :::
 
@@ -599,31 +601,29 @@ let packageSettings = PackageSettings(
 
 ::: warning
 <!-- -->
-Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
+Zamiast `import Sharing` należy `import SwiftSharing`.
 <!-- -->
 :::
 
-### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### Przejściowe zależności statyczne przeciekające przez `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import
-StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the
-dynamic framework or library, potentially
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing
-the compilation to fail</LocalizedLink>. To prevent that, you'll have to import
-the static dependency using
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink>:
+Gdy dynamiczny framework lub biblioteka zależy od statycznych poprzez `import
+StaticSwiftModule`, symbole są zawarte w `.swiftmodule` dynamicznego frameworka
+lub biblioteki, potencjalnie
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1"> powodując niepowodzenie kompilacji</LocalizedLink>. Aby temu zapobiec, należy
+zaimportować zależność statyczną za pomocą
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule
 ```
 
-::: info
+:: info
 <!-- -->
-Access level on imports was included in Swift 6. If you're using older versions
-of Swift, you need to use
+Poziom dostępu do importów został włączony w Swift 6. Jeśli używasz starszych
+wersji Swift, musisz użyć
 <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
-instead:
+zamiast tego:
 <!-- -->
 :::
 

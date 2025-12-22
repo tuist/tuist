@@ -9,10 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 <!-- -->
 :::
 
@@ -20,8 +18,7 @@ To run tests selectively with your generated project, use the `tuist test`
 command. The command
 <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
 your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
+<LocalizedLink href="/guides/features/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine
 what has changed in future runs.
 
 In future runs `tuist test` transparently uses the hashes to filter down the
@@ -35,7 +32,7 @@ For example, assuming the following dependency graph:
 
 `tuist test` will behave as such:
 
-| Action                  | Description                                                         | Internal state                                                                 |
+| Action                  | Descrição                                                           | Internal state                                                                 |
 | ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
 | `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |

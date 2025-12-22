@@ -5,70 +5,68 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# أفضل الممارسات {#best-practices}
 
-Over the years working with different teams and projects, we've identified a set
-of best practices that we recommend following when working with Tuist and Xcode
-projects. These practices are not mandatory, but they can help you structure
-your projects in a way that makes them easier to maintain and scale.
+على مدار سنوات من العمل مع فرق ومشاريع مختلفة، حددنا مجموعة من أفضل الممارسات
+التي نوصي باتباعها عند العمل مع مشاريع تويست و Xcode. هذه الممارسات ليست
+إلزامية، لكنها يمكن أن تساعدك على تنظيم مشاريعك بطريقة تسهل صيانتها وتوسيع
+نطاقها.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### الأنماط المثبطة {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### التكوينات لنمذجة البيئات البعيدة {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote
-environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
-has some downsides:
+تستخدم العديد من المؤسسات تكوينات البناء لنمذجة بيئات مختلفة عن بُعد (على سبيل
+المثال، `Debug-Production` أو `الإصدار الإصدار-المؤسسة`)، ولكن هذا النهج له بعض
+الجوانب السلبية:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the
-  graph, the build system might end up using the wrong configuration for some
-  targets.
-- **Complexity:** Projects can end up with a long list of local configurations
-  and remote environments that are hard to reason about and maintain.
+- **التناقضات:** إذا كانت هناك تناقضات في التكوين في الرسم البياني، فقد ينتهي
+  الأمر بنظام الإنشاء باستخدام تكوين خاطئ لبعض الأهداف.
+- **التعقيد:** يمكن أن ينتهي الأمر بالمشروعات بقائمة طويلة من التكوينات المحلية
+  والبيئات البعيدة التي يصعب التفكير فيها وصيانتها.
 
-Build configurations were designed to embody different build settings, and
-projects rarely need more than just `Debug` and `Release`. The need to model
-different environments can be achieved differently:
+صُممت تكوينات البناء لتجسيد إعدادات بناء مختلفة، ونادراً ما تحتاج المشاريع إلى
+أكثر من `Debug` و `Release`. يمكن تحقيق الحاجة إلى نمذجة بيئات مختلفة بشكل
+مختلف:
 
-- **In Debug builds:** You can include all the configurations that should be
-  accessible in development in the app (e.g. endpoints), and switch them at
-  runtime. The switch can happen either using scheme launch environment
-  variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the
-  configuration that the release build is bound to, and not include the runtime
-  logic for switching configurations by using compiler directives.
+- **في إنشاءات التصحيح:** يمكنك تضمين جميع التكوينات التي يجب الوصول إليها في
+  التطوير في التطبيق (مثل نقاط النهاية)، وتبديلها في وقت التشغيل. يمكن أن يحدث
+  التبديل إما باستخدام متغيرات بيئة تشغيل المخطط، أو باستخدام واجهة مستخدم داخل
+  التطبيق.
+- **في إنشاءات الإصدار:** في حالة الإصدار، يمكنك فقط تضمين التكوين الذي ترتبط به
+  بنية الإصدار، وعدم تضمين منطق وقت التشغيل لتبديل التكوينات باستخدام توجيهات
+  المحول البرمجي.
 
-::: info Non-standard configurations
+::: info التكوينات غير القياسية
 <!-- -->
-While Tuist supports non-standard configurations and makes them easier to manage
-compared to vanilla Xcode projects, you'll receive warnings if configurations
-are not consistent throughout the dependency graph. This helps ensure build
-reliability and prevents configuration-related issues.
+بينما يدعم Tuist التكوينات غير القياسية ويجعل إدارتها أسهل مقارنةً بمشاريع Xcode
+الفانيلا، ستتلقى تحذيرات إذا كانت التكوينات غير متسقة في جميع أنحاء الرسم
+البياني للتبعية. هذا يساعد على ضمان موثوقية الإنشاء ويمنع المشاكل المتعلقة
+بالتكوين.
 <!-- -->
 :::
 
-## Generated projects
+## المشروع المُنشأ
 
-### Buildable folders
+### المجلدات القابلة للبناء
 
-Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
-groups), a feature introduced in Xcode 16 to reduce merge conflicts.
+أضاف تويست 4.62.0 دعمًا لـ **المجلدات القابلة للبناء** (مجموعات Xcode
+المتزامنة)، وهي ميزة تم تقديمها في Xcode 16 لتقليل تعارضات الدمج.
 
-While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
-merge conflicts in generated projects, buildable folders offer additional
-benefits:
+في حين أن أنماط أحرف البدل في تويست (على سبيل المثال، `Sources/**/*.swift`) تقضي
+بالفعل على تعارضات الدمج في المشاريع المُنشأة، فإن المجلدات القابلة للبناء تقدم
+مزايا إضافية:
 
-- **Automatic synchronization**: Your project structure stays in sync with the
-  file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your
-  codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit
-  file lists
+- **المزامنة التلقائية**: تظل بنية مشروعك متزامنة مع نظام الملفات - لا حاجة
+  للتجديد عند إضافة أو إزالة الملفات
+- **تدفقات عمل صديقة للذكاء الاصطناعي**: يمكن لمساعدي البرمجة والوكلاء تعديل
+  قاعدة التعليمات البرمجية الخاصة بك دون الحاجة إلى إعادة إنشاء المشروع
+- **تكوين أبسط**: تحديد مسارات المجلدات بدلاً من إدارة قوائم الملفات الصريحة
 
-We recommend adopting buildable folders instead of traditional `Target.sources`
-and `Target.resources` attributes for a more streamlined development experience.
+نوصي باعتماد المجلدات القابلة للبناء بدلاً من السمات التقليدية `Target.sources`
+و `Target.resources` للحصول على تجربة تطوير أكثر انسيابية.
 
 ::: code-group
 
@@ -89,18 +87,17 @@ let target = Target(
 <!-- -->
 :::
 
-### Dependencies
+### التبعيات
 
-#### Force resolved versions on CI
+#### فرض الإصدارات التي تم حلها على CI
 
-When installing Swift Package Manager dependencies on CI, we recommend using the
-`--force-resolved-versions` flag to ensure deterministic builds:
+عند تثبيت تبعيات Swift Package Manager على CI، نوصي باستخدام علامة
+`--force-resolved-versolved-ions` لضمان إنشاءات حتمية:
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-This flag ensures that dependencies are resolved using the exact versions pinned
-in `Package.resolved`, eliminating issues caused by non-determinism in
-dependency resolution. This is particularly important on CI where reproducible
-builds are critical.
+تضمن هذه العلامة حل التبعيات باستخدام الإصدارات الدقيقة المثبتة في
+`Package.resolved` ، مما يزيل المشاكل الناجمة عن عدم التحديد في حل التبعية. هذا
+الأمر مهم بشكل خاص في CI حيث تكون البنيات القابلة للتكرار أمرًا بالغ الأهمية.

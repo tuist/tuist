@@ -5,60 +5,38 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# 缓存 {#cache}
 
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency on a single machine. However, build artifacts are not shared across
-different environments, forcing you to rebuild the same code over and over –
-either in your [Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
-development environments (your Mac).
+Xcode
+的构建系统提供了[增量构建](https://en.wikipedia.org/wiki/Incremental_build_model)，提高了单台机器上的效率。但是，构建工件不能在不同环境中共享，这就迫使您在[持续集成（CI）环境](https://en.wikipedia.org/wiki/Continuous_integration)或本地开发环境（您的
+Mac）中反复重建相同的代码。
 
-Tuist addresses these challenges with its caching feature, significantly
-reducing build times both in local development and CI environments. This
-approach not only accelerates feedback loops but also minimizes the need for
-context switching, ultimately boosting productivity.
+Tuist 通过缓存功能解决了这些难题，大大缩短了本地开发和 CI
+环境中的构建时间。这种方法不仅加快了反馈循环，还最大限度地减少了上下文切换的需要，最终提高了工作效率。
 
-We offer two types of caching:
+我们提供两种缓存方式：
 - <LocalizedLink href="/guides/features/cache/module-cache">模块缓存</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode缓存</LocalizedLink>
 
-## Module cache {#module-cache}
+## 模块缓存 {#module-cache}
 
-For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities, we provide a powerful caching system,
-which caches individual modules as binaries and shares them across your team and
-CI environments.
+对于使用 Tuist 的 <LocalizedLink href="/guides/features/projects">项目生成 </LocalizedLink> 功能的项目，我们提供了强大的缓存系统，可将单个模块缓存为二进制文件，并在团队和 CI 环境中共享。
 
-While you can also use the new Xcode cache, this feature is currently optimized
-for local builds and you will likely have a lower cache hit rate compared to the
-generated project caching. However, the decision for which caching solution to
-use depends on your specific needs and preferences. You may also combine both
-caching solutions to achieve the best results.
+虽然您也可以使用新的 Xcode
+缓存，但该功能目前已针对本地构建进行了优化，与生成的项目缓存相比，您的缓存命中率可能会更低。不过，使用哪种缓存解决方案取决于您的具体需求和偏好。您也可以将两种缓存解决方案结合使用，以达到最佳效果。
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
-Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">了解有关模块缓存的更多信息 →</LocalizedLink>
 
-## Xcode cache {#xcode-cache}
+## Xcode 缓存 {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE
+警告 XCODE 中的缓存状态
 <!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole
-spectrum of build tasks is not yet path-independent. Still you can experience
-benefits by plugging Tuist's remote cache, and we expect build times to improve
-over time as the build system's capability keeps improving.
+Xcode 缓存目前针对本地增量构建进行了优化，而且整个构建任务的范围还不依赖于路径。尽管如此，您仍然可以通过插入 Tuist
+的远程缓存来体验其优势，而且随着构建系统能力的不断提高，我们预计构建时间也会逐渐缩短。
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to
-other build systems like Bazel and Buck. The new caching capability is available
-since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
-whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities or not.
+Apple 一直致力于在构建级别开发一种新的缓存解决方案，类似于 Bazel 和 Buck 等其他构建系统。新的缓存功能从 Xcode 26
+开始提供，无论您是否使用 Tuist 的 <LocalizedLink href="/guides/features/projects">项目生成 </LocalizedLink> 功能，Tuist 现在都能与之无缝集成。
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
-cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">了解有关 Xcode 缓存的更多信息 →</LocalizedLink>

@@ -5,25 +5,21 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle insights {#bundle-size}
+# 번들 인사이트 {#bundle-size}
 
-::: warning REQUIREMENTS
+경고 요구 사항 ::: warning 요구 사항
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
-As you add more features to your app, your app bundle size keeps growing. While
-some of the bundle size growth is inevitable as you ship more code and assets,
-there are many ways to minimze that growth, such as by ensuring your assets are
-not duplicated across your bundles or stripping unused binary symbols. Tuist
-provides you with tools and insights to help your app size stay small – and we
-also monitor your app size over time.
+앱에 더 많은 기능을 추가하면 앱 번들 크기가 계속 커집니다. 더 많은 코드와 에셋을 제공하면 번들 크기가 커지는 것은 불가피하지만, 에셋이
+번들 간에 중복되지 않도록 하거나 사용하지 않는 바이너리 심볼을 제거하는 등 여러 가지 방법으로 크기를 최소화할 수 있습니다. 튜이스트는 앱
+크기를 작게 유지하는 데 도움이 되는 도구와 인사이트를 제공하며, 시간이 지남에 따라 앱 크기를 모니터링합니다.
 
-## Usage {#usage}
+## 사용량 {#usage}
 
-To analyze a bundle, you can use the `tuist inspect bundle` command:
+번들을 분석하려면 `tuist inspect bundle` 명령을 사용할 수 있습니다:
 
 ::: code-group
 ```bash [Analyze an .ipa]
@@ -38,19 +34,18 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
-The `tuist inspect bundle` command analyzes the bundle and provides you with a
-link to see a detailed overview of the bundle including a scan of the contents
-of the bundle or a module breakdown:
+`tuist 검사 번들` 명령은 번들을 분석하고 번들의 내용 스캔 또는 모듈 분석을 포함하여 번들에 대한 자세한 개요를 볼 수 있는 링크를
+제공합니다:
 
-![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
+![분석된 번들](/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## Continuous integration {#continuous-integration}
+## 지속적 통합 {#continuous-integration}
 
-To track bundle size over time, you will need to analyze the bundle on the CI.
-First, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>:
+시간 경과에 따른 번들 크기를 추적하려면 CI의 번들을 분석해야 합니다. 먼저 CI가
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지
+확인해야 합니다:
 
-An example workflow for GitHub Actions could then look like this:
+그러면 GitHub 액션의 워크플로 예시는 다음과 같습니다:
 
 ```yaml
 name: Build
@@ -65,24 +60,20 @@ jobs:
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 ```
 
-Once set up, you will be able to see how your bundle size evolves over time:
+설정이 완료되면 시간이 지남에 따라 번들 크기가 어떻게 변하는지를 확인할 수 있습니다:
 
-![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
+![번들 크기 그래프](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+::: warning GIT 플랫폼과의 통합이 필요합니다.
 <!-- -->
-To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+자동 풀/병합 요청 코멘트를 받으려면
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), Tuist will post a comment directly in your
-pull/merge requests whenever you run `tuist inspect bundle`: ![GitHub app
-comment with inspected
-bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+튜이스트 프로젝트가 [GitHub](https://github.com)와 같은 Git 플랫폼과 연결되면, 튜이스트는 풀/머지 요청을 실행할
+때마다 `tuist 검사 번들`: ![검사된 번들이 있는 GitHub 앱
+코멘트](/images/guides/features/bundle-size/github-app-with-bundles.png)에 직접 코멘트를
+게시합니다.

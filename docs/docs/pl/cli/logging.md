@@ -5,46 +5,48 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# Logowanie {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI rejestruje komunikaty wewnętrznie, aby pomóc w diagnozowaniu problemów.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## Diagnozowanie problemów przy użyciu dzienników {#diagnose-issues-using-logs}.
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+Jeśli wywołanie polecenia nie przynosi zamierzonych rezultatów, można
+zdiagnozować problem, sprawdzając dzienniki. CLI przekazuje logi do
+[OSLog](https://developer.apple.com/documentation/os/oslog) i systemu plików.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a
-Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+W każdym uruchomieniu tworzy plik dziennika pod adresem
+`$XDG_STATE_HOME/tuist/logs/{uuid}.log` gdzie `$XDG_STATE_HOME` przyjmuje
+wartość `~/.local/state` jeśli zmienna środowiskowa nie jest ustawiona. Można
+również użyć `$TUIST_XDG_STATE_HOME` do ustawienia katalogu stanu specyficznego
+dla Tuist, który ma pierwszeństwo przed `$XDG_STATE_HOME`.
 
-::: tip
+::: napiwek
 <!-- -->
-Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories
-documentation</LocalizedLink>.
+Więcej informacji na temat organizacji katalogów Tuist i sposobu konfigurowania
+niestandardowych katalogów można znaleźć w dokumentacji
+<LocalizedLink href="/cli/directories">Directories</LocalizedLink>.
 <!-- -->
 :::
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly.
-If it doesn't, you can find the logs in the path mentioned above (i.e., the most
-recent log file).
+Domyślnie CLI wyświetla ścieżkę dziennika, gdy wykonanie kończy się
+nieoczekiwanie. Jeśli tak się nie stanie, dzienniki można znaleźć w ścieżce
+wspomnianej powyżej (tj. w najnowszym pliku dziennika).
 
 ::: warning
 <!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+Wrażliwe informacje nie są redagowane, więc należy zachować ostrożność podczas
+udostępniania dzienników.
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### Ciągła integracja {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+W CI, gdzie środowiska są jednorazowe, warto skonfigurować potok CI tak, aby
+eksportował dzienniki Tuist. Eksportowanie artefaktów jest powszechną funkcją we
+wszystkich usługach CI, a konfiguracja zależy od używanej usługi. Na przykład w
+GitHub Actions można użyć akcji `actions/upload-artifact`, aby przesłać
+dzienniki jako artefakt:
 
 ```yaml
 name: Node CI
@@ -71,17 +73,18 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### Debugowanie demona pamięci podręcznej {#cache-daemon-debugging}.
 
-For debugging cache-related issues, Tuist logs cache daemon operations using
-`os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in
-real-time using:
+W celu debugowania problemów związanych z pamięcią podręczną, Tuist rejestruje
+operacje demona pamięci podręcznej za pomocą `os_log` z podsystemem
+`dev.tuist.cache`. Dzienniki te można przesyłać strumieniowo w czasie
+rzeczywistym za pomocą:
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
-These logs are also visible in Console.app by filtering for the
-`dev.tuist.cache` subsystem. This provides detailed information about cache
-operations, which can help diagnose cache upload, download, and communication
-issues.
+Dzienniki te są również widoczne w Console.app poprzez filtrowanie podsystemu
+`dev.tuist.cache`. Zapewnia to szczegółowe informacje o operacjach pamięci
+podręcznej, które mogą pomóc w diagnozowaniu problemów związanych z
+przesyłaniem, pobieraniem i komunikacją z pamięcią podręczną.

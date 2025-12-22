@@ -5,18 +5,18 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# Dodaj zależności {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide
-additional functionality. To do so, run the following command to have the best
-experience editing your project:
+Często zdarza się, że projekty zależą od bibliotek innych firm w celu
+zapewnienia dodatkowej funkcjonalności. Aby to zrobić, uruchom następujące
+polecenie, aby uzyskać najlepsze wrażenia z edycji projektu:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the
-`Package.swift` and add the
+Otworzy się projekt Xcode zawierający pliki projektu. Edytuj plik
+`Package.swift` i dodaj plik
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,8 +44,8 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a
-dependency:
+Następnie edytuj cel aplikacji w swoim projekcie, aby zadeklarować `Kingfisher`
+jako zależność:
 
 ```swift
 import ProjectDescription
@@ -85,33 +85,34 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift
-Package Manager](https://www.swift.org/documentation/package-manager/).
+Następnie uruchom `tuist install`, aby rozwiązać i pobrać zależności za pomocą
+[Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
-::: info SPM AS A DEPENDENCY RESOLVER
+::: info SPM JAKO RESOLWER ZALEŻNOŚCI
 <!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
-only to resolve dependencies. Tuist then converts them into Xcode projects and
-targets for maximum configurability and control.
+Zalecane przez Tuist podejście do zależności wykorzystuje Swift Package Manager
+(SPM) wyłącznie do rozwiązywania zależności. Następnie Tuist konwertuje je na
+projekty Xcode i obiekty docelowe w celu zapewnienia maksymalnej
+konfigurowalności i kontroli.
 <!-- -->
 :::
 
-## Visualize the project {#visualize-the-project}
+## Wizualizacja projektu {#visualize-the-project}
 
-You can visualize the project structure by running:
+Strukturę projektu można zwizualizować, uruchamiając ją:
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+Polecenie wyświetli i otworzy plik `graph.png` w katalogu projektu:
 
-![Project graph](/images/guides/quick-start/graph.png)
+![Wykres projektu](/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## Użyj zależności {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following
-changes to the `ContentView.swift` file:
+Uruchom `tuist generate`, aby otworzyć projekt w Xcode i wprowadź następujące
+zmiany w pliku `ContentView.swift`:
 
 ```swift
 import SwiftUI
@@ -135,4 +136,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+Uruchom aplikację z Xcode, a powinieneś zobaczyć obraz załadowany z adresu URL.

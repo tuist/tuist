@@ -147,6 +147,7 @@ const searchOptionsLocales = {
   ar: getSearchOptionsForLocale("ar"),
   zh_Hans: getSearchOptionsForLocale("zh_Hans"),
   pl: getSearchOptionsForLocale("pl"),
+  yue_Hant: getSearchOptionsForLocale("yue_Hant"),
 };
 
 export default defineConfig({
@@ -224,6 +225,11 @@ export default defineConfig({
       label: "Polski (Polish)",
       lang: "pl",
       themeConfig: await themeConfig("pl"),
+    },
+    yue_Hant: {
+      label: "廣東話 (Cantonese)",
+      lang: "yue_Hant",
+      themeConfig: await themeConfig("yue_Hant"),
     },
   },
   cleanUrls: true,

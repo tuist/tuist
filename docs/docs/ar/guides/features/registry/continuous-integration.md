@@ -5,23 +5,23 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# التكامل المستمر (CI) {#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to
-the registry by running `tuist registry login` as part of your workflow.
+لاستخدام السجل على CI الخاص بك، تحتاج إلى التأكد من تسجيل الدخول إلى السجل عن
+طريق تشغيل `tuist تسجيل الدخول إلى السجل` كجزء من سير عملك.
 
-::: info ONLY XCODE INTEGRATION
+::: info فقط XCODE INTEGRATION
 <!-- -->
-Creating a new pre-unlocked keychain is required only if you are using the Xcode
-integration of packages.
+لا يلزم إنشاء سلسلة مفاتيح جديدة غير مؤمّنة مسبقًا إلا إذا كنت تستخدم تكامل حزم
+Xcode.
 <!-- -->
 :::
 
-Since the registry credentials are stored in a keychain, you need to ensure the
-keychain can be accessed in the CI environment. Note some CI providers or
-automation tools like [Fastlane](https://fastlane.tools/) already create a
-temporary keychain or provide a built-in way how to create one. However, you can
-also create one by creating a custom step with the following code:
+نظرًا لأنه يتم تخزين بيانات اعتماد السجل في سلسلة مفاتيح، فأنت بحاجة إلى التأكد
+من إمكانية الوصول إلى سلسلة المفاتيح في بيئة CI. لاحظ أن بعض موفري CI أو أدوات
+الأتمتة مثل [Fastlane] (https://fastlane.tools/) تنشئ بالفعل سلسلة مفاتيح مؤقتة
+أو توفر طريقة مدمجة لكيفية إنشاء واحدة. ومع ذلك، يمكنك أيضًا إنشاء واحدة من خلال
+إنشاء خطوة مخصصة باستخدام التعليمات البرمجية التالية:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -32,15 +32,15 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` will then store the credentials in the default keychain.
-Ensure that your default keychain is created and unlocked _before_ `tuist
-registry login` is run.
+`` سيتم بعد ذلك تخزين بيانات الاعتماد في سلسلة المفاتيح الافتراضية. تأكد من
+إنشاء سلسلة المفاتيح الافتراضية وإلغاء قفلها _قبل تشغيل_ `تسجيل الدخول إلى سجل
+tuist`.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable
-is set. You can create one by following the documentation
-<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_CONFIG_TOKEN`.
+يمكنك إنشاء واحد باتباع الوثائق
+<LocalizedLink href="/guides/server/authentication#as-a-project">هنا </LocalizedLink>.
 
-An example workflow for GitHub Actions could then look like this:
+مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
 ```yaml
 name: Build
 
@@ -64,16 +64,15 @@ jobs:
       - # Your build steps
 ```
 
-### Incremental resolution across environments {#incremental-resolution-across-environments}
+### دقة متزايدة عبر البيئات {#incremental-resolution-across-environments}
 
-Clean/cold resolutions are slightly faster with our registry, and you can
-experience even greater improvements if you persist the resolved dependencies
-across CI builds. Note that thanks to the registry, the size of the directory
-that you need to store and restore is much smaller than without the registry,
-taking significantly less time. To cache dependencies when using the default
-Xcode package integration, the best way is to specify a custom
-`clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`. This
-can be done by adding the following to your `Config.swift` file:
+تكون عمليات الحل النظيف/البارد أسرع قليلاً مع السجل الخاص بنا، ويمكنك تجربة
+تحسينات أكبر إذا واصلت التبعيات التي تم حلها عبر إنشاءات CI. لاحظ أنه بفضل
+السجل، يكون حجم الدليل الذي تحتاج إلى تخزينه واستعادته أصغر بكثير مما هو عليه
+بدون السجل، مما يستغرق وقتًا أقل بكثير. لتخزين التبعيات مؤقتًا عند استخدام تكامل
+حزمة Xcode الافتراضية، فإن أفضل طريقة هي تحديد `clonedSourcePackagesDirPath` عند
+حل التبعيات عبر `xcodebuild`. يمكن القيام بذلك عن طريق إضافة ما يلي إلى ملف
+`Config.swift` الخاص بك:
 
 ```swift
 import ProjectDescription
@@ -85,17 +84,16 @@ let config = Config(
 )
 ```
 
-Additionally, you will need to find a path of the `Package.resolved`. You can
-grab the path by running `ls **/Package.resolved`. The path should look
-something like
+بالإضافة إلى ذلك، ستحتاج إلى العثور على مسار `Package.resolved`. يمكنك الحصول
+على المسار عن طريق تشغيل `ls ** / Package.resolved`. يجب أن يبدو المسار مثل
 `App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-For Swift packages and the XcodeProj-based integration, we can use the default
-`.build` directory located either in the root of the project or in the `Tuist`
-directory. Make sure the path is correct when setting up your pipeline.
+بالنسبة لحزم Swift والتكامل المستند إلى XcodeProj، يمكننا استخدام الدليل
+الافتراضي `.build` الموجود إما في جذر المشروع أو في الدليل `Tuist`. تأكد من صحة
+المسار عند إعداد خط الأنابيب الخاص بك.
 
-Here's an example workflow for GitHub Actions for resolving and caching
-dependencies when using the default Xcode package integration:
+فيما يلي مثال على سير عمل إجراءات GitHub لحل التبعيات وتخزينها مؤقتًا عند
+استخدام تكامل حزمة Xcode الافتراضية:
 ```yaml
 - name: Restore cache
   id: cache-restore

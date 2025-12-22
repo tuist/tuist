@@ -5,29 +5,28 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# Previews {#previews}
+# Zapowiedzi {#previews}
 
-::: warning REQUIREMENTS
+::: warning WYMAGANIA
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
-When building an app, you may want to share it with others to get feedback.
-Traditionally, this is something that teams do by building, signing, and pushing
-their apps to platforms like Apple's
-[TestFlight](https://developer.apple.com/testflight/). However, this process can
-be cumbersome and slow, especially when you're just looking for quick feedback
-from a colleague or a friend.
+Podczas tworzenia aplikacji możesz chcieć udostępnić ją innym, aby uzyskać
+opinie. Tradycyjnie, zespoły robią to poprzez tworzenie, podpisywanie i
+wysyłanie swoich aplikacji na platformy takie jak
+[TestFlight](https://developer.apple.com/testflight/) firmy Apple. Proces ten
+może być jednak uciążliwy i powolny, zwłaszcza gdy zależy nam jedynie na
+szybkiej informacji zwrotnej od współpracownika lub znajomego.
 
-To make this process more streamlined, Tuist provides a way to generate and
-share previews of your apps with anyone.
+Aby usprawnić ten proces, Tuist zapewnia sposób generowania i udostępniania
+podglądów aplikacji każdemu.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
+::: warning URZĄDZENIA MUSZĄ BYĆ PODPISANE
 <!-- -->
-When building for device, it is currently your responsibility to ensure the app
-is signed correctly. We plan to streamline this in the future.
+Podczas tworzenia aplikacji na urządzenie użytkownik jest obecnie odpowiedzialny
+za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
 <!-- -->
 :::
 
@@ -46,23 +45,24 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-The command will generate a link that you can share with anyone to run the app –
-either on a simulator or an actual device. All they'll need to do is to run the
-command below:
+Polecenie wygeneruje link, który można udostępnić każdemu, aby uruchomić
+aplikację - na symulatorze lub rzeczywistym urządzeniu. Wszystko, co będą
+musieli zrobić, to uruchomić poniższe polecenie:
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile
-device using the Preview link. The links to `.ipa` previews are by default
-_public_. In the future, you will have an option to make them private, so that
-the recipient of the link would need to authenticate with their Tuist account to
-download the app.
+Podczas udostępniania pliku `.ipa` można pobrać aplikację bezpośrednio z
+urządzenia mobilnego za pomocą łącza Podgląd. Łącza do podglądów `.ipa` są
+domyślnie _publiczne_. W przyszłości będzie można ustawić je jako prywatne, tak
+aby odbiorca linku musiał uwierzytelnić się za pomocą swojego konta Tuist, aby
+pobrać aplikację.
 
-`tuist run` also enables you to run a latest preview based on a specifier such
-as `latest`, branch name, or a specific commit hash:
+`tuist run` umożliwia również uruchomienie najnowszego podglądu na podstawie
+specyfikatora, takiego jak `latest`, nazwy gałęzi lub określonego skrótu
+zatwierdzenia:
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -70,14 +70,37 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning PREVIEWS' VISIBILITY
+## Utwory {#tracks}
+
+Ścieżki pozwalają organizować podglądy w nazwane grupy. Na przykład, możesz mieć
+ścieżkę `beta` dla wewnętrznych testerów i ścieżkę `nightly` dla automatycznych
+kompilacji. Ścieżki są tworzone leniwie - wystarczy określić nazwę ścieżki
+podczas udostępniania, a zostanie ona utworzona automatycznie, jeśli nie
+istnieje.
+
+Aby udostępnić podgląd określonej ścieżki, należy użyć opcji `--track`:
+
+```bash
+tuist share App --track beta
+tuist share App --track nightly
+```
+
+Jest to przydatne dla:
+- **Organizowanie podglądów**: Grupowanie podglądów według przeznaczenia (np.
+  `beta`, `nightly`, `internal`)
+- **Aktualizacje w aplikacji**: Tuist SDK używa ścieżek do określenia, o których
+  aktualizacjach powiadamiać użytkowników.
+- **Filtrowanie**: Łatwe wyszukiwanie i zarządzanie podglądami według utworów na
+  pulpicie nawigacyjnym Tuist.
+
+::: warning WIDOCZNOŚĆ PRZEGLĄDÓW
 <!-- -->
-Only people with access to the organization the project belongs to can access
-the previews. We plan to add support for expiring links.
+Tylko osoby z dostępem do organizacji, do której należy projekt, mogą uzyskać
+dostęp do podglądu. Planujemy dodać obsługę wygasających linków.
 <!-- -->
 :::
 
-## Tuist macOS app {#tuist-macos-app}
+## Aplikacja Tuist macOS {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -86,21 +109,23 @@ the previews. We plan to add support for expiring links.
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar
-app. Instead of running Previews via the Tuist CLI, you can
-[download](https://tuist.dev/download) the macOS app. You can also install the
-app by running `brew install --cask tuist/tuist/tuist`.
+Aby jeszcze bardziej ułatwić uruchamianie Tuist Previews, opracowaliśmy
+aplikację Tuist na pasek menu macOS. Zamiast uruchamiać Previews za pomocą Tuist
+CLI, można [pobrać](https://tuist.dev/download) aplikację na macOS. Aplikację
+można również zainstalować, uruchamiając `brew install --cask
+tuist/tuist/tuist`.
 
-When you now click on "Run" in the Preview page, the macOS app will
-automatically launch it on your currently selected device.
+Po kliknięciu przycisku "Uruchom" na stronie podglądu, aplikacja macOS
+automatycznie uruchomi się na aktualnie wybranym urządzeniu.
 
-::: warning REQUIREMENTS
+::: warning WYMAGANIA
 <!-- -->
-You need to have Xcode locally installed and be on macOS 14 or later.
+Musisz mieć zainstalowany lokalnie Xcode i korzystać z systemu macOS 14 lub
+nowszego.
 <!-- -->
 :::
 
-## Tuist iOS app {#tuist-ios-app}
+## Aplikacja Tuist iOS {#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -111,67 +136,146 @@ You need to have Xcode locally installed and be on macOS 14 or later.
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
-your previews.
+Podobnie jak aplikacja na macOS, aplikacje Tuist na iOS usprawniają dostęp do
+podglądów i ich uruchamianie.
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
-To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">remote
-project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
+<LocalizedLink href="/guides/server/accounts-and-projects">zdalny projekt</LocalizedLink> z platformą
+<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
 
-Testing new functionality should be a part of any code review. But having to
-build an app locally adds unnecessary friction, often leading to developers
-skipping testing functionality on their device at all. But *what if each pull
-request contained a link to the build that would automatically run the app on a
-device you selected in the Tuist macOS app?*
+Testowanie nowych funkcji powinno być częścią każdego przeglądu kodu. Jednak
+konieczność tworzenia aplikacji lokalnie zwiększa niepotrzebne tarcia, często
+prowadząc do tego, że programiści w ogóle pomijają testowanie funkcjonalności na
+swoich urządzeniach. Ale *co by było, gdyby każde żądanie ściągnięcia zawierało
+link do kompilacji, która automatycznie uruchamiałaby aplikację na urządzeniu
+wybranym w aplikacji Tuist macOS?*
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
-link directly in your pull requests: ![GitHub app comment with a Tuist Preview
-link](/images/guides/features/github-app-with-preview.png)
+Po połączeniu projektu Tuist z platformą Git, taką jak
+[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
+link do podglądu bezpośrednio w żądaniach ściągnięcia: ![Komentarz do aplikacji
+GitHub z linkiem do podglądu
+Tuist](/images/guides/features/github-app-with-preview.png)
 
-## README badge {#readme-badge}
 
-To make Tuist Previews more visible in your repository, you can add a badge to
-your `README` file that points to the latest Tuist Preview:
+## Powiadomienia o aktualizacjach w aplikacji {#in-app-update-notifications}.
+
+Zestaw [Tuist SDK](https://github.com/tuist/sdk) umożliwia aplikacji wykrywanie,
+kiedy dostępna jest nowsza wersja podglądu i powiadamianie o tym użytkowników.
+Jest to przydatne do utrzymywania testerów w najnowszej wersji.
+
+Zestaw SDK sprawdza aktualizacje w ramach tej samej **ścieżki podglądu**. Po
+udostępnieniu podglądu z wyraźną ścieżką za pomocą `--track`, SDK będzie szukać
+aktualizacji na tej ścieżce. Jeśli nie określono ścieżki, gałąź git jest używana
+jako ścieżka - więc podgląd zbudowany z gałęzi `main` powiadomi tylko o nowszych
+podglądach również zbudowanych z `main`.
+
+### Instalacja {#sdk-installation}
+
+Dodaj Tuist SDK jako zależność pakietu Swift:
+
+```swift
+.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
+```
+
+### Monitorowanie aktualizacji {#sdk-monitor-updates}.
+
+Użyj `monitorPreviewUpdates`, aby okresowo sprawdzać dostępność nowych wersji
+podglądu:
+
+```swift
+import TuistSDK
+
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .task {
+                    TuistSDK(
+                        fullHandle: "myorg/myapp",
+                        apiKey: "your-api-key"
+                    )
+                    .monitorPreviewUpdates()
+                }
+        }
+    }
+}
+```
+
+### Pojedyncze sprawdzenie aktualizacji {#sdk-single-check}.
+
+Do ręcznego sprawdzania aktualizacji:
+
+```swift
+let sdk = TuistSDK(
+    fullHandle: "myorg/myapp",
+    apiKey: "your-api-key"
+)
+
+if let preview = try await sdk.checkForUpdate() {
+    print("New version available: \(preview.version ?? "unknown")")
+}
+```
+
+### Zatrzymanie monitorowania aktualizacji {#sdk-stop-monitoring}.
+
+`monitorPreviewUpdates` zwraca zadanie `` , które można anulować:
+
+```swift
+let task = sdk.monitorPreviewUpdates { preview in
+    // Handle update
+}
+
+// Later, to stop monitoring:
+task.cancel()
+```
+
+:: info
+<!-- -->
+Sprawdzanie aktualizacji jest automatycznie wyłączane w symulatorach i
+kompilacjach App Store.
+<!-- -->
+:::
+
+## Identyfikator README {#readme-badge}
+
+Aby zwiększyć widoczność podglądów Tuist w repozytorium, można dodać plakietkę
+do pliku `README`, która wskazuje na najnowszy podgląd Tuist:
 
 [![Tuist
 Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-To add the badge to your `README`, use the following markdown and replace the
-account and project handles with your own:
+Aby dodać plakietkę do swojego pliku `README`, użyj poniższego znacznika i
+zastąp uchwyty konta i projektu własnymi:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-If your project contains multiple apps with different bundle identifiers, you
-can specify which app's preview to link to by adding a `bundle-id` query
-parameter:
+Jeśli projekt zawiera wiele aplikacji z różnymi identyfikatorami pakietów, można
+określić, do którego podglądu aplikacji ma prowadzić łącze, dodając parametr
+zapytania `bundle-id`:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## Automations {#automations}
+## Automatyzacje {#automations}
 
-You can use the `--json` flag to get a JSON output from the `tuist share`
-command:
+Można użyć flagi `--json`, aby uzyskać dane wyjściowe JSON z polecenia `tuist
+share`:
 ```
 tuist share --json
 ```
 
-The JSON output is useful to create custom automations, such as posting a Slack
-message using your CI provider. The JSON contains a `url` key with the full
-preview link and a `qrCodeURL` key with the URL to the QR code image to make it
-easier to download previews from a real device. An example of a JSON output is
-below:
+Dane wyjściowe JSON są przydatne do tworzenia niestandardowych automatyzacji,
+takich jak publikowanie wiadomości Slack przy użyciu dostawcy CI. JSON zawiera
+klucz `url` z pełnym linkiem do podglądu oraz klucz `qrCodeURL` z adresem URL do
+obrazu kodu QR, aby ułatwić pobieranie podglądów z rzeczywistego urządzenia.
+Przykład danych wyjściowych JSON znajduje się poniżej:
 ```json
 {
   "id": 1234567890,

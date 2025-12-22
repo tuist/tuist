@@ -304,37 +304,17 @@ resources_items = [
           <span data-part="chevron"><.chevron_down /></span>
         </div>
         <div data-part="dropdown" data-dropdown="languages" data-open="false">
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "en"
-            )
-          }>
-            English
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ko"
-            )
-          }>
-            한국어 <span>(Korean)</span>
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ru"
-            )
-          }>
-            Русский <span>(Russian)</span>
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "zh_Hans"
-            )
-          }>
-            中文 <span>(Chinese)</span>
+          <.link
+            :for={lang <- TuistWeb.Marketing.Localization.languages()}
+            href={
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                lang.code
+              )
+            }
+          >
+            {lang.native}
+            <span :if={lang.code != "en"}>({lang.label})</span>
           </.link>
         </div>
       </div>
@@ -533,48 +513,17 @@ resources_items = [
       </div>
       <div data-part="dropdown" data-dropdown="languages">
         <.link
+          :for={lang <- TuistWeb.Marketing.Localization.languages()}
           href={
             TuistWeb.Marketing.Localization.localized_href(
               TuistWeb.Marketing.Localization.current_path(assigns),
-              "en"
+              lang.code
             )
           }
           data-part="language-item"
         >
-          English
-        </.link>
-        <.link
-          href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ko"
-            )
-          }
-          data-part="language-item"
-        >
-          한국어 <span>(Korean)</span>
-        </.link>
-        <.link
-          href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ru"
-            )
-          }
-          data-part="language-item"
-        >
-          Русский <span>(Russian)</span>
-        </.link>
-        <.link
-          href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "zh_Hans"
-            )
-          }
-          data-part="language-item"
-        >
-          中文 <span>(Chinese)</span>
+          {lang.native}
+          <span :if={lang.code != "en"}>({lang.label})</span>
         </.link>
       </div>
     </div>

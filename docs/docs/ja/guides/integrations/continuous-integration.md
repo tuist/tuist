@@ -5,25 +5,20 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# 継続的インテグレーション（CI）{#continuous-integration-ci}
 
-To run Tuist commands in your [continuous
-integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows,
-you'll need to install it in your CI environment.
+継続的インテグレーション](https://en.wikipedia.org/wiki/Continuous_integration)ワークフローでTuistコマンドを実行するには、CI環境にインストールする必要がある。
 
-Authentication is optional but required if you want to use server-side features
-like <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>.
+認証はオプションだが、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>のようなサーバーサイドの機能を使いたい場合は必須である。
 
-The following sections provide examples of how to do this on different CI
-platforms.
+以下のセクションでは、異なるCIプラットフォームでこれを行う方法の例を示す。
 
-## Examples {#examples}
+## 例 {#examples}
 
-### GitHub Actions {#github-actions}
+### GitHubアクション {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+GitHub
+Actions](https://docs.github.com/en/actions)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使うことで、秘密のない安全な認証ができます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -119,33 +114,26 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
-write` is required for OIDC to work. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` secret.
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
+を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
+<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
 <!-- -->
 :::
 
-::: tip
+::: チップ
 <!-- -->
-We recommend using `mise use --pin` in your Tuist projects to pin the version of
-Tuist across environments. The command will create a `.tool-versions` file
-containing the version of Tuist.
+環境間でTuistのバージョンを固定するために、Tuistプロジェクトで`mise use --pin`
+を使用することを推奨する。このコマンドはTuistのバージョンを含む`.tool-versions` ファイルを作成する。
 <!-- -->
 :::
 
-### Xcode Cloud {#xcode-cloud}
+### Xcodeクラウド {#xcode-cloud}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
-projects as the source of truth, you'll need to add a
-[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-script to install Tuist and run the commands you need, for example `tuist
-generate`:
+Xcodeプロジェクトを真実のソースとして使用する[Xcode
+Cloud](https://developer.apple.com/xcode-cloud/)では、Tuistをインストールし、必要なコマンドを実行するために[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加する必要があります、例えば`tuist
+generate` ：
 
 ::: code-group
-
 ```bash [Mise]
 #!/bin/sh
 
@@ -168,19 +156,17 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
+認証
 <!-- -->
-Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
-Xcode Cloud workflow settings.
+Xcode Cloud のワークフロー設定で`TUIST_TOKEN`
+環境変数を設定し、<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>
+を使用します。
 <!-- -->
 :::
 
-### CircleCI {#circleci}
+### サークルCI {#circleci}
 
-On [CircleCI](https://circleci.com) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+CircleCI](https://circleci.com)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使用して、セキュアでシークレットレスな認証を行うことができます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -231,23 +217,17 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
+認証
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
+OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 
-### Bitrise {#bitrise}
+### ビットライズ {#bitrise}
 
-On [Bitrise](https://bitrise.io) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> for secure, secretless authentication:
+Bitrise](https://bitrise.io)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使用して、セキュアでシークレットレスな認証を行うことができます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -300,22 +280,17 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
+認証
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
+OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 
-### Codemagic {#codemagic}
+### コードマジック {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your
-workflow to install Tuist:
+Codemagic](https://codemagic.io)では、Tuistをインストールするワークフローに追加のステップを加えることができる：
 
 ::: code-group
 ```yaml [Mise]
@@ -354,11 +329,8 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
+認証
 <!-- -->
-Create a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> and add it as a secret environment variable named
-`TUIST_TOKEN`.
+<LocalizedLink href="/guides/features/cache">プロジェクト・トークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
 <!-- -->
 :::

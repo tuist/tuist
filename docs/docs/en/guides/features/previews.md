@@ -58,6 +58,14 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run number that most CI providers expose. For example, in GitHub Actions you can set the `CFBundleVersion` to the  <code v-pre>${{ github.run_number }}</code> variable. 
+
+Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
+<!-- -->
+:::
+
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.

@@ -5,140 +5,145 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# The Modular Architecture (TMA) {#the-modular-architecture-tma}
+# Architektura modułowa (TMA) {#the-modular-architecture-tma}
 
-TMA is an architectural approach to structure Apple OS applications to enable
-scalability, optimize build and test cycles, and ensure good practices in your
-team. Its core idea is to build your apps by building independent features that
-are interconnected using clear and concise APIs.
+TMA to podejście architektoniczne do strukturyzacji aplikacji Apple OS w celu
+zapewnienia skalowalności, optymalizacji cykli kompilacji i testowania oraz
+zapewnienia dobrych praktyk w zespole. Jego podstawową ideą jest tworzenie
+aplikacji poprzez budowanie niezależnych funkcji, które są ze sobą połączone za
+pomocą jasnych i zwięzłych interfejsów API.
 
-These guidelines introduce the principles of the architecture, helping you
-identify and organize your application features in different layers. It also
-introduces tips, tools, and advice if you decide to use this architecture.
+Niniejsze wytyczne wprowadzają zasady architektury, pomagając zidentyfikować i
+zorganizować funkcje aplikacji w różnych warstwach. Przedstawia również
+wskazówki, narzędzia i porady, jeśli zdecydujesz się użyć tej architektury.
 
-::: info µFEATURES
+::: info µFUNKCJE
 <!-- -->
-This architecture was previously known as µFeatures. We've renamed it to The
-Modular Architecture (TMA) to better reflect its purpose and the principles
-behind it.
+Architektura ta była wcześniej znana jako µFeatures. Zmieniliśmy jej nazwę na
+The Modular Architecture (TMA), aby lepiej odzwierciedlić jej cel i zasady,
+które za nią stoją.
 <!-- -->
 :::
 
-## Core principle {#core-principle}
+## Podstawowa zasada {#core-principle}
 
-Developers should be able to **build, test, and try** their features fast,
-independently of the main app, and while ensuring Xcode features like UI
-previews, code completion, and debugging work reliably.
+** Deweloperzy powinni mieć możliwość szybkiego tworzenia, testowania i
+wypróbowywania **swoich funkcji, niezależnie od głównej aplikacji, przy
+jednoczesnym zapewnieniu niezawodnego działania funkcji Xcode, takich jak
+podgląd interfejsu użytkownika, uzupełnianie kodu i debugowanie.
 
-## What is a module {#what-is-a-module}
+## Czym jest moduł {#what-is-a-module}
 
-A module represents an application feature and is a combination of the following
-five targets (where target referts to an Xcode target):
+Moduł reprezentuje funkcję aplikacji i jest kombinacją następujących pięciu
+celów (gdzie cel odnosi się do celu Xcode):
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++,
-  JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and
-  models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example
-  app. It also provides mocks for module classes and protocols that can be used
-  by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the
-  feature under certain conditions (different languages, screen sizes,
-  settings).
+- **Źródło:** Zawiera kod źródłowy funkcji (Swift, Objective-C, C++,
+  JavaScript...) i jego zasoby (obrazy, czcionki, storyboardy, xibs).
+- **Interfejs:** Jest to cel towarzyszący, który zawiera publiczny interfejs i
+  modele funkcji.
+- **Testy:** Zawiera testy jednostkowe i integracyjne funkcji.
+- **Testowanie:** Zapewnia dane testowe, które można wykorzystać w testach i
+  przykładowej aplikacji. Zapewnia również makiety dla klas modułów i
+  protokołów, które mogą być używane przez inne funkcje, jak zobaczymy później.
+- **Przykład:** Zawiera przykładową aplikację, którą deweloperzy mogą
+  wykorzystać do wypróbowania funkcji w określonych warunkach (różne języki,
+  rozmiary ekranu, ustawienia).
 
-We recommend following a naming convention for targets, something that you can
-enforce in your project thanks to Tuist's DSL.
+Zalecamy przestrzeganie konwencji nazewnictwa obiektów docelowych, co można
+wymusić w swoim projekcie dzięki DSL Tuist.
 
-| Target             | Dependencies                | Content                     |
-| ------------------ | --------------------------- | --------------------------- |
-| `Feature`          | `FeatureInterface`          | Source code and resources   |
-| `FeatureInterface` | -                           | Public interface and models |
-| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
-| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
-| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
+| Cel                | Zależności                  | Treść                            |
+| ------------------ | --------------------------- | -------------------------------- |
+| `Cecha`            | `FeatureInterface`          | Kod źródłowy i zasoby            |
+| `FeatureInterface` | -                           | Interfejs publiczny i modele     |
+| `FeatureTests`     | `Feature`, `FeatureTesting` | Testy jednostkowe i integracyjne |
+| `FeatureTesting`   | `FeatureInterface`          | Testowanie danych i makiet       |
+| `FeatureExample`   | `FeatureTesting`, `Feature` | Przykładowa aplikacja            |
 
 ::: tip UI Previews
 <!-- -->
-`Feature` can use `FeatureTesting` as a Development Asset to allow for UI
-previews
+`Funkcja` może korzystać z `FeatureTesting` jako zasobu deweloperskiego, aby
+umożliwić podgląd interfejsu użytkownika.
 <!-- -->
 :::
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
+::: warning KIERUNKI KOMPILATORA ZAMIAST TARGETÓW TESTOWYCH
 <!-- -->
-Alternatively, you can use compiler directives to include test data and mocks in
-the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
-simplify the graph, but you'll end up compiling code that you won't need for
-running the app.
+Alternatywnie można użyć dyrektyw kompilatora, aby dołączyć dane testowe i
+makiety do celów `Feature` lub `FeatureInterface` podczas kompilacji dla
+`Debug`. Uprościsz wykres, ale ostatecznie skompilujesz kod, który nie będzie
+potrzebny do uruchomienia aplikacji.
 <!-- -->
 :::
 
-## Why a module {#why-a-module}
+## Dlaczego moduł {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### Przejrzyste i zwięzłe interfejsy API {#clear-and-concise-apis}
 
-When all the app source code lives in the same target it is very easy to build
-implicit dependencies in code and end up with the so well-known spaghetti code.
-Everything is strongly coupled, the state is sometimes unpredictable, and
-introducing new changes become a nightmare. When we define features in
-independent targets we need to design public APIs as part of our feature
-implementation. We need to decide what should be public, how our feature should
-be consumed, what should remain private. We have more control over how we want
-our feature clients to use the feature and we can enforce good practices by
-designing safe APIs.
+Gdy cały kod źródłowy aplikacji znajduje się w tym samym miejscu docelowym,
+bardzo łatwo jest zbudować ukryte zależności w kodzie i skończyć z tak dobrze
+znanym kodem spaghetti. Wszystko jest silnie powiązane, stan jest czasami
+nieprzewidywalny, a wprowadzanie nowych zmian staje się koszmarem. Kiedy
+definiujemy funkcje w niezależnych celach, musimy zaprojektować publiczne
+interfejsy API jako część naszej implementacji funkcji. Musimy zdecydować, co
+powinno być publiczne, jak nasza funkcja powinna być konsumowana, a co powinno
+pozostać prywatne. Mamy większą kontrolę nad tym, w jaki sposób chcemy, aby nasi
+klienci korzystali z funkcji i możemy egzekwować dobre praktyki poprzez
+projektowanie bezpiecznych interfejsów API.
 
-### Small modules {#small-modules}
+### Małe moduły {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working
-in small modules allows you to have more focus and test and try the feature in
-isolation. Moreover, development cycles are much faster since we have a more
-selective compilation, compiling only the components that are necessary to get
-our feature working. The compilation of the whole app is only necessary at the
-very end of our work, when we need to integrate the feature into the app.
+[Dziel i zwyciężaj](https://en.wikipedia.org/wiki/Divide_and_conquer). Praca w
+małych modułach pozwala bardziej skupić się na testowaniu i wypróbowywaniu
+funkcji w izolacji. Co więcej, cykle rozwoju są znacznie szybsze, ponieważ mamy
+bardziej selektywną kompilację, kompilując tylko te komponenty, które są
+niezbędne do uruchomienia naszej funkcji. Kompilacja całej aplikacji jest
+konieczna tylko na samym końcu naszej pracy, kiedy musimy zintegrować funkcję z
+aplikacją.
 
-### Reusability {#reusability}
+### Możliwość ponownego użycia {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using
-frameworks or libraries. By building modules reusing them is pretty
-straightforward. We can build an iMessage extension, a Today Extension, or a
-watchOS application by just combining existing modules and adding _(when
-necessary)_ platform-specific UI layers.
+Ponowne wykorzystanie kodu w aplikacjach i innych produktach, takich jak
+rozszerzenia, jest zalecane przy użyciu frameworków lub bibliotek. Tworząc
+moduły, ich ponowne wykorzystanie jest dość proste. Możemy zbudować rozszerzenie
+iMessage, rozszerzenie Today lub aplikację watchOS, po prostu łącząc istniejące
+moduły i dodając _(w razie potrzeby)_ warstwy interfejsu użytkownika specyficzne
+dla platformy.
 
-## Dependencies {#dependencies}
+## Zależności {#dependencies}
 
-When a module depends on another module, it declares a dependency against its
-interface target. The benefit of this is two-fold. It prevents the
-implementation of a module to be coupled to the implementation of another
-module, and it speeds up clean builds because they only have to compile the
-implementation of our feature, and the interfaces of direct and transitive
-dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS
-Build Times by using Interface
+Gdy moduł zależy od innego modułu, deklaruje zależność od swojego interfejsu
+docelowego. Korzyść z tego jest dwojaka. Zapobiega to sprzężeniu implementacji
+modułu z implementacją innego modułu i przyspiesza czyste kompilacje, ponieważ
+muszą one skompilować tylko implementację naszej funkcji oraz interfejsy
+bezpośrednich i przechodnich zależności. Podejście to jest inspirowane pomysłem
+SwiftRock [Reducing iOS Build Times by using Interface
 Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
-Depending on interfaces requires apps to build the graph of implementations at
-runtime, and dependency-inject it into the modules that need it. Although TMA is
-non-opinionated about how to do this, we recommend using dependency-injection
-solutions or patterns or solutions that don't add built-time indirections or use
-platform APIs that were not designed for this purpose.
+Zależność od interfejsów wymaga od aplikacji budowania grafu implementacji w
+czasie wykonywania i wstrzykiwania zależności do modułów, które go potrzebują.
+Chociaż TMA nie wypowiada się na temat tego, jak to zrobić, zalecamy korzystanie
+z rozwiązań lub wzorców wstrzykiwania zależności lub rozwiązań, które nie dodają
+pośredników w czasie wbudowanym ani nie używają interfejsów API platformy, które
+nie zostały zaprojektowane do tego celu.
 
-## Product types {#product-types}
+## Typy produktów {#product-types}
 
-When building a module, you can choose between **libraries and frameworks**, and
-**static and dynamic linking** for the targets. Without Tuist, making this
-decision is a bit more complex because you need to configure the dependency
-graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+Podczas tworzenia modułu można wybrać pomiędzy **bibliotekami i frameworkami**,
+a **statycznym i dynamicznym linkowaniem** dla celów. Bez Tuist podjęcie tej
+decyzji jest nieco bardziej skomplikowane, ponieważ trzeba ręcznie skonfigurować
+wykres zależności. Jednak dzięki Tuist Projects nie stanowi to już problemu.
 
-We recommend using dynamic libraries or frameworks during development using
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> to decouple the bundle-accessing logic from the
-library or framework nature of the target. This is key for fast compilation
-times and to ensure [SwiftUI
-Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-work reliably. And static libraries or frameworks for the release builds to
-ensure the app boots fast. You can leverage
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic
-configuration</LocalizedLink> to change the product type at generation-time:
+Zalecamy korzystanie z dynamicznych bibliotek lub frameworków podczas
+programowania przy użyciu
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>, aby oddzielić logikę dostępu do pakietów od
+biblioteki lub frameworka docelowego. Ma to kluczowe znaczenie dla szybkiego
+czasu kompilacji i zapewnienia niezawodnego działania [SwiftUI
+Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode).
+A statyczne biblioteki lub frameworki dla kompilacji wydania, aby zapewnić
+szybkie uruchamianie aplikacji. Możesz wykorzystać
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables"> konfigurację dynamiczną</LocalizedLink>, aby zmienić typ produktu w czasie
+generowania:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -159,48 +164,52 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
+::: warning BIBLIOTEKI MERYTORYCZNE
 <!-- -->
-Apple attempted to alleviate the cumbersomeness of switching between static and
-dynamic libraries by introducing [mergeable
+Apple próbowało złagodzić uciążliwość przełączania się między bibliotekami
+statycznymi i dynamicznymi, wprowadzając [mergeable
 libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-However, that introduces build-time non-determinism that makes your build
-non-reproducible and harder to optimize so we don't recommend using it.
+Wprowadza to jednak niedeterminizm w czasie kompilacji, który sprawia, że
+kompilacja nie jest odtwarzalna i trudniejsza do optymalizacji, więc nie
+zalecamy jej używania.
 <!-- -->
 :::
 
-## Code {#code}
+## Kod {#code}
 
-TMA is non-opinionated about the code architecture and patterns for your
-modules. However, we'd like to share some tips based on our experience:
+TMA nie wypowiada się na temat architektury kodu i wzorców dla modułów.
+Chcielibyśmy jednak podzielić się kilkoma wskazówkami opartymi na naszym
+doświadczeniu:
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end
-  up being non-productive and cause some Xcode features like previews to work
-  unreliably. We recommend using the compiler to enforce good practices and
-  catch errors early, but not to the point that it makes the code harder to read
-  and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make
-  the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come
-  up with ellaborated abstraction layers might end up being counterproductive.
-  The platform and the language are powerful enough to build great apps without
-  the need for additional abstraction layers. Use good programming and design
-  patterns as a reference to build your features.
+- **Wykorzystanie kompilatora jest świetne.** Nadmierne wykorzystanie
+  kompilatora może okazać się nieproduktywne i spowodować, że niektóre funkcje
+  Xcode, takie jak podglądy, będą działać zawodnie. Zalecamy korzystanie z
+  kompilatora w celu egzekwowania dobrych praktyk i wczesnego wychwytywania
+  błędów, ale nie do tego stopnia, aby utrudniało to czytanie i konserwację
+  kodu.
+- **Makr Swift należy używać oszczędnie.** Mogą one być bardzo potężne, ale mogą
+  również utrudniać czytanie i utrzymanie kodu.
+- **Uwzględnij platformę i język, nie abstrahuj od nich.** Próba wymyślenia
+  rozbudowanych warstw abstrakcji może przynieść efekt przeciwny do
+  zamierzonego. Platforma i język są wystarczająco potężne, aby tworzyć świetne
+  aplikacje bez potrzeby tworzenia dodatkowych warstw abstrakcji. Używaj dobrych
+  wzorców programistycznych i projektowych jako odniesienia do budowania swoich
+  funkcji.
 
-## Resources {#resources}
+## Zasoby {#resources}
 
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented
-  Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and
-  Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [Leveraging frameworks to speed up our development on iOS - Part
+- [Budowanie µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
+- [Programowanie zorientowane
+  ramowo](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl).
+- [Podróż do frameworków i
+  Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift).
+- [Wykorzystanie frameworków do przyspieszenia rozwoju na iOS - część
   1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Library Oriented
-  Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [Building Modern
-  Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [The Unofficial Guide to xcconfig
-  files](https://pewpewthespells.com/blog/xcconfig_guide.html)
-- [Static and Dynamic
-  Libraries](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
+- [Programowanie zorientowane na
+  biblioteki](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/).
+- [Budowanie nowoczesnych
+  frameworków](https://developer.apple.com/videos/play/wwdc2014/416/).
+- [Nieoficjalny przewodnik po plikach
+  xcconfig](https://pewpewthespells.com/blog/xcconfig_guide.html)
+- [Biblioteki statyczne i
+  dynamiczne](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html).
