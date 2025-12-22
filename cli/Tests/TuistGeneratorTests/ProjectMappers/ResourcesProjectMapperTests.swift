@@ -817,6 +817,70 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         try verify(gotSideEffects, for: target, in: project, by: "\(project.name)_\(target.name)")
     }
 
+    func test_map_when_a_project_is_external_target_has_swift_source_and_synthesized_files() async throws {
+        // Given
+        let sources: [SourceFile] = ["/ViewController.swift"]
+        let resources: [ResourceFileElement] = []
+        let buildableFolders: [BuildableFolder] = [.init(
+            path: try AbsolutePath(validating: "/AbsolutePath"),
+            exceptions: [],
+            resolvedFiles: [.init(path: "/video.mov", compilerFlags: nil)]
+        )]
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(
+                resources
+            ),
+            buildableFolders: buildableFolders
+        )
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            resourceSynthesizers: [.test(extensions: ["mov"])],
+            type: .external(hash: nil)
+        )
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(false)
+
+        // Got
+        let (_, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        try verify(gotSideEffects, for: target, in: project, by: "\(project.name)_\(target.name)")
+    }
+
+    func test_map_when_a_project_is_not_external_target_has_swift_source_and_synthesized_files() async throws {
+        // Given
+        let sources: [SourceFile] = ["/ViewController.swift"]
+        let resources: [ResourceFileElement] = []
+        let buildableFolders: [BuildableFolder] = [.init(
+            path: try AbsolutePath(validating: "/AbsolutePath"),
+            exceptions: [],
+            resolvedFiles: [.init(path: "/video.mov", compilerFlags: nil)]
+        )]
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            buildableFolders: buildableFolders
+        )
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            resourceSynthesizers: [.test(extensions: ["mov"])],
+            type: .local
+        )
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(false)
+
+        // Got
+        let (_, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        try verify(gotSideEffects, for: target, in: project, by: "\(project.name)_\(target.name)")
+    }
+
     func test_map_when_a_project_is_external_target_has_objc_source_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
