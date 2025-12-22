@@ -38,9 +38,9 @@ msgstr ""
 msgid "Additional strings"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:386
-#: lib/tuist_web/live/builds_live.ex:394
-#: lib/tuist_web/live/builds_live.ex:397
+#: lib/tuist_web/live/builds_live.ex:333
+#: lib/tuist_web/live/builds_live.ex:341
+#: lib/tuist_web/live/builds_live.ex:344
 #: lib/tuist_web/live/builds_live.html.heex:15
 #: lib/tuist_web/live/builds_live.html.heex:39
 #: lib/tuist_web/live/builds_live.html.heex:63
@@ -54,7 +54,7 @@ msgstr ""
 msgid "Archive"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:358
+#: lib/tuist_web/live/builds_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr ""
@@ -109,8 +109,8 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:295
 #: lib/tuist_web/live/build_run_live.html.heex:311
 #: lib/tuist_web/live/build_run_live.html.heex:353
-#: lib/tuist_web/live/builds_live.html.heex:689
-#: lib/tuist_web/live/builds_live.html.heex:736
+#: lib/tuist_web/live/builds_live.html.heex:707
+#: lib/tuist_web/live/builds_live.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "Build duration"
 msgstr ""
@@ -121,13 +121,13 @@ msgstr ""
 msgid "Build not found."
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:458
+#: lib/tuist_web/live/builds_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Build runs"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:184
-#: lib/tuist_web/live/builds_live.html.heex:577
+#: lib/tuist_web/live/builds_live.html.heex:595
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
 msgstr ""
@@ -142,7 +142,7 @@ msgstr ""
 msgid "Buildable folders"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:19
+#: lib/tuist_web/live/builds_live.ex:20
 #: lib/tuist_web/live/builds_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Builds"
@@ -188,7 +188,7 @@ msgstr ""
 msgid "CAS outputs:"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:388
+#: lib/tuist_web/live/builds_live.ex:335
 #: lib/tuist_web/live/builds_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -282,7 +282,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:162
 #: lib/tuist_web/live/build_runs_live.ex:261
 #: lib/tuist_web/live/build_runs_live.html.heex:98
-#: lib/tuist_web/live/builds_live.html.heex:872
+#: lib/tuist_web/live/builds_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr ""
@@ -338,7 +338,7 @@ msgstr ""
 msgid "Configuration"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:598
+#: lib/tuist_web/live/builds_live.html.heex:616
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
 msgstr ""
@@ -384,8 +384,8 @@ msgid "Destinations"
 msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:124
-#: lib/tuist_web/live/builds_live.ex:392
-#: lib/tuist_web/live/builds_live.html.heex:618
+#: lib/tuist_web/live/builds_live.ex:339
+#: lib/tuist_web/live/builds_live.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgstr ""
@@ -411,7 +411,7 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:13
 #: lib/tuist_web/live/build_runs_live.html.heex:21
 #: lib/tuist_web/live/build_runs_live.html.heex:82
-#: lib/tuist_web/live/builds_live.html.heex:864
+#: lib/tuist_web/live/builds_live.html.heex:885
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:21
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
@@ -457,7 +457,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:397
 #: lib/tuist_web/live/build_runs_live.ex:245
 #: lib/tuist_web/live/build_runs_live.html.heex:68
-#: lib/tuist_web/live/builds_live.html.heex:855
+#: lib/tuist_web/live/builds_live.html.heex:876
 #: lib/tuist_web/live/generate_runs_live.ex:267
 #: lib/tuist_web/live/generate_runs_live.html.heex:81
 #: lib/tuist_web/live/run_detail_live.html.heex:122
@@ -466,8 +466,8 @@ msgid "Failed"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:201
-#: lib/tuist_web/live/builds_live.html.heex:516
-#: lib/tuist_web/live/builds_live.html.heex:781
+#: lib/tuist_web/live/builds_live.html.heex:531
+#: lib/tuist_web/live/builds_live.html.heex:802
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr ""
@@ -636,7 +636,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.ex:1072
 #: lib/tuist_web/live/build_run_live.html.heex:788
 #: lib/tuist_web/live/build_run_live.html.heex:1004
-#: lib/tuist_web/live/builds_live.ex:387
+#: lib/tuist_web/live/builds_live.ex:334
 #: lib/tuist_web/live/builds_live.html.heex:101
 #: lib/tuist_web/live/run_detail_live.ex:362
 #: lib/tuist_web/live/run_detail_live.html.heex:280
@@ -713,9 +713,9 @@ msgid "No data"
 msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:142
-#: lib/tuist_web/live/builds_live.html.heex:589
-#: lib/tuist_web/live/builds_live.html.heex:749
-#: lib/tuist_web/live/builds_live.html.heex:888
+#: lib/tuist_web/live/builds_live.html.heex:607
+#: lib/tuist_web/live/builds_live.html.heex:770
+#: lib/tuist_web/live/builds_live.html.heex:909
 #: lib/tuist_web/live/generate_runs_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "No data yet"
@@ -766,7 +766,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:395
 #: lib/tuist_web/live/build_runs_live.ex:244
 #: lib/tuist_web/live/build_runs_live.html.heex:66
-#: lib/tuist_web/live/builds_live.html.heex:853
+#: lib/tuist_web/live/builds_live.html.heex:874
 #: lib/tuist_web/live/generate_runs_live.ex:266
 #: lib/tuist_web/live/generate_runs_live.html.heex:79
 #: lib/tuist_web/live/run_detail_live.html.heex:115
@@ -804,7 +804,7 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:14
 #: lib/tuist_web/live/build_runs_live.html.heex:29
 #: lib/tuist_web/live/build_runs_live.html.heex:109
-#: lib/tuist_web/live/builds_live.html.heex:881
+#: lib/tuist_web/live/builds_live.html.heex:902
 #: lib/tuist_web/live/generate_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:29
 #: lib/tuist_web/live/generate_runs_live.html.heex:111
@@ -815,7 +815,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.ex:299
 #: lib/tuist_web/live/build_runs_live.html.heex:77
-#: lib/tuist_web/live/builds_live.html.heex:861
+#: lib/tuist_web/live/builds_live.html.heex:882
 #: lib/tuist_web/live/generate_runs_live.ex:299
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/run_detail_live.html.heex:130
@@ -823,7 +823,7 @@ msgstr ""
 msgid "Ran by"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:759
+#: lib/tuist_web/live/builds_live.html.heex:780
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
 msgstr ""
@@ -856,7 +856,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.ex:222
 #: lib/tuist_web/live/build_runs_live.html.heex:58
-#: lib/tuist_web/live/builds_live.html.heex:846
+#: lib/tuist_web/live/builds_live.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr ""
@@ -944,7 +944,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:776
+#: lib/tuist_web/live/builds_live.html.heex:797
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
 msgstr ""
@@ -1121,7 +1121,7 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:606
+#: lib/tuist_web/live/builds_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr ""
@@ -1135,10 +1135,10 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:119
 #: lib/tuist_web/live/build_runs_live.html.heex:122
 #: lib/tuist_web/live/build_runs_live.html.heex:127
-#: lib/tuist_web/live/builds_live.ex:405
-#: lib/tuist_web/live/builds_live.html.heex:848
-#: lib/tuist_web/live/builds_live.html.heex:859
-#: lib/tuist_web/live/builds_live.html.heex:876
+#: lib/tuist_web/live/builds_live.ex:352
+#: lib/tuist_web/live/builds_live.html.heex:869
+#: lib/tuist_web/live/builds_live.html.heex:880
+#: lib/tuist_web/live/builds_live.html.heex:897
 #: lib/tuist_web/live/run_detail_live.html.heex:294
 #: lib/tuist_web/live/run_detail_live.html.heex:576
 #, elixir-autogen, elixir-format
@@ -1163,7 +1163,7 @@ msgid "Upload throughput"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:243
-#: lib/tuist_web/live/builds_live.html.heex:766
+#: lib/tuist_web/live/builds_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
@@ -1271,9 +1271,9 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:180
 #: lib/tuist_web/live/build_runs_live.ex:275
 #: lib/tuist_web/live/build_runs_live.html.heex:118
-#: lib/tuist_web/live/builds_live.ex:390
-#: lib/tuist_web/live/builds_live.html.heex:610
-#: lib/tuist_web/live/builds_live.html.heex:858
+#: lib/tuist_web/live/builds_live.ex:337
+#: lib/tuist_web/live/builds_live.html.heex:628
+#: lib/tuist_web/live/builds_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Xcode version"
 msgstr ""
@@ -1281,14 +1281,14 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:186
 #: lib/tuist_web/live/build_runs_live.ex:283
 #: lib/tuist_web/live/build_runs_live.html.heex:121
-#: lib/tuist_web/live/builds_live.ex:391
-#: lib/tuist_web/live/builds_live.html.heex:626
+#: lib/tuist_web/live/builds_live.ex:338
+#: lib/tuist_web/live/builds_live.html.heex:644
 #: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:400
+#: lib/tuist_web/live/builds_live.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr ""
@@ -1308,7 +1308,7 @@ msgstr ""
 msgid "p50 latency writing cache keys"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:386
+#: lib/tuist_web/live/builds_live.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr ""
@@ -1328,7 +1328,7 @@ msgstr ""
 msgid "p90 latency writing cache keys"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:372
+#: lib/tuist_web/live/builds_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr ""
@@ -1348,17 +1348,17 @@ msgstr ""
 msgid "p99 latency writing cache keys"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:373
+#: lib/tuist_web/live/builds_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:370
+#: lib/tuist_web/live/builds_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:371
+#: lib/tuist_web/live/builds_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -1372,53 +1372,53 @@ msgid "•"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:158
-#: lib/tuist_web/live/builds_live.html.heex:675
+#: lib/tuist_web/live/builds_live.html.heex:693
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:149
-#: lib/tuist_web/live/builds_live.html.heex:666
+#: lib/tuist_web/live/builds_live.html.heex:684
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:141
-#: lib/tuist_web/live/builds_live.html.heex:658
+#: lib/tuist_web/live/builds_live.html.heex:140
+#: lib/tuist_web/live/builds_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:138
-#: lib/tuist_web/live/builds_live.html.heex:655
+#: lib/tuist_web/live/builds_live.html.heex:137
+#: lib/tuist_web/live/builds_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:123
-#: lib/tuist_web/live/builds_live.html.heex:640
+#: lib/tuist_web/live/builds_live.html.heex:122
+#: lib/tuist_web/live/builds_live.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:133
-#: lib/tuist_web/live/builds_live.html.heex:650
+#: lib/tuist_web/live/builds_live.html.heex:132
+#: lib/tuist_web/live/builds_live.html.heex:667
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.html.heex:128
-#: lib/tuist_web/live/builds_live.html.heex:645
+#: lib/tuist_web/live/builds_live.html.heex:127
+#: lib/tuist_web/live/builds_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:372
+#: lib/tuist_web/live/builds_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:369
+#: lib/tuist_web/live/builds_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""

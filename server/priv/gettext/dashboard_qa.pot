@@ -36,12 +36,12 @@ msgstr ""
 msgid "--my-launch-argument value"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:338
+#: lib/tuist_web/live/qa_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "1. Upload a preview from a PR"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:362
+#: lib/tuist_web/live/qa_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "2. Trigger the QA session from the PR"
 msgstr ""
@@ -81,8 +81,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:212
-#: lib/tuist_web/live/qa_live.ex:221
+#: lib/tuist_web/live/qa_live.ex:191
+#: lib/tuist_web/live/qa_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -98,7 +98,7 @@ msgstr ""
 msgid "App description"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:169
+#: lib/tuist_web/live/qa_live.ex:154
 #: lib/tuist_web/live/qa_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "App issues found"
@@ -132,7 +132,7 @@ msgstr ""
 msgid "Average Tokens per Run"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:181
+#: lib/tuist_web/live/qa_live.ex:166
 #: lib/tuist_web/live/qa_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Avg. QA duration"
@@ -143,7 +143,7 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:269
+#: lib/tuist_web/live/qa_live.html.heex:272
 #: lib/tuist_web/live/qa_run_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -166,13 +166,13 @@ msgstr ""
 msgid "Check the live "
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:275
+#: lib/tuist_web/live/qa_live.html.heex:278
 #: lib/tuist_web/live/qa_run_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:239
+#: lib/tuist_web/live/qa_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr ""
@@ -200,7 +200,7 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:278
+#: lib/tuist_web/live/qa_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr ""
@@ -226,7 +226,7 @@ msgstr ""
 msgid "Enter your app description..."
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:238
+#: lib/tuist_web/live/qa_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -241,12 +241,12 @@ msgstr ""
 msgid "Get our customers to run some QA!"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:373
+#: lib/tuist_web/live/qa_live.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "GitHub comment"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:281
+#: lib/tuist_web/live/qa_live.html.heex:284
 #: lib/tuist_web/live/qa_run_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "In progress"
@@ -257,7 +257,7 @@ msgstr ""
 msgid "Include expected outcomes"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:260
+#: lib/tuist_web/live/qa_live.html.heex:263
 #: lib/tuist_web/live/qa_run_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Issues"
@@ -304,7 +304,7 @@ msgstr ""
 msgid "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:229
+#: lib/tuist_web/live/qa_live.html.heex:232
 #: lib/tuist_web/live/qa_run_live.html.heex:669
 #: lib/tuist_web/live/qa_settings_live.html.heex:134
 #: lib/tuist_web/live/qa_settings_live.html.heex:176
@@ -323,12 +323,12 @@ msgstr ""
 msgid "No QA runs found"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:309
+#: lib/tuist_web/live/qa_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "No QA runs yet"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:209
+#: lib/tuist_web/live/qa_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -353,7 +353,7 @@ msgstr ""
 msgid "No token usage found"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:272
+#: lib/tuist_web/live/qa_live.html.heex:275
 #: lib/tuist_web/live/qa_run_live.html.heex:144
 #: lib/tuist_web/live/qa_run_live.html.heex:164
 #, elixir-autogen, elixir-format
@@ -381,12 +381,12 @@ msgstr ""
 msgid "Password for test account"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:237
+#: lib/tuist_web/live/qa_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:253
+#: lib/tuist_web/live/qa_live.html.heex:256
 #: lib/tuist_web/live/qa_run_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Platform"
@@ -427,7 +427,7 @@ msgstr ""
 msgid "Provide clear instructions for testing"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:21
+#: lib/tuist_web/live/qa_live.ex:22
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
@@ -460,7 +460,7 @@ msgstr ""
 msgid "QA Runs (Last 30 Days)"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:217
+#: lib/tuist_web/live/qa_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "QA Sessions"
 msgstr ""
@@ -475,7 +475,7 @@ msgstr ""
 msgid "QA duration"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:161
+#: lib/tuist_web/live/qa_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "QA run count"
 msgstr ""
@@ -512,7 +512,7 @@ msgstr ""
 msgid "Result"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:236
+#: lib/tuist_web/live/qa_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -533,18 +533,18 @@ msgstr ""
 msgid "Share your naming conventions with the LLM"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:365
+#: lib/tuist_web/live/qa_live.html.heex:368
 #, elixir-autogen, elixir-format
 msgid "Start the QA session from GitHub with the sample command below."
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:294
+#: lib/tuist_web/live/qa_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr ""
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
-#: lib/tuist_web/live/qa_live.html.heex:232
+#: lib/tuist_web/live/qa_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -595,7 +595,7 @@ msgstr ""
 msgid "Token usage will appear here once QA runs start using LLM features"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:349
+#: lib/tuist_web/live/qa_live.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
 msgstr ""
@@ -610,7 +610,7 @@ msgstr ""
 msgid "Update"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:341
+#: lib/tuist_web/live/qa_live.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
 msgstr ""
@@ -636,7 +636,7 @@ msgstr ""
 msgid "argument-group-name"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:263
+#: lib/tuist_web/live/qa_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "issue"
 msgid_plural "issues"
@@ -648,17 +648,17 @@ msgstr[1] ""
 msgid "logs"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:210
+#: lib/tuist_web/live/qa_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:207
+#: lib/tuist_web/live/qa_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:208
+#: lib/tuist_web/live/qa_live.ex:187
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -673,37 +673,37 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:53
+#: lib/tuist_web/live/qa_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:50
+#: lib/tuist_web/live/qa_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:35
+#: lib/tuist_web/live/qa_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:45
+#: lib/tuist_web/live/qa_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.html.heex:40
+#: lib/tuist_web/live/qa_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:209
+#: lib/tuist_web/live/qa_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:206
+#: lib/tuist_web/live/qa_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
