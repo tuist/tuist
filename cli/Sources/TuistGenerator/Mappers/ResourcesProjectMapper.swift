@@ -39,7 +39,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
-           !(try await buildableFolderChecker.containsResources(target.buildableFolders))
+           !(try await buildableFolderChecker.containsResources(target.buildableFolders)),
+           !containsSynthesizedFilesInBuildableFolders(target: target, project: project)
         { return (
             [target],
             []
@@ -147,7 +148,17 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    private func containsSynthesizedFilesInBuildableFolders(target: Target, project: Project) -> Bool {
+        let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
+        for folder in target.buildableFolders {
+            if folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
