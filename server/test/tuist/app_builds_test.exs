@@ -1382,6 +1382,65 @@ defmodule Tuist.AppBuildsTest do
       assert result.id == preview_beta.id
       assert result.track == "beta"
     end
+
+    test "only returns previews that have app builds with matching supported platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440013"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_ios =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_one,
+          binary_id: binary_id,
+          build_version: build_version,
+          supported_platforms: [:ios]
+        )
+
+      # This preview only has macOS build, so it should be skipped
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_macos_only =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_two,
+          supported_platforms: [:macos]
+        )
+
+      # This is the latest preview with an iOS app build
+      preview_three =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_ios_latest =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_three,
+          supported_platforms: [:ios]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then - should return preview_three, skipping preview_two which has no iOS build
+      assert result.id == preview_three.id
+    end
   end
 
   describe "create_app_build/1" do
