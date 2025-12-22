@@ -130,6 +130,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell completions"
+                        },
+                        "directories": {
+                            "text": "الدلائل"
                         }
                     }
                 },
@@ -211,18 +214,18 @@
                             "text": "التثبيت"
                         },
                         "metrics": {
-                            "text": ""
+                            "text": "المقاييس"
                         }
                     }
                 },
                 "api-documentation": {
-                    "text": ""
+                    "text": "وثائق واجهة برمجة التطبيقات (API)"
                 },
                 "status": {
                     "text": "الحالة"
                 },
                 "metrics-dashboard": {
-                    "text": ""
+                    "text": "لوحة معلومات المقاييس"
                 }
             }
         },
@@ -238,7 +241,7 @@
                     }
                 },
                 "quick-start": {
-                    "text": "",
+                    "text": "بداية سريعة",
                     "items": {
                         "install-tuist": {
                             "text": "تثبيت Tuist"
@@ -255,7 +258,7 @@
                     "text": "الأمثلة",
                     "items": {
                         "generated-projects": {
-                            "text": ""
+                            "text": "المشروع المُنشأ"
                         }
                     }
                 },
@@ -263,10 +266,10 @@
                     "text": "التطوير",
                     "items": {
                         "generated-projects": {
-                            "text": "",
+                            "text": "المشروع المُنشأ",
                             "items": {
                                 "adoption": {
-                                    "text": "",
+                                    "text": "التبني",
                                     "items": {
                                         "new-project": {
                                             "text": "إنشاء مشروع جديد"
@@ -278,152 +281,191 @@
                                             "text": "الانتقال",
                                             "items": {
                                                 "xcode-project": {
-                                                    "text": ""
+                                                    "text": "مشروع Xcode"
                                                 },
                                                 "swift-package": {
-                                                    "text": ""
+                                                    "text": "الحزمة السريعة"
                                                 },
                                                 "xcodegen-project": {
-                                                    "text": ""
+                                                    "text": "مشروع XcodeGen"
                                                 },
                                                 "bazel-project": {
-                                                    "text": ""
+                                                    "text": "مشروع بازل"
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 "manifests": {
-                                    "text": ""
+                                    "text": "المظاهر"
                                 },
                                 "directory-structure": {
-                                    "text": ""
+                                    "text": "هيكل الدليل"
                                 },
                                 "editing": {
-                                    "text": ""
+                                    "text": "التحرير"
                                 },
                                 "dependencies": {
-                                    "text": ""
+                                    "text": "التبعيات"
                                 },
                                 "code-sharing": {
-                                    "text": ""
+                                    "text": "مشاركة الرموز"
                                 },
                                 "synthesized-files": {
-                                    "text": ""
+                                    "text": "الملفات المركبة"
                                 },
                                 "dynamic-configuration": {
-                                    "text": ""
+                                    "text": "التكوين الديناميكي"
                                 },
                                 "templates": {
-                                    "text": ""
+                                    "text": "القوالب"
                                 },
                                 "plugins": {
-                                    "text": ""
+                                    "text": "المكونات الإضافية"
                                 },
                                 "hashing": {
-                                    "text": ""
+                                    "text": "التجزئة"
                                 },
                                 "inspect": {
-                                    "text": "",
+                                    "text": "الفحص",
                                     "items": {
                                         "implicit-imports": {
-                                            "text": ""
+                                            "text": "الواردات الضمنية"
                                         }
                                     }
                                 },
                                 "the-cost-of-convenience": {
-                                    "text": ""
+                                    "text": "تكلفة الراحة"
                                 },
                                 "tma-architecture": {
-                                    "text": ""
+                                    "text": "هندسة معمارية معيارية"
                                 },
                                 "best-practices": {
-                                    "text": ""
+                                    "text": "أفضل الممارسات"
+                                },
+                                "metadata-tags": {
+                                    "text": "علامات البيانات الوصفية"
                                 }
                             }
                         },
                         "cache": {
-                            "text": "",
+                            "text": "ذاكرة التخزين المؤقت",
                             "items": {
                                 "generated-project": {
                                     "text": ""
                                 },
                                 "xcode-cache": {
-                                    "text": ""
+                                    "text": "ذاكرة التخزين المؤقت لـ Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "ذاكرة التخزين المؤقت للوحدة"
                                 }
                             }
                         },
                         "registry": {
-                            "text": "",
+                            "text": "السجل",
                             "items": {
                                 "registry": {
-                                    "text": ""
+                                    "text": "السجل"
                                 },
                                 "xcode-project": {
-                                    "text": ""
+                                    "text": "مشروع Xcode"
                                 },
                                 "generated-project": {
-                                    "text": ""
+                                    "text": "المشروع المُنشأ"
                                 },
                                 "xcodeproj-integration": {
-                                    "text": ""
+                                    "text": "التكامل المستند إلى XcodeProj"
                                 },
                                 "swift-package": {
-                                    "text": ""
+                                    "text": "الحزمة السريعة"
                                 },
                                 "continuous-integration": {
-                                    "text": ""
+                                    "text": "التكامل المستمر"
                                 }
                             }
                         },
                         "selective-testing": {
-                            "text": "",
+                            "text": "الاختبار الانتقائي",
                             "items": {
                                 "selective-testing": {
-                                    "text": ""
+                                    "text": "الاختبار الانتقائي"
                                 },
                                 "xcode-project": {
-                                    "text": ""
+                                    "text": "مشروع Xcode"
                                 },
                                 "generated-project": {
-                                    "text": ""
+                                    "text": "المشروع المُنشأ"
                                 }
                             }
                         },
                         "insights": {
-                            "text": ""
+                            "text": "بناء الرؤى"
                         },
                         "bundle-size": {
-                            "text": ""
+                            "text": "رؤى الحزمة"
                         },
                         "qa": {
-                            "text": ""
+                            "text": "ضمان الجودة"
                         }
                     }
                 },
                 "agentic-coding": {
-                    "text": "",
+                    "text": "الترميز التوكيلي",
                     "items": {
                         "mcp": {
-                            "text": ""
+                            "text": "MCP"
                         }
                     }
                 },
                 "integrations": {
-                    "text": "",
+                    "text": "الدمج والربط",
                     "items": {
                         "continuous-integration": {
-                            "text": ""
+                            "text": "التكامل المستمر"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "جيثب"
+                                }
+                            },
+                            "text": "صاغة الحدادين"
                         }
                     }
                 },
                 "share": {
-                    "text": "",
+                    "text": "شارك",
                     "items": {
                         "previews": {
-                            "text": ""
+                            "text": "المعاينات"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "القياس عن بُعد"
+                                },
+                                "installation": {
+                                    "text": "التركيب"
+                                }
+                            },
+                            "text": "الاستضافة الذاتية"
+                        },
+                        "accounts-and-projects": {
+                            "text": "الحسابات والمشاريع"
+                        },
+                        "authentication": {
+                            "text": "المصادقة"
+                        }
+                    },
+                    "text": "السيرڤر"
                 }
             }
         }

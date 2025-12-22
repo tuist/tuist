@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Generate version for server deployments"
 
+set -euo pipefail
+
 # Get the latest server@x.y.z tag
 latest_tag=$(git tag -l "server@*" | sort -V | tail -n 1)
 

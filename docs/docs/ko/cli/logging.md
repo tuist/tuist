@@ -14,16 +14,14 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 명령어 실행이 원하지 않는 결과가 나오면 로그를 확인해 문제를 진단할 수 있습니다. CLI는 로그를
 [OSLog](https://developer.apple.com/documentation/os/oslog)와 파일 시스템으로 전달합니다.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a
-Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+실행할 때마다 `$XDG_STATE_HOME/tuist/logs/{uuid}.log에 로그 파일을 생성합니다.` 여기서
+`$XDG_STATE_HOME` 환경 변수가 설정되지 않은 경우 `~/.local/state` 값을 취합니다. 또한
+`$TUIST_XDG_STATE_HOME` 을 사용하여 `$XDG_STATE_HOME` 보다 우선하는 Tuist 전용 상태 디렉터리를 설정할 수
+있습니다.
 
 ::: tip
 <!-- -->
-Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories
-documentation</LocalizedLink>.
+<LocalizedLink href="/cli/directories">디렉토리 문서</LocalizedLink>에서 Tuist의 디렉토리 구성 및 사용자 지정 디렉토리를 구성하는 방법에 대해 자세히 알아보세요.
 <!-- -->
 :::
 
@@ -66,17 +64,14 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### 캐시 데몬 디버깅 {#cache-daemon-debugging}
 
-For debugging cache-related issues, Tuist logs cache daemon operations using
-`os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in
-real-time using:
+캐시 관련 문제를 디버깅하기 위해 튜이스트는 하위 시스템 `dev.tuist.cache` 와 함께 `os_log` 를 사용하여 캐시 데몬 작업을
+기록합니다. 다음을 사용하여 이러한 로그를 실시간으로 스트리밍할 수 있습니다:
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
-These logs are also visible in Console.app by filtering for the
-`dev.tuist.cache` subsystem. This provides detailed information about cache
-operations, which can help diagnose cache upload, download, and communication
-issues.
+이러한 로그는 `dev.tuist.cache` 하위 시스템을 필터링하여 Console.app에서도 볼 수 있습니다. 이는 캐시 작업에 대한
+자세한 정보를 제공하여 캐시 업로드, 다운로드 및 통신 문제를 진단하는 데 도움이 될 수 있습니다.

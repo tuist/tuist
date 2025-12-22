@@ -35,8 +35,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -50,8 +50,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -74,8 +74,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -99,8 +99,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           []
         )
 
@@ -154,8 +154,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate(
           project.id,
-          Date.add(DateTime.utc_now(), -2),
-          DateTime.to_date(DateTime.utc_now()),
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
           is_ci: true
         )
 
@@ -207,8 +207,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rates(
           project.id,
-          ~D[2024-04-29],
-          ~D[2024-04-30],
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
           :day,
           "1 day",
           []
@@ -230,8 +230,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rates(
           project.id,
-          ~D[2024-04-28],
-          ~D[2024-04-30],
+          ~U[2024-04-28 00:00:00Z],
+          ~U[2024-04-30 00:00:00Z],
           :day,
           "1 day",
           []
@@ -268,8 +268,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rates(
           project.id,
-          ~D[2024-03-01],
-          ~D[2024-04-30],
+          ~U[2024-03-01 00:00:00Z],
+          ~U[2024-04-30 00:00:00Z],
           :month,
           "1 month",
           []
@@ -318,8 +318,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rates(
           project.id,
-          ~D[2024-01-01],
-          ~D[2024-12-31],
+          ~U[2024-01-01 00:00:00Z],
+          ~U[2024-12-31 00:00:00Z],
           :month,
           "1 month",
           []
@@ -406,8 +406,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert got.cache_hit_rate == 0.5
@@ -461,8 +461,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert got.cache_hit_rate == 0.625
@@ -512,8 +512,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert got.cache_hit_rate == 0.25
@@ -527,8 +527,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert got.cache_hit_rate == 0.0
@@ -562,8 +562,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert got.cache_hit_rate == 0.5
@@ -601,8 +601,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert_in_delta got.cache_hit_rate, 0.6666, 0.01
@@ -661,8 +661,8 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-04-28],
-          end_date: ~D[2024-04-30],
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z],
           is_ci: true
         )
 
@@ -712,14 +712,70 @@ defmodule Tuist.Cache.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project_id: project.id,
-          start_date: ~D[2024-03-01],
-          end_date: ~D[2024-04-30]
+          start_datetime: ~U[2024-03-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 00:00:00Z]
         )
 
       assert length(got.dates) == 2
       assert length(got.values) == 2
       assert ~D[2024-03-01] in got.dates
       assert ~D[2024-04-01] in got.dates
+    end
+
+    test "handles hourly aggregation for 24-hour date range" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 23:59:59Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C", "D"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 08:00:00]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 03:30:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 08:30:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_remote},
+          %{key: "task4_key", type: :clang, status: :hit_local}
+        ]
+      )
+
+      got =
+        Analytics.cache_hit_rate_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # 24 hours in a day
+      assert length(got.dates) == 24
+      assert length(got.values) == 24
+
+      # Hourly ranges return DateTime structs
+      assert ~U[2024-04-30 03:00:00Z] in got.dates
+      assert ~U[2024-04-30 08:00:00Z] in got.dates
     end
   end
 end

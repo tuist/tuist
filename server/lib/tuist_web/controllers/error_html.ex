@@ -29,7 +29,10 @@ defmodule TuistWeb.ErrorHTML do
     |> Map.put(:title, dgettext("dashboard", "You are not authorized to view this page"))
     |> Map.put(
       :message,
-      dgettext("dashboard", "Please, make sure you are accessing the right resource and that you have the permissions to access it.")
+      dgettext(
+        "dashboard",
+        "Please, make sure you are accessing the right resource and that you have the permissions to access it."
+      )
     )
     |> Map.put(:error_name, dgettext("dashboard", "401"))
     |> render_error_page()
@@ -83,7 +86,10 @@ defmodule TuistWeb.ErrorHTML do
     |> Map.put(:title, dgettext("dashboard", "Oops! Something went wrong"))
     |> Map.put(
       :message,
-      dgettext("dashboard", "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it.")
+      dgettext(
+        "dashboard",
+        "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
+      )
     )
     |> Map.put(:error_name, dgettext("dashboard", "500"))
     |> render_error_page()

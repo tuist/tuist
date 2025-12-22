@@ -379,6 +379,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Sürekli entegrasyon"
+                        },
+                        "sso": {
+                            "text": "Tek oturum açma"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Git forges"
                         }
                     }
                 },
@@ -389,6 +400,28 @@
                             "text": "Önizlemeler"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetri"
+                                },
+                                "installation": {
+                                    "text": "Kurulum"
+                                }
+                            },
+                            "text": "Yerel barındırma"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Hesaplar ve projeler"
+                        },
+                        "authentication": {
+                            "text": "Kimlik doğrulama"
+                        }
+                    },
+                    "text": "Sunucu"
                 }
             }
         }

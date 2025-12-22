@@ -31,29 +31,60 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_tests", "7 days")}
-          data-selected={@analytics_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_tests", "30 days")}
-          data-selected={@analytics_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_tests", "12 months")}
-          data-selected={@analytics_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="test-runs-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-runs-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-runs-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.widget
         title={dgettext("dashboard_tests", "Test run count")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -70,7 +101,8 @@
       <.widget
         title={dgettext("dashboard_tests", "Failed run count")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
@@ -102,7 +134,9 @@
             _ -> "primary"
           end
         }
-        description={dgettext("dashboard_tests", "Average duration of test runs during a given period.")}
+        description={
+          dgettext("dashboard_tests", "Average duration of test runs during a given period.")
+        }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_duration_type do
@@ -184,9 +218,12 @@
                   formatter: @analytics_chart_data.value_formatter
                 }
               },
-              tooltip: %{
-                valueFormat: @analytics_chart_data.value_formatter
-              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                else
+                  %{valueFormat: @analytics_chart_data.value_formatter}
+                end,
               legend: %{
                 show: false
               }
@@ -262,9 +299,12 @@
                   formatter: "fn:formatMilliseconds"
                 }
               },
-              tooltip: %{
-                valueFormat: "fn:formatMilliseconds"
-              }
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+                else
+                  %{valueFormat: "fn:formatMilliseconds"}
+                end
             }
           }
           series={[
@@ -325,7 +365,10 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_runs_analytics.count == 0} title={dgettext("dashboard_tests", "No data yet")}>
+    <.empty_card_section
+      :if={@test_runs_analytics.count == 0}
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -395,7 +438,9 @@
             <.text_cell
               icon="git_branch"
               label={
-                if test_run.git_branch == "", do: dgettext("dashboard_tests", "Unknown"), else: test_run.git_branch
+                if test_run.git_branch == "",
+                  do: dgettext("dashboard_tests", "Unknown"),
+                  else: test_run.git_branch
               }
             />
           </:col>

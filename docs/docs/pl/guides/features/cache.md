@@ -5,61 +5,57 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# Pamięć podręczna {#cache}
 
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency on a single machine. However, build artifacts are not shared across
-different environments, forcing you to rebuild the same code over and over –
-either in your [Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
-development environments (your Mac).
+System kompilacji Xcode zapewnia [przyrostowe
+kompilacje](https://en.wikipedia.org/wiki/Incremental_build_model), zwiększając
+wydajność na pojedynczej maszynie. Artefakty kompilacji nie są jednak
+udostępniane w różnych środowiskach, co zmusza do ciągłego przebudowywania tego
+samego kodu - zarówno w środowiskach [ciągłej integracji
+(CI)](https://en.wikipedia.org/wiki/Continuous_integration), jak i lokalnych
+środowiskach programistycznych (komputer Mac).
 
-Tuist addresses these challenges with its caching feature, significantly
-reducing build times both in local development and CI environments. This
-approach not only accelerates feedback loops but also minimizes the need for
-context switching, ultimately boosting productivity.
+Tuist odpowiada na te wyzwania dzięki funkcji buforowania, znacznie skracając
+czas kompilacji zarówno w lokalnych środowiskach programistycznych, jak i
+środowiskach CI. Takie podejście nie tylko przyspiesza pętle sprzężenia
+zwrotnego, ale także minimalizuje potrzebę przełączania kontekstu, ostatecznie
+zwiększając produktywność.
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module
-  cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  cache</LocalizedLink>
+Oferujemy dwa rodzaje buforowania:
+- <LocalizedLink href="/guides/features/cache/module-cache">Buforowanie modułu</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Buforowanie Xcode</LocalizedLink>
 
-## Module cache {#module-cache}
+## Pamięć podręczna modułów {#module-cache}
 
-For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities, we provide a powerful caching system,
-which caches individual modules as binaries and shares them across your team and
-CI environments.
+W przypadku projektów korzystających z funkcji generowania
+<LocalizedLink href="/guides/features/projects">projektów</LocalizedLink> Tuist,
+zapewniamy potężny system buforowania, który buforuje poszczególne moduły jako
+pliki binarne i udostępnia je w całym zespole i środowiskach CI.
 
-While you can also use the new Xcode cache, this feature is currently optimized
-for local builds and you will likely have a lower cache hit rate compared to the
-generated project caching. However, the decision for which caching solution to
-use depends on your specific needs and preferences. You may also combine both
-caching solutions to achieve the best results.
+Chociaż można również korzystać z nowej pamięci podręcznej Xcode, funkcja ta
+jest obecnie zoptymalizowana pod kątem lokalnych kompilacji i prawdopodobnie
+wskaźnik trafień w pamięci podręcznej będzie niższy niż w przypadku buforowania
+wygenerowanego projektu. Decyzja o wyborze rozwiązania do buforowania zależy
+jednak od konkretnych potrzeb i preferencji. Można również połączyć oba
+rozwiązania buforowania, aby osiągnąć najlepsze wyniki.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
-Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Dowiedz się więcej o module pamięci podręcznej →</LocalizedLink>
 
-## Xcode cache {#xcode-cache}
+## Pamięć podręczna Xcode {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE
+::: warning STAN CACHE W XCODE
 <!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole
-spectrum of build tasks is not yet path-independent. Still you can experience
-benefits by plugging Tuist's remote cache, and we expect build times to improve
-over time as the build system's capability keeps improving.
+Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
+przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od
+ścieżki. Mimo to możesz doświadczyć korzyści, podłączając zdalną pamięć
+podręczną Tuist i spodziewamy się, że czasy kompilacji poprawią się z czasem, w
+miarę jak możliwości systemu kompilacji będą się poprawiać.
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to
-other build systems like Bazel and Buck. The new caching capability is available
-since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
-whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities or not.
+Apple pracuje nad nowym rozwiązaniem buforowania na poziomie kompilacji,
+podobnym do innych systemów kompilacji, takich jak Bazel i Buck. Nowa funkcja
+buforowania jest dostępna od Xcode 26, a Tuist płynnie się z nią integruje -
+niezależnie od tego, czy korzystasz z funkcji <LocalizedLink href="/guides/features/projects">generowania projektów</LocalizedLink>, czy nie.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
-cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Dowiedz się więcej o pamięci podręcznej Xcode →</LocalizedLink>

@@ -53,7 +53,11 @@
     </div>
   </div>
 
-  <.card title={dgettext("dashboard_tests", "Summary")} icon="chart_arcs" data-part="test-case-details">
+  <.card
+    title={dgettext("dashboard_tests", "Summary")}
+    icon="chart_arcs"
+    data-part="test-case-details"
+  >
     <.card_section data-part="test-case-details-section">
       <div data-part="metadata-grid">
         <div data-part="metadata-row">
@@ -105,7 +109,8 @@
         <.widget
           title={dgettext("dashboard_tests", "Test reliability")}
           description={
-            dgettext("dashboard_tests", 
+            dgettext(
+              "dashboard_tests",
               "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
               branch: @selected_project.default_branch
             )
@@ -117,7 +122,9 @@
         />
         <.widget
           title={dgettext("dashboard_tests", "Test case runs")}
-          description={dgettext("dashboard_tests", "Total number of times this test case has been executed.")}
+          description={
+            dgettext("dashboard_tests", "Total number of times this test case has been executed.")
+          }
           value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
           id="widget-test-case-runs"
           empty={@analytics.total_count == 0}
@@ -131,7 +138,12 @@
         />
         <.widget
           title={dgettext("dashboard_tests", "Avg. test case run duration")}
-          description={dgettext("dashboard_tests", "Average duration of this test case across the last 50 runs.")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Average duration of this test case across the last 50 runs."
+            )
+          }
           value={
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               @analytics.avg_duration
@@ -145,7 +157,11 @@
     </.card_section>
   </.card>
 
-  <.card title={dgettext("dashboard_tests", "Test Case Runs")} icon="exchange" data-part="test-case-runs-card">
+  <.card
+    title={dgettext("dashboard_tests", "Test Case Runs")}
+    icon="exchange"
+    data-part="test-case-runs-card"
+  >
     <.card_section data-part="test-case-runs-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-test-case-runs" phx-debounce="200">
@@ -208,7 +224,9 @@
         }
       >
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
-          <.text_and_description_cell label={test_case_run.scheme || dgettext("dashboard_tests", "Unknown")} />
+          <.text_and_description_cell label={
+            test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
+          } />
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Status")}>
           <%= case test_case_run.status do %>

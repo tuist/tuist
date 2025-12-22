@@ -140,6 +140,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// Get the latest preview for a binary.
+    ///
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
+    func getLatestPreview(_ input: Operations.getLatestPreview.Input) async throws -> Operations.getLatestPreview.Output
     /// It generates a signed URL for uploading a part
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -163,7 +170,7 @@ public protocol APIProtocol: Sendable {
     func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -733,6 +740,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get the latest preview for a binary.
+    ///
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
+    public func getLatestPreview(
+        path: Operations.getLatestPreview.Input.Path,
+        query: Operations.getLatestPreview.Input.Query,
+        headers: Operations.getLatestPreview.Input.Headers = .init()
+    ) async throws -> Operations.getLatestPreview.Output {
+        try await getLatestPreview(Operations.getLatestPreview.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// It generates a signed URL for uploading a part
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -784,7 +808,7 @@ extension APIProtocol {
     }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -2406,6 +2430,21 @@ public enum Components {
                 case tokens
             }
         }
+        /// - Remark: Generated from `#/components/schemas/LatestPreviewResponse`.
+        public struct LatestPreviewResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LatestPreviewResponse/preview`.
+            public var preview: Components.Schemas.Preview?
+            /// Creates a new `LatestPreviewResponse`.
+            ///
+            /// - Parameters:
+            ///   - preview:
+            public init(preview: Components.Schemas.Preview? = nil) {
+                self.preview = preview
+            }
+            public enum CodingKeys: String, CodingKey {
+                case preview
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PreviewSupportedPlatform`.
         @frozen public enum PreviewSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
             case ios = "ios"
@@ -2511,6 +2550,10 @@ public enum Components {
             public var qr_code_url: Swift.String
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
             public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
+            /// The track for the preview (e.g., 'beta', 'nightly')
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/track`.
+            public var track: Swift.String?
             /// The URL to download the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/url`.
@@ -2535,6 +2578,7 @@ public enum Components {
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - supported_platforms:
+            ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
             ///   - version: The app version of the preview
             public init(
@@ -2551,6 +2595,7 @@ public enum Components {
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
+                track: Swift.String? = nil,
                 url: Swift.String,
                 version: Swift.String? = nil
             ) {
@@ -2567,6 +2612,7 @@ public enum Components {
                 self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
                 self.supported_platforms = supported_platforms
+                self.track = track
                 self.url = url
                 self.version = version
             }
@@ -2584,6 +2630,7 @@ public enum Components {
                 case inserted_at
                 case qr_code_url
                 case supported_platforms
+                case track
                 case url
                 case version
             }
@@ -5079,6 +5126,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AppBuild`.
         public struct AppBuild: Codable, Hashable, Sendable {
+            /// The Mach-O UUID of the build's main binary.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/binary_id`.
+            public var binary_id: Swift.String?
             /// Unique identifier of the build.
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/id`.
@@ -5103,22 +5154,26 @@ public enum Components {
             /// Creates a new `AppBuild`.
             ///
             /// - Parameters:
+            ///   - binary_id: The Mach-O UUID of the build's main binary.
             ///   - id: Unique identifier of the build.
             ///   - supported_platforms:
             ///   - _type: The type of the build
             ///   - url: The URL to download the build
             public init(
+                binary_id: Swift.String? = nil,
                 id: Swift.String,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 _type: Components.Schemas.AppBuild._typePayload,
                 url: Swift.String
             ) {
+                self.binary_id = binary_id
                 self.id = id
                 self.supported_platforms = supported_platforms
                 self._type = _type
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case binary_id
                 case id
                 case supported_platforms
                 case _type = "type"
@@ -7575,6 +7630,14 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The Mach-O UUID of the binary
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
+                    public var binary_id: Swift.String?
+                    /// The CFBundleVersion of the app.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/build_version`.
+                    public var build_version: Swift.String?
                     /// The bundle identifier of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/bundle_identifier`.
@@ -7599,6 +7662,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
                     public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                    /// The track for the preview (e.g., 'beta', 'nightly').
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/track`.
+                    public var track: Swift.String?
                     /// The type of the preview to upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
@@ -7617,40 +7684,52 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - binary_id: The Mach-O UUID of the binary
+                    ///   - build_version: The CFBundleVersion of the app.
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
                     ///   - supported_platforms: The supported platforms of the preview.
+                    ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     public init(
+                        binary_id: Swift.String? = nil,
+                        build_version: Swift.String? = nil,
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
+                        track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
+                        self.binary_id = binary_id
+                        self.build_version = build_version
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.supported_platforms = supported_platforms
+                        self.track = track
                         self._type = _type
                         self.version = version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case binary_id
+                        case build_version
                         case bundle_identifier
                         case display_name
                         case git_branch
                         case git_commit_sha
                         case git_ref
                         case supported_platforms
+                        case track
                         case _type = "type"
                         case version
                     }
@@ -7944,6 +8023,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startPreviewsMultipartUpload.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// An app build with the same binary ID and build version already exists
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.startPreviewsMultipartUpload.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.startPreviewsMultipartUpload.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -8879,28 +9009,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -13296,6 +13426,291 @@ public enum Operations {
             }
         }
     }
+    /// Get the latest preview for a binary.
+    ///
+    /// Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/latest`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)`.
+    public enum getLatestPreview {
+        public static let id: Swift.String = "getLatestPreview"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getLatestPreview.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The Mach-O UUID of the running binary.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query/binary_id`.
+                public var binary_id: Swift.String
+                /// The CFBundleVersion of the running app.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/query/build_version`.
+                public var build_version: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - binary_id: The Mach-O UUID of the running binary.
+                ///   - build_version: The CFBundleVersion of the running app.
+                public init(
+                    binary_id: Swift.String,
+                    build_version: Swift.String
+                ) {
+                    self.binary_id = binary_id
+                    self.build_version = build_version
+                }
+            }
+            public var query: Operations.getLatestPreview.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getLatestPreview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getLatestPreview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getLatestPreview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getLatestPreview.Input.Path,
+                query: Operations.getLatestPreview.Input.Query,
+                headers: Operations.getLatestPreview.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/200/content/json/preview`.
+                        public var preview: Components.Schemas.Preview?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - preview:
+                        public init(preview: Components.Schemas.Preview? = nil) {
+                            self.preview = preview
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case preview
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/200/content/application\/json`.
+                    case json(Operations.getLatestPreview.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getLatestPreview.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getLatestPreview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getLatestPreview.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The latest preview on the same track, or null if not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getLatestPreview.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getLatestPreview.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getLatestPreview.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getLatestPreview.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getLatestPreview.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getLatestPreview.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/latest/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getLatestPreview.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getLatestPreview.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/latest/get(getLatestPreview)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getLatestPreview.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getLatestPreview.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// It generates a signed URL for uploading a part
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -14193,7 +14608,7 @@ public enum Operations {
     }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (currently GitHub Actions)
+    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -16595,10 +17010,6 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The ID of the bundle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
-                public var bundle_id: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
@@ -16607,20 +17018,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The ID of the bundle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
+                public var bundle_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - bundle_id: The ID of the bundle.
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - bundle_id: The ID of the bundle.
                 public init(
-                    bundle_id: Swift.String,
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    bundle_id: Swift.String
                 ) {
-                    self.bundle_id = bundle_id
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.bundle_id = bundle_id
                 }
             }
             public var path: Operations.getBundle.Input.Path

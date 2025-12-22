@@ -70,6 +70,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.cas.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
@@ -115,6 +116,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
+                    .target(name: Module.cas.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
@@ -891,6 +893,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
                 ]

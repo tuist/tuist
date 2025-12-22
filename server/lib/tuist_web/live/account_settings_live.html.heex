@@ -13,7 +13,10 @@
           {dgettext("dashboard_account", "Rename organization")}
         </span>
         <span data-part="subtitle">
-          {dgettext("dashboard_account", "Renaming your organization can have unintended side effects.")}
+          {dgettext(
+            "dashboard_account",
+            "Renaming your organization can have unintended side effects."
+          )}
         </span>
       </div>
       <div data-part="content">
@@ -63,7 +66,11 @@
                   />
                 </:action>
                 <:action>
-                  <.button type="submit" label={dgettext("dashboard_account", "Rename")} variant="destructive" />
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Rename")}
+                    variant="destructive"
+                  />
                 </:action>
               </.modal_footer>
             </:footer>
@@ -107,7 +114,12 @@
                 status="warning"
                 type="secondary"
                 size="small"
-                title={dgettext("dashboard_account", "Deleting the organization will delete all of its projects")}
+                title={
+                  dgettext(
+                    "dashboard_account",
+                    "Deleting the organization will delete all of its projects"
+                  )
+                }
               />
               <.text_input
                 label={dgettext("dashboard_account", "Enter this organization's name to confirm")}
@@ -128,7 +140,11 @@
                   />
                 </:action>
                 <:action>
-                  <.button type="submit" label={dgettext("dashboard_account", "Delete")} variant="destructive" />
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Delete")}
+                    variant="destructive"
+                  />
                 </:action>
               </.modal_footer>
             </:footer>
@@ -147,7 +163,10 @@
           {dgettext("dashboard_account", "Update username")}
         </span>
         <span data-part="subtitle">
-          {dgettext("dashboard_account", "Updating your username can have unintended consequences.")}
+          {dgettext(
+            "dashboard_account",
+            "Updating your username can have unintended consequences."
+          )}
         </span>
       </div>
       <div data-part="content">
@@ -195,7 +214,11 @@
                   />
                 </:action>
                 <:action>
-                  <.button type="submit" label={dgettext("dashboard_account", "Rename")} variant="destructive" />
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Rename")}
+                    variant="destructive"
+                  />
                 </:action>
               </.modal_footer>
             </:footer>
@@ -239,7 +262,8 @@
               type="secondary"
               size="small"
               title={
-                dgettext("dashboard_account", 
+                dgettext(
+                  "dashboard_account",
                   "Deleting your account will also delete all the projects that belong to it"
                 )
               }
@@ -262,7 +286,11 @@
                   />
                 </:action>
                 <:action>
-                  <.button type="submit" label={dgettext("dashboard_account", "Delete")} variant="destructive" />
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Delete")}
+                    variant="destructive"
+                  />
                 </:action>
               </.modal_footer>
             </:footer>

@@ -42,6 +42,85 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert Repo.all(Preview) == [preview]
     end
+
+    test "allows creating previews with same fields but different tracks" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      # When
+      {:ok, preview_no_track} = AppBuilds.create_preview(attrs)
+      {:ok, preview_beta} = AppBuilds.create_preview(Map.put(attrs, :track, "beta"))
+      {:ok, preview_nightly} = AppBuilds.create_preview(Map.put(attrs, :track, "nightly"))
+
+      # Then
+      assert preview_no_track.track == ""
+      assert preview_beta.track == "beta"
+      assert preview_nightly.track == "nightly"
+      assert length(Repo.all(Preview)) == 3
+    end
+
+    test "allows creating previews with same track but different bundle_identifier" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app1",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | bundle_identifier: "com.example.app2"})
+
+      # Then
+      assert first_preview.bundle_identifier == "com.example.app1"
+      assert second_preview.bundle_identifier == "com.example.app2"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "allows creating previews with same track but different git_commit_sha" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, first_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, second_preview} = AppBuilds.create_preview(%{attrs | git_commit_sha: "def456"})
+
+      # Then
+      assert first_preview.git_commit_sha == "abc123"
+      assert second_preview.git_commit_sha == "def456"
+      assert first_preview.track == "beta"
+      assert second_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 2
+    end
   end
 
   describe "find_or_create_preview/1" do
@@ -200,6 +279,132 @@ defmodule Tuist.AppBuildsTest do
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
+    end
+
+    test "creates a new preview with track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      # When
+      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert preview.track == "beta"
+    end
+
+    test "returns existing preview when track matches" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      {:ok, existing_preview} = AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert found_preview.id == existing_preview.id
+      assert found_preview.track == "beta"
+      assert length(Repo.all(Preview)) == 1
+    end
+
+    test "creates new preview when track differs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs_beta = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        track: "beta"
+      }
+
+      attrs_nightly = %{attrs_beta | track: "nightly"}
+
+      {:ok, _existing_preview} = AppBuilds.create_preview(attrs_beta)
+
+      # When
+      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs_nightly)
+
+      # Then
+      assert new_preview.track == "nightly"
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "distinguishes between empty track and non-empty track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs_no_track = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      attrs_with_track = Map.put(attrs_no_track, :track, "beta")
+
+      {:ok, preview_no_track} = AppBuilds.create_preview(attrs_no_track)
+
+      # When
+      {:ok, preview_with_track} = AppBuilds.find_or_create_preview(attrs_with_track)
+
+      # Then
+      assert preview_no_track.track == ""
+      assert preview_with_track.track == "beta"
+      assert preview_no_track.id != preview_with_track.id
+      assert length(Repo.all(Preview)) == 2
+    end
+
+    test "finds existing preview with empty track when no track is provided" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      {:ok, existing_preview} = AppBuilds.create_preview(attrs)
+
+      # Create another preview with same attrs but with a track
+      attrs_with_track = Map.put(attrs, :track, "beta")
+      {:ok, _preview_with_track} = AppBuilds.create_preview(attrs_with_track)
+
+      # When
+      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert found_preview.id == existing_preview.id
+      assert found_preview.track == ""
     end
   end
 
@@ -872,6 +1077,372 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
+  describe "latest_preview_for_binary_id_and_build_version/4" do
+    test "returns the latest preview on the same track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_two.id
+    end
+
+    test "returns the latest preview with preloaded associations" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440001"
+      build_version = "1"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main"
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
+
+      # When
+      {:ok, result} =
+        AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project,
+          preload: [:app_builds]
+        )
+
+      # Then
+      assert result.id == preview.id
+      assert length(result.app_builds) == 1
+      assert hd(result.app_builds).id == app_build.id
+    end
+
+    test "respects git_branch when finding latest preview" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440002"
+      build_version = "1"
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_main =
+        AppBuildsFixtures.app_build_fixture(preview: preview_main, binary_id: binary_id, build_version: build_version)
+
+      _preview_feature =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "feature-branch",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_main.id
+      assert result.git_branch == "main"
+    end
+
+    test "returns not_found when binary_id does not exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "nonexistent-binary-id"
+      build_version = "1"
+
+      # When
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns not_found when no preview matches the track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440003"
+      build_version = "1"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: nil,
+          git_branch: "main"
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
+
+      # When
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns not_found when preview belongs to a different project" do
+      # Given
+      project_one = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440004"
+      build_version = "1"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project_one,
+          bundle_identifier: "com.example.app",
+          git_branch: "main"
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview, binary_id: binary_id, build_version: build_version)
+
+      # When
+      result = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project_two)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns latest preview with matching track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440010"
+      build_version = "1"
+
+      preview_beta_old =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-old",
+          track: "beta",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_beta_old =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      preview_beta_new =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-new",
+          track: "beta",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_beta_new = AppBuildsFixtures.app_build_fixture(preview: preview_beta_new)
+
+      # Create a preview with different track (should not be returned)
+      _preview_nightly =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-nightly",
+          track: "nightly",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_beta_new.id
+      assert result.track == "beta"
+    end
+
+    test "returns latest preview with empty track when source preview has empty track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440011"
+      build_version = "1"
+
+      preview_no_track_old =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-old",
+          track: "",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_no_track_old =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_no_track_old,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      preview_no_track_new =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-new",
+          track: "",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_no_track_new = AppBuildsFixtures.app_build_fixture(preview: preview_no_track_new)
+
+      # Create a preview with a track (should not be returned)
+      _preview_with_track =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-beta",
+          track: "beta",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_no_track_new.id
+      assert result.track == ""
+    end
+
+    test "does not match previews with different track" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440012"
+      build_version = "1"
+
+      preview_beta =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-beta",
+          track: "beta",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_beta,
+          binary_id: binary_id,
+          build_version: build_version
+        )
+
+      # Only create preview with nightly track (no beta track previews after the source)
+      _preview_nightly =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha-nightly",
+          track: "nightly",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_beta.id
+      assert result.track == "beta"
+    end
+
+    test "only returns previews that have app builds with matching supported platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440013"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_ios =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_one,
+          binary_id: binary_id,
+          build_version: build_version,
+          supported_platforms: [:ios]
+        )
+
+      # This preview only has macOS build, so it should be skipped
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_macos_only =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_two,
+          supported_platforms: [:macos]
+        )
+
+      # This is the latest preview with an iOS app build
+      preview_three =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_ios_latest =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_three,
+          supported_platforms: [:ios]
+        )
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then - should return preview_three, skipping preview_two which has no iOS build
+      assert result.id == preview_three.id
+    end
+  end
+
   describe "create_app_build/1" do
     test "creates an app build with all required attributes" do
       # Given
@@ -886,7 +1457,7 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      app_build = AppBuilds.create_app_build(attrs)
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
 
       # Then
       assert app_build.preview_id == preview.id
@@ -907,10 +1478,98 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      app_build = AppBuilds.create_app_build(attrs)
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
 
       # Then
       assert app_build.type == :ipa
+    end
+
+    test "creates an app build with binary_id and build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      attrs = %{
+        preview_id: preview.id,
+        type: :app_bundle,
+        built_by_account_id: project.account.id,
+        supported_platforms: [:ios],
+        binary_id: binary_id,
+        build_version: build_version
+      }
+
+      # When
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
+
+      # Then
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == build_version
+    end
+
+    test "returns error when creating app build with duplicate binary_id and build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview_one = AppBuildsFixtures.preview_fixture(project: project)
+      preview_two = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+      build_version = "123"
+
+      {:ok, _existing_app_build} =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_one.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: build_version
+        })
+
+      # When
+      result =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_two.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: build_version
+        })
+
+      # Then
+      assert {:error, changeset} = result
+      assert Keyword.has_key?(changeset.errors, :binary_id)
+    end
+
+    test "allows creating app build with same binary_id but different build_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview_one = AppBuildsFixtures.preview_fixture(project: project)
+      preview_two = AppBuildsFixtures.preview_fixture(project: project)
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      {:ok, _existing_app_build} =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_one.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: "123"
+        })
+
+      # When
+      result =
+        AppBuilds.create_app_build(%{
+          preview_id: preview_two.id,
+          type: :app_bundle,
+          supported_platforms: [:ios],
+          binary_id: binary_id,
+          build_version: "124"
+        })
+
+      # Then
+      assert {:ok, app_build} = result
+      assert app_build.binary_id == binary_id
+      assert app_build.build_version == "124"
     end
   end
 

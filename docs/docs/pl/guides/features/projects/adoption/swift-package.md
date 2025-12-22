@@ -5,55 +5,53 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Używanie Tuist z pakietem Swift <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist supports using `Package.swift` as a DSL for your projects and it converts
-your package targets into a native Xcode project and targets.
+Tuist obsługuje korzystanie z `Package.swift` jako DSL dla projektów i
+konwertuje cele pakietu na natywny projekt Xcode i cele.
 
 ::: warning
 <!-- -->
-The aim of this feature is to provide an easy way for developers to assess the
-impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to
-support the full range of Swift Package Manager features nor to bring every
-Tuist's unique features like
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to the packages world.
+Celem tej funkcji jest zapewnienie programistom łatwego sposobu oceny wpływu
+przyjęcia Tuist w ich pakietach Swift. W związku z tym nie planujemy obsługiwać
+pełnego zakresu funkcji menedżera pakietów Swift ani wprowadzać wszystkich
+unikalnych funkcji Tuist, takich jak
+<LocalizedLink href="/guides/features/projects/code-sharing">pomocnicy opisu projektu</LocalizedLink> do świata pakietów.
 <!-- -->
 :::
 
 ::: info ROOT DIRECTORY
 <!-- -->
-Tuist commands expect a certain
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">directory
-structure</LocalizedLink> whose root is identified by a `Tuist` or a `.git`
-directory.
+Polecenia Tuist oczekują określonej
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects"> struktury katalogów</LocalizedLink>, której korzeń jest identyfikowany przez
+katalog `Tuist` lub `.git`.
 <!-- -->
 :::
 
-## Using Tuist with a Swift Package {#using-tuist-with-a-swift-package}
+## Używanie Tuist z pakietem Swift {#using-tuist-with-a-swift-package}.
 
-We are going to use Tuist with the [TootSDK
-Package](https://github.com/TootSDK/TootSDK) repository, which contains a Swift
-Package. The first thing that we need to do is to clone the repository:
+Będziemy używać Tuist z repozytorium [TootSDK
+Package](https://github.com/TootSDK/TootSDK), które zawiera pakiet Swift.
+Pierwszą rzeczą, którą musimy zrobić, jest sklonowanie repozytorium:
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Once in the repository's directory, we need to install the Swift Package Manager
-dependencies:
+Gdy już znajdziemy się w katalogu repozytorium, musimy zainstalować zależności
+Swift Package Manager:
 
 ```bash
 tuist install
 ```
 
-Under the hood `tuist install` uses the Swift Package Manager to resolve and
-pull the dependencies of the package. After the resolution completes, you can
-then generate the project:
+Pod maską `tuist install` używa Swift Package Manager do rozwiązywania i
+pobierania zależności pakietu. Po zakończeniu rozpoznawania można wygenerować
+projekt:
 
 ```bash
 tuist generate
 ```
 
-Voilà! You have a native Xcode project that you can open and start working on.
+Voila! Masz natywny projekt Xcode, który możesz otworzyć i rozpocząć pracę.

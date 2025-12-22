@@ -5,73 +5,59 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# 계정 및 프로젝트 {#accounts-and-projects}
 
-Some Tuist features require a server which adds persistence of data and can
-interact with other services. To interact with the server, you need an account
-and a project that you connect to your local project.
+일부 Tuist 기능에는 데이터의 지속성을 추가하고 다른 서비스와 상호 작용할 수 있는 서버가 필요합니다. 서버와 상호 작용하려면 로컬
+프로젝트에 연결하는 계정과 프로젝트가 필요합니다.
 
-## Accounts {#accounts}
+## 계정 {#accounts}
 
-To use the server, you'll need an account. There are two types of accounts:
+서버를 사용하려면 계정이 필요합니다. 계정에는 두 가지 유형이 있습니다:
 
-- **Personal account:** Those accounts are created automaticaly when you sign up
-  and are identified by a handle that's obtained either from the identity
-  provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are
-  identified by a handle that's defined by the developer. Organizations allow
-  inviting other members to collaborate on projects.
+- **개인 계정:** 이러한 계정은 가입할 때 자동으로 생성되며 ID 공급자(예: GitHub)에서 가져온 핸들 또는 이메일 주소의 첫 번째
+  부분으로 식별됩니다.
+- **조직 계정입니다:** 이러한 계정은 수동으로 생성되며 개발자가 정의한 핸들로 식별됩니다. 조직을 통해 다른 구성원을 초대하여 프로젝트에서
+  공동 작업할 수 있습니다.
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to
-theirs, where you can have personal and organization accounts, and they are
-identified by a *handle* that's used when constructing URLs.
+깃허브](https://github.com)에 익숙하다면, 개인 계정과 조직 계정을 가질 수 있고 URL을 구성할 때 사용되는 *핸들* 로
+식별되는 개념이 비슷하다는 것을 알 수 있습니다.
 
 ::: info CLI-FIRST
 <!-- -->
-Most operations to manage accounts and projects are done through the CLI. We are
-working on a web interface that will make it easier to manage accounts and
-projects.
+계정과 프로젝트를 관리하는 대부분의 작업은 CLI를 통해 이루어집니다. 저희는 계정과 프로젝트를 더 쉽게 관리할 수 있는 웹 인터페이스를 개발
+중입니다.
 <!-- -->
 :::
 
-You can manage the organization through the subcommands under
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
-create a new organization account, run:
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 아래의 하위 명령을 통해 조직을 관리할 수 있습니다. 새 조직 계정을
+생성하려면 실행합니다:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## 프로젝트 {#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your
-account through a remote project. Continuing with the comparison with GitHub,
-it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist
-project`</LocalizedLink> to create and manage projects.
+Tuist의 프로젝트든 원시 Xcode의 프로젝트든 원격 프로젝트를 통해 계정과 통합해야 합니다. GitHub와 계속 비교하면 변경 사항을
+푸시하는 로컬 리포지토리와 원격 리포지토리가 있는 것과 같습니다. <LocalizedLink href="/cli/organization">`tuist 프로젝트`</LocalizedLink>를 사용하여 프로젝트를
+만들고 관리할 수 있습니다.
 
-Projects are identified by a full handle, which is the result of concatenating
-the organization handle and the project handle. For example, if you have an
-organization with the handle `tuist`, and a project with the handle `tuist`, the
-full handle would be `tuist/tuist`.
+프로젝트는 조직 핸들과 프로젝트 핸들을 연결한 결과인 전체 핸들로 식별됩니다. 예를 들어, 조직 핸들이 `tuist` 이고 프로젝트 핸들이
+`tuist` 인 경우 전체 핸들은 `tuist/tuist` 입니다.
 
-The binding between the local and the remote project is done through the
-configuration file. If you don't have any, create it at `Tuist.swift` and add
-the following content:
+로컬 프로젝트와 원격 프로젝트 간의 바인딩은 구성 파일을 통해 이루어집니다. 파일이 없는 경우 `Tuist.swift` 에서 생성하고 다음
+내용을 추가하세요:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
+::: warning 튜이스트 프로젝트 전용 기능
 <!-- -->
-Note that there are some features like
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
-require you having a Tuist project. If you are using raw Xcode projects, you
-won't be able to use those features.
+<LocalizedLink href="/cli/organization">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
+프로젝트를 사용하는 경우 이러한 기능을 사용할 수 없습니다.
 <!-- -->
 :::
 
-Your project's URL is constructed by using the full handle. For example, Tuist's
-dashboard, which is public, is accessible at
-[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
-the project's full handle.
+프로젝트의 URL은 전체 핸들을 사용하여 구성됩니다. 예를 들어, 공개 대시보드인 Tuist의 대시보드는
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist)에서 액세스할 수 있으며, 여기서
+`tuist/tuist` 은 프로젝트의 전체 핸들입니다.

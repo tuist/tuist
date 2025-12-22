@@ -37,21 +37,18 @@ defmodule TuistWeb.TestCaseLive do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
     end
 
-    {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
-    users = Accounts.get_organization_members(organization)
-
     socket =
       socket
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
-      |> assign(:available_filters, define_filters(users))
+      |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
   end
 
-  defp define_filters(users) do
-    [
+  defp define_filters(project) do
+    filters = [
       %Filter.Filter{
         id: "status",
         field: "status",
@@ -67,20 +64,6 @@ defmodule TuistWeb.TestCaseLive do
         value: nil
       },
       %Filter.Filter{
-        id: "ran_by",
-        field: :ran_by,
-        display_name: dgettext("dashboard_tests", "Ran by"),
-        type: :option,
-        options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
-        options_display_names:
-          Map.merge(
-            %{ci: dgettext("dashboard_tests", "CI")},
-            Map.new(users, fn user -> {user.account.id, user.account.name} end)
-          ),
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
         id: "duration",
         field: "duration",
         display_name: dgettext("dashboard_tests", "Duration"),
@@ -89,6 +72,31 @@ defmodule TuistWeb.TestCaseLive do
         value: ""
       }
     ]
+
+    if Accounts.organization?(project.account) do
+      {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+      users = Accounts.get_organization_members(organization)
+
+      filters ++
+        [
+          %Filter.Filter{
+            id: "ran_by",
+            field: :ran_by,
+            display_name: dgettext("dashboard_tests", "Ran by"),
+            type: :option,
+            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            options_display_names:
+              Map.merge(
+                %{ci: dgettext("dashboard_tests", "CI")},
+                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+              ),
+            operator: :==,
+            value: nil
+          }
+        ]
+    else
+      filters
+    end
   end
 
   def handle_params(params, _uri, socket) do

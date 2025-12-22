@@ -1,5 +1,9 @@
 <div id="builds">
-  <.card title={dgettext("dashboard_builds", "Builds")} icon="chart_arcs" data-part="analytics-card">
+  <.card
+    title={dgettext("dashboard_builds", "Builds")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
     <:actions>
       <.dropdown
         id="builds-analytics-scheme-dropdown"
@@ -109,23 +113,57 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics-date-range", "last-7-days")}"}
-          label={dgettext("dashboard_builds", "7 days")}
-          data-selected={@analytics_date_range == "last-7-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics-date-range", "last-30-days")}"}
-          label={dgettext("dashboard_builds", "30 days")}
-          data-selected={@analytics_date_range == "last-30-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics-date-range", "last-12-months")}"}
-          label={dgettext("dashboard_builds", "12 months")}
-          data-selected={@analytics_date_range == "last-12-months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="builds-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_builds", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_builds", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_builds", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_builds", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "builds-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_builds", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "builds-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.widget
@@ -191,7 +229,12 @@
             _ -> "secondary"
           end
         }
-        description={dgettext("dashboard_builds", "The average build duration with individual percentile intervals.")}
+        description={
+          dgettext(
+            "dashboard_builds",
+            "The average build duration with individual percentile intervals."
+          )
+        }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             case @selected_build_duration_type do
@@ -297,9 +340,12 @@
                 formatter: "fn:formatSeconds"
               }
             },
-            tooltip: %{
-              valueFormat: "fn:formatSeconds"
-            }
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatSeconds"}
+              end
           }
         }
         series={[
@@ -400,7 +446,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -458,7 +510,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -514,9 +572,12 @@
             legend: %{
               show: false
             },
-            tooltip: %{
-              valueFormat: "{value}%"
-            }
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{valueFormat: "{value}%", dateFormat: "hour"}
+              else
+                %{valueFormat: "{value}%"}
+              end
           }
         }
         series={[
@@ -587,23 +648,57 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "configuration-insights-date-range", "last-7-days")}"}
-          label={dgettext("dashboard_builds", "7 days")}
-          data-selected={@configuration_insights_date_range == "last-7-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "configuration-insights-date-range", "last-30-days")}"}
-          label={dgettext("dashboard_builds", "30 days")}
-          data-selected={@configuration_insights_date_range == "last-30-days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "configuration-insights-date-range", "last-12-months")}"}
-          label={dgettext("dashboard_builds", "12 months")}
-          data-selected={@configuration_insights_date_range == "last-12-months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="configuration-insights-date-range-picker"
+        name="configuration-insights-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_builds", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_builds", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_builds", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
+        ]}
+        selected_preset={@configuration_insights_preset}
+        period={@configuration_insights_period}
+        on_period_change="configuration_insights_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_builds", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "configuration-insights-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_builds", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "configuration-insights-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <.card_section
       :if={@builds_duration_analytics.total_average_duration != 0}
@@ -647,9 +742,12 @@
             legend: %{
               show: false
             },
-            tooltip: %{
-              valueFormat: "fn:formatMilliseconds"
-            }
+            tooltip:
+              if @configuration_insights_preset == "last-24-hours" do
+                %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatMilliseconds"}
+              end
           }
         }
         series={[
@@ -678,7 +776,11 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={dgettext("dashboard_builds", "Recent Builds")} icon="dashboard" data-part="recent-builds-card">
+  <.card
+    title={dgettext("dashboard_builds", "Recent Builds")}
+    icon="dashboard"
+    data-part="recent-builds-card"
+  >
     <:actions>
       <.button
         variant="secondary"
@@ -763,7 +865,9 @@
         }
       >
         <:col :let={build} label={dgettext("dashboard_builds", "Scheme")}>
-          <.text_and_description_cell label={build.scheme || dgettext("dashboard_builds", "Unknown")} />
+          <.text_and_description_cell label={
+            build.scheme || dgettext("dashboard_builds", "Unknown")
+          } />
         </:col>
         <:col :let={build} label="Status">
           <%= if build.status == :success do %>

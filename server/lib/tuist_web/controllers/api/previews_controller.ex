@@ -86,6 +86,18 @@ defmodule TuistWeb.API.PreviewsController do
            git_ref: %Schema{
              type: :string,
              description: "The git ref associated with the preview."
+           },
+           binary_id: %Schema{
+             type: :string,
+             description: "The Mach-O UUID of the binary"
+           },
+           track: %Schema{
+             type: :string,
+             description: "The track for the preview (e.g., 'beta', 'nightly')."
+           },
+           build_version: %Schema{
+             type: :string,
+             description: "The CFBundleVersion of the app."
            }
          }
        }},
@@ -117,6 +129,7 @@ defmodule TuistWeb.API.PreviewsController do
            },
            required: [:status, :data]
          }},
+      conflict: {"An app build with the same binary ID and build version already exists", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
@@ -151,38 +164,58 @@ defmodule TuistWeb.API.PreviewsController do
         display_name: Map.get(body_params, :display_name),
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
-        supported_platforms: []
+        supported_platforms: [],
+        track: Map.get(body_params, :track)
       })
 
-    app_build =
-      AppBuilds.create_app_build(%{
-        preview_id: preview.id,
-        project_id: selected_project.id,
-        type: type,
-        display_name: Map.get(body_params, :display_name),
-        bundle_identifier: Map.get(body_params, :bundle_identifier),
-        version: Map.get(body_params, :version),
-        git_branch: Map.get(body_params, :git_branch),
-        git_commit_sha: Map.get(body_params, :git_commit_sha),
-        created_by_account_id: account.id,
-        supported_platforms: supported_platforms
-      })
+    binary_id = Map.get(body_params, :binary_id)
+    build_version = Map.get(body_params, :build_version)
 
-    upload_id =
-      Storage.multipart_start(
-        AppBuilds.storage_key(%{
-          account_handle: account_handle,
-          project_handle: project_handle,
-          app_build_id: app_build.id
-        }),
-        selected_project.account
-      )
+    case AppBuilds.create_app_build(%{
+           preview_id: preview.id,
+           project_id: selected_project.id,
+           type: type,
+           display_name: Map.get(body_params, :display_name),
+           bundle_identifier: Map.get(body_params, :bundle_identifier),
+           version: Map.get(body_params, :version),
+           git_branch: Map.get(body_params, :git_branch),
+           git_commit_sha: Map.get(body_params, :git_commit_sha),
+           created_by_account_id: account.id,
+           supported_platforms: supported_platforms,
+           binary_id: binary_id,
+           build_version: build_version
+         }) do
+      {:ok, app_build} ->
+        upload_id =
+          Storage.multipart_start(
+            AppBuilds.storage_key(%{
+              account_handle: account_handle,
+              project_handle: project_handle,
+              app_build_id: app_build.id
+            }),
+            selected_project.account
+          )
 
-    # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
-    json(conn, %{
-      status: "success",
-      data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
-    })
+        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
+        json(conn, %{
+          status: "success",
+          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
+        })
+
+      {:error, %Ecto.Changeset{errors: errors}} ->
+        if Keyword.has_key?(errors, :binary_id) do
+          conn
+          |> put_status(:conflict)
+          |> json(%{
+            status: "error",
+            code: "duplicate_app_build",
+            message:
+              "An app build with the same binary ID '#{binary_id}' and build version '#{build_version}' already exists."
+          })
+        else
+          raise "Unexpected error creating app build: #{inspect(errors)}"
+        end
+    end
   end
 
   operation(:multipart_generate_url,
@@ -576,6 +609,72 @@ defmodule TuistWeb.API.PreviewsController do
     })
   end
 
+  operation(:latest,
+    summary: "Get the latest preview for a binary.",
+    description:
+      "Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.",
+    operation_id: "getLatestPreview",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      binary_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The Mach-O UUID of the running binary."
+      ],
+      build_version: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The CFBundleVersion of the running app."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"The latest preview on the same track, or null if not found.", "application/json",
+         %Schema{
+           title: "LatestPreviewResponse",
+           type: :object,
+           properties: %{
+             preview: Schemas.Preview
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+    }
+  )
+
+  def latest(
+        %{
+          assigns: %{selected_project: selected_project},
+          params: %{account_handle: account_handle, project_handle: project_handle, binary_id: binary_id} = params
+        } = conn,
+        _params
+      ) do
+    build_version = Map.get(params, :build_version)
+
+    case AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, selected_project,
+           preload: [:app_builds, :created_by_account]
+         ) do
+      {:ok, preview} ->
+        json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
+
+      {:error, :not_found} ->
+        json(conn, %{preview: nil})
+    end
+  end
+
   defp get_filters(%Project{} = project, params) do
     specifier = Map.get(params, :specifier)
 
@@ -690,7 +789,9 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
-      inserted_at: app_build.inserted_at
+      inserted_at: app_build.inserted_at,
+      binary_id: app_build.binary_id,
+      build_version: app_build.build_version
     }
   end
 
@@ -775,6 +876,7 @@ defmodule TuistWeb.API.PreviewsController do
       display_name: preview.display_name,
       git_commit_sha: preview.git_commit_sha,
       git_branch: preview.git_branch,
+      track: preview.track,
       builds: builds,
       supported_platforms: preview.supported_platforms,
       inserted_at: preview.inserted_at,

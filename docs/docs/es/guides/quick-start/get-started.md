@@ -7,10 +7,10 @@
 ---
 # Empezar {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+La forma más fácil de empezar con Tuist en cualquier directorio o en el
+directorio de tu proyecto Xcode o espacio de trabajo:
 
-::: code-group
+::: grupo de códigos
 
 ```bash [Mise]
 mise x tuist@latest -- tuist init
@@ -22,22 +22,20 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+El comando le guiará a través de los pasos para
+<LocalizedLink href="/guides/features/projects">crear un proyecto generado</LocalizedLink> o integrar un proyecto o espacio de trabajo de Xcode
+existente. Le ayudará a conectar su configuración al servidor remoto, dándole
+acceso a funciones como
+<LocalizedLink href="/guides/features/selective-testing">pruebas selectivas</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, y el
+<LocalizedLink href="/guides/features/registry">registro</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
+::: info MIGRAR UN PROYECTO EXISTENTE
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+Si desea migrar un proyecto existente a proyectos generados para mejorar la
+experiencia del desarrollador y aprovechar nuestra
+<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, consulte
+nuestra
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">guía de migración</LocalizedLink>.
 <!-- -->
 :::

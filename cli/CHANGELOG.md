@@ -1,6 +1,40 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.118.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* module cache by [@cschmatzler](https://github.com/cschmatzler) in [#8931](https://github.com/tuist/tuist/pull/8931)
+### 🐛 Bug Fixes
+
+* fix selective testing when experimental cache enabled by [@cschmatzler](https://github.com/cschmatzler) in [#8981](https://github.com/tuist/tuist/pull/8981)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.117.0...4.118.0
+
+## What's Changed in 4.117.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* preview tracks by [@fortmarek](https://github.com/fortmarek) in [#8939](https://github.com/tuist/tuist/pull/8939)
+### 🐛 Bug Fixes
+
+* handle cross-project dependencies in redundant import inspection by [@hiltonc](https://github.com/hiltonc) in [#8862](https://github.com/tuist/tuist/pull/8862)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.116.2...4.117.0
+
+## What's Changed in 4.116.2<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
+### 🐛 Bug Fixes
+
+* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
+* add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.2
+
 ## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -570,6 +604,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Make implicit import detection work with buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8358](https://github.com/tuist/tuist/pull/8358)
+* add CI run reference to build runs by [@fortmarek](https://github.com/fortmarek) in [#8356](https://github.com/tuist/tuist/pull/8356)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.80.0...4.81.0
 
@@ -578,6 +613,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Report server-side payment-required responses as warnings by [@pepicrft](https://github.com/pepicrft) in [#8338](https://github.com/tuist/tuist/pull/8338)
+* add configuration to build insights by [@fortmarek](https://github.com/fortmarek) in [#8330](https://github.com/tuist/tuist/pull/8330)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.79.7...4.80.0
 
@@ -964,6 +1000,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
+* fetching devices when running previews by [@fortmarek](https://github.com/fortmarek) in [#8010](https://github.com/tuist/tuist/pull/8010)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.61.0...4.61.1
 

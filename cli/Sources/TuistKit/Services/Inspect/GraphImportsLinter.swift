@@ -95,7 +95,7 @@ final class GraphImportsLinter: GraphImportsLinting {
                 .directTargetDependencies(path: target.project.path, name: target.target.name)
         } else {
             graphTraverser
-                .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
+                .directNonExternalTargetDependencies(path: target.project.path, name: target.target.name)
         }
 
         let explicitTargetDependencies = targetDependencies

@@ -31,29 +31,60 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_tests", "7 days")}
-          data-selected={@analytics_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_tests", "30 days")}
-          data-selected={@analytics_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_tests", "12 months")}
-          data-selected={@analytics_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="test-cases-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-cases-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-cases-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.widget
         title={dgettext("dashboard_tests", "Test case runs")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Test case runs represents the total number of individual test case executions during a given period."
           )
         }
@@ -70,7 +101,8 @@
       <.widget
         title={dgettext("dashboard_tests", "Failed test case runs")}
         description={
-          dgettext("dashboard_tests", 
+          dgettext(
+            "dashboard_tests",
             "Failed test case runs represents the number of individual test case executions that failed during a given period."
           )
         }
@@ -105,7 +137,10 @@
           end
         }
         description={
-          dgettext("dashboard_tests", "Average duration of individual test case executions during a given period.")
+          dgettext(
+            "dashboard_tests",
+            "Average duration of individual test case executions during a given period."
+          )
         }
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -188,9 +223,12 @@
                   formatter: @analytics_chart_data.value_formatter
                 }
               },
-              tooltip: %{
-                valueFormat: @analytics_chart_data.value_formatter
-              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                else
+                  %{valueFormat: @analytics_chart_data.value_formatter}
+                end,
               legend: %{
                 show: false
               }
@@ -266,9 +304,12 @@
                   formatter: "fn:formatMilliseconds"
                 }
               },
-              tooltip: %{
-                valueFormat: "fn:formatMilliseconds"
-              }
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+                else
+                  %{valueFormat: "fn:formatMilliseconds"}
+                end
             }
           }
           series={[
@@ -329,7 +370,10 @@
         />
       </div>
     </.card_section>
-    <.empty_card_section :if={@test_case_runs_analytics.count == 0} title={dgettext("dashboard_tests", "No data yet")}>
+    <.empty_card_section
+      :if={@test_case_runs_analytics.count == 0}
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -461,11 +505,17 @@
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
             <%= case test_case.last_status do %>
               <% "success" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Passed")}
+                  status="success"
+                />
               <% "failure" -> %>
                 <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
               <% "skipped" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Skipped")}
+                  status="warning"
+                />
             <% end %>
           </:col>
           <:col

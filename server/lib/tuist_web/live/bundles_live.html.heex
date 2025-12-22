@@ -102,29 +102,55 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
-        <.button_group size="large">
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
-            label={dgettext("dashboard_cache", "7 days")}
-            data-selected={@bundle_size_date_range == "last-7-days"}
-          />
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
-            label={dgettext("dashboard_cache", "30 days")}
-            data-selected={@bundle_size_date_range == "last-30-days"}
-          />
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
-            label={dgettext("dashboard_cache", "12 months")}
-            data-selected={@bundle_size_date_range == "last-12-months"}
-          />
-        </.button_group>
+        <.date_picker
+          id="bundles-date-range-picker"
+          name="bundle-size-date-range"
+          presets={[
+            %{
+              id: "last-7-days",
+              label: dgettext("dashboard_cache", "Last 7 days"),
+              period: {7, :day}
+            },
+            %{
+              id: "last-30-days",
+              label: dgettext("dashboard_cache", "Last 30 days"),
+              period: {30, :day}
+            },
+            %{
+              id: "last-12-months",
+              label: dgettext("dashboard_cache", "Last 12 months"),
+              period: {12, :month}
+            },
+            %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+          ]}
+          selected_preset={@bundle_size_preset}
+          period={@bundle_size_period}
+          on_period_change="bundle_size_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_cache", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel", detail: %{id: "bundles-date-range-picker"})
+              }
+            />
+            <.button
+              label={dgettext("dashboard_cache", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply", detail: %{id: "bundles-date-range-picker"})
+              }
+            />
+          </:actions>
+        </.date_picker>
       </:actions>
       <div data-part="widgets">
         <.widget
           title={dgettext("dashboard_cache", "Install size (MB)")}
           description={
-            dgettext("dashboard_cache", 
+            dgettext(
+              "dashboard_cache",
               "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
             )
           }
@@ -142,19 +168,21 @@
               0.0
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
           title={dgettext("dashboard_cache", "Download size (MB)")}
           description={
-            dgettext("dashboard_cache", 
+            dgettext(
+              "dashboard_cache",
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
             )
           }
           value={
             (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
-               format_bytes(@bundle_size_last_bundle.download_size)) || dgettext("dashboard_cache", "0 MB")
+               format_bytes(@bundle_size_last_bundle.download_size)) ||
+              dgettext("dashboard_cache", "0 MB")
           }
           id="widget-download-size"
           phx_click="select_widget"
@@ -164,7 +192,7 @@
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
       </div>
@@ -249,7 +277,11 @@
         </:image>
       </.empty_card_section>
     </.card>
-    <.card title={dgettext("dashboard_cache", "Bundles")} icon="chart_cohort" data-part="bundles-card">
+    <.card
+      title={dgettext("dashboard_cache", "Bundles")}
+      icon="chart_cohort"
+      data-part="bundles-card"
+    >
       <.card_section data-part="bundles-card-section">
         <div data-part="filters">
           <.dropdown

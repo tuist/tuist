@@ -9,13 +9,19 @@
     dismissible
     title={dgettext("dashboard_previews", "Don't have the Tuist app installed?")}
     description={
-      dgettext("dashboard_previews", 
+      dgettext(
+        "dashboard_previews",
         "To run the preview directly from the browser, download and install the Tuist macOS app"
       )
     }
   >
     <:action>
-      <.link_button size="large" variant="secondary" underline label={dgettext("dashboard_previews", "Download")} />
+      <.link_button
+        size="large"
+        variant="secondary"
+        underline
+        label={dgettext("dashboard_previews", "Download")}
+      />
     </:action>
   </.alert>
   <div :if={Map.get(assigns, :selected_project)} data-part="action-buttons">
@@ -57,11 +63,7 @@
           )
         }
         phx-hook="ImageFallback"
-        alt={
-          dgettext("dashboard_previews", "%{app_name} icon",
-            app_name: @preview.display_name
-          )
-        }
+        alt={dgettext("dashboard_previews", "%{app_name} icon", app_name: @preview.display_name)}
         data-part="icon"
       />
     </div>
@@ -70,7 +72,9 @@
       <div data-part="icon">
         <.brand_apple />
       </div>
-      <span data-part="label">{dgettext("dashboard_previews", "V %{version}", version: @preview.version)}</span>
+      <span data-part="label">
+        {dgettext("dashboard_previews", "V %{version}", version: @preview.version)}
+      </span>
     </div>
   </div>
   <div data-part="actions">
@@ -94,7 +98,11 @@
       <:icon_left><.player_play /></:icon_left>
     </.button>
   </div>
-  <.card data-part="details-card" icon="chart_arcs" title={dgettext("dashboard_previews", "Details")}>
+  <.card
+    data-part="details-card"
+    icon="chart_arcs"
+    title={dgettext("dashboard_previews", "Details")}
+  >
     <.card_section data-part="details-card-section">
       <div data-part="metadata-grid">
         <div data-part="metadata-row">
@@ -143,10 +151,22 @@
             </span>
           </div>
         </div>
+        <div :if={@preview.track != ""} data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Track")}</div>
+            <span data-part="label">
+              {@preview.track}
+            </span>
+          </div>
+        </div>
       </div>
     </.card_section>
   </.card>
-  <.card data-part="install-app-card" icon="devices_down" title={dgettext("dashboard_previews", "Install App")}>
+  <.card
+    data-part="install-app-card"
+    icon="devices_down"
+    title={dgettext("dashboard_previews", "Install App")}
+  >
     <.card_section data-part="install-app-card-section">
       <div
         :if={not is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
@@ -156,7 +176,10 @@
           {dgettext("dashboard_previews", "Scan QR code")}
         </h2>
         <span data-part="subtitle">
-          {dgettext("dashboard_previews", "Scan this QR code on your iOS device to install this version of the app")}
+          {dgettext(
+            "dashboard_previews",
+            "Scan this QR code on your iOS device to install this version of the app"
+          )}
         </span>
         <img
           data-part="qr-code"
@@ -174,10 +197,14 @@
         <img data-theme="dark" src="/images/macbook_preview_dark.png" />
         <div data-part="explanation">
           <h2 data-part="title">
-            {dgettext("dashboard_previews", "This preview isn't available for device installation")}
+            {dgettext(
+              "dashboard_previews",
+              "This preview isn't available for device installation"
+            )}
           </h2>
           <span data-part="subtitle">
-            {dgettext("dashboard_previews", 
+            {dgettext(
+              "dashboard_previews",
               "This preview is only supported on simulators and can't be installed on a physical device"
             )}
           </span>

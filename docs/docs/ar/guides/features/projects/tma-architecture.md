@@ -5,140 +5,128 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# The Modular Architecture (TMA) {#the-modular-architecture-tma}
+# البنية المعيارية (TMA) {#the-modular-architecture-tma}
 
-TMA is an architectural approach to structure Apple OS applications to enable
-scalability, optimize build and test cycles, and ensure good practices in your
-team. Its core idea is to build your apps by building independent features that
-are interconnected using clear and concise APIs.
+TMA هو نهج معماري لهيكلة تطبيقات Apple OS لتمكين قابلية التوسع، وتحسين دورات
+الإنشاء والاختبار، وضمان الممارسات الجيدة في فريقك. وتتمثل فكرته الأساسية في
+بناء تطبيقاتك من خلال بناء ميزات مستقلة مترابطة باستخدام واجهات برمجة تطبيقات
+واضحة وموجزة.
 
-These guidelines introduce the principles of the architecture, helping you
-identify and organize your application features in different layers. It also
-introduces tips, tools, and advice if you decide to use this architecture.
+تقدم هذه الإرشادات مبادئ البنية، مما يساعدك على تحديد وتنظيم ميزات تطبيقك في
+طبقات مختلفة. كما تقدم نصائح وأدوات ونصائح إذا قررت استخدام هذه البنية.
 
-::: info µFEATURES
+::: info µمعلومات µمعلومات
 <!-- -->
-This architecture was previously known as µFeatures. We've renamed it to The
-Modular Architecture (TMA) to better reflect its purpose and the principles
-behind it.
+كانت هذه البنية تُعرف سابقًا باسم µFeatures. لقد أعدنا تسميتها إلى البنية
+المعيارية (TMA) لتعكس بشكل أفضل الغرض منها والمبادئ الكامنة وراءها.
 <!-- -->
 :::
 
-## Core principle {#core-principle}
+## المبدأ الأساسي {#core-principle}
 
-Developers should be able to **build, test, and try** their features fast,
-independently of the main app, and while ensuring Xcode features like UI
-previews, code completion, and debugging work reliably.
+يجب أن يكون المطورون قادرين على **بناء واختبار وتجربة** ميزاتهم بسرعة، بشكل
+مستقل عن التطبيق الرئيسي، مع ضمان عمل ميزات Xcode مثل معاينات واجهة المستخدم
+وإكمال التعليمات البرمجية وتصحيح الأخطاء بشكل موثوق.
 
-## What is a module {#what-is-a-module}
+## ما هي الوحدة النمطية {#what-is-a-module}
 
-A module represents an application feature and is a combination of the following
-five targets (where target referts to an Xcode target):
+تمثل الوحدة النمطية ميزة التطبيق وهي مزيج من الأهداف الخمسة التالية (حيث يشير
+الهدف إلى هدف Xcode):
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++,
-  JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and
-  models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example
-  app. It also provides mocks for module classes and protocols that can be used
-  by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the
-  feature under certain conditions (different languages, screen sizes,
-  settings).
+- **المصدر:** يحتوي على شيفرة مصدر الميزة (Swift، Objective-C، C++،
+  JavaScript...) ومواردها (الصور، الخطوط، القصص المصورة، xibs).
+- **الواجهة:** هو هدف مصاحب يحتوي على الواجهة العامة ونماذج الميزة.
+- **الاختبارات:** يحتوي على اختبارات وحدة الميزة واختبارات التكامل.
+- **الاختبار:** يوفر بيانات الاختبار التي يمكن استخدامها في الاختبارات ومثال
+  التطبيق. يوفر أيضًا نماذج لفئات الوحدات النمطية والبروتوكولات التي يمكن
+  استخدامها من قبل ميزات أخرى كما سنرى لاحقًا.
+- **مثال:** يحتوي على مثال على تطبيق يمكن للمطورين استخدامه لتجربة الميزة في ظل
+  ظروف معينة (لغات مختلفة، أحجام الشاشة، الإعدادات).
 
-We recommend following a naming convention for targets, something that you can
-enforce in your project thanks to Tuist's DSL.
+نوصي باتباع اصطلاح التسمية للأهداف، وهو أمر يمكنك فرضه في مشروعك بفضل DSL الخاص
+بـ Tuist.
 
-| Target             | Dependencies                | Content                     |
-| ------------------ | --------------------------- | --------------------------- |
-| `Feature`          | `FeatureInterface`          | Source code and resources   |
-| `FeatureInterface` | -                           | Public interface and models |
-| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
-| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
-| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
+| الهدف              | التبعيات                                 | المحتوى                  |
+| ------------------ | ---------------------------------------- | ------------------------ |
+| `الميزة`           | `واجهة الميزة`                           | شفرة المصدر والموارد     |
+| `واجهة الميزة`     | -                                        | الواجهة العامة والنماذج  |
+| `اختبارات الميزات` | `الميزة` ، `اختبار الميزة اختبار الميزة` | اختبارات الوحدة والتكامل |
+| `اختبار الميزات`   | `واجهة الميزة`                           | اختبار البيانات والنماذج |
+| `مثال على الميزة`  | `ميزةالاختبار` ، `ميزة`                  | مثال على التطبيق         |
 
-::: tip UI Previews
+::: tip معاينات واجهة المستخدم
 <!-- -->
-`Feature` can use `FeatureTesting` as a Development Asset to allow for UI
-previews
+`الميزة` يمكن استخدام `FeatureTesting` كأصل تطوير للسماح بمعاينة واجهة المستخدم
 <!-- -->
 :::
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
+::: warning تجميع التوجيهات بدلاً من اختبار الأهداف
 <!-- -->
-Alternatively, you can use compiler directives to include test data and mocks in
-the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
-simplify the graph, but you'll end up compiling code that you won't need for
-running the app.
+`بدلًا من ذلك، يمكنك استخدام توجيهات المحول البرمجي لتضمين بيانات الاختبار
+والنماذج في أهداف` ميزة أو `ميزة الواجهة` عند التحويل البرمجي لـ `Debug`. يمكنك
+تبسيط الرسم البياني، ولكن سينتهي بك الأمر بتجميع شيفرة لن تحتاجها لتشغيل
+التطبيق.
 <!-- -->
 :::
 
-## Why a module {#why-a-module}
+## لماذا وحدة نمطية {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### واجهات برمجة التطبيقات الواضحة والموجزة {#clear-and-concise-apis}
 
-When all the app source code lives in the same target it is very easy to build
-implicit dependencies in code and end up with the so well-known spaghetti code.
-Everything is strongly coupled, the state is sometimes unpredictable, and
-introducing new changes become a nightmare. When we define features in
-independent targets we need to design public APIs as part of our feature
-implementation. We need to decide what should be public, how our feature should
-be consumed, what should remain private. We have more control over how we want
-our feature clients to use the feature and we can enforce good practices by
-designing safe APIs.
+عندما تعيش جميع التعليمات البرمجية المصدرية للتطبيق في نفس الهدف، فمن السهل جدًا
+بناء تبعيات ضمنية في التعليمات البرمجية وينتهي الأمر بتشفير السباغيتي المعروف.
+كل شيء مقترن بقوة، ولا يمكن التنبؤ بالحالة في بعض الأحيان، ويصبح إدخال تغييرات
+جديدة كابوسًا. عندما نحدد الميزات في أهداف مستقلة، نحتاج إلى تصميم واجهات برمجة
+التطبيقات العامة كجزء من تنفيذ ميزاتنا. نحتاج أن نقرر ما يجب أن يكون عامًا، وكيف
+يجب أن تُستهلَك ميزتنا، وما الذي يجب أن يبقى خاصًا. لدينا المزيد من التحكم في
+الطريقة التي نريد أن يستخدم بها عملاء ميزتنا الميزة ويمكننا فرض ممارسات جيدة من
+خلال تصميم واجهات برمجة تطبيقات آمنة.
 
-### Small modules {#small-modules}
+### الوحدات الصغيرة {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working
-in small modules allows you to have more focus and test and try the feature in
-isolation. Moreover, development cycles are much faster since we have a more
-selective compilation, compiling only the components that are necessary to get
-our feature working. The compilation of the whole app is only necessary at the
-very end of our work, when we need to integrate the feature into the app.
+[فرّق تسد] (https://en.wikipedia.org/wiki/Divide_and_conquer). يتيح لك العمل في
+وحدات صغيرة الحصول على مزيد من التركيز واختبار الميزة وتجربتها بمعزل عن غيرها.
+علاوة على ذلك، تكون دورات التطوير أسرع بكثير نظرًا لأن لدينا تجميعًا أكثر
+انتقائية، حيث نقوم بتجميع المكونات الضرورية فقط لتشغيل ميزتنا. تجميع التطبيق
+بأكمله ضروري فقط في نهاية عملنا، عندما نحتاج إلى دمج الميزة في التطبيق.
 
-### Reusability {#reusability}
+### قابلية إعادة الاستخدام {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using
-frameworks or libraries. By building modules reusing them is pretty
-straightforward. We can build an iMessage extension, a Today Extension, or a
-watchOS application by just combining existing modules and adding _(when
-necessary)_ platform-specific UI layers.
+يتم تشجيع إعادة استخدام التعليمات البرمجية عبر التطبيقات والمنتجات الأخرى مثل
+الإضافات باستخدام الأطر أو المكتبات. من خلال بناء الوحدات النمطية فإن إعادة
+استخدامها أمر بسيط للغاية. يمكننا بناء ملحق iMessage أو ملحق Today أو تطبيق
+watchOS بمجرد دمج الوحدات الموجودة وإضافة _(عند الضرورة)_ طبقات واجهة المستخدم
+الخاصة بالمنصة .
 
-## Dependencies {#dependencies}
+## التبعيات {#dependencies}
 
-When a module depends on another module, it declares a dependency against its
-interface target. The benefit of this is two-fold. It prevents the
-implementation of a module to be coupled to the implementation of another
-module, and it speeds up clean builds because they only have to compile the
-implementation of our feature, and the interfaces of direct and transitive
-dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS
-Build Times by using Interface
-Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
+عندما تعتمد وحدة نمطية على وحدة نمطية أخرى، فإنها تعلن تبعية ضد هدف واجهتها.
+فائدة ذلك ذات شقين. فهو يمنع اقتران تنفيذ وحدة نمطية ما بتنفيذ وحدة نمطية أخرى،
+كما أنه يسرع من عمليات الإنشاء النظيفة لأنه لا يتعين عليهم تجميع تنفيذ الميزة
+الخاصة بنا وواجهات التبعيات المباشرة والمتعدية. هذا النهج مستوحى من فكرة
+SwiftRock لـ [تقليل أوقات بناء نظام iOS باستخدام وحدات الواجهة]
+(https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
-Depending on interfaces requires apps to build the graph of implementations at
-runtime, and dependency-inject it into the modules that need it. Although TMA is
-non-opinionated about how to do this, we recommend using dependency-injection
-solutions or patterns or solutions that don't add built-time indirections or use
-platform APIs that were not designed for this purpose.
+يتطلب الاعتماد على الواجهات أن تقوم التطبيقات ببناء الرسم البياني للتطبيقات في
+وقت التشغيل، وحقن التبعية في الوحدات التي تحتاج إليها. على الرغم من أن TMA غير
+معني بكيفية القيام بذلك، إلا أننا نوصي باستخدام حلول أو أنماط حقن التبعية أو
+الحلول التي لا تضيف عمليات حقن تبعية في وقت الإنشاء أو استخدام واجهات برمجة
+التطبيقات الخاصة بالمنصة التي لم يتم تصميمها لهذا الغرض.
 
-## Product types {#product-types}
+## أنواع المنتجات {#product-types}
 
-When building a module, you can choose between **libraries and frameworks**, and
-**static and dynamic linking** for the targets. Without Tuist, making this
-decision is a bit more complex because you need to configure the dependency
-graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+عند إنشاء وحدة نمطية، يمكنك الاختيار بين **المكتبات والأطر** ، و **الربط الثابت
+والديناميكي** للأهداف. بدون تويست، يكون اتخاذ هذا القرار أكثر تعقيدًا بعض الشيء
+لأنك تحتاج إلى تكوين الرسم البياني للتبعية يدويًا. ومع ذلك، بفضل مشاريع تويست،
+لم تعد هذه مشكلة.
 
-We recommend using dynamic libraries or frameworks during development using
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> to decouple the bundle-accessing logic from the
-library or framework nature of the target. This is key for fast compilation
-times and to ensure [SwiftUI
-Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-work reliably. And static libraries or frameworks for the release builds to
-ensure the app boots fast. You can leverage
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic
-configuration</LocalizedLink> to change the product type at generation-time:
+نوصي باستخدام مكتبات أو أطر عمل ديناميكية أثناء التطوير باستخدام
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors"> ملحقات الحزمة</LocalizedLink> لفصل منطق الوصول إلى الحزمة عن طبيعة المكتبة أو
+إطار العمل للهدف. هذا أمر أساسي للحصول على أوقات تجميع سريعة ولضمان عمل [SwiftUI
+Previews] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
+بشكل موثوق. والمكتبات أو الأطر الثابتة لإصدارات الإصدارات لضمان تشغيل التطبيق
+بسرعة. يمكنك الاستفادة من
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables"> التكوين الديناميكي</LocalizedLink> لتغيير نوع المنتج في وقت الإنشاء:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -159,48 +147,46 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
+::: warning المكتبات القابلة للدمج
 <!-- -->
-Apple attempted to alleviate the cumbersomeness of switching between static and
-dynamic libraries by introducing [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-However, that introduces build-time non-determinism that makes your build
-non-reproducible and harder to optimize so we don't recommend using it.
+حاولت شركة Apple التخفيف من عبء التبديل بين المكتبات الثابتة والديناميكية من
+خلال تقديم [مكتبات قابلة للدمج]
+(https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
+ومع ذلك، فإن ذلك يُدخل عدم تحديد وقت الإنشاء مما يجعل الإنشاء غير قابل للتكرار
+ويصعب تحسينه لذا لا ننصح باستخدامه.
 <!-- -->
 :::
 
-## Code {#code}
+## الرمز {#code}
 
-TMA is non-opinionated about the code architecture and patterns for your
-modules. However, we'd like to share some tips based on our experience:
+TMA غير معني ببنية الكود وأنماطه للوحدات النمطية الخاصة بك. ومع ذلك، نود مشاركة
+بعض النصائح بناءً على خبرتنا:
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end
-  up being non-productive and cause some Xcode features like previews to work
-  unreliably. We recommend using the compiler to enforce good practices and
-  catch errors early, but not to the point that it makes the code harder to read
-  and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make
-  the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come
-  up with ellaborated abstraction layers might end up being counterproductive.
-  The platform and the language are powerful enough to build great apps without
-  the need for additional abstraction layers. Use good programming and design
-  patterns as a reference to build your features.
+- **الاستفادة من المحول البرمجي أمر رائع.** قد ينتهي الأمر بالإفراط في الاستفادة
+  من المحول البرمجي إلى أن يكون غير مثمر ويتسبب في عدم موثوقية عمل بعض ميزات
+  Xcode مثل المعاينات. نوصي باستخدام المحول البرمجي لفرض الممارسات الجيدة
+  واكتشاف الأخطاء مبكرًا، ولكن ليس إلى الحد الذي يجعل قراءة الشيفرة البرمجية
+  وصيانتها أصعب.
+- **استخدم وحدات ماكرو سويفت باعتدال.** قد تكون قوية جدًا ولكنها قد تجعل قراءة
+  الشيفرة البرمجية وصيانتها أصعب.
+- **احتضن المنصة واللغة، ولا تجردهما.** قد تؤدي محاولة ابتكار طبقات تجريدية
+  متقنة إلى نتائج عكسية. المنصة واللغة قويتان بما يكفي لبناء تطبيقات رائعة دون
+  الحاجة إلى طبقات تجريد إضافية. استخدم أنماط البرمجة والتصميم الجيدة كمرجع
+  لبناء ميزاتك.
 
-## Resources {#resources}
+## الموارد {#resources}
 
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented
-  Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and
-  Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [Leveraging frameworks to speed up our development on iOS - Part
-  1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Library Oriented
-  Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [Building Modern
-  Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [The Unofficial Guide to xcconfig
-  files](https://pewpewthespells.com/blog/xcconfig_guide.html)
-- [Static and Dynamic
-  Libraries](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
+- [بناء µميزات البناء] (https://speakerdeck.com/pepibumur/building-ufeatures)
+- [البرمجة الموجهة نحو الإطار]
+  (https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
+- [رحلة في الأطر والسويفت]
+  (https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
+- [الاستفادة من أطر العمل لتسريع عملية التطوير على نظام iOS - الجزء 1]
+  (https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
+- [البرمجة الموجهة للمكتبة]
+  (https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
+- [بناء أطر عمل حديثة] (https://developer.apple.com/videos/play/wwdc2014/416/)
+- [الدليل غير الرسمي لملفات xcconfig]
+  (https://pewpewthespells.com/blog/xcconfig_guide.html)
+- [المكتبات الثابتة
+  والديناميكية](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)

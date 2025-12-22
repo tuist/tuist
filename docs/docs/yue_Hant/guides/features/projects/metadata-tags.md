@@ -139,8 +139,7 @@ understand the purpose of each tag and avoid naming conflicts.
 ## Using tags with project description helpers {#using-tags-with-helpers}
 
 You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to standardize how tags are applied across your project:
+<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to standardize how tags are applied across your project:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -209,8 +208,7 @@ Tags provide a flexible way to organize your codebase:
 ### Integration with caching
 
 Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching
-features</LocalizedLink>:
+<LocalizedLink href="/guides/features/cache">Tuist's caching features</LocalizedLink>:
 
 ```bash
 # Cache all targets
@@ -234,10 +232,8 @@ tuist generate tag:feature:payment
 
 ## Related features {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code
-  sharing</LocalizedLink> - Use project description helpers to standardize tag
+- <LocalizedLink href="/guides/features/projects/code-sharing">Code sharing</LocalizedLink> - Use project description helpers to standardize tag
   usage
 - <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
   tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective
-  testing</LocalizedLink> - Run tests only for changed targets
+- <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink> - Run tests only for changed targets

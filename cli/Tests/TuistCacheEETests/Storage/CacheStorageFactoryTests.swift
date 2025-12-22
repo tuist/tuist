@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistCache
+import TuistCAS
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -28,7 +29,7 @@ struct CacheStorageFactoryTests {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             serverAuthenticationController: serverAuthenticationController,
             serverEnvironmentService: serverEnvironmentService,
-            environmentVariables: [:]
+            cacheURLStore: MockCacheURLStoring()
         )
     }
 

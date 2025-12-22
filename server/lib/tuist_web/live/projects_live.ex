@@ -301,9 +301,18 @@ defmodule TuistWeb.ProjectsLive do
   defp create_project_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="create-project">
-      <.modal id={"#{@id}-modal"} title={dgettext("dashboard_projects", "Create project")} on_dismiss="close-create-project">
+      <.modal
+        id={"#{@id}-modal"}
+        title={dgettext("dashboard_projects", "Create project")}
+        on_dismiss="close-create-project"
+      >
         <:trigger :let={attrs}>
-          <.button :if={@source == "header"} variant="primary" label={dgettext("dashboard_projects", "New project")} {attrs} />
+          <.button
+            :if={@source == "header"}
+            variant="primary"
+            label={dgettext("dashboard_projects", "New project")}
+            {attrs}
+          />
           <.button
             :if={@source == "empty-state"}
             variant="secondary"
@@ -313,7 +322,11 @@ defmodule TuistWeb.ProjectsLive do
           />
         </:trigger>
         <.line_divider />
-        <.text_input id={"#{@id}-input"} field={@form[:name]} label={dgettext("dashboard_projects", "Name")} />
+        <.text_input
+          id={"#{@id}-input"}
+          field={@form[:name]}
+          label={dgettext("dashboard_projects", "Name")}
+        />
         <.line_divider />
         <:footer>
           <.modal_footer>

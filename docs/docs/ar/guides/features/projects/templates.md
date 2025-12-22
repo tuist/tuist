@@ -5,35 +5,31 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# Templates {#templates}
+# القوالب {#templates}
 
-In projects with an established architecture, developers might want to bootstrap
-new components or features that are consistent with the project. With `tuist
-scaffold` you can generate files from a template. You can define your own
-templates or use the ones that are vendored with Tuist. These are some scenarios
-where scaffolding might be useful:
+في المشاريع ذات البنية الراسخة، قد يرغب المطورون في تمهيد مكونات أو ميزات جديدة
+تتسق مع المشروع. مع `سقالة تويست` يمكنك إنشاء ملفات من قالب. يمكنك تحديد القوالب
+الخاصة بك أو استخدام القوالب التي يتم بيعها مع Tuist. هذه بعض السيناريوهات التي
+قد تكون فيها السقالات مفيدة:
 
-- Create a new feature that follows a given architecture: `tuist scaffold viper
-  --name MyFeature`.
-- Create new projects: `tuist scaffold feature-project --name Home`
+- قم بإنشاء ميزة جديدة تتبع بنية معينة: `tuist سقالة الأفعى - الاسم MyFeature`.
+- إنشاء مشاريع جديدة: `تويست سقالة ميزة المشروع - اسم المشروع الرئيسي`
 
-::: info NON-OPINIONATED
+::: info غير متاحة على الإنترنت
 <!-- -->
-Tuist is not opinionated about the content of your templates, and what you use
-them for. They are only required to be in a specific directory.
+تويست ليس له رأي في محتوى القوالب الخاصة بك، وما تستخدمها من أجله. فهي مطلوبة
+فقط لتكون في دليل محدد.
 <!-- -->
 :::
 
-## Defining a template {#defining-a-template}
+## تعريف قالب {#defining-a-template}
 
-To define templates, you can run
-<LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink> and then create a directory called `name_of_template`
-under `Tuist/Templates` that represents your template. Templates need a manifest
-file, `name_of_template.swift` that describes the template. So if you are
-creating a template called `framework`, you should create a new directory
-`framework` at `Tuist/Templates` with a manifest file called `framework.swift`
-that could look like this:
+ولتعريف القوالب، يمكنك تشغيل
+<LocalizedLink href="/guides/features/projects/editing">`tuist تحرير`</LocalizedLink> ثم إنشاء دليل يسمى `name_of_of_template` ضمن
+`Tuist/Templates` الذي يمثل القالب الخاص بك. تحتاج القوالب إلى ملف بيان،
+`name_of_of_template.swift.` الذي يصف القالب. لذلك إذا كنت تقوم بإنشاء قالب يسمى
+`إطار العمل` ، يجب عليك إنشاء دليل جديد `إطار العمل` في `Tuist/Templates` مع ملف
+بيان يسمى `framework.swift` والذي يمكن أن يبدو هكذا:
 
 
 ```swift
@@ -64,9 +60,9 @@ let template = Template(
 )
 ```
 
-## Using a template {#using-a-template}
+## استخدام قالب {#using-a-template}
 
-After defining the template, we can use it from the `scaffold` command:
+بعد تحديد القالب، يمكننا استخدامه من الأمر `سقالة`:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
@@ -74,28 +70,27 @@ tuist scaffold name_of_template --name Name --platform macos
 
 ::: info
 <!-- -->
-Since platform is an optional argument, we can also call the command without the
-`--platform macos` argument.
+نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون
+الوسيطة `-- النظام الأساسي macos`.
 <!-- -->
 :::
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the
-[Stencil](https://stencil.fuller.li/en/latest/) templating language via the
-`.file` case. Besides that, you can also use additional filters defined here.
+إذا لم يوفر لك `.string` و `.files` مرونة كافية، يمكنك الاستفادة من لغة النمذجة
+[Stencil] (https://stencil.fuller.li/en/latest/) عبر حالة `.file`. بالإضافة إلى
+ذلك، يمكنك أيضًا استخدام مرشحات إضافية محددة هنا.
 
-Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name
-}}`. If you'd like to use Stencil filters in the template definition, you can
-use that interpolation manually and add any filters you like. For example, you
-might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the
-lowercased value of the name attribute.
+باستخدام استيفاء السلسلة، `\(nameAttribute)` أعلاه سيحل إلى `{{ name }}}`. إذا
+كنت ترغب في استخدام مرشحات الاستنسل في تعريف القالب، يمكنك استخدام هذا الاستيفاء
+يدويًا وإضافة أي مرشحات تريدها. على سبيل المثال، يمكنك استخدام `{ { الاسم | اسم
+| أحرف صغيرة } }` بدلًا من `\(nameAttribute)` للحصول على القيمة ذات الأحرف
+الصغيرة لسمة الاسم.
 
-You can also use `.directory` which gives the possibility to copy entire folders
-to a given path.
+يمكنك أيضًا استخدام `.directory` الذي يتيح إمكانية نسخ مجلدات كاملة إلى مسار
+معين.
 
-::: tip PROJECT DESCRIPTION HELPERS
+::: tip مساعدو وصف المشروع
 <!-- -->
-Templates support the use of
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to reuse code across templates.
+تدعم القوالب استخدام
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
 <!-- -->
 :::

@@ -9,13 +9,16 @@ public protocol MultipartUploadStartPreviewsServicing {
         type: PreviewType,
         displayName: String,
         version: String?,
+        buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        binaryId: String?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        track: String?
     ) async throws -> AppBuildUpload
 }
 
@@ -24,12 +27,13 @@ public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable 
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case conflict(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The app build could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+            return "The app build could not be uploaded due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .conflict(message):
             return message
         }
     }
@@ -54,13 +58,16 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         type: PreviewType,
         displayName: String,
         version: String?,
+        buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        binaryId: String?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        track: String?
     ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -80,12 +87,15 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                 ),
                 body: .json(
                     .init(
+                        binary_id: binaryId,
+                        build_version: buildVersion,
                         bundle_identifier: bundleIdentifier,
                         display_name: displayName,
                         git_branch: gitBranch,
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
+                        track: track,
                         _type: type,
                         version: version
                     )
@@ -117,6 +127,11 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
             switch unauthorized.body {
             case let .json(error):
                 throw MultipartUploadStartPreviewsServiceError.unauthorized(error.message)
+            }
+        case let .conflict(conflictResponse):
+            switch conflictResponse.body {
+            case let .json(error):
+                throw MultipartUploadStartPreviewsServiceError.conflict(error.message)
             }
         }
     }

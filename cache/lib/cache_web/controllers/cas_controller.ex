@@ -3,7 +3,7 @@ defmodule CacheWeb.CASController do
   use OpenApiSpex.ControllerSpecs
 
   alias Cache.BodyReader
-  alias Cache.CASArtifacts
+  alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
@@ -51,11 +51,11 @@ defmodule CacheWeb.CASController do
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
     key = Disk.cas_key(account_handle, project_handle, id)
-    :ok = CASArtifacts.track_artifact_access(key)
+    :ok = CacheArtifacts.track_artifact_access(key)
 
-    case Disk.stat(account_handle, project_handle, id) do
+    case Disk.cas_stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
-        local_path = Disk.local_accel_path(account_handle, project_handle, id)
+        local_path = Disk.cas_local_accel_path(account_handle, project_handle, id)
 
         :telemetry.execute([:cache, :cas, :download, :disk_hit], %{size: size}, %{
           cas_id: id,
@@ -70,7 +70,7 @@ defmodule CacheWeb.CASController do
       {:error, _} ->
         :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
 
-        S3Transfers.enqueue_download(account_handle, project_handle, id)
+        S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
 
         case S3.presign_download_url(key) do
           {:ok, url} ->
@@ -127,7 +127,7 @@ defmodule CacheWeb.CASController do
   )
 
   def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    if Disk.exists?(account_handle, project_handle, id) do
+    if Disk.cas_exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
       save_new_artifact(conn, account_handle, project_handle, id)
@@ -180,7 +180,7 @@ defmodule CacheWeb.CASController do
   end
 
   defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
-    case Disk.put(account_handle, project_handle, id, data) do
+    case Disk.cas_put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :cas, :upload, :success], %{size: size}, %{
           cas_id: id,
@@ -188,15 +188,18 @@ defmodule CacheWeb.CASController do
           project_handle: project_handle
         })
 
-        :ok = CASArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))
-        S3Transfers.enqueue_upload(account_handle, project_handle, id)
+        key = Disk.cas_key(account_handle, project_handle, id)
+        :ok = CacheArtifacts.track_artifact_access(key)
+        S3Transfers.enqueue_cas_upload(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->
+        cleanup_tmp_file(data)
         :telemetry.execute([:cache, :cas, :upload, :exists], %{count: 1}, %{})
         send_resp(conn, :no_content, "")
 
       {:error, _reason} ->
+        cleanup_tmp_file(data)
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :persist_error})
         send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
@@ -207,4 +210,7 @@ defmodule CacheWeb.CASController do
     |> put_status(status)
     |> json(%{message: message})
   end
+
+  defp cleanup_tmp_file({:file, tmp_path}), do: File.rm(tmp_path)
+  defp cleanup_tmp_file(_binary_data), do: :ok
 end

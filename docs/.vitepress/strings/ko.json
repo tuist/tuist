@@ -308,7 +308,7 @@
                             }
                         },
                         "cache": {
-                            "text": "캐시시",
+                            "text": "캐시",
                             "items": {
                                 "generated-project": {
                                     "text": ""
@@ -382,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "지속 통합"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Git 저장소"
                         }
                     }
                 },
@@ -392,6 +403,28 @@
                             "text": "미리보기"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "원격 데이터 수집"
+                                },
+                                "installation": {
+                                    "text": "설치"
+                                }
+                            },
+                            "text": "자체 구축"
+                        },
+                        "accounts-and-projects": {
+                            "text": "계정 및 프로젝트"
+                        },
+                        "authentication": {
+                            "text": "인증"
+                        }
+                    },
+                    "text": "서버"
                 }
             }
         }

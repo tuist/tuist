@@ -18,9 +18,16 @@ defmodule Cache.BodyReader do
   - `{:error, reason, conn}` - For errors like :too_large, :timeout, etc.
   """
 
-  def read(conn) do
-    opts = read_opts(conn)
-    do_read(conn, opts, :store)
+  def read(conn, opts \\ []) do
+    merged_opts = Keyword.merge(read_opts(conn), opts)
+    max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
+
+    conn
+    |> Plug.Conn.read_body(merged_opts)
+    |> handle_read_result(conn, merged_opts, :store, max_bytes)
+  rescue
+    Bandit.TransportError ->
+      {:error, :cancelled, conn}
   end
 
   @doc """
@@ -31,28 +38,19 @@ defmodule Cache.BodyReader do
   def drain(conn) do
     opts = read_opts(conn)
 
-    case do_read(conn, opts, :discard) do
+    case conn |> Plug.Conn.read_body(opts) |> handle_read_result(conn, opts, :discard, @max_upload_bytes) do
       {:ok, _, conn_after} -> {:ok, conn_after}
       {:error, _reason, conn_after} -> {:error, conn_after}
     end
   end
 
-  defp do_read(conn, opts, mode) do
-    conn
-    |> Plug.Conn.read_body(opts)
-    |> handle_read_result(conn, opts, mode)
-  rescue
-    Bandit.TransportError ->
-      {:error, :cancelled, conn}
-  end
-
-  defp handle_read_result(result, conn, opts, mode) do
+  defp handle_read_result(result, conn, opts, mode, max_bytes) do
     case result do
       {:ok, body, conn_after} ->
         {:ok, body, conn_after}
 
       {:more, chunk, conn_after} ->
-        read_chunks(conn_after, opts, chunk, byte_size(chunk), mode)
+        read_chunks(conn_after, opts, chunk, byte_size(chunk), mode, max_bytes)
 
       {:error, :too_large} ->
         {:error, :too_large, conn}
@@ -65,11 +63,11 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp read_chunks(conn, opts, _first_chunk, bytes_read, :discard) do
-    read_loop(conn, opts, nil, bytes_read, fn _chunk -> :ok end)
+  defp read_chunks(conn, opts, _first_chunk, bytes_read, :discard, max_bytes) do
+    read_loop(conn, opts, nil, bytes_read, fn _chunk -> :ok end, max_bytes)
   end
 
-  defp read_chunks(conn, opts, first_chunk, bytes_read, :store) do
+  defp read_chunks(conn, opts, first_chunk, bytes_read, :store, max_bytes) do
     tmp_path = tmp_path()
 
     case File.open(tmp_path, [:write, :binary]) do
@@ -78,7 +76,7 @@ defmodule Cache.BodyReader do
 
         case writer.(first_chunk) do
           :ok ->
-            case read_loop(conn, opts, device, bytes_read, writer) do
+            case read_loop(conn, opts, device, bytes_read, writer, max_bytes) do
               {:ok, conn_after, _bytes} ->
                 File.close(device)
                 {:ok, {:file, tmp_path}, conn_after}
@@ -100,16 +98,16 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp read_loop(conn, opts, device, bytes_read, writer) do
+  defp read_loop(conn, opts, device, bytes_read, writer, max_bytes) do
     conn
     |> Plug.Conn.read_body(opts)
-    |> handle_loop_result(conn, opts, device, bytes_read, writer)
+    |> handle_loop_result(conn, opts, device, bytes_read, writer, max_bytes)
   rescue
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end
 
-  defp handle_loop_result(result, conn, opts, device, bytes_read, writer) do
+  defp handle_loop_result(result, conn, opts, device, bytes_read, writer, max_bytes) do
     case result do
       {:ok, "", conn_after} ->
         {:ok, conn_after, bytes_read}
@@ -117,7 +115,7 @@ defmodule Cache.BodyReader do
       {:ok, chunk, conn_after} ->
         bytes = bytes_read + byte_size(chunk)
 
-        if bytes > @max_upload_bytes do
+        if bytes > max_bytes do
           {:error, :too_large, conn_after}
         else
           case writer.(chunk) do
@@ -129,11 +127,11 @@ defmodule Cache.BodyReader do
       {:more, chunk, conn_after} ->
         bytes = bytes_read + byte_size(chunk)
 
-        if bytes > @max_upload_bytes do
+        if bytes > max_bytes do
           {:error, :too_large, conn_after}
         else
           case writer.(chunk) do
-            :ok -> read_loop(conn_after, opts, device, bytes, writer)
+            :ok -> read_loop(conn_after, opts, device, bytes, writer, max_bytes)
             {:error, reason} -> {:error, reason, conn_after}
           end
         end

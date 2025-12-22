@@ -1,3 +1,5 @@
+Mimic.copy(Appsignal.Span)
+Mimic.copy(Appsignal.Tracer)
 Mimic.copy(Base)
 Mimic.copy(Briefly)
 Mimic.copy(Bcrypt)

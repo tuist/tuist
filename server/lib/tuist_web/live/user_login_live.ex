@@ -32,14 +32,20 @@ defmodule TuistWeb.UserLoginLive do
     <div id="login">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+          <img
+            src="/images/tuist_logo_32x32@2x.png"
+            alt={dgettext("dashboard_auth", "Tuist Logo")}
+            data-part="logo"
+          />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
           </div>
           <div data-part="header">
             <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
-            <span data-part="subtitle">{dgettext("dashboard_auth", "Welcome back! Please log in to continue")}</span>
+            <span data-part="subtitle">
+              {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
+            </span>
           </div>
           <div
             :if={oauth_configured?()}
@@ -160,7 +166,12 @@ defmodule TuistWeb.UserLoginLive do
                 label={dgettext("dashboard_auth", "Forgot password?")}
               />
             </div>
-            <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Log in")} tabindex={4} />
+            <.button
+              variant="primary"
+              size="large"
+              label={dgettext("dashboard_auth", "Log in")}
+              tabindex={4}
+            />
           </.form>
         </div>
         <div data-part="bottom-link">

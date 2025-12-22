@@ -25,29 +25,64 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
-        <.button_group size="large">
-          <.button_group_item
-            patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-            label={dgettext("dashboard_qa", "7 days")}
-            data-selected={@analytics_date_range == "last_7_days"}
-          />
-          <.button_group_item
-            patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-            label={dgettext("dashboard_qa", "30 days")}
-            data-selected={@analytics_date_range == "last_30_days"}
-          />
-          <.button_group_item
-            patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-            label={dgettext("dashboard_qa", "12 months")}
-            data-selected={@analytics_date_range == "last_12_months"}
-          />
-        </.button_group>
+        <.date_picker
+          id="qa-analytics-date-range-picker"
+          name="analytics-date-range"
+          presets={[
+            %{
+              id: "last-24-hours",
+              label: dgettext("dashboard_qa", "Last 24 hours"),
+              period: {24, :hour}
+            },
+            %{
+              id: "last-7-days",
+              label: dgettext("dashboard_qa", "Last 7 days"),
+              period: {7, :day}
+            },
+            %{
+              id: "last-30-days",
+              label: dgettext("dashboard_qa", "Last 30 days"),
+              period: {30, :day}
+            },
+            %{
+              id: "last-12-months",
+              label: dgettext("dashboard_qa", "Last 12 months"),
+              period: {12, :month}
+            },
+            %{id: "custom", label: dgettext("dashboard_qa", "Custom")}
+          ]}
+          selected_preset={@analytics_preset}
+          period={@analytics_period}
+          on_period_change="analytics_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_qa", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel",
+                  detail: %{id: "qa-analytics-date-range-picker"}
+                )
+              }
+            />
+            <.button
+              label={dgettext("dashboard_qa", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply",
+                  detail: %{id: "qa-analytics-date-range-picker"}
+                )
+              }
+            />
+          </:actions>
+        </.date_picker>
       </:actions>
       <div data-part="widgets">
         <.widget
           title={dgettext("dashboard_qa", "QA runs")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "QA runs represent the number of QA test sessions executed during a given period."
             )
           }
@@ -64,7 +99,8 @@
         <.widget
           title={dgettext("dashboard_qa", "App issues found")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "App issues found represents the total number of issues discovered during QA testing in a given period."
             )
           }
@@ -81,7 +117,8 @@
         <.widget
           title={dgettext("dashboard_qa", "Avg. QA duration")}
           description={
-            dgettext("dashboard_qa", 
+            dgettext(
+              "dashboard_qa",
               "Average QA duration represents the average time it took to complete a QA session during a given period."
             )
           }
@@ -141,9 +178,12 @@
                     formatter: @analytics_chart_data.value_formatter
                   }
                 },
-                tooltip: %{
-                  valueFormat: @analytics_chart_data.value_formatter
-                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                  else
+                    %{valueFormat: @analytics_chart_data.value_formatter}
+                  end,
                 legend: %{
                   show: false
                 }
@@ -167,7 +207,10 @@
           />
         </div>
       </.card_section>
-      <.empty_card_section :if={@qa_runs_analytics.count == 0} title={dgettext("dashboard_qa", "No data yet")}>
+      <.empty_card_section
+        :if={@qa_runs_analytics.count == 0}
+        title={dgettext("dashboard_qa", "No data yet")}
+      >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
           <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
@@ -236,7 +279,10 @@
               <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
             </:col>
             <:col :let={run} label={dgettext("dashboard_qa", "Duration")}>
-              <.text_cell :if={is_nil(run.finished_at)} label={dgettext("dashboard_qa", "In progress")} />
+              <.text_cell
+                :if={is_nil(run.finished_at)}
+                label={dgettext("dashboard_qa", "In progress")}
+              />
               <.text_cell
                 :if={not is_nil(run.finished_at)}
                 icon="history"
@@ -295,7 +341,8 @@
             {dgettext("dashboard_qa", "1. Upload a preview from a PR")}
           </span>
           <span data-part="subtitle">
-            {dgettext("dashboard_qa", 
+            {dgettext(
+              "dashboard_qa",
               "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
             )}
           </span>
@@ -318,7 +365,10 @@
             {dgettext("dashboard_qa", "2. Trigger the QA session from the PR")}
           </span>
           <span data-part="subtitle">
-            {dgettext("dashboard_qa", "Start the QA session from GitHub with the sample command below.")}
+            {dgettext(
+              "dashboard_qa",
+              "Start the QA session from GitHub with the sample command below."
+            )}
           </span>
         </div>
         <.terminal

@@ -5,73 +5,53 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# Issue reporting {#issue-reporting}
+# 問題報告{#issue-reporting}
 
-As user of Tuist, you might come across bugs or unexpected behaviors. If you do,
-we encourage you to report them so that we can fix them.
+Tuistのユーザーとして、バグや予期せぬ動作に出くわすことがあるかもしれません。そのような場合は、ぜひご報告ください。
 
-## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
+## GitHub issuesは私たちのチケット発券プラットフォームです{#github-issues-is-our-ticketing-platform}
 
-Issues should be reported on GitHub as [GitHub
-issues](https://github.com/tuist/tuist/issues) and not on Slack or other
-platforms. GitHub is better for tracing and managing issues, is closer to the
-codebase, and allows us to track the progress of the issue. Moreover, it
-encourages a long-form description of the problem, which forces the reporter to
-think about the problem and provide more context.
+課題はSlackや他のプラットフォームではなく、[GitHub
+issues](https://github.com/tuist/tuist/issues)としてGitHubで報告してください。GitHub
+は問題のトレースや管理に適しており、コードベースに近く、問題の進捗を追跡することができます。さらに、GitHub
+では問題の説明が長文になるため、報告者に問題について考えさせ、より多くの文脈を提供することができます。
 
-## Context is crucial {#context-is-crucial}
+## コンテキストが重要{#context-is-crucial}
 
-An issue without enough context will be deemed incomplete and the author will be
-asked for additional context. If not provided, the issue will be closed. Think
-about it this way: the more context you provide, the easier it is for us to
-understand the problem and fix it. So if you want your issue to be fixed,
-provide as much context as possible. Try to answer the following questions:
+十分なコンテクストがないissueは不完全とみなされ、著者は追加のコンテクストを求められます。提供されない場合、その問題はクローズされます。このように考えてください：あなたがより多くの文脈を提供すればするほど、私たちは問題を理解し、それを修正することが容易になります。ですから、問題を解決してほしいのであれば、できるだけ多くの背景を提供してください。以下の質問に答えてみてください：
 
-- What were you trying to do?
-- How does your graph look?
-- What version of Tuist are you using?
-- Is this blocking you?
+- 何をしようとしたんだ？
+- グラフはどうですか？
+- Tuistのバージョンは？
+- これが邪魔をしているのか？
 
-We also require you to provide a minimal **reproducible project**.
+また、最低限**再現可能なプロジェクト** を提出していただきます。
 
-## Reproducible project {#reproducible-project}
+## 再現可能なプロジェクト{#reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは何か？{再現可能なプロジェクトとは何か？｝
 
-A reproducible project is a small Tuist project to demonstrate a problem - often
-this problem is caused by a bug in Tuist. Your reproducible project should
-contain the bare minimum features needed to clearly demonstrate the bug.
+再現可能なプロジェクトとは、ある問題を実証するための小さなTuistプロジェクトのことで、多くの場合この問題はTuistのバグによって引き起こされます。再現可能なプロジェクトは、バグを明確に示すために必要な最低限の機能を含んでいなければなりません。
 
-### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
+### なぜ再現可能なテストケースを作成すべきなのか？{#why-should-you-create-a-reproducible-test-case} 再現可能なテストケースを作るべき理由とは？
 
-A reproducible projects lets us isolate the cause of a problem, which is the
-first step towards fixing it! The most important part of any bug report is to
-describe the exact steps needed to reproduce the bug.
+再現可能なプロジェクトがあれば、問題の原因を切り分けることができ、それが問題解決への第一歩となります！バグレポートの最も重要な部分は、バグを再現するために必要な正確な手順を記述することです。
 
-A reproducible project is a great way to share a specific environment that
-causes a bug. Your reproducible project is the best way to help people that want
-to help you.
+再現可能なプロジェクトは、バグの原因となる特定の環境を共有するのに最適な方法です。あなたの再現可能なプロジェクトは、あなたを助けたい人々を助ける最良の方法です。
 
-### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
+### 再現可能なプロジェクトを作成する手順{#steps-to-create-a-reproducible-project}
 
-- Create a new git repository.
-- Initialize a project using `tuist init` in the repository directory.
-- Add the code needed to recreate the error you’ve seen.
-- Publish the code (your GitHub account is a good place to do this) and then
-  link to it when creating an issue.
+- 新しいgitリポジトリを作成する。
+- リポジトリ・ディレクトリの`tuist init` を使ってプロジェクトを初期化する。
+- あなたが見たエラーを再現するために必要なコードを追加してください。
+- コードを公開し（GitHubアカウントで公開するのがよいでしょう）、issueを作成する際にリンクを張ってください。
 
-### Benefits of reproducible projects {#benefits-of-reproducible-projects}
+### 再現可能なプロジェクトの利点{#benefits-of-reproducible-projects}
 
-- **Smaller surface area:** By removing everything but the error, you don’t have
-  to dig to find the bug.
-- **No need to publish secret code:** You might not be able to publish your main
-  site (for many reasons). Remaking a small part of it as a reproducible test
-  case allows you to publicly demonstrate a problem without exposing any secret
-  code.
-- **Proof of the bug:** Sometimes a bug is caused by some combination of
-  settings on your machine. A reproducible test case allows contributors to pull
-  down your build and test it on their machines as well. This helps verify and
-  narrow down the cause of a problem.
-- **Get help with fixing your bug:** If someone else can reproduce your problem,
-  they often have a good chance of fixing the problem. It’s almost impossible to
-  fix a bug without first being able to reproduce it.
+- **表面積が小さい：** エラー以外のすべてを取り除くことで、バグを見つけるために掘る必要がなくなる。
+- **秘密のコードを公開する必要はありません：**
+  様々な理由で）メインサイトを公開できないかもしれない。その一部を再現可能なテストケースとして作り直すことで、秘密のコードを公開することなく、問題を公に実証することができます。
+- **バグの証明**
+  バグがあなたのマシンの設定の組み合わせによって引き起こされることがあります。再現可能なテストケースによって、貢献者はあなたのビルドをプルダウンして自分のマシンでもテストすることができます。これは問題の原因を検証し、絞り込むのに役立ちます。
+- **バグを修正する手助けを得る：**
+  もし他の誰かがあなたの問題を再現できれば、問題を解決できる可能性が高くなります。まずバグを再現できなければ、バグを修正することはほとんど不可能です。

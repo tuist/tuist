@@ -5,89 +5,85 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# QA {#qa}
+# ضمان الجودة {#qa}
 
-::: warning EARLY PREVIEW
+::: warning عرض تمهيدي مبكر
 <!-- -->
-Tuist QA is currently in early preview. Sign up at
-[tuist.dev/qa](https://tuist.dev/qa) to get access.
+تويست QA حاليًا في مرحلة المعاينة المبكرة. سجّل في [tuist.dev.dev/qa]
+(https://tuist.dev/qa) للحصول على إمكانية الوصول.
 <!-- -->
 :::
 
-Quality mobile app development relies on comprehensive testing, but traditional
-approaches have limitations. Unit tests are fast and cost-effective, yet they
-miss real-world user scenarios. Acceptance testing and manual QA can capture
-these gaps, but they're resource-intensive and don't scale well.
+يعتمد تطوير تطبيقات الأجهزة المحمولة عالية الجودة على الاختبار الشامل، لكن
+الأساليب التقليدية لها قيود. اختبارات الوحدة سريعة وفعالة من حيث التكلفة، ومع
+ذلك فهي تغفل سيناريوهات المستخدم في العالم الحقيقي. يمكن لاختبار القبول واختبار
+ضمان الجودة اليدوي أن يلتقطا هذه الثغرات، لكنهما يستهلكان موارد كثيرة ولا
+يتوسعان بشكل جيد.
 
-Tuist's QA agent solves this challenge by simulating authentic user behavior. It
-autonomously explores your app, recognizes interface elements, executes
-realistic interactions, and flags potential issues. This approach helps you
-identify bugs and usability problems early in development while avoiding the
-overhead and maintenance burden of conventional acceptance and QA testing.
+يحل وكيل ضمان الجودة من تويست هذا التحدي من خلال محاكاة سلوك المستخدم الحقيقي.
+فهو يستكشف تطبيقك بشكل مستقل، ويتعرف على عناصر الواجهة، وينفذ تفاعلات واقعية،
+ويحدد المشكلات المحتملة. يساعدك هذا النهج على تحديد الأخطاء ومشاكل قابلية
+الاستخدام في وقت مبكر من التطوير مع تجنب أعباء الصيانة والنفقات الزائدة لاختبار
+القبول التقليدي واختبار ضمان الجودة.
 
-## Prerequisities {#prerequisites}
+## المتطلبات الأساسية {#prerequisites}
 
-To start using Tuist QA, you need to:
-- Set up uploading
-  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> from
-  your PR CI workflow, which the agent can then use for testing
-- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink>
-  with GitHub, so you can trigger the agent directly from your PR
+لبدء استخدام ضمان الجودة من تويست، تحتاج إلى
+- قم بإعداد تحميل <LocalizedLink href="/guides/features/previews">مراجعات </LocalizedLink> من سير عمل العلاقات العامة CI، والتي يمكن للوكيل استخدامها
+  بعد ذلك للاختبار
+- <LocalizedLink href="/guides/integrations/gitforge/github">دمج</LocalizedLink>
+  مع GitHub، حتى تتمكن من تشغيل الوكيل مباشرةً من علاقاتك العامة
 
-## Usage {#usage}
+## الاستخدام {#usage}
 
-Tuist QA is currently triggered directly from a PR. Once you have a preview
-associated with your PR, you can trigger the QA agent by commenting `/qa test I
-want to test feature A` on the PR:
+يتم تشغيل ضمان الجودة في تويست حاليًا مباشرةً من العلاقات العامة. بمجرد أن يكون
+لديك معاينة مرتبطة بعلاقاتك العامة، يمكنك تشغيل عامل ضمان الجودة عن طريق التعليق
+`/qa test أريد اختبار الميزة A` على العلاقات العامة:
 
-![QA trigger comment](/images/guides/features/qa/qa-trigger-comment.png)
+![تعليق مشغل ضمان الجودة] (/images/guides/features/qa/qa-trigger-comment.png)
 
-The comment includes a link to the live session where you can see in realtime
-the QA agent's progress and any issues it finds. Once the agent completes its
-run, it will post a summary of the results back to the PR:
+يتضمن التعليق رابطًا للجلسة المباشرة حيث يمكنك رؤية تقدم وكيل ضمان الجودة في
+الوقت الفعلي وأي مشكلات يعثر عليها. وبمجرد أن يكمل الوكيل تشغيله، سيقوم بنشر
+ملخص للنتائج إلى العلاقات العامة:
 
-![QA test summary](/images/guides/features/qa/qa-test-summary.png)
+![ملخص اختبار ضمان الجودة] (/images/guides/features/qa/qa-test-summary.png)
 
-As part of the report in the dashboard, which the PR comment links to, you will
-get a list of issues and a timeline, so you can inspect how the issue exactly
-happened:
+كجزء من التقرير الموجود في لوحة التحكم، والذي يرتبط به تعليق العلاقات العامة،
+ستحصل على قائمة بالمشكلات وجدول زمني، حتى تتمكن من فحص كيفية حدوث المشكلة
+بالضبط:
 
-![QA timeline](/images/guides/features/qa/qa-timeline.png)
+![جدول زمني لضمان الجودة] (/images/guides/features/qa/qa-timeline.png)
 
-You can see all QA runs that we do for our
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
-app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+يمكنك الاطلاع على جميع عمليات ضمان الجودة التي نقوم بها لتطبيق
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink>
+الخاص بنا في لوحة التحكم العامة لدينا: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
-The QA agent runs autonomously and cannot be interrupted with additional prompts
-once started. We provide detailed logs throughout the execution to help you
-understand how the agent interacted with your app. These logs are valuable for
-iterating on your app context and testing prompts to better guide the agent's
-behavior. If you have feedback about how the agent performs with your app,
-please let us know through [GitHub
-Issues](https://github.com/tuist/tuist/issues), our [Slack
-community](https://slack.tuist.dev) or our [community
-forum](https://community.tuist.dev).
+يعمل وكيل ضمان الجودة بشكل مستقل ولا يمكن مقاطعته بمطالبات إضافية بمجرد بدء
+التشغيل. نحن نقدم سجلات مفصلة طوال فترة التنفيذ لمساعدتك على فهم كيفية تفاعل
+الوكيل مع تطبيقك. هذه السجلات ذات قيمة لتكرار سياق تطبيقك واختبار المطالبات
+لتوجيه سلوك الوكيل بشكل أفضل. إذا كانت لديك ملاحظات حول كيفية أداء الوكيل مع
+تطبيقك، يُرجى إعلامنا من خلال [مشكلات
+GitHub](https://github.com/tuist/tuist/issues) أو [مجتمع
+Slack](https://slack.tuist.dev) أو [منتدى المجتمع](https://community.tuist.dev).
 <!-- -->
 :::
 
-### App context {#app-context}
+### سياق التطبيق {#app-context}
 
-The agent might need more context about your app to be able to navigate it well.
-We have three types of app context:
-- App description
-- Credentials
-- Launch argument groups
+قد يحتاج الوكيل إلى مزيد من السياق حول تطبيقك ليتمكن من التنقل فيه بشكل جيد.
+لدينا ثلاثة أنواع من سياق التطبيق:
+- وصف التطبيق
+- أوراق الاعتماد
+- إطلاق مجموعات الحجج
 
-All of them can be configured in the dashboard settings of your project
-(`Settings` > `QA`).
+يمكن تهيئتها جميعًا في إعدادات لوحة التحكم الخاصة بمشروعك (`الإعدادات` > `QA`).
 
-#### App description {#app-description}
+#### وصف التطبيق {#app-description}
 
-App description is for providing extra context about what your app does and how
-it works. This is a long-form text field that is passed as part of the prompt
-when kicking off the agent. An example could be:
+وصف التطبيق هو لتوفير سياق إضافي حول ما يفعله تطبيقك وكيفية عمله. هذا حقل نصي
+طويل يتم تمريره كجزء من المطالبة عند بدء تشغيل الوكيل. مثال يمكن أن يكون:
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -95,24 +91,24 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### Credentials {#credentials}
+#### بيانات الاعتماد {#credentials}
 
-In case the agent needs to sign in to the app to test some features, you can
-provide credentials for the agent to use. The agent will fill in these
-credentials if it recognizes that it needs to sign in.
+في حال احتاج الوكيل إلى تسجيل الدخول إلى التطبيق لاختبار بعض الميزات، يمكنك
+توفير بيانات اعتماد للوكيل لاستخدامها. سيقوم الوكيل بملء بيانات الاعتماد هذه إذا
+أدرك أنه بحاجة إلى تسجيل الدخول.
 
-#### Launch argument groups {#launch-argument-groups}
+#### مجموعات حجج الإطلاق {#launch-argument-groups}
 
-Launch argument groups are selected based on your testing prompt before running
-the agent. For example, if you don't want the agent to repeatedly sign in,
-wasting your tokens and runner minutes, you can specify your credentials here
-instead. If the agent recognizes that it should start the session signed in, it
-will use the credentials launch argument group when launching the app.
+يتم تحديد مجموعات وسيطة التشغيل بناءً على مطالبة الاختبار الخاصة بك قبل تشغيل
+الوكيل. على سبيل المثال، إذا كنت لا تريد أن يقوم الوكيل بتسجيل الدخول بشكل
+متكرر، مما يؤدي إلى إهدار الرموز المميزة ودقائق التشغيل، يمكنك تحديد بيانات
+الاعتماد الخاصة بك هنا بدلاً من ذلك. إذا أدرك الوكيل أنه يجب أن يبدأ الجلسة
+بتسجيل الدخول، فسيستخدم مجموعة وسيطة تشغيل بيانات الاعتماد عند تشغيل التطبيق.
 
-![Launch argument groups](/images/guides/features/qa/launch-argument-groups.png)
+![إطلاق مجموعات الحجج] (/images/guides/features/qa/launch-argument-groups.png)
 
-These launch arguments are your standard Xcode launch arguments. Here's an
-example for how to use them to automatically sign in:
+وسيطات التشغيل هذه هي وسيطات تشغيل Xcode القياسية الخاصة بك. إليك مثال على كيفية
+استخدامها لتسجيل الدخول تلقائيًا:
 
 ```swift
 import ArgumentParser

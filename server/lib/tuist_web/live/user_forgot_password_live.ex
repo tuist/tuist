@@ -16,7 +16,11 @@ defmodule TuistWeb.UserForgotPasswordLive do
     <div id="forgot-password">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={dgettext("dashboard_auth", "Tuist Logo")} data-part="logo" />
+          <img
+            src="/images/tuist_logo_32x32@2x.png"
+            alt={dgettext("dashboard_auth", "Tuist Logo")}
+            data-part="logo"
+          />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
@@ -35,7 +39,8 @@ defmodule TuistWeb.UserForgotPasswordLive do
               size="large"
               title={dgettext("dashboard_auth", "Check your email")}
               description={
-                dgettext("dashboard_auth", 
+                dgettext(
+                  "dashboard_auth",
                   "If your email exists in our records, you'll receive reset instructions shortly."
                 )
               }
@@ -50,7 +55,11 @@ defmodule TuistWeb.UserForgotPasswordLive do
                 show_prefix={false}
                 required
               />
-              <.button variant="primary" size="large" label={dgettext("dashboard_auth", "Reset password")} />
+              <.button
+                variant="primary"
+                size="large"
+                label={dgettext("dashboard_auth", "Reset password")}
+              />
             </.form>
           <% end %>
         </div>

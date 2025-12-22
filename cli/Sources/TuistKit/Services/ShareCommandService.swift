@@ -115,7 +115,8 @@ struct ShareCommandService {
         configuration: String?,
         platforms: [Platform],
         derivedDataPath: String?,
-        json: Bool
+        json: Bool,
+        track: String?
     ) async throws {
         let path = try self.path(path)
 
@@ -145,7 +146,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                json: json
+                json: json,
+                track: track
             )
         } else if appPaths.contains(where: { $0.extension == "app" }) {
             try await shareAppBundles(
@@ -153,7 +155,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                json: json
+                json: json,
+                track: track
             )
         } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
@@ -201,7 +204,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                json: json
+                json: json,
+                track: track
             )
         } else {
             guard !apps.isEmpty else { throw ShareCommandServiceError.appNotSpecified }
@@ -230,7 +234,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                json: json
+                json: json,
+                track: track
             )
         }
     }
@@ -250,7 +255,8 @@ struct ShareCommandService {
         path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
-        json: Bool
+        json: Bool,
+        track: String?
     ) async throws {
         guard appPaths.count == 1,
               let ipaPath = appPaths.first
@@ -265,7 +271,8 @@ struct ShareCommandService {
             path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
-            json: json
+            json: json,
+            track: track
         )
     }
 
@@ -274,7 +281,8 @@ struct ShareCommandService {
         path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
-        json: Bool
+        json: Bool,
+        track: String?
     ) async throws {
         let appBundles = try await appPaths.concurrentMap {
             try await appBundleLoader.load($0)
@@ -292,7 +300,8 @@ struct ShareCommandService {
             path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
-            json: json
+            json: json,
+            track: track
         )
     }
 
@@ -335,7 +344,8 @@ struct ShareCommandService {
         path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
-        json: Bool
+        json: Bool,
+        track: String?
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let appPaths =
@@ -377,7 +387,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                json: json
+                json: json,
+                track: track
             )
         }
     }
@@ -388,18 +399,20 @@ struct ShareCommandService {
         path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
-        json: Bool
+        json: Bool,
+        track: String?
     ) async throws {
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(displayName)",
             successMessage: "\(displayName) uploaded",
-            errorMessage: "Failed to upload the preview"
+            errorMessage: "Failed to upload \(displayName)"
         ) { updateProgress in
             try await previewsUploadService.uploadPreview(
                 previewUploadType,
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
+                track: track,
                 updateProgress: updateProgress
             )
         }
