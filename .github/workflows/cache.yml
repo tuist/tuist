@@ -119,3 +119,12 @@ jobs:
         run: mise run install
       - name: Compile with MIX_ENV=prod
         run: MIX_ENV=prod mix compile --warnings-as-errors
+
+  docker-compose:
+    name: Docker Compose
+    runs-on: namespace-profile-default
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
