@@ -20,7 +20,7 @@ We began transforming Tuist from a tool where most value lived in a client CLI, 
 
 ## Growing the team
 
-We knew we couldn't do this alone, so we welcomed [Chris](https://github.com/cschmatzler) and [Asmit](https://github.com/orgs/tuist/people/asmitbm) to the team. Chris brought tons of expertise working with web services powered by Elixir. Asmit's design skills would elevate Tuist's visual identity to a new level. We firmly believed that with our taste and ability to build great developer experiences, multiplied by how they'd be presented to users thanks to gorgeous design, and spiced with open source, we'd end up with a recipe that's unique in its space. We still believe that.
+We knew we couldn't do this alone, so we welcomed [Chris](https://github.com/cschmatzler) and [Asmit](https://github.com/asmitbm) to the team. Chris brought tons of expertise working with web services powered by Elixir. Asmit's design skills would elevate Tuist's visual identity to a new level. We firmly believed that with our taste and ability to build great developer experiences, multiplied by how they'd be presented to users thanks to gorgeous design, and spiced with open source, we'd end up with a recipe that's unique in its space. We still believe that.
 
 Design is often undervalued in developer tools. There's this implicit assumption that developers don't care about aesthetics, that function trumps form. We think this is wrong. Good design is about clarity, and clarity is about respect for the user's time and attention.
 
