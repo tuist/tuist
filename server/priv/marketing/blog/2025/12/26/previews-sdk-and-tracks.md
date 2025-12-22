@@ -47,7 +47,11 @@ struct MyApp: App {
 }
 ```
 
-When a newer preview is available, the SDK will present an alert prompting the user to update. Update checking is automatically disabled on simulators and App Store builds, so you don't need to worry about conditional compilation.
+When a newer preview is available, the SDK will present an alert prompting the user to update:
+
+<img alt="Preview update alert" src="/marketing/images/blog/2025/12/26/previews-sdk-and-tracks/preview-update-alert.png" style="max-width: 300px;">
+
+> Update checking is automatically disabled on simulators and App Store builds, so you don't need to worry about conditional compilation.
 
 For more control, you can perform a single update check instead of continuous monitoring:
 
