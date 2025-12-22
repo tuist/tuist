@@ -119,9 +119,9 @@ noora_watchers =
 # Reloadable apps for Elixir code hot-reloading
 reloadable_apps =
   if System.get_env("NOORA_LOCAL") do
-    [:noora]
+    [:tuist, :noora]
   else
-    []
+    [:tuist]
   end
 
 # ## SSL Support
@@ -167,16 +167,6 @@ noora_live_reload_patterns =
     []
   end
 
-config :tuist, TuistWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 8080],
-  check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
-  reloadable_apps: reloadable_apps,
-  watchers: base_watchers ++ noora_watchers
-
 # Configure phoenix_live_reload dirs when NOORA_LOCAL is set
 if System.get_env("NOORA_LOCAL") do
   config :phoenix_live_reload,
@@ -187,6 +177,14 @@ if System.get_env("NOORA_LOCAL") do
 end
 
 config :tuist, TuistWeb.Endpoint,
+  # Binding to loopback ipv4 address prevents access from other machines.
+  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
+  http: [ip: {127, 0, 0, 1}, port: 8080],
+  check_origin: false,
+  code_reloader: true,
+  debug_errors: true,
+  reloadable_apps: reloadable_apps,
+  watchers: base_watchers ++ noora_watchers,
   live_reload: [
     patterns: base_live_reload_patterns ++ noora_live_reload_patterns
   ]
