@@ -99,19 +99,20 @@ defmodule Tuist.AppBuilds do
         )
 
       preview =
-        from(p in Preview,
-          join: ab in AppBuild,
-          on: ab.preview_id == p.id,
-          where: p.project_id == ^project.id,
-          where: p.bundle_identifier == ^bundle_identifier,
-          where: p.git_branch == ^git_branch,
-          where: p.track == ^normalized_track,
-          where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
-          order_by: [desc: p.inserted_at],
-          limit: 1,
-          preload: ^preload
+        Repo.one(
+          from(p in Preview,
+            join: ab in AppBuild,
+            on: ab.preview_id == p.id,
+            where: p.project_id == ^project.id,
+            where: p.bundle_identifier == ^bundle_identifier,
+            where: p.git_branch == ^git_branch,
+            where: p.track == ^normalized_track,
+            where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
+            order_by: [desc: p.inserted_at],
+            limit: 1,
+            preload: ^preload
+          )
         )
-        |> Repo.one()
 
       case preview do
         nil -> {:error, :not_found}
