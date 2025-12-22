@@ -4,11 +4,11 @@ category: "product"
 tags: ["product"]
 excerpt: "How we went from a project generator to a productivity platform, grew the team, shipped more than ever, and discovered what sustainable developer tooling really means"
 author: pepicrft
-# og_image_path: /marketing/images/blog/2025/12/03/test-insights/og.jpg
+# og_image_path: TODO /marketing/images/blog/2025/12/03/test-insights/og.jpg 
 highlighted: true
 ---
 
-2025 is almost over, and what a perfect time to reflect on what the year has meant for Tuist. We thought for a while about what the best format would be for this, and the one thing we were sure about is that we didn't want it to be the classic wrapped kind of structure that has spread across all platforms. Even LinkedIn has it these days. Who would have thought? We thought we'd give it a personal touch, and for those of you interested, we'll include the wrapped piece at the end (which turns out AI agents are good at generating).
+2025 is almost over, and what a perfect time to reflect on what the year has meant for Tuist. We thought for a while about what the best format would be for this, and the one thing we were sure about is that we didn't want it to be the classic wrapped kind of structure that has spread across all platforms. Even LinkedIn has it these days. Who would have thought? We thought we'd give it a personal touch.
 
 ## A different model
 
@@ -65,3 +65,21 @@ This CI-centric mindset has created solutions that disregard the diversity of en
 Our focus today remains strong on mobile. But next year's expansion to Android, hopefully with a good level of agnosticism, will give us a foundation to understand the *content*, not just the *containers*. For years, many have focused on the containers: *where* things run, whether that's local development, CI, or agentic environments. But the content, *what* actually runs inside them, has been largely ignored. With the right observability, that content can be optimized quite significantly.
 
 We're ready to jump into this space with a fresh take. One that is more open. One that places community first. One that values innovation over imposing restrictions to stay afloat. The best tools get out of your way and make you more productive. The best companies build trust through transparency and earn your business by genuinely solving your problems. That's what we're building.
+
+## Thank you
+
+None of this would be possible without the people who contribute to Tuist. Whether it's code, documentation, translations, bug reports, or community discussions, every contribution matters.
+
+First, the team. [Chris](https://github.com/cschmatzler) joined and immediately made an impact, scaling our infrastructure, evolving our caching system to improve its latency and reliability, and implementing our design system for Phoenix LiveView. [Asmit](https://github.com/asmitbm) brought design excellence to everything we do, from Noora to the marketing site to the countless details that make Tuist feel polished. [Marek](https://github.com/fortmarek) has been the engine behind most of what we shipped this year, from the registry to test insights to countless improvements in the CLI.
+
+From the community, [Hilton Campbell](https://github.com/hiltonc) stood out with over 15 merged PRs, including [cache profiles](https://github.com/tuist/tuist/pull/8122), [Config manifest caching](https://github.com/tuist/tuist/pull/8561), [tag-based generation](https://github.com/tuist/tuist/pull/6680), and a stream of bug fixes that made Tuist more reliable for everyone. [Daniele Formichelli](https://github.com/danyf90) continued his long-standing contributions with 10 commits this year. [Simon Cook](https://github.com/simoncook), [Mikhail](https://github.com/mulyarm), and [Francisco Diaz](https://github.com/fdiaz) each contributed multiple improvements. [Gorbenko Roman](https://github.com/rofle100lvl), [Paul Taykalo](https://github.com/paultaykalo), [Natan Rolnik](https://github.com/natanrolnik), [Mike Simons](https://github.com/waltflanagan), and [Md. Mahmudul Hasan Shohag](https://github.com/imaginativeshohag) all made their mark with multiple contributions.
+
+We also received valuable contributions from [Yusuf Özgül](https://github.com/yusufozgul), [YoHan Cho](https://github.com/devyhan93), [Hiroshi Kimura](https://github.com/muukii), [Luke Van In](https://github.com/lukevanin), [Liam Nichols](https://github.com/liamnichols), [Kolos Foltányi](https://github.com/kolos65), [Denys Telezhkin](https://github.com/DenTeleworzzz), [Connor Ricks](https://github.com/connor-ricks), [Antoine Marcadet](https://github.com/amarcadet), [Felix Lisczyk](https://github.com/FelixLisczyk), [Stefano Mondino](https://github.com/stefanomondino), [Ethan Wong](https://github.com/e1hanw0ng), and many others who submitted fixes, improvements, and new features throughout the year.
+
+[Ryu0118](https://github.com/Ryu0118) brought [Sendable conformance to Noora](https://github.com/tuist/noora/pull/772), helping us keep up with Swift's concurrency evolution. Noora also got sharper thanks to feedback from [Joannis Orlandos](https://github.com/Joannis), [Finn Voorhees](https://github.com/finnvoor), [Raul Menezes](https://github.com/rmenezes), and [Ernest0N](https://github.com/Ernest0-Production).
+
+Our Korean community continued to grow, with [2sem](https://github.com/2sem) writing [blog posts](https://github.com/tuist/awesome-tuist/pull/25) and reporting issues that helped us improve localization. [jihoonahn](https://github.com/jihoonahn) added [TuistUI Plugin](https://github.com/tuist/awesome-tuist/pull/18), [ZhgChgLi](https://github.com/zhgchgli0718) contributed [XCFolder](https://github.com/tuist/awesome-tuist/pull/17), and [shahzadmajeed](https://github.com/shahzadmajeed) shared a [code signing plugin](https://github.com/tuist/awesome-tuist/pull/16). [Leo Dion](https://github.com/leogdion) kept the [EmpowerApps resources](https://github.com/tuist/awesome-tuist/pull/19) fresh, and [iosdevzone](https://github.com/iosdevzone) caught [broken links](https://github.com/tuist/tuist/pull/8979) before our users did.
+
+And then there are the translators. Sofia Kalinina, Boram Jeong, Randy Lu, Emirhan Karahan, and many others through [translate.tuist.dev](https://translate.tuist.dev) made Tuist accessible to developers around the world. Thank you.
+
+We're bound to have missed some names, and we apologize for that. If you contributed in any way, know that we see you and appreciate you. Building something like Tuist is a team sport, and you're all part of the team.
