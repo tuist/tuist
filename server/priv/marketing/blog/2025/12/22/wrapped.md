@@ -42,7 +42,7 @@ What works is engaging in conversations as early as people show up in our commun
 
 ## Gaining traction
 
-We closed the year with good sales momentum, and we believe we'll reach profitability in Q1 or Q2 next year. We can't emphasize enough how important this is. It signals there's a solid foundation here and a business opportunity that we can further explore.
+We closed the year with good sales momentum, and we believe we'll reach profitability in Q1 or Q2 next year. We can't emphasize enough how important this is. It signals there's a solid foundation here and a validation that Tuist is addressing the right needs.
 
 We've closed deals that we wouldn't have imagined years ago. Hopefully we'll share more about those next year in the form of case studies, because the impact that Tuist has had in their ability to ship apps fast is astounding. Did we mention we are having first conversations with Korean companies where Tuist has traditionally had a huge presence through its communities? Localization and supporting the communities that form around open source is something we actively work on. It involves understanding the culture you're building for and adapting your solution to fit their expectations and needs.
 
