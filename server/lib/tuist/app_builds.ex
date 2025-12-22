@@ -79,27 +79,40 @@ defmodule Tuist.AppBuilds do
   Finds the latest preview on the same track (bundle identifier, git branch, and track) as the app build
   identified by the given binary ID and build version.
 
+  Only previews that have at least one app build with a matching supported platform are considered.
+
   Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
   """
   def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    with {:ok, app_build} <- app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
+    with {:ok, app_build} <-
+           app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
          %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch, track: track}
          when not is_nil(bundle_identifier) <- app_build.preview do
       normalized_track = track || ""
 
-      preview =
-        from(p in Preview,
-          where: p.project_id == ^project.id,
-          where: p.bundle_identifier == ^bundle_identifier,
-          where: p.git_branch == ^git_branch
+      supported_platforms_as_integers =
+        Enum.map(
+          app_build.supported_platforms,
+          &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
         )
-        |> where([p], p.track == ^normalized_track)
-        |> order_by([p], desc: p.inserted_at)
-        |> limit(1)
-        |> preload(^preload)
-        |> Repo.one()
+
+      preview =
+        Repo.one(
+          from(p in Preview,
+            join: ab in AppBuild,
+            on: ab.preview_id == p.id,
+            where: p.project_id == ^project.id,
+            where: p.bundle_identifier == ^bundle_identifier,
+            where: p.git_branch == ^git_branch,
+            where: p.track == ^normalized_track,
+            where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
+            order_by: [desc: p.inserted_at],
+            limit: 1,
+            preload: ^preload
+          )
+        )
 
       case preview do
         nil -> {:error, :not_found}
