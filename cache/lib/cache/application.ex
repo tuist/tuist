@@ -9,11 +9,14 @@ defmodule Cache.Application do
       migrate()
     end
 
-    Cache.Telemetry.attach()
+    if Cache.Config.analytics_enabled?() do
+      Cache.Telemetry.attach()
+    end
+
     Oban.Telemetry.attach_default_logger()
     attach_appsignal_error_filter()
 
-    children = [
+    base_children = [
       Cache.PromEx,
       Cache.Repo,
       {Phoenix.PubSub, name: Cache.PubSub},
@@ -23,9 +26,15 @@ defmodule Cache.Application do
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},
-      {Oban, Application.get_env(:cache, Oban)},
-      Cache.CASEventsPipeline
+      {Oban, Application.get_env(:cache, Oban)}
     ]
+
+    children =
+      if Cache.Config.analytics_enabled?() do
+        base_children ++ [Cache.CASEventsPipeline]
+      else
+        base_children
+      end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
     Supervisor.start_link(children, opts)

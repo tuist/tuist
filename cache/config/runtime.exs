@@ -30,13 +30,16 @@ if config_env() == :prod do
         ]
     end
 
+  appsignal_push_api_key = System.get_env("APPSIGNAL_PUSH_API_KEY")
+
   config :appsignal, :config,
-    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
-    env: System.get_env("APPSIGNAL_ENV")
+    push_api_key: appsignal_push_api_key,
+    env: System.get_env("APPSIGNAL_ENV"),
+    active: appsignal_push_api_key != nil
 
   config :cache, Cache.Guardian,
     issuer: "tuist",
-    secret_key: System.get_env("GUARDIAN_SECRET_KEY") || raise("environment variable GUARDIAN_SECRET_KEY is missing")
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY")
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
@@ -57,8 +60,8 @@ if config_env() == :prod do
     api_key: System.get_env("TUIST_CACHE_API_KEY")
 
   config :cache, :oban_web_basic_auth,
-    username: System.get_env("OBAN_WEB_USERNAME") || raise("environment variable OBAN_WEB_USERNAME is missing"),
-    password: System.get_env("OBAN_WEB_PASSWORD") || raise("environment variable OBAN_WEB_PASSWORD is missing")
+    username: System.get_env("OBAN_WEB_USERNAME"),
+    password: System.get_env("OBAN_WEB_PASSWORD")
 
   config :cache, :s3, bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing")
 
