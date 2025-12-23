@@ -40,12 +40,10 @@ if [ "${CI:-}" = "true" ]; then
 fi
 
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+print_status "Importing certificate to keychain..."
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 if [ "${CI:-}" = "true" ]; then
-    print_status "Importing certificate to default keychain..."
-    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-else
-    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
@@ -109,9 +107,6 @@ echo "$(format_section "Bundling")"
     cd $BUILD_DIRECTORY || exit 1
 
     echo "$(format_subsection "Signing")"
-    if [ "${CI:-}" = "true" ]; then
-        security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-    fi
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
