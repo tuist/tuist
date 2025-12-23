@@ -6,6 +6,7 @@
     sops = "3.9.3"
     age = "1.2.1"
     protoc = "32.1"
+    "1password-cli" = "2.32.0"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
