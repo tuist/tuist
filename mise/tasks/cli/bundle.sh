@@ -44,8 +44,6 @@ if [ "${CI:-}" = "true" ]; then
     print_status "Importing certificate to default keychain..."
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-    print_status "Verifying certificate import..."
-    security find-identity -v -p codesigning
 else
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
@@ -113,7 +111,6 @@ echo "$(format_section "Bundling")"
     echo "$(format_subsection "Signing")"
     if [ "${CI:-}" = "true" ]; then
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-        security find-identity -v -p codesigning
     fi
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
