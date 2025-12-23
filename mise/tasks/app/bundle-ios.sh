@@ -20,9 +20,9 @@ op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_D
 op read "op://tuist/Distribution Certificate/password" --out-file $TMP_DIR/certificate_password.txt
 
 if [ "${CI:-}" = "true" ]; then
-    security import $TMP_DIR/certificate.p12 -P "$(cat $TMP_DIR/certificate_password.txt)" -k $KEYCHAIN_PATH -A
+    security import $TMP_DIR/certificate.p12 -P $(cat $TMP_DIR/certificate_password.txt) -k $KEYCHAIN_PATH -A
 else
-    security import $TMP_DIR/certificate.p12 -P "$(cat $TMP_DIR/certificate_password.txt)" -A
+    security import $TMP_DIR/certificate.p12 -P $(cat $TMP_DIR/certificate_password.txt) -A
 fi
 rm -f $TMP_DIR/certificate_password.txt
 
