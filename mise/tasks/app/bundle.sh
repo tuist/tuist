@@ -32,6 +32,7 @@ if [ "${CI:-}" = "true" ]; then
     print_status "Creating a new temporary keychain..."
     security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+    security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
     security default-keychain -s $KEYCHAIN_PATH
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
