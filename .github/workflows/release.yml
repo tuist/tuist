@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - migrate-release-secrets-to-1password
+  workflow_dispatch:
 
 permissions:
   id-token: write
