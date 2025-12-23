@@ -31,6 +31,7 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
 
 concurrency:
   group: docs-${{ github.head_ref }}

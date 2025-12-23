@@ -19,6 +19,7 @@ concurrency:
 env:
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: "true"
 
 jobs:
   check-releases:
