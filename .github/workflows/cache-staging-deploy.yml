@@ -14,9 +14,6 @@ defaults:
   run:
     working-directory: cache
 
-env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
-
 jobs:
   deploy:
     runs-on: namespace-profile-default
