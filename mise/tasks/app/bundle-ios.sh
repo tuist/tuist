@@ -17,14 +17,7 @@ if [ "${CI:-}" = "true" ]; then
 fi
 
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_DIR/certificate.p12
-op read "op://tuist/Distribution Certificate/password" --out-file $TMP_DIR/certificate_password.txt
-
-if [ "${CI:-}" = "true" ]; then
-    security import $TMP_DIR/certificate.p12 -P $(cat $TMP_DIR/certificate_password.txt) -k $KEYCHAIN_PATH -A
-else
-    security import $TMP_DIR/certificate.p12 -P $(cat $TMP_DIR/certificate_password.txt) -A
-fi
-rm -f $TMP_DIR/certificate_password.txt
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Distribution Certificate/password") -A
 
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 op read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
@@ -43,7 +36,7 @@ cat << EOF > "$EXPORT_OPTIONS_PLIST_PATH"
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>dev.tuist.app</key>
-		<string>Tuist App Ad hoc</string>
+		<string>Tuist App Ad Hoc</string>
 	</dict>
 	<key>signingCertificate</key>
 	<string>Apple Distribution: Tuist GmbH (U6LC622NKF)</string>
