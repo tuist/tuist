@@ -38,7 +38,12 @@ if [ "${CI:-}" = "true" ]; then
 fi
 
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
-security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+if [ "${CI:-}" = "true" ]; then
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A -k $KEYCHAIN_PATH
+    security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+else
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+fi
 
 # Build
 print_status "Building the Tuist App..."
