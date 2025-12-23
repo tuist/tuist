@@ -49,11 +49,21 @@ fi
 print_status "Building the Tuist App..."
 tuist generate --no-binary-cache --no-open
 xcodebuild clean build -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme TuistApp -configuration Release -destination generic/platform=macOS -derivedDataPath $DERIVED_DATA_PATH CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
-codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
-codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
-codesign --force --deep --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY"
+
+# Codesign the app
+print_status "Signing the app..."
+if [ "${CI:-}" = "true" ]; then
+    security find-identity -v -p codesigning $KEYCHAIN_PATH
+    CODESIGN_KEYCHAIN="--keychain $KEYCHAIN_PATH"
+else
+    security find-identity -v -p codesigning
+    CODESIGN_KEYCHAIN=""
+fi
+codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
+codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
+codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+codesign --force --deep --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY"
 
 # Notarize
 print_status "Submitting the Tuist App for notarization..."
@@ -61,7 +71,7 @@ mkdir -p $BUILD_ARTIFACTS_DIRECTORY
 
 BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
 create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"
-codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
+codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
 xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --wait \

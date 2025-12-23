@@ -109,8 +109,15 @@ echo "$(format_section "Bundling")"
     cd $BUILD_DIRECTORY || exit 1
 
     echo "$(format_subsection "Signing")"
-    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
-    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
+    if [ "${CI:-}" = "true" ]; then
+        security find-identity -v -p codesigning $KEYCHAIN_PATH
+        CODESIGN_KEYCHAIN="--keychain $KEYCHAIN_PATH"
+    else
+        security find-identity -v -p codesigning
+        CODESIGN_KEYCHAIN=""
+    fi
+    /usr/bin/codesign $CODESIGN_KEYCHAIN --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
+    /usr/bin/codesign $CODESIGN_KEYCHAIN --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
     zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework
