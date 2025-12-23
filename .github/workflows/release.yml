@@ -372,7 +372,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/secrets/dev'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -674,7 +674,14 @@ jobs:
   commit-and-release:
     name: Commit and Release
     needs:
-      [check-releases, release-cli, release-app, release-ios, release-server, release-cache]
+      [
+        check-releases,
+        release-cli,
+        release-app,
+        release-ios,
+        release-server,
+        release-cache,
+      ]
     if: |
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'
