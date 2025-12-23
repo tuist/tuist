@@ -1509,7 +1509,7 @@ defmodule Tuist.AccountsTest do
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
-      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1524,7 +1524,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1538,7 +1538,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates the user infering the handle from the email when no handle is provided" do
       # Given
-      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1552,7 +1552,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when new pricing model is enabled" do
       # Given
-      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1579,7 +1579,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password when email has a dot in the username" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = "username.with.dot@tuist.io"
 
       # When
