@@ -74,6 +74,156 @@
       </.dropdown>
     </div>
   </.card_section>
+  <.card_section :if={@slack_installation} data-part="slack-reports-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_projects", "Slack Reports")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext("dashboard_projects", "Receive scheduled analytics reports in Slack")}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="slack-settings">
+        <div data-part="setting-row">
+          <label data-part="dropdown-label">
+            {dgettext("dashboard_projects", "Channel")}
+          </label>
+          <.dropdown
+            id="slack-channel-dropdown"
+            label={
+              @selected_project.slack_channel_name ||
+                dgettext("dashboard_projects", "Select channel")
+            }
+          >
+            <.dropdown_item
+              :for={channel <- get_slack_channels(assigns)}
+              value={channel.id}
+              label={"##{channel.name}"}
+              phx-click="update_slack_channel"
+              phx-value-channel_id={channel.id}
+              phx-value-channel_name={channel.name}
+              data-selected={@selected_project.slack_channel_id == channel.id}
+            >
+              <:right_icon :if={@selected_project.slack_channel_id == channel.id}>
+                <.icon name="check" />
+              </:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <div data-part="setting-row">
+          <label data-part="dropdown-label">
+            {dgettext("dashboard_projects", "Frequency")}
+          </label>
+          <.dropdown
+            id="slack-frequency-dropdown"
+            label={
+              case @selected_project.slack_report_frequency do
+                :daily -> dgettext("dashboard_projects", "Daily")
+                :weekly -> dgettext("dashboard_projects", "Weekly")
+                _ -> dgettext("dashboard_projects", "Select frequency")
+              end
+            }
+          >
+            <.dropdown_item
+              value="daily"
+              label={dgettext("dashboard_projects", "Daily")}
+              phx-click="update_slack_frequency"
+              phx-value-frequency="daily"
+              data-selected={@selected_project.slack_report_frequency == :daily}
+            >
+              <:right_icon :if={@selected_project.slack_report_frequency == :daily}>
+                <.icon name="check" />
+              </:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="weekly"
+              label={dgettext("dashboard_projects", "Weekly")}
+              phx-click="update_slack_frequency"
+              phx-value-frequency="weekly"
+              data-selected={@selected_project.slack_report_frequency == :weekly}
+            >
+              <:right_icon :if={@selected_project.slack_report_frequency == :weekly}>
+                <.icon name="check" />
+              </:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <div data-part="setting-row">
+          <label data-part="dropdown-label">
+            {dgettext("dashboard_projects", "Days")}
+          </label>
+          <div data-part="day-buttons">
+            <.button
+              :for={day <- 1..7}
+              label={day_name(day)}
+              variant={
+                if day in (@selected_project.slack_report_days_of_week || []),
+                  do: "primary",
+                  else: "secondary"
+              }
+              size="small"
+              phx-click="toggle_slack_day"
+              phx-value-day={day}
+            />
+          </div>
+        </div>
+        <div data-part="setting-row">
+          <label data-part="dropdown-label">
+            {dgettext("dashboard_projects", "Time (UTC)")}
+          </label>
+          <.dropdown
+            id="slack-time-dropdown"
+            label={
+              if @selected_project.slack_report_schedule_time do
+                "#{@selected_project.slack_report_schedule_time.hour}:00"
+              else
+                dgettext("dashboard_projects", "Select time")
+              end
+            }
+          >
+            <.dropdown_item
+              :for={hour <- 0..23}
+              value={Integer.to_string(hour)}
+              label={"#{hour}:00 UTC"}
+              phx-click="update_slack_schedule_time"
+              phx-value-hour={hour}
+              data-selected={
+                @selected_project.slack_report_schedule_time &&
+                  @selected_project.slack_report_schedule_time.hour == hour
+              }
+            >
+              <:right_icon :if={
+                @selected_project.slack_report_schedule_time &&
+                  @selected_project.slack_report_schedule_time.hour == hour
+              }>
+                <.icon name="check" />
+              </:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <div data-part="setting-row">
+          <.button
+            label={
+              if @selected_project.slack_report_enabled do
+                dgettext("dashboard_projects", "Disable reports")
+              else
+                dgettext("dashboard_projects", "Enable reports")
+              end
+            }
+            variant={if @selected_project.slack_report_enabled, do: "secondary", else: "primary"}
+            phx-click="toggle_slack_reports"
+          />
+          <.button
+            :if={@selected_project.slack_channel_id}
+            label={dgettext("dashboard_projects", "Send test report")}
+            variant="secondary"
+            phx-click="send_test_slack_report"
+          />
+        </div>
+      </div>
+    </div>
+  </.card_section>
   <.card_section data-part="rename-card-section">
     <div data-part="header">
       <span data-part="title">

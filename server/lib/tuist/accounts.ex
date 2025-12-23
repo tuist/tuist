@@ -63,8 +63,12 @@ defmodule Tuist.Accounts do
   @doc """
   Given an id, it returns the account associated with it.
   """
-  def get_account_by_id(id) do
-    Repo.get(Account, id)
+  def get_account_by_id(id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    Account
+    |> Repo.get(id)
+    |> Repo.preload(preload)
   end
 
   def get_account_by_handle(handle) do
