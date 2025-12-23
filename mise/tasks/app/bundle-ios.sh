@@ -16,9 +16,11 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-echo $BASE_64_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
+op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_DIR/certificate.p12
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Distribution Certificate/password") -A
+
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-echo $BASE_64_PROVISIONING_PROFILE | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
+op read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
 
 EXPORT_OPTIONS_PLIST_PATH=$TMP_DIR/ExportOptions.plist
 

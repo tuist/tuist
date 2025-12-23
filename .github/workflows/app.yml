@@ -26,7 +26,6 @@ permissions:
   contents: read
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
@@ -179,6 +178,8 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
