@@ -6,8 +6,9 @@ defmodule Tuist.Slack.Reports do
   alias Tuist.Bundles
   alias Tuist.CommandEvents
 
-  def generate_report(project, frequency) do
-    {current_start, current_end, previous_start, previous_end} = compute_date_ranges(frequency)
+  def generate_report(project, frequency, opts \\ []) do
+    last_report_at = Keyword.get(opts, :last_report_at)
+    {current_start, current_end, previous_start, previous_end} = compute_date_ranges(frequency, last_report_at)
 
     %{
       project_name: project.name,
@@ -35,7 +36,17 @@ defmodule Tuist.Slack.Reports do
       [footer_block(report.project_name)]
   end
 
-  defp compute_date_ranges(:daily) do
+  defp compute_date_ranges(_frequency, last_report_at) when not is_nil(last_report_at) do
+    now = DateTime.utc_now()
+    current_end = now
+    current_start = last_report_at
+    previous_end = current_start
+    period_seconds = DateTime.diff(current_end, current_start, :second)
+    previous_start = DateTime.add(previous_end, -period_seconds, :second)
+    {current_start, current_end, previous_start, previous_end}
+  end
+
+  defp compute_date_ranges(:daily, _last_report_at) do
     now = DateTime.utc_now()
     current_end = now
     current_start = DateTime.add(now, -1, :day)
@@ -44,7 +55,7 @@ defmodule Tuist.Slack.Reports do
     {current_start, current_end, previous_start, previous_end}
   end
 
-  defp compute_date_ranges(:weekly) do
+  defp compute_date_ranges(:weekly, _last_report_at) do
     now = DateTime.utc_now()
     current_end = now
     current_start = DateTime.add(now, -7, :day)
@@ -155,9 +166,9 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp format_period(start_dt, end_dt) do
-    start_date = Calendar.strftime(start_dt, "%b %d")
-    end_date = Calendar.strftime(end_dt, "%b %d, %Y")
-    "#{start_date} - #{end_date}"
+    start_str = Calendar.strftime(start_dt, "%b %d, %H:%M")
+    end_str = Calendar.strftime(end_dt, "%b %d, %H:%M %Z")
+    "#{start_str} - #{end_str}"
   end
 
   defp header_block(report) do
@@ -259,7 +270,7 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp footer_block(project_name) do
-    base_url = TuistWeb.Endpoint.url()
+    base_url = Tuist.Environment.app_url()
 
     %{
       type: "context",
