@@ -42,7 +42,14 @@ if [ "${CI:-}" = "true" ]; then
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
     print_status "Verifying certificate import..."
+    print_status "All identities (no filter):"
+    security find-identity -v
+    print_status "Codesigning identities:"
     security find-identity -v -p codesigning
+    print_status "Listing certificates in keychain:"
+    security find-certificate -a -c "Tuist" $KEYCHAIN_PATH || echo "No certificates found matching 'Tuist'"
+    print_status "Listing private keys in keychain:"
+    security find-key -a $KEYCHAIN_PATH 2>&1 | head -20 || echo "No keys found"
 else
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
