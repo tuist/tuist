@@ -39,8 +39,13 @@ fi
 
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 if [ "${CI:-}" = "true" ]; then
-    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A -k $KEYCHAIN_PATH
+    print_status "Importing certificate to keychain: $KEYCHAIN_PATH"
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+    print_status "Verifying certificate import immediately after..."
+    security find-identity -v -p codesigning $KEYCHAIN_PATH
+    print_status "Listing keychains in search list:"
+    security list-keychains -d user
 else
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
@@ -53,7 +58,14 @@ xcodebuild clean build -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme T
 # Codesign the app
 print_status "Signing the app..."
 if [ "${CI:-}" = "true" ]; then
+    print_status "Re-unlocking keychain before signing..."
+    security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+    print_status "Listing keychains in search list:"
+    security list-keychains -d user
+    print_status "Finding identities in keychain: $KEYCHAIN_PATH"
     security find-identity -v -p codesigning $KEYCHAIN_PATH
+    print_status "Finding identities in all keychains:"
+    security find-identity -v -p codesigning
     CODESIGN_KEYCHAIN="--keychain $KEYCHAIN_PATH"
 else
     security find-identity -v -p codesigning
