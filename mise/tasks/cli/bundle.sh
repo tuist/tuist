@@ -35,15 +35,17 @@ if [ "${CI:-}" = "true" ]; then
     print_status "Creating a new temporary keychain..."
     security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-    security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
     security default-keychain -s $KEYCHAIN_PATH
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 if [ "${CI:-}" = "true" ]; then
-    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A -k $KEYCHAIN_PATH
+    print_status "Importing certificate to default keychain..."
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+    print_status "Verifying certificate import..."
+    security find-identity -v -p codesigning
 else
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
@@ -110,14 +112,11 @@ echo "$(format_section "Bundling")"
 
     echo "$(format_subsection "Signing")"
     if [ "${CI:-}" = "true" ]; then
-        security find-identity -v -p codesigning $KEYCHAIN_PATH
-        CODESIGN_KEYCHAIN="--keychain $KEYCHAIN_PATH"
-    else
+        security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
         security find-identity -v -p codesigning
-        CODESIGN_KEYCHAIN=""
     fi
-    /usr/bin/codesign $CODESIGN_KEYCHAIN --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
-    /usr/bin/codesign $CODESIGN_KEYCHAIN --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
+    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
+    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
     zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework

@@ -32,20 +32,17 @@ if [ "${CI:-}" = "true" ]; then
     print_status "Creating a new temporary keychain..."
     security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-    security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
     security default-keychain -s $KEYCHAIN_PATH
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 if [ "${CI:-}" = "true" ]; then
-    print_status "Importing certificate to keychain: $KEYCHAIN_PATH"
-    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+    print_status "Importing certificate to default keychain..."
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
     security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-    print_status "Verifying certificate import immediately after..."
-    security find-identity -v -p codesigning $KEYCHAIN_PATH
-    print_status "Listing keychains in search list:"
-    security list-keychains -d user
+    print_status "Verifying certificate import..."
+    security find-identity -v -p codesigning
 else
     security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 fi
@@ -60,22 +57,14 @@ print_status "Signing the app..."
 if [ "${CI:-}" = "true" ]; then
     print_status "Re-unlocking keychain before signing..."
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-    print_status "Listing keychains in search list:"
-    security list-keychains -d user
-    print_status "Finding identities in keychain: $KEYCHAIN_PATH"
-    security find-identity -v -p codesigning $KEYCHAIN_PATH
-    print_status "Finding identities in all keychains:"
+    print_status "Finding codesigning identities..."
     security find-identity -v -p codesigning
-    CODESIGN_KEYCHAIN="--keychain $KEYCHAIN_PATH"
-else
-    security find-identity -v -p codesigning
-    CODESIGN_KEYCHAIN=""
 fi
-codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
-codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
-codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
-codesign --force --deep --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY"
+codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
+codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
+codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+codesign --force --deep --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY"
 
 # Notarize
 print_status "Submitting the Tuist App for notarization..."
@@ -83,7 +72,7 @@ mkdir -p $BUILD_ARTIFACTS_DIRECTORY
 
 BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
 create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"
-codesign --force --timestamp --options runtime $CODESIGN_KEYCHAIN --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
+codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
 xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --wait \
