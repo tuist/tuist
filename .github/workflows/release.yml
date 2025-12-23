@@ -372,7 +372,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/secrets/dev'
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
