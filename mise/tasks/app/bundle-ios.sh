@@ -16,17 +16,14 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-echo "Fetching certificate from 1Password..."
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_DIR/certificate.p12
-echo "Certificate file size: $(wc -c < $TMP_DIR/certificate.p12) bytes"
-echo "Certificate file path: $TMP_DIR/certificate.p12"
-
-echo "Fetching certificate password from 1Password..."
 op read "op://tuist/Distribution Certificate/password" --out-file $TMP_DIR/certificate_password.txt
-echo "Password length: $(wc -c < $TMP_DIR/certificate_password.txt) characters"
 
-echo "Importing certificate into keychain..."
-security import $TMP_DIR/certificate.p12 -P "$(cat $TMP_DIR/certificate_password.txt)" -A
+if [ "${CI:-}" = "true" ]; then
+    security import $TMP_DIR/certificate.p12 -P "$(cat $TMP_DIR/certificate_password.txt)" -k $KEYCHAIN_PATH -A
+else
+    security import $TMP_DIR/certificate.p12 -P "$(cat $TMP_DIR/certificate_password.txt)" -A
+fi
 rm -f $TMP_DIR/certificate_password.txt
 
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
