@@ -42,9 +42,6 @@ fi
 op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 print_status "Importing certificate to keychain..."
 security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
-if [ "${CI:-}" = "true" ]; then
-    security set-key-partition-list -S apple-tool:,apple: -s -k $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-fi
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 
