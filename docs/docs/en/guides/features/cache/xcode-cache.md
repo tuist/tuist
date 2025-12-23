@@ -87,14 +87,14 @@ let tuist = Tuist(
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>. The `TUIST_CONFIG_TOKEN` environment variable _must_ be present for your build step, but we'd recommend setting it for the whole CI workflow.
+Additionally, you need to ensure the `TUIST_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>. The `TUIST_TOKEN` environment variable _must_ be present for your build step, but we'd recommend setting it for the whole CI workflow.
 
 An example workflow for GitHub Actions could then look like this:
 ```yaml
 name: Build
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
 jobs:
   build:
