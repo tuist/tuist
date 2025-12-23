@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-TMP_DIR=$(mktemp -d)
+TMP_DIR=/private$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIR/keychain.keychain
 KEYCHAIN_PASSWORD=$(uuidgen)
 BUILD_DIRECTORY=$MISE_PROJECT_ROOT/app/build
