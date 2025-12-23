@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - migrate-release-secrets-to-1password
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -17,7 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: "true"
 
@@ -285,7 +286,7 @@ jobs:
   release-cli:
     name: Release CLI
     needs: check-releases
-    if: needs.check-releases.outputs.cli-should-release == 'true'
+    if: needs.check-releases.outputs.cli-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
     runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     env:
@@ -339,9 +340,7 @@ jobs:
       - name: Bundle CLI
         run: mise run cli:bundle
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-          BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Update mise.toml
         run: |
@@ -372,7 +371,7 @@ jobs:
   release-app:
     name: Release App
     needs: check-releases
-    if: needs.check-releases.outputs.app-should-release == 'true'
+    if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
     runs-on: macos-26
     timeout-minutes: 50
     env:
@@ -395,6 +394,8 @@ jobs:
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
+      - name: Install dependencies
+        run: tuist install
 
       - name: Get release notes
         id: release-notes
@@ -434,9 +435,7 @@ jobs:
       - name: Bundle macOS app
         run: mise run app:bundle
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
-          BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
         run: op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
@@ -496,11 +495,7 @@ jobs:
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-          BASE_64_CERTIFICATE: ${{ secrets.BASE_64_CERTIFICATE }}
-          BASE_64_PROVISIONING_PROFILE: ${{ secrets.BASE_64_PROVISIONING_PROFILE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
   release-server:
     name: Release Server
