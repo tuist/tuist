@@ -67,20 +67,8 @@ mkdir -p $BUILD_ARTIFACTS_DIRECTORY
 
 BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
 
-# Retry create-dmg up to 3 times (AppleScript can timeout on CI)
-for attempt in 1 2 3; do
-    print_status "Creating DMG (attempt $attempt/3)..."
-    if create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"; then
-        break
-    else
-        if [ $attempt -eq 3 ]; then
-            echo "Failed to create DMG after 3 attempts"
-            exit 1
-        fi
-        rm -f "$BUILD_DMG_PATH"
-        sleep 10
-    fi
-done
+print_status "Creating DMG..."
+create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"
 
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
