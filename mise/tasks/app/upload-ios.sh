@@ -18,7 +18,7 @@ echo "Uploading to App Store Connect..."
 xcrun altool --upload-app \
     --type ios \
     --file "build/Tuist.ipa" \
-    --username "$APPLE_ID" \
-    --password "$APP_SPECIFIC_PASSWORD"
+    --username "$(op read "op://tuist/App Specific Password/username")" \
+    --password "$(op read "op://tuist/App Specific Password/password")"
 
 echo "Upload to App Store Connect completed successfully!"

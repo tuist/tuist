@@ -36,9 +36,8 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-echo $BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
-mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-echo $BASE_64_MACOS_DISTRIBUTION_PROVISIONING_PROFILE | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
+op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 
 # Build
 print_status "Building the Tuist App..."
@@ -59,9 +58,9 @@ codesign --force --timestamp --options runtime --sign "Developer ID Application:
 
 xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --wait \
-    --apple-id "$APPLE_ID" \
+    --apple-id "$(op read "op://tuist/App Specific Password/username")" \
     --team-id "$TEAM_ID" \
-    --password "$APP_SPECIFIC_PASSWORD" \
+    --password "$(op read "op://tuist/App Specific Password/password")" \
     --output-format json | jq -r '.id'
 xcrun stapler staple "${BUILD_DMG_PATH}"
 
