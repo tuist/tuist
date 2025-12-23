@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - migrate-release-secrets-to-1password
+      - secrets/dev
   workflow_dispatch:
 
 permissions:
@@ -286,7 +286,7 @@ jobs:
   release-cli:
     name: Release CLI
     needs: check-releases
-    if: needs.check-releases.outputs.cli-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
+    if: needs.check-releases.outputs.cli-should-release == 'true' || github.ref == 'refs/heads/secrets/dev'
     runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     env:
@@ -371,7 +371,7 @@ jobs:
   release-app:
     name: Release App
     needs: check-releases
-    if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
+    if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/secrets/dev'
     runs-on: macos-26
     timeout-minutes: 50
     env:
