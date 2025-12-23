@@ -285,7 +285,7 @@ jobs:
   release-cli:
     name: Release CLI
     needs: check-releases
-    if: needs.check-releases.outputs.cli-should-release == 'true'
+    if: needs.check-releases.outputs.cli-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
     runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     env:
@@ -370,7 +370,7 @@ jobs:
   release-app:
     name: Release App
     needs: check-releases
-    if: needs.check-releases.outputs.app-should-release == 'true'
+    if: needs.check-releases.outputs.app-should-release == 'true' || github.ref == 'refs/heads/migrate-release-secrets-to-1password'
     runs-on: macos-26
     timeout-minutes: 50
     env:
@@ -392,6 +392,8 @@ jobs:
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
+      - name: Install dependencies
+        run: tuist install
 
       - name: Get release notes
         id: release-notes
