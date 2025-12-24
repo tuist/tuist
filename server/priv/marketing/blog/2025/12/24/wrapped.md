@@ -4,7 +4,7 @@ category: "product"
 tags: ["product"]
 excerpt: "How we went from a project generator to a productivity platform, grew the team, shipped more than ever, and discovered what sustainable developer tooling really means"
 author: pepicrft
-# og_image_path: TODO /marketing/images/blog/2025/12/03/test-insights/og.jpg 
+og_image_path: /marketing/images/blog/2025/12/24/wrapped/og.jpg 
 highlighted: true
 ---
 
