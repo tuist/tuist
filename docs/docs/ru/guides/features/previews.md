@@ -7,9 +7,10 @@
 ---
 # Предварительные просмотры {#previews}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -23,7 +24,7 @@
 Чтобы сделать этот процесс более упорядоченным, Tuist предоставляет возможность
 создавать предварительные версии ваших приложений и делиться ими с кем угодно.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
+::: предупреждение DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 В настоящее время при создании приложения для устройства вы несете
 ответственность за правильность подписи приложения. В будущем мы планируем
@@ -33,8 +34,9 @@
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -70,6 +72,18 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: предупреждение UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Убедитесь, что `CFBundleVersion` (версия сборки) уникальна, используя номер
+запуска CI, который выставляют большинство провайдеров CI. Например, в GitHub
+Actions вы можете установить `CFBundleVersion` в переменную <code v-pre>${{
+github.run_number }}</code>.
+
+Загрузка предварительного просмотра с тем же бинарным файлом (сборкой) и той же
+`CFBundleVersion` завершится неудачей.
+<!-- -->
+:::
+
 ## Треки {#tracks}
 
 Треки позволяют организовать предварительные просмотры в именованные группы.
@@ -93,7 +107,7 @@ tuist share App --track nightly
 - **Фильтрация**: Удобный поиск и управление превью по трекам на приборной
   панели Tuist
 
-::: warning Визитная карточка ПРЕДИСЛОВИЕ
+::: предупреждение Визитная карточка ПРЕДИСЛОВИЕ
 <!-- -->
 Только люди с доступом к организации, к которой принадлежит проект, могут
 получить доступ к предварительным просмотрам. Мы планируем добавить поддержку
@@ -118,7 +132,7 @@ tuist share App --track nightly
 Когда вы нажмете кнопку "Запустить" на странице предварительного просмотра,
 приложение для macOS автоматически запустится на выбранном устройстве.
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 Вам необходимо иметь локально установленный Xcode и быть на macOS 14 или более
 поздней версии.
@@ -141,10 +155,11 @@ tuist share App --track nightly
 
 ## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
 
-::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: предупреждение ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
-ваш <LocalizedLink href="/guides/server/accounts-and-projects">удаленный проект</LocalizedLink> с
+ваш <LocalizedLink href="/guides/server/accounts-and-projects">удаленный
+проект</LocalizedLink> с
 <LocalizedLink href="/guides/server/authentication">Git-платформой</LocalizedLink>.
 <!-- -->
 :::
@@ -157,7 +172,8 @@ tuist share App --track nightly
 устройстве, выбранном в приложении Tuist macOS?*
 
 Как только ваш проект Tuist будет связан с вашей Git-платформой, например
-[GitHub](https://github.com), добавьте <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> в ваш рабочий процесс CI. После этого Tuist будет
+[GitHub](https://github.com), добавьте <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> в ваш рабочий процесс CI. После этого Tuist будет
 публиковать ссылку на предварительный просмотр непосредственно в ваших запросах
 на вытягивание: ![Комментарий приложения на GitHub со ссылкой на предварительный
 просмотр Tuist](/images/guides/features/github-app-with-preview.png)
