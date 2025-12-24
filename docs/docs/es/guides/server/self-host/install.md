@@ -285,7 +285,8 @@ aplicación como interna.
 Puedes habilitar la autenticación con Okta a través del protocolo [OAuth
 2.0](https://oauth.net/2/). Tendrás que [crear una
 app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-en Okta siguiendo <LocalizedLink href="/guides/integrations/sso#okta">estas instrucciones</LocalizedLink>.
+en Okta siguiendo <LocalizedLink href="/guides/integrations/sso#okta">estas
+instrucciones</LocalizedLink>.
 
 Deberá configurar las siguientes variables de entorno una vez que obtenga el id
 de cliente y el secreto durante la configuración de la aplicación Okta:
@@ -385,7 +386,8 @@ requerir confirmación por email cuando el email está configurado, establece
 
 ### Configuración de la plataforma Git {#git-platform-configuration}
 
-Tuist puede <LocalizedLink href="/guides/server/authentication">integrarse con plataformas Git</LocalizedLink> para proporcionar funciones extra como la
+Tuist puede <LocalizedLink href="/guides/server/authentication">integrarse con
+plataformas Git</LocalizedLink> para proporcionar funciones extra como la
 publicación automática de comentarios en tus pull requests.
 
 #### GitHub {#plataforma-github}
