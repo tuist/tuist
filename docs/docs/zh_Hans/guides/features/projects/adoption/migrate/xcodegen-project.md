@@ -5,7 +5,7 @@
   "description": "Learn how to migrate your projects from XcodeGen to Tuist."
 }
 ---
-# 迁移 XcodeGen 项目 {#migrate-an-xcodegen-project}
+# 迁移 XcodeGen 项目{#migrate-an-xcodegen-project}
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 是一款项目生成工具，它使用 YAML
 作为[一种配置格式](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md)来定义
@@ -14,7 +14,7 @@ Xcode 项目。许多组织**都采用了该工具，试图摆脱在处理 Xcode
 在设计上存在不足，因为它只是一个生成 Xcode 项目的工具，而不是一个项目管理器。如果您除了需要一个生成 Xcode
 项目的工具外，还需要一个其他的工具，那么您可以考虑 Tuist。
 
-提示 YAML 上的 SWIFT
+::: tip SWIFT OVER YAML
 <!-- -->
 许多组织也喜欢将 Tuist 作为项目生成工具，因为它使用 Swift 作为配置格式。Swift 是一种开发人员非常熟悉的编程语言，可以方便地使用 Xcode
 的自动完成、类型检查和验证功能。
@@ -23,7 +23,7 @@ Xcode 项目。许多组织**都采用了该工具，试图摆脱在处理 Xcode
 
 以下是一些注意事项和指南，可帮助您将项目从 XcodeGen 移植到 Tuist。
 
-## 项目生成 {#project-generation}
+## 项目生成{#project-generation}
 
 Tuist 和 XcodeGen 都提供了一个`生成` 命令，可将项目声明转化为 Xcode 项目和工作区。
 
@@ -64,14 +64,14 @@ Xcode 工作区。
 <!-- -->
 :::
 
-提示 XCODE 的语言
+::: tip XCODE'S LANGUAGE
 <!-- -->
 XcodeGen 和 Tuist 都采用了 Xcode 的语言和概念。不过，Tuist 基于 Swift 的配置为您提供了使用 Xcode
 的自动完成、类型检查和验证功能的便利。
 <!-- -->
 :::
 
-## 规范模板 {#spec-templates}
+## 规格模板{#spec-templates}
 
 YAML 作为项目配置语言的一个缺点是，它不支持开箱即用的 YAML 文件之间的复用。这是描述项目时的一个常见需求，XcodeGen
 不得不使用自己的专利解决方案（名为*"templates"* ）来解决这个问题。Tuist 的可重用性内置于 Swift 语言本身，并通过名为
