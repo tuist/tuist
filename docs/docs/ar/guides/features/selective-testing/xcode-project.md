@@ -5,11 +5,12 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# مشروع Xcode {#xcode-project}
+# مشروع Xcode {#xxcode-project}
 
-::: warning متطلبات
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست تويست</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -38,7 +39,8 @@ test -scheme App`. يقوم الأمر بتجزئة مشروعك وعند الن
 | `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | التجزئة الجديدة لـ `FeatureATests` `FeatureBTests` ، و `CoreTests` يتم استمرارها    |
 
 لاستخدام `tuist xcodebuild test` على CI الخاص بك، اتبع التعليمات الواردة في دليل
-<LocalizedLink href="/guides/integrations/continuous-integration">التكامل المستمر</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">التكامل
+المستمر</LocalizedLink>.
 
 شاهد الفيديو التالي لمشاهدة الاختبار الانتقائي أثناء العمل:
 
