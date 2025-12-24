@@ -65,7 +65,7 @@ project`</LocalizedLink> для создания и управления про�
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: предупреждение TUIST PROJECT-ONLY FEATURES
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
 Обратите внимание, что некоторые функции, например
 <LocalizedLink href="/guides/features/cache">двоичное
