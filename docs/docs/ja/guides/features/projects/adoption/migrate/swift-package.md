@@ -21,13 +21,14 @@ Managerが同じようなプロジェクト管理の役割を果たせること�
 **AppleがSwift Package Managerをビルドフォースケールのプロジェクトマネージャーにするかどうかは不明だ。**
 しかし、そうなる兆候は見られない。実際、私たちは全く逆のことを見ている。彼らはXcodeに触発された決定をしており、暗黙的なコンフィギュレーションを通して利便性を達成しているようなものです。私たちは、Appleが第一原則に立ち返り、例えばプロジェクトを定義するインターフェイスとしてコンパイル言語を使用するなど、依存関係マネージャーとしては意味があってもプロジェクトマネージャーとしては意味がなかったいくつかの決定を見直す必要があると考えている。
 
-::: tip SPMは単なるディペンダンシーマネージャーとして。
+SPMは単なるディペンダンシーマネージャーとして。
 <!-- -->
-TuistはSwift Package Managerを依存性マネージャーとして扱い、それは素晴らしいものだ。私たちは依存関係を解決し、それらをビルドするためにそれを使います。そのために設計されているわけではないので、プロジェクトを定義するために使うことはありません。
+TuistはSwift Package
+Managerを依存性マネージャーとして扱い、それは素晴らしいものだ。私たちは依存関係を解決し、それらをビルドするためにそれを使います。そのために設計されているわけではないので、プロジェクトを定義するために使うことはありません。
 <!-- -->
 :::
 
-## SwiftパッケージマネージャからTuistへの移行 {#migrating-from-swift-package-manager-to-tuist}
+## SwiftパッケージマネージャからTuistへの移行{#migrating-from-swift-package-manager-to-tuist} {#migrating-from-swift-package-manager-to-tuist}.
 
 Swift Package Manager と Tuist の類似点は移行プロセスを簡単にします。主な違いは、`Package.swift`
 の代わりにTuistのDSLを使ってプロジェクトを定義することです。
@@ -71,9 +72,10 @@ let tuist = Tuist()
 `Tuist.swift`
 にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するリファレンスとして機能します。Tuistプロジェクトの構造については<LocalizedLink href="/guides/features/projects/directory-structure">ディレクトリ構造</LocalizedLink>ドキュメントを参照してください。
 
-## プロジェクトを編集する {#editing-the-project}
+## プロジェクトを編集する{#editing-the-project}。
 
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
+1}`tuist
+edit`</LocalizedLink>を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
 
 ```bash
 tuist edit
