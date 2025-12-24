@@ -7,9 +7,10 @@
 ---
 # Wgląd w pakiet {#bundle-size}
 
-::: warning WYMAGANIA
+::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -62,7 +63,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 Po skonfigurowaniu będziesz mógł zobaczyć, jak rozmiar pakietu zmienia się w
@@ -73,7 +74,7 @@ pakietu](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
