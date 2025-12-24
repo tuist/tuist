@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_cache/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -373,9 +374,9 @@ msgid "Font"
 msgstr "字体"
 
 #: lib/tuist_web/live/bundle_live.html.heex:209
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Fonts"
-msgstr ""
+msgstr "字体"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:497
 #: lib/tuist_web/live/xcode_cache_live.html.heex:482
@@ -392,9 +393,9 @@ msgid "Hit rate"
 msgstr "命中率"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Hits"
-msgstr ""
+msgstr "命中次数"
 
 #: lib/tuist_web/live/bundle_live.ex:883
 #: lib/tuist_web/live/bundles_live.ex:379
@@ -511,9 +512,9 @@ msgid "Other"
 msgstr "其他"
 
 #: lib/tuist_web/live/bundle_live.html.heex:168
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "概述"
 
 #: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
@@ -623,9 +624,9 @@ msgid "Space usage"
 msgstr "空间使用"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format, fuzzy
@@ -647,9 +648,9 @@ msgstr "尝试更改搜索词"
 #: lib/tuist_web/live/bundle_live.html.heex:530
 #: lib/tuist_web/live/bundles_live.ex:917
 #: lib/tuist_web/live/bundles_live.html.heex:351
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr ""
+msgstr "类型"
 
 #: lib/tuist_web/live/bundles_live.html.heex:70
 #, elixir-autogen, elixir-format, fuzzy
@@ -690,9 +691,9 @@ msgid "XCArchive"
 msgstr "XCArchive"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:20
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcode 缓存"
 
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
@@ -778,16 +779,16 @@ msgstr "申请"
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
 #: lib/tuist_web/live/xcode_cache_live.html.heex:41
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Cancel"
 
 #: lib/tuist_web/live/bundles_live.html.heex:124
 #: lib/tuist_web/live/module_cache_live.html.heex:62
 #: lib/tuist_web/live/xcode_cache_live.html.heex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "定制"
 
 #: lib/tuist_web/live/bundles_live.html.heex:121
 #: lib/tuist_web/live/module_cache_live.html.heex:59
