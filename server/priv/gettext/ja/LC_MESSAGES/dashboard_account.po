@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ja/>\n"
 "Language: ja\n"
@@ -65,9 +66,9 @@ msgstr "管理者"
 #: lib/tuist/billing.ex:37
 #: lib/tuist_web/live/billing_live.ex:187
 #: lib/tuist_web/live/billing_live.html.heex:58
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Air"
-msgstr ""
+msgstr "Air"
 
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format, fuzzy
@@ -76,9 +77,9 @@ msgstr "ご請求に関するすべてのご連絡は、このEメールに送�
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "All features, no credit card required"
-msgstr ""
+msgstr "全機能利用可能、クレジットカード不要"
 
 #: lib/tuist_web/live/members_live.ex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -119,9 +120,9 @@ msgstr "請求メール"
 #: lib/tuist_web/live/create_organization_live.ex:62
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "キャンセル"
 
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
@@ -141,14 +142,14 @@ msgstr ""
 "保存場所を選択します。"
 
 #: lib/tuist/billing.ex:47
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Community support"
-msgstr ""
+msgstr "コミュニティサポート"
 
 #: lib/tuist_web/live/billing_live.ex:193
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Community support via forum"
-msgstr ""
+msgstr "フォーラムを通じたコミュニティサポート"
 
 #: lib/tuist_web/live/billing_live.html.heex:111
 #, elixir-autogen, elixir-format, fuzzy
@@ -198,9 +199,9 @@ msgstr ""
 
 #: lib/tuist/billing.ex:77
 #: lib/tuist_web/live/billing_live.html.heex:88
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "プランを作成するか、インスタンスをセルフホストしてください。"
 
 #: lib/tuist_web/live/billing_live.ex:199
 #: lib/tuist_web/live/billing_live.ex:228
@@ -212,9 +213,9 @@ msgstr "現在の計画"
 #: lib/tuist/billing.ex:78
 #: lib/tuist_web/live/billing_live.ex:245
 #: lib/tuist_web/live/billing_live.html.heex:70
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "カスタム"
 
 #: lib/tuist/billing.ex:81
 #: lib/tuist_web/live/billing_live.ex:247
@@ -228,9 +229,9 @@ msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr "カスタム条件お客様のニーズに合わせた契約"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:153
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Dashboard"
-msgstr ""
+msgstr "ダッシュボード"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #, elixir-autogen, elixir-format, fuzzy
@@ -306,9 +307,9 @@ msgstr "ユーザー名を入力して確認する"
 #: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:243
 #: lib/tuist_web/live/billing_live.html.heex:61
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Enterprise"
-msgstr ""
+msgstr "Enterprise"
 
 #: lib/tuist_web/live/account_settings_live.ex:157
 #, elixir-autogen, elixir-format, fuzzy
@@ -319,9 +320,9 @@ msgstr "ヨーロッパ"
 #: lib/tuist_web/live/billing_live.ex:189
 #: lib/tuist_web/live/billing_live.html.heex:67
 #: lib/tuist_web/live/billing_live.html.heex:68
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Free"
-msgstr ""
+msgstr "無料"
 
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format, fuzzy
@@ -329,9 +330,9 @@ msgid "Free tier exceeded"
 msgstr "フリー・ティア超過"
 
 #: lib/tuist_web/live/billing_live.ex:191
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Free under tier limits"
-msgstr ""
+msgstr "無料枠の範囲内は無料"
 
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format, fuzzy
@@ -355,9 +356,9 @@ msgstr "毎月の無料ティア使用量の上限は無料ティアの上限"
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "始める"
 
 #: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format
@@ -492,9 +493,9 @@ msgstr "メンバーが見つかりません"
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:248
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise"
-msgstr ""
+msgstr "オンプレミス"
 
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
@@ -519,15 +520,15 @@ msgstr "パスワードが一致しない"
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pay nothing if below free tier limits"
-msgstr ""
+msgstr "無料枠の制限内であれば支払い不要"
 
 #: lib/tuist/billing.ex:66
 #: lib/tuist_web/live/billing_live.ex:221
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pay only for what you use per feature"
-msgstr ""
+msgstr "機能ごとに使った分だけ支払い"
 
 #: lib/tuist_web/live/billing_live.html.heex:243
 #, elixir-autogen, elixir-format, fuzzy
@@ -555,9 +556,9 @@ msgid "Pricing details"
 msgstr "価格詳細"
 
 #: lib/tuist/billing.ex:85
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support"
-msgstr ""
+msgstr "優先サポート"
 
 #: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format, fuzzy
@@ -667,9 +668,9 @@ msgid "Select region"
 msgstr "地域を選択"
 
 #: lib/tuist/billing.ex:84
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Self-host your instance of Tuist"
-msgstr ""
+msgstr "Tuistインスタンスをセルフホスト"
 
 #: lib/tuist_web/live/account_settings_live.ex:32
 #: lib/tuist_web/live/account_settings_live.html.heex:3
@@ -678,14 +679,14 @@ msgid "Settings"
 msgstr "設定"
 
 #: lib/tuist/billing.ex:67
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Standard support"
-msgstr ""
+msgstr "標準サポート"
 
 #: lib/tuist_web/live/billing_live.ex:222
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Standard support via Slack and email"
-msgstr ""
+msgstr "Slackとメールによる標準サポート"
 
 #: lib/tuist_web/live/billing_live.html.heex:128
 #, elixir-autogen, elixir-format
@@ -693,9 +694,9 @@ msgid "Standard support: Via Slack and email"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:277
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "ステータス"
 
 #: lib/tuist_web/live/account_settings_live.ex:137
 #, elixir-autogen, elixir-format, fuzzy
@@ -822,9 +823,9 @@ msgstr ""
 
 #: lib/tuist/billing.ex:58
 #: lib/tuist_web/live/billing_live.html.heex:85
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing after free tier."
-msgstr ""
+msgstr "無料枠を超えると使用量ベースの課金。"
 
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
@@ -935,9 +936,9 @@ msgstr "フリー・ティア以上"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:218
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "and up"
-msgstr ""
+msgstr "から"
 
 #: lib/tuist_web/live/billing_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
