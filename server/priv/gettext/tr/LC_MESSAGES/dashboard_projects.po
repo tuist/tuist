@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
 "Language: tr\n"
@@ -172,9 +172,9 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:710
 #: lib/tuist_web/live/project_settings_live.html.heex:125
 #: lib/tuist_web/live/project_settings_live.html.heex:197
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "İptal"
 
 #: lib/tuist_web/live/create_project_live.ex:78
 #, elixir-autogen, elixir-format, fuzzy
@@ -193,9 +193,9 @@ msgid "Create a Tuist project to continue"
 msgstr "Devam etmek için bir Tuist projesi oluşturun"
 
 #: lib/tuist_web/live/projects_live.ex:320
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Create a new project"
-msgstr ""
+msgstr "Yeni proje oluştur"
 
 #: lib/tuist_web/live/create_project_live.ex:58
 #, elixir-autogen, elixir-format, fuzzy
