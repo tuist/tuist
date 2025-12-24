@@ -5,7 +5,7 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# 洞察力を高める{#gather-insights}。
+# 洞察を集める{#gather-insights}
 
 Tuistはサーバーと統合してその機能を拡張することができる。その機能のひとつが、プロジェクトやビルドに関するインサイトを収集することだ。必要なのは、サーバーにプロジェクトを持つアカウントがあることだけだ。
 
@@ -15,7 +15,7 @@ Tuistはサーバーと統合してその機能を拡張することができる
 tuist auth login
 ```
 
-## プロジェクトの作成{#create-a-project}。
+## プロジェクトを作成する{#create-a-project}
 
 プロジェクトを作成するには
 
@@ -27,7 +27,7 @@ tuist project create my-handle/MyApp
 
 コピー`my-handle/MyApp` 、これはプロジェクトの完全なハンドルを表す。
 
-## コネクト・プロジェクト {#connect-projects}
+## コネクト・プロジェクト{#connect-projects}
 
 サーバー上にプロジェクトを作成したら、それをローカル・プロジェクトに接続する必要があります。`tuist edit` を実行し、`Tuist.swift`
 ファイルを編集して、プロジェクトの完全なハンドルを含めます：
