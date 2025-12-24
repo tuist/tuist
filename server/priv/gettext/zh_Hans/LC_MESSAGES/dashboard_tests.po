@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:46+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -511,9 +512,9 @@ msgid "Optimization Summary"
 msgstr "优化总结"
 
 #: lib/tuist_web/live/test_run_live.html.heex:80
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "概述"
 
 #: lib/tuist_web/live/test_case_live.ex:59
 #: lib/tuist_web/live/test_case_live.html.heex:68
@@ -671,9 +672,9 @@ msgstr "排序方式"
 #: lib/tuist_web/live/test_run_live.html.heex:678
 #: lib/tuist_web/live/test_run_live.html.heex:899
 #: lib/tuist_web/live/test_runs_live.ex:38
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: lib/tuist_web/live/test_case_live.html.heex:112
 #, elixir-autogen, elixir-format, fuzzy
@@ -1036,17 +1037,17 @@ msgstr "申请"
 #: lib/tuist_web/live/test_runs_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:510
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Cancel"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:58
 #: lib/tuist_web/live/test_runs_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:501
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "定制"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:55
 #: lib/tuist_web/live/test_runs_live.html.heex:55
