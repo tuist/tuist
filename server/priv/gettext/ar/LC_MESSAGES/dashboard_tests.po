@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
 "Language: ar\n"
@@ -192,9 +192,9 @@ msgid "Caught error: %{message}"
 msgstr "خطأ تم اكتشافه: %{رسالة}"
 
 #: lib/tuist_web/live/test_run_live.html.heex:230
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "الأوامر"
 
 #: lib/tuist_web/live/test_run_live.html.heex:250
 #, elixir-autogen, elixir-format, fuzzy
@@ -681,9 +681,9 @@ msgstr "فرز حسب:"
 #: lib/tuist_web/live/test_run_live.html.heex:678
 #: lib/tuist_web/live/test_run_live.html.heex:899
 #: lib/tuist_web/live/test_runs_live.ex:38
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "الحالة"
 
 #: lib/tuist_web/live/test_case_live.html.heex:112
 #, elixir-autogen, elixir-format, fuzzy
@@ -1051,9 +1051,9 @@ msgstr "قدم طلبك"
 #: lib/tuist_web/live/test_runs_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:510
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "إلغاء"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:58
 #: lib/tuist_web/live/test_runs_live.html.heex:58
