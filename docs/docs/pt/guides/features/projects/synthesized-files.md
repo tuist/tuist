@@ -46,6 +46,7 @@ Even though accessing resources through the Tuist-synthesized interface is not
 mandatory, we recommend it because it makes the code easier to reason about and
 the resources to move around.
 <!-- -->
+:::
 
 ## Resources {#resources}
 
@@ -64,6 +65,7 @@ the project that defines them.
 We recommend adding the `Derived` directory to the `.gitignore` file of your
 project.
 <!-- -->
+:::
 
 ## Bundle accessors {#bundle-accessors}
 
@@ -94,6 +96,7 @@ Currently, Tuist does not generate resource bundle accessors for internal
 targets that contain only Objective-C sources. This is a known limitation
 tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
 <!-- -->
+:::
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
@@ -101,6 +104,7 @@ If a target product, for example a library, doesn't support resources, Tuist
 will include the resources in a target of product type `bundle` ensuring that it
 ends up in the final product and that the interface points to the right bundle.
 <!-- -->
+:::
 
 ## Resource accessors {#resource-accessors}
 
@@ -163,3 +167,4 @@ fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_temp
 to see an example of how to use custom templates to synthesize accessors to
 resources.
 <!-- -->
+:::
