@@ -5,33 +5,33 @@
   "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
 }
 ---
-# Metadata tags {#metadata-tags}
+# Теги метаданных {#metadata-tags}
 
-As projects grow in size and complexity, working with the entire codebase at
-once can become inefficient. Tuist provides **metadata tags** as a way to
-organize targets into logical groups and focus on specific parts of your project
-during development.
+По мере роста размера и сложности проектов работа со всей кодовой базой сразу
+может стать неэффективной. Tuist предоставляет теги метаданных **** как способ
+организовать цели в логические группы и сосредоточиться на определенных частях
+проекта во время разработки.
 
-## What are metadata tags? {#what-are-metadata-tags}
+## Что такое теги метаданных? {#what-are-metadata-tags}
 
-Metadata tags are string labels that you can attach to targets in your project.
-They serve as markers that allow you to:
+Теги метаданных - это строковые метки, которые вы можете прикрепить к целям в
+вашем проекте. Они служат в качестве маркеров, которые позволяют вам:
 
-- **Group related targets** - Tag targets that belong to the same feature, team,
-  or architectural layer
-- **Focus your workspace** - Generate projects that include only targets with
-  specific tags
-- **Optimize your workflow** - Work on specific features without loading
-  unrelated parts of your codebase
-- **Select targets to keep as sources** - Choose which group of targets you'd
-  like to keep as sources when caching
+- **Группировать связанные цели** - пометить цели, принадлежащие к одной и той
+  же функции, команде или архитектурному слою.
+- **Фокусировка рабочего пространства** - генерируйте проекты, включающие только
+  цели с определенными тегами.
+- **Оптимизируйте рабочий процесс** - работайте над конкретными функциями, не
+  загружая несвязанные части кодовой базы.
+- **Выбрать цели для сохранения в качестве источников** - Выберите группу целей,
+  которые вы хотите сохранить в качестве источников при кэшировании.
 
-Tags are defined using the `metadata` property on targets and are stored as an
-array of strings.
+Теги определяются с помощью свойства `metadata` для целей и хранятся в виде
+массива строк.
 
-## Defining metadata tags {#defining-metadata-tags}
+## Определение тегов метаданных {#defining-metadata-tags}
 
-You can add tags to any target in your project manifest:
+Вы можете добавить теги к любой цели в манифесте проекта:
 
 ```swift
 import ProjectDescription
@@ -70,15 +70,15 @@ let project = Project(
 )
 ```
 
-## Focusing on tagged targets {#focusing-on-tagged-targets}
+## Фокусировка на отмеченных целях {#focusing-on-tagged-targets}
 
-Once you've tagged your targets, you can use the `tuist generate` command to
-create a focused project that includes only specific targets:
+После маркировки целей можно использовать команду `tuist generate` для создания
+сфокусированного проекта, включающего только определенные цели:
 
-### Focus by tag
+### Фокусировка по тегам
 
-Use the `tag:` prefix to generate a project with all targets matching a specific
-tag:
+Используйте префикс `tag:`, чтобы создать проект со всеми целями,
+соответствующими определенному тегу:
 
 ```bash
 # Generate project with all authentication-related targets
@@ -88,33 +88,34 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Focus by name
+### Фокус по имени
 
-You can also focus on specific targets by name:
+Вы также можете сосредоточиться на конкретных целях по имени:
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### How focus works
+### Как работает фокус
 
-When you focus on targets:
+Когда вы сосредотачиваетесь на цели:
 
-1. **Included targets** - The targets matching your query are included in the
-   generated project
-2. **Dependencies** - All dependencies of the focused targets are automatically
-   included
-3. **Test targets** - Test targets for the focused targets are included
-4. **Exclusion** - All other targets are excluded from the workspace
+1. **Включенные цели** - Цели, соответствующие вашему запросу, включены в
+   сгенерированный проект.
+2. **Зависимости** - автоматически включаются все зависимости от целей, на
+   которые направлено внимание.
+3. **Тестовые мишени** - включены тестовые мишени для сфокусированных целей.
+4. **Исключение** - все остальные цели исключаются из рабочей области.
 
-This means you get a smaller, more manageable workspace that contains only what
-you need to work on your feature.
+Это означает, что вы получаете более компактное и управляемое рабочее
+пространство, содержащее только то, что вам нужно для работы над вашей функцией.
 
-## Tag naming conventions {#tag-naming-conventions}
+## Соглашения об именовании тегов {#tag-naming-conventions}
 
-While you can use any string as a tag, following a consistent naming convention
-helps keep your tags organized:
+Хотя вы можете использовать любую строку в качестве тега, соблюдение
+последовательного соглашения об именовании помогает сохранить упорядоченность
+тегов:
 
 ```swift
 // Organize by feature
@@ -133,14 +134,16 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Using prefixes like `feature:`, `team:`, or `layer:` makes it easier to
-understand the purpose of each tag and avoid naming conflicts.
+Использование таких префиксов, как `feature:`, `team:`, или `layer:`, облегчает
+понимание назначения каждого тега и позволяет избежать конфликтов при
+именовании.
 
-## Using tags with project description helpers {#using-tags-with-helpers}
+## Использование тегов с помощниками для описания проектов {#using-tags-with-helpers}
 
-You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to standardize how tags are applied across your project:
+Вы можете использовать
+<LocalizedLink href="/guides/features/projects/code-sharing">помощники описания
+проекта</LocalizedLink>, чтобы стандартизировать применение тегов в вашем
+проекте:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -168,7 +171,7 @@ extension Target {
 }
 ```
 
-Then use it in your manifests:
+Затем используйте его в своих манифестах:
 
 ```swift
 import ProjectDescription
@@ -183,34 +186,34 @@ let project = Project(
 )
 ```
 
-## Benefits of using metadata tags {#benefits}
+## Преимущества использования тегов метаданных {#benefits}
 
-### Improved development experience
+### Улучшенный опыт разработки
 
-By focusing on specific parts of your project, you can:
+Сосредоточившись на конкретных частях проекта, вы сможете:
 
-- **Reduce Xcode project size** - Work with smaller projects that are faster to
-  open and navigate
-- **Speed up builds** - Build only what you need for your current work
-- **Improve focus** - Avoid distractions from unrelated code
-- **Optimize indexing** - Xcode indexes less code, making autocompletion faster
+- **Уменьшите размер проекта Xcode** - работайте с небольшими проектами, которые
+  быстрее открывать и перемещаться по ним.
+- **Ускорьте сборку** - создавайте только то, что нужно для текущей работы.
+- **Улучшите концентрацию** - не отвлекайтесь на несвязанный код.
+- **Оптимизация индексации** - Xcode индексирует меньше кода, что ускоряет
+  автозаполнение.
 
-### Better project organization
+### Лучшая организация проекта
 
-Tags provide a flexible way to organize your codebase:
+Теги обеспечивают гибкий способ организации кодовой базы:
 
-- **Multiple dimensions** - Tag targets by feature, team, layer, platform, or
-  any other dimension
-- **No structural changes** - Add organizational structure without changing
-  directory layout
-- **Cross-cutting concerns** - A single target can belong to multiple logical
-  groups
+- **Множество измерений** - отмечайте цели по функциям, командам, слоям,
+  платформам или любым другим измерениям.
+- **Без структурных изменений** - Добавьте организационную структуру без
+  изменения макета каталога
+- **Сквозные проблемы** - Одна цель может относиться к нескольким логическим
+  группам.
 
-### Integration with caching
+### Интеграция с кэшированием
 
-Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching
-features</LocalizedLink>:
+Теги метаданных легко сочетаются с функциями кэширования
+<LocalizedLink href="/guides/features/cache">Tuist</LocalizedLink>:
 
 ```bash
 # Cache all targets
@@ -220,24 +223,25 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## Best practices {#best-practices}
+## Лучшие практики {#best-practices}
 
-1. **Start simple** - Begin with a single tagging dimension (e.g., features) and
-   expand as needed
-2. **Be consistent** - Use the same naming conventions across all your manifests
-3. **Document your tags** - Keep a list of available tags and their meanings in
-   your project's documentation
-4. **Use helpers** - Leverage project description helpers to standardize tag
-   application
-5. **Review periodically** - As your project evolves, review and update your
-   tagging strategy
+1. **Начните с простого** - начните с одного измерения маркировки (например,
+   особенности) и расширяйте его по мере необходимости.
+2. **Будьте последовательны** - Используйте одинаковые соглашения об именовании
+   во всех ваших манифестах.
+3. **Документируйте свои теги** - Сохраняйте список доступных тегов и их
+   значения в документации вашего проекта.
+4. **Используйте помощники** - Используйте помощники для описания проекта, чтобы
+   стандартизировать применение тегов.
+5. **Периодически просматривайте** - По мере развития проекта пересматривайте и
+   обновляйте стратегию маркировки.
 
-## Related features {#related-features}
+## Сопутствующие функции {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code
-  sharing</LocalizedLink> - Use project description helpers to standardize tag
-  usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
-  tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective
-  testing</LocalizedLink> - Run tests only for changed targets
+- <LocalizedLink href="/guides/features/projects/code-sharing">Совместное
+  использование кода</LocalizedLink> - Используйте помощники для описания
+  проектов, чтобы стандартизировать использование тегов
+- <LocalizedLink href="/guides/features/cache">Кэш</LocalizedLink> - Объедините
+  теги с кэшированием для оптимальной производительности сборки
+- <LocalizedLink href="/guides/features/selective-testing">Выборочное
+  тестирование</LocalizedLink> - Выполняйте тесты только для измененных целей
