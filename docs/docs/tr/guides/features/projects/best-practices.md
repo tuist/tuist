@@ -5,70 +5,73 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# En iyi uygulamalar {#best-practices}
 
-Over the years working with different teams and projects, we've identified a set
-of best practices that we recommend following when working with Tuist and Xcode
-projects. These practices are not mandatory, but they can help you structure
-your projects in a way that makes them easier to maintain and scale.
+Farklı ekipler ve projelerle çalıştığımız yıllar boyunca, Tuist ve Xcode
+projeleriyle çalışırken izlemenizi önerdiğimiz bir dizi en iyi uygulama
+belirledik. Bu uygulamalar zorunlu değildir, ancak projelerinizi sürdürmeyi ve
+ölçeklendirmeyi kolaylaştıracak şekilde yapılandırmanıza yardımcı olabilirler.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### Cesareti kırılmış modeller {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### Uzak ortamları modellemek için konfigürasyonlar {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote
-environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
-has some downsides:
+Birçok kuruluş farklı uzak ortamları modellemek için derleme yapılandırmaları
+kullanır (örneğin, `Debug-Production` veya `Release-Canary`), ancak bu
+yaklaşımın bazı dezavantajları vardır:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the
-  graph, the build system might end up using the wrong configuration for some
-  targets.
-- **Complexity:** Projects can end up with a long list of local configurations
-  and remote environments that are hard to reason about and maintain.
+- **Tutarsızlıklar:** Grafik boyunca yapılandırma tutarsızlıkları varsa, derleme
+  sistemi bazı hedefler için yanlış yapılandırmayı kullanabilir.
+- **Karmaşıklık:** Projeler, mantık yürütmesi ve sürdürmesi zor olan uzun bir
+  yerel yapılandırmalar ve uzak ortamlar listesiyle sonuçlanabilir.
 
-Build configurations were designed to embody different build settings, and
-projects rarely need more than just `Debug` and `Release`. The need to model
-different environments can be achieved differently:
+Derleme yapılandırmaları farklı derleme ayarlarını somutlaştırmak için
+tasarlanmıştır ve projeler nadiren `Debug` ve `Release` adreslerinden daha
+fazlasına ihtiyaç duyar. Farklı ortamları modelleme ihtiyacı farklı şekillerde
+gerçekleştirilebilir:
 
-- **In Debug builds:** You can include all the configurations that should be
-  accessible in development in the app (e.g. endpoints), and switch them at
-  runtime. The switch can happen either using scheme launch environment
-  variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the
-  configuration that the release build is bound to, and not include the runtime
-  logic for switching configurations by using compiler directives.
+- **Hata Ayıklama derlemelerinde:** Geliştirme sırasında erişilebilir olması
+  gereken tüm yapılandırmaları uygulamaya dahil edebilir (örn. uç noktalar) ve
+  bunları çalışma zamanında değiştirebilirsiniz. Geçiş, şema başlatma ortam
+  değişkenleri kullanılarak veya uygulama içindeki bir kullanıcı arayüzü ile
+  gerçekleştirilebilir.
+- **Sürüm derlemelerinde:** Sürüm durumunda, yalnızca sürüm derlemesinin bağlı
+  olduğu yapılandırmayı dahil edebilir ve derleyici yönergelerini kullanarak
+  yapılandırmaları değiştirmek için çalışma zamanı mantığını dahil edemezsiniz.
 
 ::: info Non-standard configurations
 <!-- -->
-While Tuist supports non-standard configurations and makes them easier to manage
-compared to vanilla Xcode projects, you'll receive warnings if configurations
-are not consistent throughout the dependency graph. This helps ensure build
-reliability and prevents configuration-related issues.
+Tuist, standart olmayan yapılandırmaları destekler ve vanilya Xcode projelerine
+kıyasla yönetilmelerini kolaylaştırırken, yapılandırmalar bağımlılık grafiği
+boyunca tutarlı değilse uyarılar alırsınız. Bu, derleme güvenilirliğini
+sağlamaya yardımcı olur ve yapılandırmayla ilgili sorunları önler.
 <!-- -->
 :::
 
-## Generated projects
+## Oluşturulmuş projeler
 
-### Buildable folders
+### Oluşturulabilir klasörler
 
-Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
-groups), a feature introduced in Xcode 16 to reduce merge conflicts.
+Tuist 4.62.0, birleştirme çakışmalarını azaltmak için Xcode 16'da sunulan bir
+özellik olan **oluşturulabilir klasörler** (Xcode'un senkronize grupları) için
+destek ekledi.
 
-While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
-merge conflicts in generated projects, buildable folders offer additional
-benefits:
+Tuist'in joker karakter kalıpları (örneğin, `Sources/**/*.swift`) oluşturulmuş
+projele'deki birleştirme çakışmalarını zaten ortadan kaldırırken,
+oluşturulabilir klasörler ek avantajlar sunar:
 
-- **Automatic synchronization**: Your project structure stays in sync with the
-  file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your
-  codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit
-  file lists
+- **Otomatik senkronizasyon**: Proje yapınız dosya sistemiyle senkronize kalır -
+  dosya eklerken veya çıkarırken yenileme gerekmez
+- **Yapay zeka dostu iş akışları**: Kodlama asistanları ve aracıları, proje
+  yenilenmesini tetiklemeden kod tabanınızı değiştirebilir
+- **Daha basit yapılandırma**: Açık dosya listelerini yönetmek yerine klasör
+  yollarını tanımlayın
 
-We recommend adopting buildable folders instead of traditional `Target.sources`
-and `Target.resources` attributes for a more streamlined development experience.
+Daha akıcı bir geliştirme deneyimi için geleneksel `Target.sources` ve
+`Target.resources` öznitelikleri yerine derlenebilir klasörleri benimsemenizi
+öneririz.
 
 ::: code-group
 
@@ -89,18 +92,18 @@ let target = Target(
 <!-- -->
 :::
 
-### Dependencies
+### Bağımlılıklar
 
-#### Force resolved versions on CI
+#### CI üzerinde çözümlenmiş sürümleri zorla
 
-When installing Swift Package Manager dependencies on CI, we recommend using the
-`--force-resolved-versions` flag to ensure deterministic builds:
+Swift paketi Bağımlılıklarını CI üzerine kurarken, deterministik derlemeler
+sağlamak için `--force-resolved-versions` bayrağını kullanmanızı öneririz:
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-This flag ensures that dependencies are resolved using the exact versions pinned
-in `Package.resolved`, eliminating issues caused by non-determinism in
-dependency resolution. This is particularly important on CI where reproducible
-builds are critical.
+Bu bayrak, bağımlılıkların `Package.resolved` adresinde sabitlenen tam sürümler
+kullanılarak çözümlenmesini sağlayarak bağımlılık çözümlemesinde belirsizlikten
+kaynaklanan sorunları ortadan kaldırır. Bu özellikle tekrarlanabilir
+derlemelerin kritik olduğu CI'da önemlidir.

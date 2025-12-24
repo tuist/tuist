@@ -5,70 +5,49 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# 最佳實踐{#best-practices}
 
-Over the years working with different teams and projects, we've identified a set
-of best practices that we recommend following when working with Tuist and Xcode
-projects. These practices are not mandatory, but they can help you structure
-your projects in a way that makes them easier to maintain and scale.
+多年來與不同的團隊和專案合作，我們發現了一套最佳實務，建議您在使用 Tuist 和 Xcode
+專案時遵循。這些實務並不是強制性的，但它們可以幫助您以更容易維護和擴充的方式來架構專案。
 
-## Xcode {#xcode}
+## Xcode{#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### 沮喪模式{#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### 模擬遠端環境的配置{#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote
-environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
-has some downsides:
+許多組織使用建立組態來模擬不同的遠端環境 (例如`Debug-Production` 或`Release-Canary`)，但這種方法有一些缺點：
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the
-  graph, the build system might end up using the wrong configuration for some
-  targets.
-- **Complexity:** Projects can end up with a long list of local configurations
-  and remote environments that are hard to reason about and maintain.
+- **不一致：** 如果整個圖形中的組態不一致，建立系統可能會為某些目標使用錯誤的組態。
+- **複雜性：** 專案最終可能會產生一長串的本機設定和遠端環境，難以推理和維護。
 
-Build configurations were designed to embody different build settings, and
-projects rarely need more than just `Debug` and `Release`. The need to model
-different environments can be achieved differently:
+建置配置的設計是為了體現不同的建置設定，專案很少只需要`Debug` 和`Release` 。建模不同環境的需求可以用不同的方式來實現：
 
-- **In Debug builds:** You can include all the configurations that should be
-  accessible in development in the app (e.g. endpoints), and switch them at
-  runtime. The switch can happen either using scheme launch environment
-  variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the
-  configuration that the release build is bound to, and not include the runtime
-  logic for switching configurations by using compiler directives.
+- **在偵錯建置中：** 您可以在應用程式中包含開發中應可存取的所有配置
+  (例如端點)，並在執行時進行切換。切換可以使用方案啟動環境變數，或是應用程式內的使用者介面。
+- **在釋出建置中：** 在釋出的情況下，您只能包含釋出建置綁定的組態，而不能包含使用編譯器指令切換組態的執行時邏輯。
 
 ::: info Non-standard configurations
 <!-- -->
-While Tuist supports non-standard configurations and makes them easier to manage
-compared to vanilla Xcode projects, you'll receive warnings if configurations
-are not consistent throughout the dependency graph. This helps ensure build
-reliability and prevents configuration-related issues.
+雖然 Tuist 支援非標準的組態，並使它們比起 vanilla Xcode
+專案更容易管理，但如果整個相依圖中的組態不一致，您將會收到警告。這有助於確保建立的可靠性，並防止與組態相關的問題。
 <!-- -->
 :::
 
-## Generated projects
+## 專案生成
 
-### Buildable folders
+### 可建立的資料夾
 
-Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
-groups), a feature introduced in Xcode 16 to reduce merge conflicts.
+Tuist 4.62.0 新增了對**buildable folders** (Xcode 的同步群組) 的支援，這是 Xcode 16
+中為了減少合併衝突而引入的功能。
 
-While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
-merge conflicts in generated projects, buildable folders offer additional
-benefits:
+雖然 Tuist 的通配符模式 (例如`Sources/**/*.swift`) 已經消除了產生專案中的合併衝突，但可建立資料夾提供了額外的好處：
 
-- **Automatic synchronization**: Your project structure stays in sync with the
-  file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your
-  codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit
-  file lists
+- **自動同步** ：您的專案結構與檔案系統保持同步 - 新增或移除檔案時無需重新生成
+- **AI 友好的工作流程** ：編碼助手和代理可以修改您的程式碼庫，而不會觸發專案再生
+- **更簡單的配置** ：定義資料夾路徑而非管理明確的檔案清單
 
-We recommend adopting buildable folders instead of traditional `Target.sources`
-and `Target.resources` attributes for a more streamlined development experience.
+我們建議採用可建立資料夾，取代傳統的`Target.sources` 和`Target.resources` 屬性，以獲得更精簡的開發體驗。
 
 ::: code-group
 
@@ -89,18 +68,15 @@ let target = Target(
 <!-- -->
 :::
 
-### Dependencies
+### 依賴
 
-#### Force resolved versions on CI
+#### 在 CI 上強制已解決的版本
 
-When installing Swift Package Manager dependencies on CI, we recommend using the
-`--force-resolved-versions` flag to ensure deterministic builds:
+在 CI 上安裝 Swift 套件管理員相依性時，我們建議使用`--force-resolved-versions` 旗標，以確保確定性的建置：
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-This flag ensures that dependencies are resolved using the exact versions pinned
-in `Package.resolved`, eliminating issues caused by non-determinism in
-dependency resolution. This is particularly important on CI where reproducible
-builds are critical.
+此旗標可確保使用`Package.resolved` 中的精確版本解決相依性，消除相依性解決的非決定性所導致的問題。這在 CI
+上尤其重要，因為可重複的建置是非常重要的。
