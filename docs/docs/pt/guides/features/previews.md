@@ -12,6 +12,7 @@
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
   project</LocalizedLink>
 <!-- -->
+:::
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing
@@ -28,6 +29,7 @@ share previews of your apps with anyone.
 When building for device, it is currently your responsibility to ensure the app
 is signed correctly. We plan to streamline this in the future.
 <!-- -->
+:::
 
 ::: code-group
 ```bash [Tuist Project]
@@ -43,6 +45,7 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 <!-- -->
+:::
 
 The command will generate a link that you can share with anyone to run the app –
 either on a simulator or an actual device. All they'll need to do is to run the
@@ -78,6 +81,7 @@ variable.
 Uploading a preview with the same binary (build) and the same `CFBundleVersion`
 will fail.
 <!-- -->
+:::
 
 ## Tracks {#tracks}
 
@@ -105,6 +109,7 @@ This is useful for:
 Only people with access to the organization the project belongs to can access
 the previews. We plan to add support for expiring links.
 <!-- -->
+:::
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -127,6 +132,7 @@ automatically launch it on your currently selected device.
 <!-- -->
 You need to have Xcode locally installed and be on macOS 14 or later.
 <!-- -->
+:::
 
 ## Tuist iOS app {#tuist-ios-app}
 
@@ -152,6 +158,7 @@ project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git
 platform</LocalizedLink>.
 <!-- -->
+:::
 
 Testing new functionality should be a part of any code review. But having to
 build an app locally adds unnecessary friction, often leading to developers
@@ -241,6 +248,7 @@ task.cancel()
 <!-- -->
 Update checking is automatically disabled on simulators and App Store builds.
 <!-- -->
+:::
 
 ## README badge {#readme-badge}
 
