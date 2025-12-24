@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/es/>\n"
 "Language: es\n"
@@ -175,9 +176,9 @@ msgstr "Identificador del paquete"
 #: lib/tuist_web/live/qa_live.html.heex:61
 #: lib/tuist_web/live/qa_settings_live.html.heex:157
 #: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Cancelar"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -279,9 +280,9 @@ msgstr "Incluir los resultados esperados"
 
 #: lib/tuist_web/live/qa_live.html.heex:263
 #: lib/tuist_web/live/qa_run_live.html.heex:331
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Issues"
-msgstr ""
+msgstr "Problemas"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:182
 #, elixir-autogen, elixir-format, fuzzy
@@ -454,9 +455,9 @@ msgstr "Proporcionar instrucciones claras para las pruebas"
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/live/ops_qa_logs_live.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -572,9 +573,9 @@ msgstr "Comenzó en"
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
 #: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Estado"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:608
 #, elixir-autogen, elixir-format, fuzzy
@@ -706,9 +707,9 @@ msgid "Apply"
 msgstr "Solicitar"
 
 #: lib/tuist_web/live/qa_live.html.heex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "A medida"
 
 #: lib/tuist_web/live/qa_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
