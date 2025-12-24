@@ -9,7 +9,7 @@
 
 Tuist는 빌드 시스템의 캐싱 기능을 활용하여 팀이 컴파일 아티팩트를 공유할 수 있도록 Xcode 컴파일 캐시를 지원합니다.
 
-## 설정 {#설정}
+## 설정 {#setup}
 
 경고 요구 사항 ::: 경고 요구 사항
 <!-- -->
@@ -53,7 +53,7 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 `컴파일 캐시 원격 서비스 경로` 및 `컴파일 캐시 활성화 플러그인` 은 Xcode의 빌드 설정 UI에 직접 노출되지 않으므로 **사용자 정의
 빌드 설정** 으로 추가해야 합니다:
 
-::: 정보 소켓 경로
+::: info SOCKET PATH
 <!-- -->
 소켓 경로는 `tuist 설정 캐시` 를 실행할 때 표시됩니다. 프로젝트의 전체 핸들을 기반으로 하며 슬래시가 밑줄로 대체됩니다.
 <!-- -->
@@ -69,7 +69,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: 정보 생성된 프로젝트
+::: info GENERATED PROJECTS
 <!-- -->
 Tuist에서 프로젝트를 생성한 경우 수동으로 설정을 지정할 필요가 없습니다.
 
