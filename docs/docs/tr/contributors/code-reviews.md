@@ -5,62 +5,61 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Code reviews {#code-reviews}
+# Kod incelemeleri {#code-reviews}
 
-Reviewing pull requests is a common type of contribution. Despite continuous
-integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
-There are contribution traits that can’t be automated: design, code structure &
-architecture, tests quality, or typos. The following sections represent
-different aspects of the code review process.
+Çekme isteklerini gözden geçirmek yaygın bir katkı türüdür. Sürekli entegrasyon
+(CI) kodun yapması gerekeni yapmasını sağlasa da yeterli değildir.
+Otomatikleştirilemeyen katkı özellikleri vardır: tasarım, kod yapısı ve
+mimarisi, test kalitesi veya yazım hataları. Aşağıdaki bölümler kod inceleme
+sürecinin farklı yönlerini temsil etmektedir.
 
-## Readability {#readability}
+## Okunabilirlik {#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of
-time figuring out what the code does, the code implementation needs to be
-improved.** Suggest splitting the code into smaller abstractions that are easier
-to understand. Alternative, and as a last resource, they can add a comment
-explaining the reasoning behind it. Ask yourself if you’d be able to understand
-the code in a near future, without any surrounding context like the pull request
-description.
+Kod amacını açıkça ifade ediyor mu? **Kodun ne yaptığını anlamak için çok fazla
+zaman harcamanız gerekiyorsa, kod uygulamasının iyileştirilmesi gerekir.** Kodu,
+anlaşılması daha kolay olan daha küçük soyutlamalara bölmeyi önerin. Alternatif
+ve son kaynak olarak, bunun arkasındaki mantığı açıklayan bir yorum
+ekleyebilirler. Kendinize, yakın bir gelecekte, çekme isteği açıklaması gibi
+herhangi bir bağlam olmadan kodu anlayıp anlayamayacağınızı sorun.
 
-## Small pull requests {#small-pull-requests}
+## Küçük çekme istekleri {#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a
-pull request becomes too large and unmanageable, suggest the author to break it
-down.
+Büyük talepleri incelemek zordur ve ayrıntıları gözden kaçırmak daha kolaydır.
+Bir çekme isteği çok büyük ve yönetilemez hale gelirse, yazara onu parçalamasını
+önerin.
 
 ::: info EXCEPTIONS
 <!-- -->
-There are few scenarios where splitting up the pull request is not possible,
-like when the changes are tightly coupled and can’t be split. In those cases,
-the author should provide a clear explanation of the changes and the reasoning
-behind them.
+Değişikliklerin birbirine sıkı sıkıya bağlı olduğu ve bölünemediği durumlar
+gibi, çekme isteğini bölmenin mümkün olmadığı birkaç senaryo vardır. Bu
+durumlarda, yazar değişikliklerin ve arkasındaki gerekçelerin net bir
+açıklamasını sunmalıdır.
 <!-- -->
 :::
 
-## Consistency {#consistency}
+## Tutarlılık {#consistency}
 
-It’s important that the changes are consistent with the rest of the project.
-Inconsistencies complicate maintenance, and therefore we should avoid them. If
-there’s an approach to output messages to the user, or report errors, we should
-stick to that. If the author disagrees with the project’s standards, suggest
-them to open an issue where we can discuss them further.
+Değişikliklerin projenin geri kalanıyla tutarlı olması önemlidir. Tutarsızlıklar
+bakımı zorlaştırır ve bu nedenle bunlardan kaçınmalıyız. Kullanıcıya mesaj
+çıktısı vermek veya hataları bildirmek için bir yaklaşım varsa, buna bağlı
+kalmalıyız. Yazar projenin standartlarına katılmıyorsa, daha fazla
+tartışabileceğimiz bir sorun açmalarını önerin.
 
-## Tests {#tests}
+## Testler {#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be
-tested, and all tests should pass. A good test is a test that consistently
-produces the same result and that it’s easy to understand and maintain.
-Reviewers spend most of the review time in the implementation code, but tests
-are equally important because they are code too.
+Testler kodun güvenle değiştirilmesini sağlar. Çekme taleplerindeki kod test
+edilmeli ve tüm testler geçmelidir. İyi bir test, tutarlı bir şekilde aynı
+sonucu üreten ve anlaşılması ve sürdürülmesi kolay olan bir testtir. Gözden
+geçirenler, gözden geçirme süresinin çoğunu uygulama kodunda geçirirler, ancak
+testler de kod oldukları için eşit derecede önemlidir.
 
-## Breaking changes {#breaking-changes}
+## Kırılma değişiklikleri {#breaking-changes}
 
-Breaking changes are a bad user experience for users of Tuist. Contributions
-should avoid introducing breaking changes unless it’s strictly necessary. There
-are many language features that we can leverage to evolve the interface of Tuist
-without resorting to a breaking change. Whether a change is breaking or not
-might not be obvious. A method to verify whether the change is breaking is
-running Tuist against the fixture projects in the fixtures directory. It
-requires putting ourselves in the user’s shoes and imagine how the changes would
-impact them.
+Kırıcı değişiklikler Tuist kullanıcıları için kötü bir kullanıcı deneyimidir.
+Katkılar, kesinlikle gerekli olmadıkça kırıcı değişiklikler yapmaktan
+kaçınmalıdır. Kırıcı bir değişikliğe başvurmadan Tuist'in arayüzünü geliştirmek
+için yararlanabileceğimiz birçok dil özelliği vardır. Bir değişikliğin kırıcı
+olup olmadığı açık olmayabilir. Değişikliğin kırıcı olup olmadığını doğrulamak
+için bir yöntem, Tuist'i fikstürler dizinindeki fikstür projelerine karşı
+çalıştırmaktır. Bu, kendimizi kullanıcının yerine koymayı ve değişikliklerin
+onları nasıl etkileyeceğini hayal etmeyi gerektirir.
