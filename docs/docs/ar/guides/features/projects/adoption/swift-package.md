@@ -5,28 +5,30 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# استخدام تويست مع حزمة سويفت <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# استخدام تويست مع حزمة سويفت <Badge type="warning" text="beta" /> {##استخدام تويست مع حزمة سويفت-شارة-تحذير-نص-بيتا-}
 
 يدعم تويست استخدام `Package.swift.swift` كـ DSL لمشاريعك ويحول أهداف الحزمة
 الخاصة بك إلى مشروع Xcode أصلي وأهدافه.
 
-::: warning
+:::: تحذير
 <!-- -->
 الهدف من هذه الميزة هو توفير طريقة سهلة للمطورين لتقييم تأثير اعتماد تويست في
 حزم سويفت الخاصة بهم. لذلك، نحن لا نخطط لدعم المجموعة الكاملة لميزات مدير حزم
 سويفت ولا لجلب كل ميزات تويست الفريدة مثل
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع</LocalizedLink> إلى عالم الحزم.
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف
+المشروع</LocalizedLink> إلى عالم الحزم.
 <!-- -->
 :::
 
-::: info الدليل الجذري
+:::: معلومات الدليل الجذري
 <!-- -->
 تتوقّع أوامر تويست بنية دليل
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">دليل معيّن</LocalizedLink> يُعرّف جذره بدليل `تويست` أو `.git`.
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">دليل
+معيّن</LocalizedLink> يُعرّف جذره بدليل `تويست` أو `.git`.
 <!-- -->
 :::
 
-## استخدام تويست مع حزمة سويفت {#using-tuist-with-a-swift-package}
+## استخدام تويست مع حزمة سويفت {#استخدام تويست مع حزمة سويفت}
 
 سوف نستخدم تويست مع مستودع [TootSDK Package]
 (https://github.com/TootSDK/TootSDK) الذي يحتوي على حزمة سويفت. أول شيء نحتاج
