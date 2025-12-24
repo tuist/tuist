@@ -9,7 +9,7 @@
 
 CI에서 레지스트리를 사용하려면 워크플로우의 일부로 `tuist 레지스트리 로그인` 을 실행하여 레지스트리에 로그인했는지 확인해야 합니다.
 
-::: info 전용 XCODE 통합
+::: 정보 전용 XCODE 통합
 <!-- -->
 사전 잠금 해제된 새 키체인을 생성하는 것은 Xcode 통합 패키지를 사용하는 경우에만 필요합니다.
 <!-- -->
@@ -31,7 +31,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 `tuist 레지스트리 로그인` 은 기본 키체인에 자격 증명을 저장합니다. 기본 키체인을 생성하고 _잠금을 해제했는지 확인한 후_ `tuist
 registry login` 을 실행합니다.
 
-또한 `TUIST_CONFIG_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
+또한 `TUIST_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
 문서를 참조하여 만들 수 있습니다.
 
@@ -54,7 +54,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
@@ -79,7 +79,7 @@ let config = Config(
 
 또한 `Package.resolved` 의 경로를 찾아야 합니다. ` ls **/Package.resolved` 을 실행하여 경로를 가져올 수
 있습니다. 경로는
-`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 와 같이
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 과 같이
 표시되어야 합니다.
 
 Swift 패키지와 XcodeProj 기반 통합의 경우 프로젝트의 루트 또는 `Tuist` 디렉터리에 있는 기본 `.build` 디렉터리를
