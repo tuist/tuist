@@ -5,13 +5,12 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
+# XcodeProj tabanlı paket entegrasyonu ile oluşturulmuş projele {#generated-project-with-xcodeproj-based-integration}
 
-When using the
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based
-integration</LocalizedLink>, you can use the ``--replace-scm-with-registry``
-flag to resolve dependencies from the registry if they are available. Add it to
-the `installOptions` in your `Tuist.swift` file:
+1}XcodeProj tabanlı entegrasyonu</LocalizedLink> kullanırken, mevcutsa
+bağımlılıkları kayıt defterinden çözmek için ``--replace-scm-with-registry``
+bayrağını kullanabilirsiniz. Bunu `Tuist.swift` dosyanızdaki `installOptions`
+bölümüne ekleyin:
 ```swift
 import ProjectDescription
 
@@ -23,12 +22,12 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve
-dependencies, you will need to update `dependencies` in your
-`Tuist/Package.swift` file to use the registry identifier instead of a URL. The
-registry identifier is always in the form of `{organization}.{repository}`. For
-example, to use the registry for the `swift-composable-architecture` package, do
-the following:
+Bağımlılıkları her çözümlediğinizde kayıt defterinin kullanıldığından emin olmak
+istiyorsanız, `Tuist/Package.swift` dosyanızdaki `dependencies` adresini URL
+yerine kayıt defteri tanımlayıcısını kullanacak şekilde güncellemeniz gerekir.
+Kayıt tanımlayıcısı her zaman `{organization}.{repository}` biçimindedir.
+Örneğin, `swift-composable-architecture` Swift paketi'nin kayıt defterini
+kullanmak için aşağıdakileri yapın:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
