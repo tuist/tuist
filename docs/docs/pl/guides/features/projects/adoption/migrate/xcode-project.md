@@ -7,7 +7,8 @@
 ---
 # Migracja projektu Xcode {#migrate-an-xcode-project}
 
-O ile <LocalizedLink href="/guides/features/projects/adoption/new-project">nie utworzysz nowego projektu przy użyciu Tuist</LocalizedLink>, w którym to
+O ile <LocalizedLink href="/guides/features/projects/adoption/new-project"> nie
+utworzysz nowego projektu przy użyciu Tuist</LocalizedLink>, w którym to
 przypadku wszystko zostanie skonfigurowane automatycznie, będziesz musiał
 zdefiniować swoje projekty Xcode przy użyciu prymitywów Tuist. Żmudność tego
 procesu zależy od stopnia złożoności projektu.
@@ -100,7 +101,7 @@ wygenerowanego przez Tuist z pliku manifestu:
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## Wyodrębnij ustawienia kompilacji projektu do plików `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}.
@@ -253,8 +254,9 @@ Jeśli cel ma powiązany cel testowy, należy go zdefiniować w pliku
 
 ### Zatwierdź migrację docelową {#validate-the-target-migration}.
 
-Uruchom `tuist build` i `tuist test`, aby upewnić się, że projekt został
-zbudowany i testy zakończyły się pomyślnie. Dodatkowo możesz użyć
+Uruchom `tuist generate`, a następnie `xcodebuild build`, aby upewnić się, że
+projekt zostanie zbudowany, oraz `tuist test`, aby upewnić się, że testy
+zakończą się pomyślnie. Dodatkowo możesz użyć
 [xcdiff](https://github.com/bloomberg/xcdiff), aby porównać wygenerowany projekt
 Xcode z istniejącym, aby upewnić się, że zmiany są prawidłowe.
 
@@ -262,8 +264,8 @@ Xcode z istniejącym, aby upewnić się, że zmiany są prawidłowe.
 
 Powtarzaj tę czynność, aż wszystkie obiekty docelowe zostaną w pełni zmigrowane.
 Po zakończeniu zalecamy aktualizację potoków CI i CD w celu zbudowania i
-przetestowania projektu za pomocą poleceń `tuist build` i `tuist test`, aby
-skorzystać z szybkości i niezawodności zapewnianej przez Tuist.
+przetestowania projektu przy użyciu `tuist generate`, a następnie `xcodebuild
+build` i `tuist test`.
 
 ## Rozwiązywanie problemów {#troubleshooting}
 
