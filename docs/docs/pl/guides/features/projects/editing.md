@@ -20,7 +20,7 @@ ich edycję i kompilację. Dzięki korzystaniu z Xcode można uzyskać wszystkie
 korzyści płynące z uzupełniania kodu **, podświetlania składni i sprawdzania
 błędów**.
 
-## Edytuj projekt {#edit-the-project}
+## Edycja projektu {#edit-the-project}
 
 Aby edytować projekt, można uruchomić następujące polecenie w katalogu lub
 podkatalogu projektu Tuist:
@@ -42,7 +42,7 @@ poprawny plik `Tuist.swift`.
 <!-- -->
 :::
 
-### Ignorowanie plików manifestu {#ignoring-manifest-files}.
+### Ignorowanie plików manifestu {#ignoring-manifest-files}
 
 Jeśli projekt zawiera pliki Swift o tej samej nazwie co pliki manifestu (np.
 `Project.swift`) w podkatalogach, które nie są rzeczywistymi manifestami Tuist,
