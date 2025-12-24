@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 継続的インテグレーション（CI）{#continuous-integration-ci}
+# 継続的インテグレーション（CI）{#continuous-integration-ci}。
 
 CIでレジストリを使用するには、ワークフローの一環として`tuist registry login`
 を実行して、レジストリにログインしていることを確認する必要がある。
@@ -30,8 +30,8 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 `tuist registry login` を実行すると、認証情報がデフォルトのキーチェーンに保存されます。__ `tuist registry login`
 を実行する前に、デフォルトのキーチェーンが作成され、ロックが解除されていることを確認してください。
 
-さらに、`TUIST_CONFIG_TOKEN`
-環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。
+さらに、`TUIST_TOKEN`
+環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成してください。
 
 GitHub Actions のワークフローの例は次のようになります：
 ```yaml
@@ -52,7 +52,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
