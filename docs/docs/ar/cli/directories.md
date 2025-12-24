@@ -5,32 +5,32 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# الدلائل {#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+ينظم Tuist ملفاته عبر عدة دلائل على نظامك، باتباع [مواصفات الدليل الأساسي لـ
+XDG]
+(https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
+يوفر هذا طريقة قياسية ونظيفة لإدارة ملفات التكوين وذاكرة التخزين المؤقت وملفات
+الحالة.
 
-## Supported environment variables {#supported-environment-variables}
+## متغيرات البيئة المدعومة {#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+يدعم تويست كلاً من متغيرات XDG القياسية والمتغيرات المسبقة الخاصة بتويست. تحظى
+المتغيرات الخاصة بتويست (المسبوقة ببادئة `TUIST_`) بالأولوية، مما يسمح لك بتهيئة
+تويست بشكل منفصل عن التطبيقات الأخرى.
 
-### Configuration directory {#configuration-directory}
+### دليل التكوين {#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
-- `XDG_CONFIG_HOME`
+**متغيرات البيئة:**
+- `TUIST_XDG_CONFIG_HOME` (له الأسبقية)
+- `xdg_config_home`
 
-**Default:** `~/.config/tuist`
+**الإعداد الافتراضي:** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**تُستخدم لـ**
+- بيانات اعتماد الخادم (`بيانات الاعتماد/{المضيف}.json`)
 
-**Example:**
+**مثال على ذلك:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +41,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### دليل ذاكرة التخزين المؤقت {#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**متغيرات البيئة:**
+- `TUIST_XDG_CACHE_HOME` (له الأسبقية)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**الإعداد الافتراضي:** `~/.cache/tuist الافتراضي`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**تُستخدم لـ**
+- **الإضافات**: تم تنزيل وتجميع ذاكرة التخزين المؤقت للمكونات الإضافية
+- **مساعدو وصف المشروع**: أدوات مساعدة وصف المشروع المجمعة
+- **بيانات**: ملفات البيان المخزنة مؤقتًا
+- **المشاريع**: ذاكرة التخزين المؤقت لمشروع الأتمتة المُنشأة
+- **EditProjects**: ذاكرة التخزين المؤقت لأمر التحرير
+- **التشغيلات**: اختبار وبناء بيانات تحليلات التشغيل
+- **الثنائيات**: بناء ثنائيات القطع الأثرية (غير قابلة للمشاركة عبر البيئات)
+- **اختبارات انتقائية**: ذاكرة التخزين المؤقت للاختبارات الانتقائية
 
-**Example:**
+**مثال على ذلك:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +70,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### دليل الولاية {#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**متغيرات البيئة:**
+- `TUIST_XDG_STATE_STATE_HOME` (له الأسبقية)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**الإعداد الافتراضي:** ` ~/.loc/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**تُستخدم لـ**
+- **السجلات**: ملفات السجلات (`logs/{uuid}.log`)
+- **أقفال**: ملفات قفل المصادقة (`{handle}.sock`)
 
-**Example:**
+**مثال على ذلك:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +93,25 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## ترتيب الأسبقية {#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+عند تحديد الدليل الذي يجب استخدامه، يتحقق تويست من متغيرات البيئة بالترتيب
+التالي:
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **المتغير الخاص بالتويست** (على سبيل المثال، `TUIST_XDG_CONFIG_HOME`)
+2. **متغير XDG القياسي** (على سبيل المثال، `XDG_CONFIG_HOME`)
+3. **الموقع الافتراضي** (على سبيل المثال، `~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+يسمح لك ذلك بما يلي:
+- استخدام متغيرات XDG القياسية لتنظيم جميع تطبيقاتك بشكل متسق
+- التجاوز بالمتغيرات الخاصة بتويست عندما تحتاج إلى مواقع مختلفة لتويست
+- الاعتماد على الإعدادات الافتراضية المعقولة دون أي تهيئة
 
-## Common use cases {#common-use-cases}
+## حالات الاستخدام الشائعة {#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### عزل تويست لكل مشروع {#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+قد ترغب في عزل ذاكرة التخزين المؤقت لـ Tuist وحالة كل مشروع:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +120,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### بيئات CI/CDD {#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+في بيئات CI، قد ترغب في استخدام الدلائل المؤقتة:
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +144,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### تصحيح الأخطاء مع الدلائل المعزولة {#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+عند تصحيح المشكلات، قد تحتاج إلى سجل نظيف:
 
 ```bash
 # Create temporary directories for debugging
