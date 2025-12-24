@@ -28,7 +28,7 @@ pozostają proste.
 Aby ułatwić tę pracę, przedstawiamy kilka wskazówek opartych na opiniach, które
 otrzymaliśmy od użytkowników.
 
-## Utwórz rusztowanie projektu {#create-project-scaffold}.
+## Tworzenie rusztowania projektu {#create-project-scaffold}
 
 Przede wszystkim utwórz rusztowanie dla swojego projektu z następującymi plikami
 Tuist:
@@ -84,7 +84,7 @@ let package = Package(
 `Tuist.swift` to miejsce, w którym można zdefiniować ustawienia Tuist dla
 projektu.
 
-::: tip NAZWA PROJEKTU Z SUFFIXEM -TUIST
+::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 Aby zapobiec konfliktom z istniejącym projektem Xcode, zalecamy dodanie
 przyrostka `-Tuist` do nazwy projektu. Można go usunąć po pełnej migracji
@@ -92,7 +92,7 @@ projektu do Tuist.
 <!-- -->
 :::
 
-## Zbuduj i przetestuj projekt Tuist w CI {#build-and-test-the-tuist-project-in-ci}.
+## Zbuduj i przetestuj projekt Tuist w CI {#build-and-test-the-tuist-project-in-ci}
 
 Aby upewnić się, że migracja każdej zmiany jest prawidłowa, zalecamy
 rozszerzenie ciągłej integracji w celu zbudowania i przetestowania projektu
@@ -104,7 +104,7 @@ tuist generate
 xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## Wyodrębnij ustawienia kompilacji projektu do plików `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}.
+## Wyodrębnij ustawienia kompilacji projektu do plików `.xcconfig`. {#extract-the-project-build-settings-into-xcconfig-files}
 
 Wyodrębnij ustawienia kompilacji z projektu do pliku `.xcconfig`, aby uprościć
 projekt i ułatwić migrację. Za pomocą poniższego polecenia można wyodrębnić
@@ -142,7 +142,7 @@ bezpośrednio do plików `.xcconfig`:
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## Wyodrębnij zależności pakietów {#extract-package-dependencies}.
+## Wyodrębnij zależności pakietów {#extract-package-dependencies}
 
 Wyodrębnij wszystkie zależności projektu do pliku `Tuist/Package.swift`:
 
@@ -172,7 +172,7 @@ let package = Package(
 )
 ```
 
-TYPY PRODUKTÓW
+::: tip PRODUCT TYPES
 <!-- -->
 Typ produktu dla określonego pakietu można zastąpić, dodając go do słownika
 `productTypes` w strukturze `PackageSettings`. Domyślnie Tuist zakłada, że
@@ -181,7 +181,7 @@ wszystkie pakiety są statycznymi frameworkami.
 :::
 
 
-## Określenie kolejności migracji {#determine-the-migration-order}.
+## Określenie kolejności migracji {#determine-the-migration-order}
 
 Zalecamy migrację obiektów docelowych od tego, który jest najbardziej zależny do
 najmniej. Możesz użyć następującego polecenia, aby wyświetlić listę obiektów
@@ -194,13 +194,13 @@ tuist migration list-targets -p Project.xcodeproj
 Rozpocznij migrację celów z góry listy, ponieważ są one najbardziej zależne.
 
 
-## Migruj cele {#migrate-targets}
+## Migracja celów {#migrate-targets}
 
 Migruj cele jeden po drugim. Zalecamy wykonanie pull requesta dla każdego celu,
 aby upewnić się, że zmiany zostały sprawdzone i przetestowane przed ich
 scaleniem.
 
-### Wyodrębnij docelowe ustawienia kompilacji do plików `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}.
+### Wyodrębnij docelowe ustawienia kompilacji do plików `.xcconfig`. {#extract-the-target-build-settings-into-xcconfig-files}
 
 Podobnie jak w przypadku ustawień kompilacji projektu, należy wyodrębnić
 docelowe ustawienia kompilacji do pliku `.xcconfig`, aby docelowa kompilacja
@@ -211,7 +211,7 @@ wyodrębnić ustawienia kompilacji z celu do pliku `.xcconfig`:
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### Zdefiniuj cel w pliku `Project.swift` {#define-the-target-in-the-projectswift-file}.
+### Zdefiniuj cel w pliku `Project.swift` {#define-the-target-in-the-projectswift-file}
 
 Zdefiniuj cel w `Project.targets`:
 
@@ -245,14 +245,14 @@ let project = Project(
 )
 ```
 
-::: info TARGI TESTOWE
+::: info TEST TARGETS
 <!-- -->
 Jeśli cel ma powiązany cel testowy, należy go zdefiniować w pliku
 `Project.swift`, powtarzając te same kroki.
 <!-- -->
 :::
 
-### Zatwierdź migrację docelową {#validate-the-target-migration}.
+### Weryfikacja migracji docelowej {#validate-the-target-migration}
 
 Uruchom `tuist generate`, a następnie `xcodebuild build`, aby upewnić się, że
 projekt zostanie zbudowany, oraz `tuist test`, aby upewnić się, że testy
@@ -260,7 +260,7 @@ zakończą się pomyślnie. Dodatkowo możesz użyć
 [xcdiff](https://github.com/bloomberg/xcdiff), aby porównać wygenerowany projekt
 Xcode z istniejącym, aby upewnić się, że zmiany są prawidłowe.
 
-### Powtórz {#repeat}
+### Powtarzanie {#repeat}
 
 Powtarzaj tę czynność, aż wszystkie obiekty docelowe zostaną w pełni zmigrowane.
 Po zakończeniu zalecamy aktualizację potoków CI i CD w celu zbudowania i
