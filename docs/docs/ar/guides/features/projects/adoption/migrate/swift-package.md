@@ -5,7 +5,7 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# ترحيل حزمة سويفت {# ترحيل حزمة سويفت}
+# ترحيل حزمة سويفت {#migrate-a-swift-package}
 
 ظهرت Swift Package Manager كمدير تبعية لأكواد Swift التي وجدت نفسها دون قصد في
 حل مشكلة إدارة المشاريع ودعم لغات البرمجة الأخرى مثل Objective-C. نظرًا لأن
@@ -32,14 +32,14 @@ Apple العودة إلى المبادئ الأولى وإعادة النظر ف
 كمدير للتبعية وليس كمدير للمشروع، على سبيل المثال استخدام لغة مجمعة كواجهة
 لتحديد المشاريع.
 
-:::: إكرامية SPM كمدير معتمد فقط
+::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
 يتعامل تويست مع مدير حزم سويفت كمدير تبعية، وهو مدير تبعية رائع. نحن نستخدمه لحل
 التبعيات وبنائها. لا نستخدمه لتحديد المشاريع لأنه غير مصمم لذلك.
 <!-- -->
 :::
 
-## الترحيل من Swift Package Manager إلى Tuist {#migrating-from- from-swift-package-manager-to-tuist}
+## الترحيل من Swift Package Manager إلى Tuist {#migrating-from-swift-package-manager-to-tuist}
 
 إن أوجه التشابه بين Swift Package Manager و Tuist تجعل عملية الترحيل مباشرة.
 الفرق الرئيسي هو أنك ستقوم بتعريف مشاريعك باستخدام DSL الخاص بـ Tuist بدلاً من
@@ -88,7 +88,7 @@ let tuist = Tuist()
 <LocalizedLink href="/guides/features/projects/directory-structure"> بنية
 الدليل</LocalizedLink> لمعرفة المزيد عن بنية مشاريع تويست.
 
-## تحرير المشروع {#تحرير المشروع}
+## تحرير المشروع {#edit-the-project}
 
 يمكنك استخدام <LocalizedLink href="/guides/features/projects/editing">`tuist
 تحرير`</LocalizedLink> لتحرير المشروع في Xcode. سينشئ الأمر مشروع Xcode يمكنك
