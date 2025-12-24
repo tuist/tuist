@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2025-12-24 16:02+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2025-12-24 16:02+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -492,9 +492,9 @@ msgstr "Wygenerowane projekty"
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:255
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:4
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:207
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Generated projects"
-msgstr ""
+msgstr "Wygenerowane projekty"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
@@ -724,9 +724,9 @@ msgid "Mastodon"
 msgstr "Mastodon"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:76
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module cache"
-msgstr ""
+msgstr "Buforowanie modułu"
 
 #: lib/tuist_web/marketing/components/marketing_components.ex:362
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:264
@@ -911,9 +911,9 @@ msgstr "Wymaga wygenerowanego projektu"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:243
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:456
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "Zasoby"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:22
 #, elixir-autogen, elixir-format, fuzzy
