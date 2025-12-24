@@ -40,7 +40,8 @@ tuist inspect bundle App.app
 ## 持续集成 {#continuous-integration｝
 
 要跟踪随时间变化的捆绑包大小，您需要分析 CI 上的捆绑包。首先，您需要确保您的 CI 经过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>：
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+验证</LocalizedLink>：
 
 GitHub 操作的工作流程示例如下：
 
@@ -54,7 +55,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 设置完成后，您就可以查看捆绑包大小随时间的变化情况：
@@ -65,7 +66,9 @@ jobs:
 
 警告 需要与 GIT 平台集成
 <!-- -->
-要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
+要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>集成。
 <!-- -->
 :::
 
