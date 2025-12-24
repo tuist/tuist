@@ -39,10 +39,10 @@ PRコメントがリンクしているダッシュボードのレポートの一
 
 QAタイムライン](/images/guides/features/qa/qa-timeline.png)。
 
-<LocalizedLink href="/guides/features/previews">iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
+1}iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
 https://tuist.dev/tuist/tuist/qa
 
-::: 情報
+::: info
 <!-- -->
 QAエージェントは自律的に実行され、一度開始すると追加のプロンプトで中断することはできません。エージェントがあなたのアプリとどのように相互作用したかを理解するのを助けるために、実行を通して詳細なログを提供します。これらのログは、アプリのコンテキストを反復し、エージェントの動作をよりよくガイドするためにプロンプトをテストするのに役立ちます。エージェントの動作に関するフィードバックがありましたら、[GitHub
 Issues](https://github.com/tuist/tuist/issues)、[Slack
