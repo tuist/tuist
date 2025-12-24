@@ -106,7 +106,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Плагин задачи <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: предупреждение DEPRECATED
+::: warning DEPRECATED
 <!-- -->
 Плагины задач устарели. Ознакомьтесь с [этой записью в
 блоге](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects), если вы
@@ -138,7 +138,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
   установить его, выполнив команду `mise install`, они смогут запускать его,
   вызывая напрямую или через `tuist xxx`.
 
-::: инфо Будущее проектной автоматизации
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 Мы планируем объединить модели `ProjectAutomation` и `XcodeGraph` в единый
 обратно совместимый фреймворк, который откроет пользователю всю полноту графа
