@@ -22,12 +22,12 @@ where scaffolding might be useful:
 Tuist is not opinionated about the content of your templates, and what you use
 them for. They are only required to be in a specific directory.
 <!-- -->
-:::
 
 ## Defining a template {#defining-a-template}
 
 To define templates, you can run
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template`
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> and then create a directory called `name_of_template`
 under `Tuist/Templates` that represents your template. Templates need a manifest
 file, `name_of_template.swift` that describes the template. So if you are
 creating a template called `framework`, you should create a new directory
@@ -76,7 +76,6 @@ tuist scaffold name_of_template --name Name --platform macos
 Since platform is an optional argument, we can also call the command without the
 `--platform macos` argument.
 <!-- -->
-:::
 
 If `.string` and `.files` don't provide enough flexibility, you can leverage the
 [Stencil](https://stencil.fuller.li/en/latest/) templating language via the
@@ -94,6 +93,6 @@ to a given path.
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Templates support the use of
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> to reuse code across templates.
 <!-- -->
-:::
