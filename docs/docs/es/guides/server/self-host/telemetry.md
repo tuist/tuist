@@ -16,7 +16,7 @@ necesidades. Las métricas de Prometheus se sirven a través del endpoint
 de Prometheus debe establecerse en menos de 10_000 segundos (recomendamos
 mantener el valor predeterminado de 15 segundos).
 
-## PostHog analytics {#posthog-analytics}
+## PostAnálisis de cerdos {#posthog-analytics}
 
 Tuist se integra con [PostHog](https://posthog.com/) para el análisis del
 comportamiento del usuario y el seguimiento de eventos. Esto te permite
@@ -37,7 +37,7 @@ los usuarios.
 | `TUIST_POSTHOG_API_KEY` | Su clave API del proyecto PostHog     | No        |             | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | URL del punto final de la API PostHog | No        |             | `https://eu.i.posthog.com`                        |
 
-::: info HABILITACIÓN DE ANÁLISIS
+::: info ANALYTICS ENABLEMENT
 <!-- -->
 Los análisis sólo se activan cuando se configuran tanto `TUIST_POSTHOG_API_KEY`
 como `TUIST_POSTHOG_URL`. Si falta alguna de las dos variables, no se enviarán
@@ -66,7 +66,7 @@ Cuando PostHog está activado, Tuist rastrea automáticamente:
 - **Eventos personalizados**: Eventos específicos de la aplicación para el uso
   de funciones y las interacciones del usuario.
 
-### Consideraciones sobre privacidad {#posthog-privacy}
+### Protección de datos {#posthog-privacy}
 
 - Para los usuarios autenticados, PostHog utiliza el ID único del usuario como
   identificador distintivo e incluye su dirección de correo electrónico
@@ -77,7 +77,7 @@ Cuando PostHog está activado, Tuist rastrea automáticamente:
 - Los datos de PostHog se procesan de acuerdo con la política de privacidad de
   PostHog y su configuración
 
-## Métricas de Elixir {#elixir-metrics}
+## Métricas del elixir {#elixir-metrics}
 
 Por defecto, incluimos métricas del tiempo de ejecución de Elixir, BEAM, Elixir
 y algunas de las bibliotecas que utilizamos. Las siguientes son algunas de las
@@ -98,7 +98,7 @@ cómo utilizarlas.
 
 Un conjunto de métricas relacionadas con Tuist Runs.
 
-### `tuist_runs_total` (contador) {#tuist_runs_total-contador}
+### `tuist_runs_total` (contador) {#tuist_runs_total-counter}
 
 El número total de carreras de Tuist.
 
@@ -126,7 +126,7 @@ La duración total de cada ejecución de tuist en milisegundos.
 
 Conjunto de métricas relacionadas con la caché de Tuist.
 
-### `tuist_cache_events_total` (contador) {#tuist_cache_events_total-contador}
+### `tuist_cache_events_total` (contador) {#tuist_cache_events_total-counter}
 
 El número total de eventos binarios de caché.
 
@@ -136,33 +136,33 @@ El número total de eventos binarios de caché.
 | ------------- | ---------------------------------------------------------------------------- |
 | `tipo_evento` | Puede ser cualquiera de los siguientes: `local_hit`, `remote_hit`, o `miss`. |
 
-### `tuist_cache_uploads_total` (contador) {#tuist_cache_uploads_total-contador}
+### `tuist_cache_uploads_total` (contador) {#tuist_cache_uploads_total-counter}
 
 El número de subidas a la caché binaria.
 
-### `tuist_cache_uploaded_bytes` (suma) {#tuist_cache_uploaded_bytes-suma}
+### `tuist_cache_uploaded_bytes` (suma) {#tuist_cache_uploaded_bytes-sum}
 
 El número de bytes cargados en la caché binaria.
 
-### `tuist_cache_downloads_total` (contador) {#tuist_cache_downloads_total-contador}
+### `tuist_cache_downloads_total` (contador) {#tuist_cache_downloads_total-counter}
 
 El número de descargas a la caché binaria.
 
-### `tuist_cache_downloaded_bytes` (suma) {#tuist_cache_downloaded_bytes-suma}
+### `tuist_cache_downloaded_bytes` (suma) {#tuist_cache_downloaded_bytes-sum}
 
 El número de bytes descargados de la caché binaria.
 
 ---
 
-## Métricas de previsualización {#previews-metrics}
+## Previsión de métricas {#previews-metrics}
 
 Conjunto de métricas relacionadas con la función de previsualización.
 
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+### `tuist_previews_uploads_total` (suma) {#tuist_previews_uploads_total-counter}
 
 El número total de vistas previas cargadas.
 
-### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+### `tuist_previews_downloads_total` (suma) {#tuist_previews_downloads_total-counter}
 
 El número total de previsualizaciones descargadas.
 
@@ -203,7 +203,7 @@ almacenamiento remoto.
 | `clave_objeto` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
 
-### `tuist_storage_get_object_size_count` (contador) {#tuist_storage_get_object_size_count-contador}
+### `tuist_storage_get_object_size_count` (contador) {#tuist_storage_get_object_size_count-counter}
 
 El número de veces que se ha obtenido el tamaño de un objeto del almacenamiento
 remoto.
@@ -226,7 +226,7 @@ almacenamiento remoto.
 | `babosa_proyecto` | El slug del proyecto cuyos objetos se están eliminando. |
 
 
-### `tuist_storage_delete_all_objects_count` (contador) {#tuist_storage_delete_all_objects_count-contador}
+### `tuist_storage_delete_all_objects_count` (contador) {#tuist_storage_delete_all_objects_count-counter}
 
 El número de veces que se borraron todos los objetos del proyecto del
 almacenamiento remoto.
@@ -248,7 +248,7 @@ La duración (en milisegundos) del inicio de una carga al almacenamiento remoto.
 | -------------- | ------------------------------------------------------------ |
 | `clave_objeto` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
-### `tuist_storage_multipart_start_upload_duration_count` (contador) {#tuist_storage_multipart_start_upload_duration_count-contador}
+### `tuist_storage_multipart_start_upload_duration_count` (contador) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
 El número de veces que se inició una subida al almacenamiento remoto.
 
@@ -327,7 +327,7 @@ en el almacenamiento remoto.
 | -------------- | ------------------------------------------------------------ |
 | `clave_objeto` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histograma) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
 La duración (en milisegundos) de la generación de una URL preasignada de carga
 parcial para un objeto en el almacenamiento remoto.
@@ -427,7 +427,7 @@ Conjunto de métricas relacionadas con la conexión a la base de datos.
 Número de consultas a la base de datos que están en cola a la espera de ser
 asignadas a una conexión a la base de datos.
 
-### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
+### `tuist_repo_pool_ready_conn_count` (último_valor) {#tuist_repo_pool_ready_conn_count-last_value}
 
 El número de conexiones de base de datos que están listas para ser asignadas a
 una consulta de base de datos.
@@ -450,7 +450,7 @@ servicios a través de HTTP.
 
 El número de peticiones HTTP salientes.
 
-### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanosecond_sum` (suma) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
 La suma de la duración de las solicitudes salientes (incluido el tiempo que
 pasaron esperando a ser asignadas a una conexión).
@@ -459,15 +459,15 @@ pasaron esperando a ser asignadas a una conexión).
 La distribución de la duración de las solicitudes salientes (incluido el tiempo
 que pasaron esperando a ser asignadas a una conexión).
 
-### `tuist_http_queue_count` (contador) {#tuist_http_queue_count-contador}
+### `tuist_http_queue_count` (contador) {#tuist_http_queue_count-counter}
 
 Número de solicitudes que se han recuperado del pool.
 
-### `tuist_http_queue_duration_nanoseconds_sum` (suma) {#tuist_http_queue_duration_nanoseconds_sum-suma}
+### `tuist_http_queue_duration_nanoseconds_sum` (suma) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
 El tiempo que se tarda en recuperar una conexión del pool.
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (suma) {#tuist_http_queue_idle_time_nanoseconds_sum-suma}
+### `tuist_http_queue_idle_time_nanoseconds_sum` (suma) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
 El tiempo que una conexión ha estado inactiva esperando a ser recuperada.
 
@@ -479,11 +479,11 @@ El tiempo que se tarda en recuperar una conexión del pool.
 
 El tiempo que una conexión ha estado inactiva esperando a ser recuperada.
 
-### `tuist_http_connection_count` (contador) {#tuist_http_connection_count-contador}
+### `tuist_http_connection_count` (contador) {#tuist_http_connection_count-counter}
 
 El número de conexiones que se han establecido.
 
-### `tuist_http_connection_duration_nanoseconds_sum` (suma) {#tuist_http_connection_duration_nanoseconds_sum-suma}
+### `tuist_http_connection_duration_nanoseconds_sum` (suma) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
 El tiempo que se tarda en establecer una conexión contra un host.
 
@@ -492,12 +492,12 @@ El tiempo que se tarda en establecer una conexión contra un host.
 La distribución del tiempo que se tarda en establecer una conexión contra un
 host.
 
-### `tuist_http_send_count` (contador) {#tuist_http_send_count-contador}
+### `tuist_http_send_count` (contador) {#tuist_http_send_count-counter}
 
 Número de solicitudes que se han enviado una vez asignadas a una conexión del
 pool.
 
-### `tuist_http_send_duration_nanoseconds_sum` (suma) {#tuist_http_send_duration_nanoseconds_sum-suma}
+### `tuist_http_send_duration_nanoseconds_sum` (suma) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
 Tiempo que tardan en completarse las peticiones una vez asignadas a una conexión
 del pool.
@@ -507,19 +507,19 @@ del pool.
 La distribución del tiempo que tardan en completarse las peticiones una vez
 asignadas a una conexión del pool.
 
-### `tuist_http_receive_count` (contador) {#tuist_http_receive_count-contador}
+### `tuist_http_receive_count` (contador) {#tuist_http_receive_count-counter}
 
 El número de respuestas que se han recibido de las solicitudes enviadas.
 
-### `tuist_http_receive_duration_nanoseconds_sum` (suma) {#tuist_http_receive_duration_nanoseconds_sum-suma}
+### `tuist_http_receive_duration_nanoseconds_sum` (suma) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
 El tiempo empleado en recibir respuestas.
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribución) {#tuist_http_receive_duration_nanoseconds_bucket-distribución}
+### `tuist_http_receive_duration_nanoseconds_bucket` (distribución) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
 La distribución del tiempo dedicado a recibir respuestas.
 
-### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
+### `tuist_http_queue_available_connections` (último_valor) {#tuist_http_queue_available_connections-last_value}
 
 El número de conexiones disponibles en la cola.
 
