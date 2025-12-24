@@ -5,33 +5,25 @@
   "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
 }
 ---
-# Metadata tags {#metadata-tags}
+# メタデータ・タグ{#metadata-tags}
 
-As projects grow in size and complexity, working with the entire codebase at
-once can become inefficient. Tuist provides **metadata tags** as a way to
-organize targets into logical groups and focus on specific parts of your project
-during development.
+プロジェクトの規模が大きくなり、複雑になってくると、コードベース全体を一度に扱うことは非効率になりかねない。Tuistは、開発中にターゲットを論理的なグループに整理し、プロジェクトの特定の部分に集中する方法として、**メタデータタグ**
+を提供しています。
 
-## What are metadata tags? {#what-are-metadata-tags}
+## メタデータ・タグとは？{#what-are-metadata-tags}
 
-Metadata tags are string labels that you can attach to targets in your project.
-They serve as markers that allow you to:
+メタデータ・タグは、プロジェクトのターゲットに付けることができる文字列ラベルです。これらは、以下のことを可能にするマーカーとして機能する：
 
-- **Group related targets** - Tag targets that belong to the same feature, team,
-  or architectural layer
-- **Focus your workspace** - Generate projects that include only targets with
-  specific tags
-- **Optimize your workflow** - Work on specific features without loading
-  unrelated parts of your codebase
-- **Select targets to keep as sources** - Choose which group of targets you'd
-  like to keep as sources when caching
+- **Group related targets** - 同じ機能、チーム、またはアーキテクチャレイヤーに属するターゲットをタグ付けする。
+- **ワークスペースを絞り込む** - 特定のタグを持つターゲットのみを含むプロジェクトを生成する。
+- **ワークフローの最適化** - コードベースの関連性のない部分をロードすることなく、特定の機能に取り組むことができます。
+- **Select targets to keep as sources** - キャッシュ時にソースとして保持するターゲットのグループを選択する。
 
-Tags are defined using the `metadata` property on targets and are stored as an
-array of strings.
+タグは、ターゲットの`メタデータ` プロパティを使用して定義され、文字列の配列として格納されます。
 
-## Defining metadata tags {#defining-metadata-tags}
+## メタデータ・タグの定義{#defining-metadata-tags}
 
-You can add tags to any target in your project manifest:
+プロジェクトマニフェスト内の任意のターゲットにタグを追加できます：
 
 ```swift
 import ProjectDescription
@@ -70,15 +62,13 @@ let project = Project(
 )
 ```
 
-## Focusing on tagged targets {#focusing-on-tagged-targets}
+## タグ付けされたターゲットに焦点を当てる{#focusing-on-tagged-targets}
 
-Once you've tagged your targets, you can use the `tuist generate` command to
-create a focused project that includes only specific targets:
+ターゲットにタグを付けたら、`tuist generate` コマンドを使って、特定のターゲットだけを含む集中プロジェクトを作成することができる：
 
-### Focus by tag
+### タグ別フォーカス
 
-Use the `tag:` prefix to generate a project with all targets matching a specific
-tag:
+特定のタグにマッチするすべてのターゲットを含むプロジェクトを生成するには、`tag:` プレフィックスを使用します：
 
 ```bash
 # Generate project with all authentication-related targets
@@ -88,33 +78,29 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Focus by name
+### 名前でフォーカス
 
-You can also focus on specific targets by name:
+また、特定のターゲットを名指しでフォーカスすることもできる：
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### How focus works
+### フォーカスの仕組み
 
-When you focus on targets:
+目標に集中する：
 
-1. **Included targets** - The targets matching your query are included in the
-   generated project
-2. **Dependencies** - All dependencies of the focused targets are automatically
-   included
-3. **Test targets** - Test targets for the focused targets are included
-4. **Exclusion** - All other targets are excluded from the workspace
+1. **Included targets** - クエリにマッチしたターゲットが生成されたプロジェクトに含まれる。
+2. **依存関係** - フォーカスされたターゲットのすべての依存関係が自動的に含まれます。
+3. **テストターゲット** - 焦点となるターゲットのテストターゲットが含まれる。
+4. **Exclusion** - 他のすべてのターゲットをワークスペースから除外する。
 
-This means you get a smaller, more manageable workspace that contains only what
-you need to work on your feature.
+つまり、機能開発に必要なものだけを収めた、より小さく管理しやすいワークスペースが手に入るのだ。
 
-## Tag naming conventions {#tag-naming-conventions}
+## タグの命名規則{#tag-naming-conventions}
 
-While you can use any string as a tag, following a consistent naming convention
-helps keep your tags organized:
+どんな文字列でもタグとして使用できますが、一貫した命名規則に従うことで、タグを整理しておくことができます：
 
 ```swift
 // Organize by feature
@@ -133,14 +119,11 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Using prefixes like `feature:`, `team:`, or `layer:` makes it easier to
-understand the purpose of each tag and avoid naming conflicts.
+`feature:`,`team:`,`layer:` のような接頭辞を使うことで、各タグの目的を理解しやすくなり、名前の衝突を避けることができる。
 
-## Using tags with project description helpers {#using-tags-with-helpers}
+## プロジェクト記述ヘルパーでタグを使う{#using-tags-with-helpers}
 
-You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to standardize how tags are applied across your project:
+1}プロジェクト記述ヘルパー</LocalizedLink>を活用することで、プロジェクト全体でタグの適用方法を標準化することができます：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -168,7 +151,7 @@ extension Target {
 }
 ```
 
-Then use it in your manifests:
+そしてそれをマニフェストに使う：
 
 ```swift
 import ProjectDescription
@@ -183,34 +166,28 @@ let project = Project(
 )
 ```
 
-## Benefits of using metadata tags {#benefits}
+## メタデータ・タグを使用するメリット{#benefits}
 
-### Improved development experience
+### 開発経験の向上
 
-By focusing on specific parts of your project, you can:
+プロジェクトの特定の部分に集中することで、それが可能になる：
 
-- **Reduce Xcode project size** - Work with smaller projects that are faster to
-  open and navigate
-- **Speed up builds** - Build only what you need for your current work
-- **Improve focus** - Avoid distractions from unrelated code
-- **Optimize indexing** - Xcode indexes less code, making autocompletion faster
+- **Xcodeプロジェクトのサイズを縮小** - より小さなプロジェクトで作業することで、開いたり移動したりするのが速くなります。
+- **ビルドのスピードアップ** - 現在の仕事に必要なものだけをビルドする。
+- **集中力の向上** - 関係のないコードに気を取られないようにする。
+- **インデックス作成の最適化** - Xcodeはより少ないコードにインデックスを作成し、オートコンプリートを高速化します。
 
-### Better project organization
+### より良いプロジェクト組織
 
-Tags provide a flexible way to organize your codebase:
+タグはコードベースを整理する柔軟な方法を提供する：
 
-- **Multiple dimensions** - Tag targets by feature, team, layer, platform, or
-  any other dimension
-- **No structural changes** - Add organizational structure without changing
-  directory layout
-- **Cross-cutting concerns** - A single target can belong to multiple logical
-  groups
+- **複数のディメンション** - 機能、チーム、レイヤー、プラットフォーム、その他のディメンションでターゲットをタグ付けします。
+- **構造変更なし** - ディレクトリのレイアウトを変更することなく、組織構造を追加。
+- **横断的な関心事** - 1つのターゲットが複数の論理グループに属することがある。
 
-### Integration with caching
+### キャッシュとの統合
 
-Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching
-features</LocalizedLink>:
+メタデータタグは<LocalizedLink href="/guides/features/cache">Tuistのキャッシュ機能</LocalizedLink>とシームレスに動作します：
 
 ```bash
 # Cache all targets
@@ -220,24 +197,19 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## Best practices {#best-practices}
+## ベストプラクティス{#best-practices}。
 
-1. **Start simple** - Begin with a single tagging dimension (e.g., features) and
-   expand as needed
-2. **Be consistent** - Use the same naming conventions across all your manifests
-3. **Document your tags** - Keep a list of available tags and their meanings in
-   your project's documentation
-4. **Use helpers** - Leverage project description helpers to standardize tag
-   application
-5. **Review periodically** - As your project evolves, review and update your
-   tagging strategy
+1. **シンプルに始める** - 単一のタグ付けディメンション（例：フィーチャー）から始め、必要に応じて拡張する。
+2. **一貫性を保つ** - すべてのマニフェストで同じ命名規則を使用する。
+3. **タグを文書化する** - プロジェクトの文書に、利用可能なタグとその意味のリストを残す。
+4. **ヘルパーの使用** - プロジェクト記述ヘルパーを活用し、タグの適用を標準化する。
+5. **定期的な見直し** - プロジェクトの進展に合わせて、タグ戦略を見直し、更新する。
 
-## Related features {#related-features}
+## 関連機能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code
-  sharing</LocalizedLink> - Use project description helpers to standardize tag
-  usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
-  tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective
-  testing</LocalizedLink> - Run tests only for changed targets
+- <LocalizedLink href="/guides/features/projects/code-sharing">コードの共有{1｝-
+  プロジェクト記述ヘルパーを使ってタグの使い方を標準化する
+- <LocalizedLink href="/guides/features/cache">キャッシュ{1｝-
+  最適なビルドパフォーマンスのためにタグとキャッシュを組み合わせる
+- <LocalizedLink href="/guides/features/selective-testing">選択的テスト{1｝-
+  変更されたターゲットに対してのみテストを実行する
