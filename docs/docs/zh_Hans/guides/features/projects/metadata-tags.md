@@ -5,33 +5,25 @@
   "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
 }
 ---
-# Metadata tags {#metadata-tags}
+# 元数据标签{#metadata-tags}
 
-As projects grow in size and complexity, working with the entire codebase at
-once can become inefficient. Tuist provides **metadata tags** as a way to
-organize targets into logical groups and focus on specific parts of your project
-during development.
+随着项目规模和复杂性的增加，一次性处理整个代码库可能会变得效率低下。Tuist 提供了**元数据标签**
+作为一种方法，将目标组织成逻辑组，并在开发过程中专注于项目的特定部分。
 
-## What are metadata tags? {#what-are-metadata-tags}
+## 什么是元数据标签？{#what-are-metadata-tags}
 
-Metadata tags are string labels that you can attach to targets in your project.
-They serve as markers that allow you to:
+元数据标签是可以附加到项目目标上的字符串标签。作为标记，它们可以让你
 
-- **Group related targets** - Tag targets that belong to the same feature, team,
-  or architectural layer
-- **Focus your workspace** - Generate projects that include only targets with
-  specific tags
-- **Optimize your workflow** - Work on specific features without loading
-  unrelated parts of your codebase
-- **Select targets to keep as sources** - Choose which group of targets you'd
-  like to keep as sources when caching
+- **对相关目标进行分组** - 标记属于同一功能、团队或架构层的目标
+- **集中工作区** - 生成仅包含特定标记目标的项目
+- **优化工作流程** - 无需加载代码库中不相关的部分即可处理特定功能
+- **选择要保留为源的目标** - 选择缓存时要保留为源的目标组
 
-Tags are defined using the `metadata` property on targets and are stored as an
-array of strings.
+标签是使用`metadata` 属性在目标上定义的，并以字符串数组的形式存储。
 
-## Defining metadata tags {#defining-metadata-tags}
+## 定义元数据标记{#defining-metadata-tags}
 
-You can add tags to any target in your project manifest:
+您可以为项目清单中的任何目标添加标记：
 
 ```swift
 import ProjectDescription
@@ -70,15 +62,13 @@ let project = Project(
 )
 ```
 
-## Focusing on tagged targets {#focusing-on-tagged-targets}
+## 关注标记目标{#focusing-on-tagged-targets}
 
-Once you've tagged your targets, you can use the `tuist generate` command to
-create a focused project that includes only specific targets:
+标记目标后，就可以使用`tuist generate` 命令创建只包含特定目标的重点项目：
 
-### Focus by tag
+### 按标签聚焦
 
-Use the `tag:` prefix to generate a project with all targets matching a specific
-tag:
+使用`tag:` 前缀，生成一个包含所有匹配特定标记的目标的项目：
 
 ```bash
 # Generate project with all authentication-related targets
@@ -88,33 +78,29 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Focus by name
+### 按名称聚焦
 
-You can also focus on specific targets by name:
+您还可以按名称关注特定目标：
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### How focus works
+### 聚焦如何发挥作用
 
-When you focus on targets:
+当你专注于目标时：
 
-1. **Included targets** - The targets matching your query are included in the
-   generated project
-2. **Dependencies** - All dependencies of the focused targets are automatically
-   included
-3. **Test targets** - Test targets for the focused targets are included
-4. **Exclusion** - All other targets are excluded from the workspace
+1. **包含的目标** - 生成的项目中包含与您的查询相匹配的目标
+2. **依赖关系** - 自动包含重点目标的所有依赖关系
+3. **测试目标** - 包括重点目标的测试目标
+4. **排除** - 将所有其他目标排除在工作区之外
 
-This means you get a smaller, more manageable workspace that contains only what
-you need to work on your feature.
+这意味着您可以获得一个更小、更易于管理的工作空间，其中只包含您在制作功能时所需的内容。
 
-## Tag naming conventions {#tag-naming-conventions}
+## 标签命名规则{#tag-naming-conventions}
 
-While you can use any string as a tag, following a consistent naming convention
-helps keep your tags organized:
+虽然可以使用任何字符串作为标签，但遵循统一的命名规范有助于保持标签的条理性：
 
 ```swift
 // Organize by feature
@@ -133,14 +119,11 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Using prefixes like `feature:`, `team:`, or `layer:` makes it easier to
-understand the purpose of each tag and avoid naming conflicts.
+使用`feature:`,`team:`, 或`layer:` 这样的前缀更容易理解每个标签的目的，并避免命名冲突。
 
-## Using tags with project description helpers {#using-tags-with-helpers}
+## 使用项目描述助手的标记{#using-tags-with-helpers}
 
-You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to standardize how tags are applied across your project:
+您可以利用<LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手</LocalizedLink>来规范在整个项目中应用标记的方式：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -168,7 +151,7 @@ extension Target {
 }
 ```
 
-Then use it in your manifests:
+然后在你的清单中使用它：
 
 ```swift
 import ProjectDescription
@@ -183,34 +166,29 @@ let project = Project(
 )
 ```
 
-## Benefits of using metadata tags {#benefits}
+## 使用元数据标记的好处{#benefits}
 
-### Improved development experience
+### 改善开发体验
 
-By focusing on specific parts of your project, you can:
+通过专注于项目的特定部分，您可以
 
-- **Reduce Xcode project size** - Work with smaller projects that are faster to
-  open and navigate
-- **Speed up builds** - Build only what you need for your current work
-- **Improve focus** - Avoid distractions from unrelated code
-- **Optimize indexing** - Xcode indexes less code, making autocompletion faster
+- **缩小 Xcode 项目大小** - 使用更小的项目工作，打开和浏览速度更快
+- **加快构建速度** - 仅构建当前工作所需的内容
+- **提高专注度** - 避免无关代码分散注意力
+- **优化索引** - Xcode 索引的代码更少，自动完成速度更快
 
-### Better project organization
+### 更好地组织项目
 
-Tags provide a flexible way to organize your codebase:
+标签为组织代码库提供了一种灵活的方式：
 
-- **Multiple dimensions** - Tag targets by feature, team, layer, platform, or
-  any other dimension
-- **No structural changes** - Add organizational structure without changing
-  directory layout
-- **Cross-cutting concerns** - A single target can belong to multiple logical
-  groups
+- **多个维度** - 按功能、团队、层、平台或任何其他维度标记目标
+- **不改变结构** - 添加组织结构而不改变目录布局
+- **交叉问题** - 一个目标可属于多个逻辑组别
 
-### Integration with caching
+### 与缓存集成
 
-Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching
-features</LocalizedLink>:
+元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist
+的缓存功能</LocalizedLink>完美配合：
 
 ```bash
 # Cache all targets
@@ -220,24 +198,18 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## Best practices {#best-practices}
+## 最佳做法 {#best-practices}
 
-1. **Start simple** - Begin with a single tagging dimension (e.g., features) and
-   expand as needed
-2. **Be consistent** - Use the same naming conventions across all your manifests
-3. **Document your tags** - Keep a list of available tags and their meanings in
-   your project's documentation
-4. **Use helpers** - Leverage project description helpers to standardize tag
-   application
-5. **Review periodically** - As your project evolves, review and update your
-   tagging strategy
+1. **从简单的** 开始 - 从单一标记维度（如特征）开始，然后根据需要进行扩展
+2. **** - 在所有清单中使用相同的命名规范
+3. **记录你的标记** - 在项目文档中保存可用标记及其含义的列表
+4. **使用帮助程序** - 利用项目描述帮助程序使标签应用标准化
+5. **定期审查** - 随着项目的发展，审查并更新您的标记策略
 
-## Related features {#related-features}
+## 相关功能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code
-  sharing</LocalizedLink> - Use project description helpers to standardize tag
-  usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
-  tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective
-  testing</LocalizedLink> - Run tests only for changed targets
+- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享{1｝-
+  使用项目描述助手来规范标记的使用
+- <LocalizedLink href="/guides/features/cache">缓存{1｝- 将标记与缓存相结合，优化构建性能
+- <LocalizedLink href="/guides/features/selective-testing">选择性测试{1｝-
+  仅对已更改的目标运行测试
