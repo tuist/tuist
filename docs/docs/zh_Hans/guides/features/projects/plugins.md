@@ -103,7 +103,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 任务是`$PATH`-exposed executables（暴露的可执行文件），如果它们遵循命名规范`tuist-<task-name>`
 ，则可通过`tuist` 命令调用。在早期版本中，Tuist 在`tuist plugin`
 下提供了一些弱约定和工具，用于`build`,`run`,`test` 和`archive` 任务，这些任务由 Swift
-包中的可执行文件表示，但我们已弃用这一功能，因为它增加了工具的维护负担和复杂性。
+包中的可执行文件表示，但我们已弃用这一功能，因为它增加了工具的维护负担和复杂性。</task-name>
 
 如果您使用 Tuist 来分发任务，我们建议您构建自己的
 - 您可以继续使用随每个 Tuist 版本发布的`ProjectAutomation.xcframework` ，通过`let graph = try
