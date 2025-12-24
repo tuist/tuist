@@ -7,9 +7,10 @@
 ---
 # Проницательность пучка {#bundle-size}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -62,7 +63,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 После настройки вы сможете увидеть, как изменяется размер вашего пакета с
@@ -72,7 +73,7 @@ jobs:
 
 ## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
 
-::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: предупреждение ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш
