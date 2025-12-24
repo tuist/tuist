@@ -92,7 +92,8 @@ it doesn't support reusability across YAML files out of the box. This is a
 common need when describing projects, which XcodeGen had to solve with their own
 propietary solution named *"templates"*. With Tuist's re-usability is built into
 the language itself, Swift, and through a Swift module named
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, which allow reusing code across all your manifest
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, which allow reusing code across all your manifest
 files.
 
 ::: code-group
