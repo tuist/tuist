@@ -50,7 +50,8 @@ projects](https://mise.jdx.dev/ide-integration.html#xcode).
 Note that you can still install Tuist using Homebrew, which is a popular package
 manager for macOS. You can find the instructions on how to install Tuist using
 Homebrew in the
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation
+guide</LocalizedLink>.
 <!-- -->
 :::
 
