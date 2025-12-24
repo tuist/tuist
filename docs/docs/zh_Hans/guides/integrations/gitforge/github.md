@@ -31,7 +31,8 @@ GitHub 应用程序会发布 Tuist 运行报告，其中包括 PR 的摘要，�
 信息要求
 <!-- -->
 只有当您的 CI 运行通过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>时，才会发布注释。
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+验证</LocalizedLink>时，才会发布注释。
 <!-- -->
 :::
 
