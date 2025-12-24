@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/pl/>\n"
 "Language: pl\n"
@@ -315,9 +314,9 @@ msgstr "Czystość"
 #: lib/tuist_web/live/generate_runs_live.ex:254
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
 #: lib/tuist_web/live/run_detail_live.html.heex:102
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "Polecenia"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:74
 #: lib/tuist_web/live/run_detail_live.html.heex:149
@@ -388,9 +387,9 @@ msgid "Core data models"
 msgstr "Podstawowe modele danych"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:669
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Dependencies"
-msgstr ""
+msgstr "Zależności"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:651
 #, elixir-autogen, elixir-format, fuzzy
@@ -704,9 +703,9 @@ msgstr "Podział modułów"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:86
 #: lib/tuist_web/live/run_detail_live.html.heex:364
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "Buforowanie modułu"
 
 #: lib/tuist_web/live/build_run_live.ex:832
 #, elixir-autogen, elixir-format, fuzzy
@@ -896,9 +895,9 @@ msgid "Search..."
 msgstr "Szukaj..."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:237
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective Testing"
-msgstr ""
+msgstr "Testowanie selektywne"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
@@ -963,9 +962,9 @@ msgstr "Źródła"
 #: lib/tuist_web/live/build_runs_live.ex:240
 #: lib/tuist_web/live/generate_runs_live.ex:262
 #: lib/tuist_web/live/run_detail_live.html.heex:112
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: lib/tuist_web/live/builds_live.html.heex:797
 #, elixir-autogen, elixir-format, fuzzy
@@ -1415,9 +1414,9 @@ msgstr "Zastosuj"
 
 #: lib/tuist_web/live/builds_live.html.heex:149
 #: lib/tuist_web/live/builds_live.html.heex:684
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Anuluj"
 
 #: lib/tuist_web/live/builds_live.html.heex:140
 #: lib/tuist_web/live/builds_live.html.heex:675
