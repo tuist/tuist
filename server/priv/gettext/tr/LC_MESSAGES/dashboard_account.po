@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/tr/>\n"
 "Language: tr\n"
@@ -120,9 +119,9 @@ msgstr "Faturalama e-postası"
 #: lib/tuist_web/live/create_organization_live.ex:62
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "İptal"
 
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
@@ -193,9 +192,9 @@ msgid "Create organization"
 msgstr "Organizasyon oluşturun"
 
 #: lib/tuist_web/live/billing_live.ex:244
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Create your plan or self-host your instance"
-msgstr ""
+msgstr "Planınızı oluşturun veya projeyi kendiniz barındırın."
 
 #: lib/tuist/billing.ex:77
 #: lib/tuist_web/live/billing_live.html.heex:88
@@ -364,9 +363,9 @@ msgid "Get started"
 msgstr "Başlayın"
 
 #: lib/tuist_web/live/billing_live.ex:188
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started with no credit card required"
-msgstr ""
+msgstr "Kredi kartı gerekmeden başlayın."
 
 #: lib/tuist/billing.ex:39
 #: lib/tuist_web/live/billing_live.html.heex:79
@@ -472,9 +471,9 @@ msgid "Members"
 msgstr "Üyeler"
 
 #: lib/tuist_web/live/billing_live.ex:149
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Most Popular"
-msgstr ""
+msgstr "En popüler"
 
 #: lib/tuist_web/live/create_organization_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
@@ -498,9 +497,9 @@ msgstr "Üye bulunamadı"
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:248
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise"
-msgstr ""
+msgstr "Yerel kurulum"
 
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
@@ -694,14 +693,14 @@ msgid "Standard support via Slack and email"
 msgstr "Slack ve e-posta yoluyla standart destek"
 
 #: lib/tuist_web/live/billing_live.html.heex:128
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Standard support: Via Slack and email"
-msgstr ""
+msgstr "Slack ve e-posta yoluyla standart destek"
 
 #: lib/tuist_web/live/members_live.ex:277
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Durum"
 
 #: lib/tuist_web/live/account_settings_live.ex:137
 #, elixir-autogen, elixir-format, fuzzy
@@ -824,9 +823,9 @@ msgid "Usage-based pricing"
 msgstr "Kullanıma dayalı fiyatlandırma"
 
 #: lib/tuist_web/live/billing_live.ex:216
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing after free tier"
-msgstr ""
+msgstr "Ücretsiz katmandan sonra kullanıma dayalı fiyatlandırma."
 
 #: lib/tuist/billing.ex:58
 #: lib/tuist_web/live/billing_live.html.heex:85
