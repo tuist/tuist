@@ -22,7 +22,6 @@ This architecture was previously known as µFeatures. We've renamed it to The
 Modular Architecture (TMA) to better reflect its purpose and the principles
 behind it.
 <!-- -->
-:::
 
 ## Core principle {#core-principle}
 
@@ -63,7 +62,6 @@ enforce in your project thanks to Tuist's DSL.
 `Feature` can use `FeatureTesting` as a Development Asset to allow for UI
 previews
 <!-- -->
-:::
 
 ::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
@@ -72,7 +70,6 @@ the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
 simplify the graph, but you'll end up compiling code that you won't need for
 running the app.
 <!-- -->
-:::
 
 ## Why a module {#why-a-module}
 
@@ -130,13 +127,15 @@ decision is a bit more complex because you need to configure the dependency
 graph manually. However, thanks to Tuist Projects, this is no longer a problem.
 
 We recommend using dynamic libraries or frameworks during development using
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> to decouple the bundle-accessing logic from the
 library or framework nature of the target. This is key for fast compilation
 times and to ensure [SwiftUI
 Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 work reliably. And static libraries or frameworks for the release builds to
 ensure the app boots fast. You can leverage
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic
+configuration</LocalizedLink> to change the product type at generation-time:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -165,7 +164,6 @@ libraries](https://developer.apple.com/documentation/xcode/configuring-your-proj
 However, that introduces build-time non-determinism that makes your build
 non-reproducible and harder to optimize so we don't recommend using it.
 <!-- -->
-:::
 
 ## Code {#code}
 
