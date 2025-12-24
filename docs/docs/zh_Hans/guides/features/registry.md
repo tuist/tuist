@@ -35,17 +35,22 @@ tuist registry login
 
 信息
 <!-- -->
-身份验证需要有 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 帐户和项目</LocalizedLink>。
+身份验证需要有 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+帐户和项目</LocalizedLink>。
 <!-- -->
 :::
 
 ### 解决依赖关系 {#resolving-dependencies}
 
 要从注册表而不是源代码控制中解决依赖关系问题，请根据项目设置继续阅读：
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode 项目</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">使用 Xcode 软件包集成生成项目</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">使用基于 XcodeProj 的软件包集成生成项目</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift 包</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  项目</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">使用 Xcode
+  软件包集成生成项目</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">使用基于
+  XcodeProj 的软件包集成生成项目</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift
+  包</LocalizedLink>
 
 要在 CI
 上设置注册表，请遵循本指南：<LocalizedLink href="/guides/features/registry/continuous-integration">持续集成</LocalizedLink>。
