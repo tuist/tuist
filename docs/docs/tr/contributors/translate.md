@@ -5,59 +5,59 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Translate {#translate}
+# Tercüme et {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is
-accessible to as many people as possible. If you speak a language that Tuist
-doesn't support, you can help us by translating the various surfaces of Tuist.
+Diller anlamanın önünde engel olabilir. Tuist'in mümkün olduğunca çok kişi
+tarafından erişilebilir olmasını sağlamak istiyoruz. Tuist'in desteklemediği bir
+dil konuşuyorsanız, Tuist'in çeşitli yüzeylerini tercüme ederek bize yardımcı
+olabilirsiniz.
 
-Since maintaining translations is a continuous effort, we add languages as we
-see contributors willing to help us maintain them. The following languages are
-currently supported:
+Çevirileri sürdürmek sürekli bir çaba olduğundan, dilleri sürdürmemize yardımcı
+olmaya istekli katkıda bulunanları gördükçe ekliyoruz. Şu anda aşağıdaki diller
+desteklenmektedir:
 
-- English
-- Korean
-- Japanese
-- Russian
-- Chinese
-- Spanish
-- Portuguese
+- İngilizce
+- Korece
+- Japonca
+- Rusça
+- Çince
+- İspanyolca
+- Portekizce
 
 ::: tip REQUEST A NEW LANGUAGE
 <!-- -->
-If you believe Tuist would benefit from supporting a new language, please create
-a new [topic in the community forum](https://community.tuist.io/c/general/4) to
-discuss it with the community.
+Tuist'in yeni bir dili desteklemesinin faydalı olacağını düşünüyorsanız, lütfen
+toplulukla tartışmak için yeni bir [topluluk forumunda
+konu](https://community.tuist.io/c/general/4) oluşturun.
 <!-- -->
 :::
 
-## How to translate {#how-to-translate}
+## Nasıl tercüme edilir {#how-to-translate}
 
-We have an instance of [Weblate](https://weblate.org/en-gb/) running at
-[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
-project](https://translate.tuist.dev/engage/tuist/), create an account, and
-start translating.
+translate.tuist.dev](https://translate.tuist.dev) adresinde çalışan bir
+[Weblate](https://weblate.org/en-gb/) örneğimiz var.
+Proje](https://translate.tuist.dev/engage/tuist/) adresine gidebilir, bir hesap
+oluşturabilir ve çeviriye başlayabilirsiniz.
 
-Translations are synchronized back to the source repository using GitHub pull
-requests which maintainers will review and merge.
+Çeviriler, bakımcıların gözden geçireceği ve birleştireceği GitHub çekme
+istekleri kullanılarak kaynak deposuna geri senkronize edilir.
 
 ::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 <!-- -->
-Weblate segments the files to bind source and target languages. If you modify
-the source language, you'll break the binding, and the reconciliation might
-yield unexpected results.
+Weblate, kaynak ve hedef dilleri bağlamak için dosyaları bölümlere ayırır.
+Kaynak dili değiştirirseniz, bağlamayı bozarsınız ve uzlaştırma beklenmedik
+sonuçlar verebilir.
 <!-- -->
 :::
 
-## Guidelines {#guidelines}
+## Kılavuz İlkeler {#guidelines}
 
-The following are the guidelines we follow when translating.
+Aşağıda çeviri yaparken izlediğimiz yönergeler yer almaktadır.
 
-### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+### Özel konteynerler ve GitHub uyarıları {#custom-containers-and-github-alerts}
 
-When translating [custom
-containers](https://vitepress.dev/guide/markdown#custom-containers) only
-translate the title and the content **but not the type of alert**.
+custom containers](https://vitepress.dev/guide/markdown#custom-containers)
+çevrilirken yalnızca başlık ve içerik **çevrilir, uyarı türü** çevrilmez.
 
 ```markdown
 <!-- -->
@@ -68,16 +68,16 @@ translate the title and the content **but not the type of alert**.
 :::
 ```
 
-### Heading titles {#heading-titles}
+### Başlık başlıkları {#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example,
-when translating the following heading:
+Başlıkları çevirirken sadece başlığı çevirin, kimliği çevirmeyin. Örneğin,
+aşağıdaki başlığı çevirirken:
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+Şu şekilde çevrilmelidir (kimliğin çevrilmediğine dikkat edin):
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}
