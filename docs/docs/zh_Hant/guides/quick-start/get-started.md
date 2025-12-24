@@ -5,10 +5,9 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# 開始{#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+在任何目錄或 Xcode 專案或工作區的目錄中開始使用 Tuist 的最簡單方法：
 
 ::: code-group
 
@@ -22,22 +21,15 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+該命令將引導您完成<LocalizedLink href="/guides/features/projects">創建生成專案</LocalizedLink>或整合現有
+Xcode
+專案或工作區的步驟。它會幫助您將設定連線至遠端伺服器，讓您可以使用<LocalizedLink href="/guides/features/selective-testing">選擇性測試</LocalizedLink>、<LocalizedLink href="/guides/features/previews">預覽</LocalizedLink>和<LocalizedLink href="/guides/features/registry">註冊表</LocalizedLink>等功能。
 
 ::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
+如果您想要將現有專案遷移至已產生的專案，以改善開發人員的經驗，並利用我們的
+<LocalizedLink href="/guides/features/cache">cache</LocalizedLink> 優勢，請參閱我們的
 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+指南</LocalizedLink>。
 <!-- -->
 :::
