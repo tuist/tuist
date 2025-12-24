@@ -5,25 +5,21 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle insights {#bundle-size}
+# 捆綁式洞察力{#bundle-size}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
 <!-- -->
 :::
 
-As you add more features to your app, your app bundle size keeps growing. While
-some of the bundle size growth is inevitable as you ship more code and assets,
-there are many ways to minimze that growth, such as by ensuring your assets are
-not duplicated across your bundles or stripping unused binary symbols. Tuist
-provides you with tools and insights to help your app size stay small – and we
-also monitor your app size over time.
+當您在應用程式中加入更多功能時，您的應用程式 bundle 大小也會不斷增加。當您發送更多的程式碼和資產時，有些 bundle
+大小的成長是不可避免的，但有許多方法可以將成長減至最低，例如確保您的資產不會在您的 bundle 中重複，或剝除未使用的二進位符號。Tuist
+為您提供工具和洞察力，幫助您的應用程式大小保持在較小的範圍內 - 我們也會隨時間監控您的應用程式大小。
 
-## Usage {#usage}
+## 使用方式{#usage}
 
-To analyze a bundle, you can use the `tuist inspect bundle` command:
+若要分析 bundle，您可以使用`tuist inspect bundle` 指令：
 
 ::: code-group
 ```bash [Analyze an .ipa]
@@ -38,19 +34,17 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
-The `tuist inspect bundle` command analyzes the bundle and provides you with a
-link to see a detailed overview of the bundle including a scan of the contents
-of the bundle or a module breakdown:
+`tuist inspect bundle` 指令會分析 bundle，並提供連結讓您查看 bundle 的詳細概觀，包括掃描 bundle 的內容或模組明細：
 
-![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
+！[分析束](/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## Continuous integration {#continuous-integration}
+## 持續整合{#continuous-integration}
 
-To track bundle size over time, you will need to analyze the bundle on the CI.
-First, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>:
+若要隨時間追蹤 bundle 大小，您需要分析 CI 上的 bundle。首先，您需要確保您的 CI 已經
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證
+</LocalizedLink>：
 
-An example workflow for GitHub Actions could then look like this:
+GitHub Actions 的示例工作流程如下：
 
 ```yaml
 name: Build
@@ -65,24 +59,22 @@ jobs:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
-Once set up, you will be able to see how your bundle size evolves over time:
+一旦設定好，您就可以看到您的捆綁大小是如何隨著時間演變的：
 
 ![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## 拉取/合併請求註解{#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-To get automatic pull/merge request comments, integrate your
+若要取得自動的 pull/merge 請求註解，請將您的
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>整合。
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), Tuist will post a comment directly in your
-pull/merge requests whenever you run `tuist inspect bundle`: ![GitHub app
-comment with inspected
+一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，每當您執行`tuist inspect
+bundle`: ![GitHub app comment with inspected
 bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+時，Tuist 會直接在您的 pull/merge request 中發佈註解。
