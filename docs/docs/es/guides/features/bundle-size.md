@@ -9,7 +9,8 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -63,7 +64,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 Una vez configurado, podrá ver cómo evoluciona el tamaño de su paquete con el
