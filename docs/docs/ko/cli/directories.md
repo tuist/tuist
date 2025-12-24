@@ -5,32 +5,29 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# 디렉토리 {#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Tuist는 [XDG 기본 디렉토리
+사양](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)에
+따라 시스템의 여러 디렉터리에 파일을 구성합니다. 이는 구성, 캐시 및 상태 파일을 관리하기 위한 깔끔하고 표준적인 방법을 제공합니다.
 
-## Supported environment variables {#supported-environment-variables}
+## 지원되는 환경 변수 {#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+투이스트는 표준 XDG 변수와 투이스트 전용 접두사가 붙은 변수를 모두 지원합니다. Tuist 전용 변형( `TUIST_`)이 우선적으로
+적용되므로 다른 애플리케이션과 별도로 Tuist를 구성할 수 있습니다.
 
-### Configuration directory {#configuration-directory}
+### 구성 디렉터리 {#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
-- `XDG_CONFIG_HOME`
+**환경 변수:**
+- `TUIST_XDG_CONFIG_HOME` (우선 적용)
+- `xdg_config_home`
 
-**Default:** `~/.config/tuist`
+**기본값:** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**사용 용도:**
+- 서버 자격 증명 (`credentials/{host}.json`)
 
-**Example:**
+**예시:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +38,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### 캐시 디렉터리 {#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**환경 변수:**
+- `TUIST_XDG_CACHE_HOME` (우선 순위)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**기본값:** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**사용 용도:**
+- **플러그인**: 플러그인 캐시 다운로드 및 컴파일
+- **프로젝트 설명 헬퍼**: 컴파일된 프로젝트 설명 도우미
+- **매니페스트**: 캐시된 적하목록 파일
+- **프로젝트**: 생성된 자동화 프로젝트 캐시
+- **편집 프로젝트**: 편집 명령 캐시
+- **실행**: 실행 분석 데이터 테스트 및 구축
+- **바이너리**: 아티팩트 바이너리 빌드(환경 간에 공유할 수 없음)
+- **셀렉티브 테스트**: 선택적 테스트 캐시
 
-**Example:**
+**예시:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +67,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### 상태 디렉토리 {#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**환경 변수:**
+- `TUIST_XDG_STATE_HOME` (우선 적용)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**기본값:** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**사용 용도:**
+- **로그**: 로그 파일 (`logs/{uuid}.log`)
+- **잠금**: 인증 잠금 파일 (`{handle}.sock`)
 
-**Example:**
+**예시:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +90,24 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## 우선 순위 {#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+사용할 디렉터리를 결정할 때 Tuist는 다음 순서로 환경 변수를 확인합니다:
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **튜이스트 전용 변수** (예: `TUIST_XDG_CONFIG_HOME`)
+2. **표준 XDG 변수** (예: `XDG_CONFIG_HOME`)
+3. **기본 위치** (예: `~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+이를 통해 다음을 수행할 수 있습니다:
+- 표준 XDG 변수를 사용하여 모든 애플리케이션을 일관되게 구성하세요
+- 다른 위치가 필요한 경우 Tuist 전용 변수로 재정의하기
+- 별도의 설정 없이 합리적인 기본값을 사용하세요
 
-## Common use cases {#common-use-cases}
+## 일반적인 사용 사례 {#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### 프로젝트별로 Tuist 격리하기 {#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수도 있습니다:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +116,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### CI/CD 환경 {#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+CI 환경에서는 임시 디렉터리를 사용할 수 있습니다:
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +140,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### 격리된 디렉터리로 디버깅하기 {#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+문제를 디버깅할 때는 백지 상태가 필요할 수 있습니다:
 
 ```bash
 # Create temporary directories for debugging
