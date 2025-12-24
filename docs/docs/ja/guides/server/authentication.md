@@ -10,7 +10,7 @@
 サーバーと対話するために、CLIは[ベアラ認証](https://swagger.io/docs/specification/authentication/bearer-authentication/)を使用してリクエストを認証
 する必要がある。CLIはユーザー認証、アカウント認証、OIDCトークン認証をサポートしている。
 
-## ユーザーとして{#as-a-user}
+## ユーザーとして{#as-a-user}。
 
 お使いのマシンでCLIをローカルに使用する場合は、ユーザーとして認証することをお勧めします。ユーザーとして認証するには、以下のコマンドを実行する必要があります：
 
@@ -25,12 +25,12 @@ tuist auth login
 CLI は、サーバへのリクエスト時に自動的に認証情報を検索します。アクセストークンの有効期限が切れている場合、CLI
 はリフレッシュトークンを使用して新しいアクセストークンを取得します。
 
-## OIDCトークン{#oidc-tokens}
+## OIDCトークン{#oidc-tokens}。
 
 OpenID Connect
 (OIDC)をサポートするCI環境では、Tuistは長期間のシークレットを管理することなく自動的に認証を行うことができます。サポートされているCI環境で実行すると、CLIは自動的にOIDCトークンプロバイダを検出し、CIが提供するトークンをTuistのアクセストークンと交換する。
 
-### サポートされるCIプロバイダー{#supported-CI-providers}
+### サポートされるCIプロバイダー{#supported-CI-providers}。
 
 - GitHub アクション
 - サークルCI
@@ -44,7 +44,8 @@ OpenID Connect
 2. **tuist auth login`** を実行してください：CI ワークフローでは、認証が必要なコマンドの前に`tuist auth login`
    を実行してください。CLIは自動的にCI環境を検出し、OIDCを使って認証します。
 
-プロバイダー固有の設定例については、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integrationガイド</LocalizedLink>を参照してください。
+プロバイダー固有の設定例については、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integrationガイド</LocalizedLink>を参照してください。
 
 ### OIDC トークンのスコープ {#oidc-token-scopes}.
 
@@ -64,7 +65,7 @@ OIDC認証は、長期間のトークンよりも安全である：
 
 OIDCをサポートしていないCI環境や、パーミッションのきめ細かな制御が必要な場合は、アカウントトークンを使うことができます。アカウントトークンでは、トークンがアクセスできるスコープやプロジェクトを厳密に指定することができます。
 
-### アカウント・トークンの作成 {#creating-an-account-token}
+### アカウント・トークンの作成 {#creating-an-account-token}。
 
 ```bash
 tuist account tokens create my-account \
@@ -105,7 +106,7 @@ tuist account tokens create my-account \
 | `project:runs:read（プロジェクト・ランズ・リード`     | 読み取りコマンドの実行            |
 | `project:runs:write（プロジェクト：ランズ：ライト`    | コマンドランの作成と更新           |
 
-### スコープグループ{#scope-groups}
+### スコープグループ{#scope-groups}。
 
 スコープグループは、関連する複数のスコープに単一の識別子を付与する便利な方法です。スコープグループを使用すると、スコープグループは自動的に拡張され、スコープグループに含まれるすべてのスコープを含むようになります。
 
@@ -113,7 +114,7 @@ tuist account tokens create my-account \
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci`     | `project:cache:write`,`project:previews:write`,`project:bundles:write`,`project:tests:write`,`project:builds:write`,`project:runs:write` |
 
-### 継続的インテグレーション{#continuous-integration}
+### 継続的インテグレーション{#continuous-integration}。
 
 OIDCをサポートしていないCI環境では、`ci` scope groupでアカウントトークンを作成し、CIワークフローを認証することができます：
 
@@ -146,7 +147,7 @@ tuist account tokens revoke my-account ci-cache-token
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip アカウント・トークンを使うタイミング
+::: ヒント アカウント・トークンを使うタイミング
 <!-- -->
 必要なときにアカウントトークンを使う：
 - OIDCをサポートしないCI環境での認証
