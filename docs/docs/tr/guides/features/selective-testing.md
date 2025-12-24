@@ -5,67 +5,67 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# Selective testing {#selective-testing}
+# Seçmeli test {#selective-testing}
 
-As your project grows, so does the amount of your tests. For a long time,
-running all tests on every PR or push to `main` takes tens of seconds. But this
-solution does not scale to thousands of tests your team might have.
+Projeniz büyüdükçe testlerinizin miktarı da artar. Uzun bir süre boyunca, her
+PR'de tüm testleri çalıştırmak veya `ana` adresine göndermek onlarca saniye
+sürer. Ancak bu çözüm, ekibinizin sahip olabileceği binlerce teste ölçeklenemez.
 
-On every test run on the CI, you most likely re-run all the tests, regardless of
-the changes. Tuist's selective testing helps you to drastically speed up running
-the tests themselves by running only the tests that have changed since the last
-successful test run based on our
+CI üzerindeki her test çalışmasında, değişikliklerden bağımsız olarak büyük
+olasılıkla tüm testleri yeniden çalıştırırsınız. Tuist'in seçmeli testi,
 <LocalizedLink href="/guides/features/projects/hashing">hashing
-algorithm</LocalizedLink>.
+algoritmamıza</LocalizedLink> dayalı olarak yalnızca son başarılı test
+çalışmasından bu yana değişen testleri çalıştırarak testlerin çalıştırılmasını
+büyük ölçüde hızlandırmanıza yardımcı olur.
 
-Selective testing works with `xcodebuild`, which supports any Xcode project, or
-if you generate your projects with Tuist, you can use the `tuist test` command
-instead that provides some extra convenience such as integration with the
-<LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To
-get started with selective testing, follow the instructions based on your
-project setup:
+Seçmeli test, herhangi bir Xcode projesini destekleyen `xcodebuild` ile çalışır
+veya projelerinizi Tuist ile oluşturuyorsanız, bunun yerine
+<LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink> ile
+entegrasyon gibi bazı ekstra kolaylıklar sağlayan `tuist test` komutunu
+kullanabilirsiniz. Seçmeli teste başlamak için proje kurulumunuza göre
+talimatları izleyin:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Oluşturulmuş
+  proje</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-Due to the impossibility of detecting the in-code dependencies between tests and
-sources, the maximum granularity of selective testing is at the target level.
-Therefore, we recommend keeping your targets small and focused to maximize the
-benefits of selective testing.
+Testler ve kaynaklar arasındaki kod içi bağımlılıkları tespit etmenin
+imkansızlığı nedeniyle, seçmeli testin maksimum ayrıntı düzeyi hedef
+düzeyindedir. Bu nedenle, seçmeli testin faydalarını en üst düzeye çıkarmak için
+hedeflerinizi küçük ve odaklanmış tutmanızı öneririz.
 <!-- -->
 :::
 
 ::: warning TEST COVERAGE
 <!-- -->
-Test coverage tools assume that the whole test suite runs at once, which makes
-them incompatible with selective test runs—this means the coverage data might
-not reflect reality when using test selection. That’s a known limitation, and it
-doesn’t mean you’re doing anything wrong. We encourage teams to reflect on
-whether coverage is still bringing meaningful insights in this context, and if
-it is, rest assured that we’re already thinking about how to make coverage work
-properly with selective runs in the future.
+Test kapsama araçları, tüm test paketinin bir kerede çalıştığını varsayar, bu da
+onları seçici test çalıştırmalarıyla uyumsuz hale getirir - bu, test seçimi
+kullanılırken kapsama verilerinin gerçeği yansıtmayabileceği anlamına gelir. Bu
+bilinen bir sınırlamadır ve yanlış bir şey yaptığınız anlamına gelmez. Ekipleri,
+kapsamın bu bağlamda hala anlamlı bilgiler sağlayıp sağlamadığı konusunda
+düşünmeye teşvik ediyoruz ve eğer öyleyse, kapsamın gelecekte seçici
+çalıştırmalarla nasıl düzgün çalışacağını düşündüğümüzden emin olabilirsiniz.
 <!-- -->
 :::
 
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-To get automatic pull/merge request comments, integrate your
+Otomatik çekme/birleştirme isteği yorumları almak için
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-project</LocalizedLink> with a
+projenizi</LocalizedLink> bir
 <LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist xcodebuild test` or
-`tuist test` as part of your CI wortkflow, Tuist will post a comment directly in
-your pull/merge requests, including which tests were run and which skipped:
-![GitHub app comment with a Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandığında
+ve CI wortkflow'unuzun bir parçası olarak `tuist xcodebuild test` veya `tuist
+test` kullanmaya başladığınızda, Tuist doğrudan çekme/birleştirme isteklerinizde
+hangi testlerin çalıştırıldığını ve hangilerinin atlandığını içeren bir yorum
+yayınlayacaktır: ![Tuist Önizleme bağlantısı içeren GitHub uygulaması
+yorumu](/images/guides/features/selective-testing/github-app-comment.png)
