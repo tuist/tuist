@@ -5,7 +5,7 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# ابدأ {#ابدأ_الانطلاق}
+# ابدأ {#get-started}
 
 أسهل طريقة لبدء استخدام Tuist في أي دليل أو في دليل مشروع Xcode أو مساحة العمل
 الخاصة بك:
@@ -31,7 +31,7 @@ tuist init
 والمراجعات</LocalizedLink>، و <LocalizedLink href="/guides/features/registry">
 السجل</LocalizedLink>.
 
-:::: معلومات نقل مشروع قائم
+::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
 إذا كنت ترغب في ترحيل مشروع قائم إلى المشاريع التي تم إنشاؤها لتحسين تجربة
 المطور والاستفادة من <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
