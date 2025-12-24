@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:51+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/tr/>\n"
 "Language: tr\n"
@@ -151,15 +152,15 @@ msgid "Build:"
 msgstr "İnşa et:"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:687
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Buildable folders"
-msgstr ""
+msgstr "Oluşturulabilir klasörler"
 
 #: lib/tuist_web/live/builds_live.ex:20
 #: lib/tuist_web/live/builds_live.html.heex:3
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr ""
+msgstr "Derlemeler"
 
 #: lib/tuist_web/live/build_run_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
@@ -384,9 +385,9 @@ msgid "Core data models"
 msgstr "Temel veri modelleri"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:669
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Dependencies"
-msgstr ""
+msgstr "Bağımlılıklar"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:651
 #, elixir-autogen, elixir-format, fuzzy
@@ -408,9 +409,9 @@ msgstr "Cihaz"
 #: lib/tuist_web/live/build_run_live.ex:1093
 #: lib/tuist_web/live/build_run_live.html.heex:1188
 #: lib/tuist_web/live/build_run_live.html.heex:1345
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Download"
-msgstr ""
+msgstr "İndir"
 
 #: lib/tuist_web/live/build_run_live.html.heex:50
 #: lib/tuist_web/live/run_detail_live.html.heex:63
@@ -795,9 +796,9 @@ msgid "Percentage of modules that were successfully retrieved from the cache."
 msgstr "Önbellekten başarıyla alınan modüllerin yüzdesi."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:582
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Product"
-msgstr ""
+msgstr "Ürün"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:587
 #, elixir-autogen, elixir-format, fuzzy
@@ -855,9 +856,9 @@ msgid "Remote"
 msgstr "Uzaktan Kumanda"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:617
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "Kaynaklar"
 
 #: lib/tuist_web/live/run_detail_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
@@ -948,9 +949,9 @@ msgid "Source"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:612
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Sources"
-msgstr ""
+msgstr "Kaynaklar"
 
 #: lib/tuist_web/live/build_run_live.ex:848
 #: lib/tuist_web/live/build_run_live.ex:1089
@@ -1292,9 +1293,9 @@ msgstr "Uyarılar"
 
 #: lib/tuist_web/live/build_run_live.html.heex:76
 #: lib/tuist_web/live/build_run_live.html.heex:712
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcode Önbelleği"
 
 #: lib/tuist_web/live/build_run_live.html.heex:180
 #: lib/tuist_web/live/build_runs_live.ex:275
@@ -1413,9 +1414,9 @@ msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:140
 #: lib/tuist_web/live/builds_live.html.heex:675
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "Özel"
 
 #: lib/tuist_web/live/builds_live.html.heex:137
 #: lib/tuist_web/live/builds_live.html.heex:672
