@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# 使用 Xcode 软件包集成生成的项目 {#generated-project-with-xcode-based-integration}
+# 使用 Xcode 软件包集成生成项目{#generated-project-with-xcode-based-integration}
 
 如果您使用
 <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode
