@@ -24,7 +24,7 @@ którzy kierowali wysiłkiem, opuścili firmę. Stanowisko Apple w sprawie silne
 sprzężenia między Xcode a systemem kompilacji jest kolejnym czynnikiem, który
 utrudnia utrzymanie projektów Bazel w czasie.
 
-::: tip TUIST UNIQUENESS LIES IN IT FINESSE
+::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
 <!-- -->
 Zamiast walczyć z Xcode i projektami Xcode, Tuist je obejmuje. To te same
 koncepcje (np. cele, schematy, ustawienia kompilacji), znajomy język (tj. Swift)
@@ -98,7 +98,7 @@ let project = Project(
 :::
 
 
-## Zależności menedżera pakietów Swift {#swift-package-manager-dependencies}.
+## Zależności Menedżera pakietów Swift {#swift-package-manager-dependencies}
 
 W Bazel można użyć wtyczki
 [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager)
@@ -114,7 +114,7 @@ tuist install # Fetch dependencies defined in Tuist/Package.swift
 tuist generate # Generate an Xcode project
 ```
 
-## Generowanie projektów {#project-generation}
+## Generowanie projektu {#project-generation}
 
 Społeczność udostępnia zestaw reguł,
 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj), do
