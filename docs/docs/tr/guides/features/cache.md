@@ -5,61 +5,62 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# Önbellek {#cache}
 
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency on a single machine. However, build artifacts are not shared across
-different environments, forcing you to rebuild the same code over and over –
-either in your [Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
-development environments (your Mac).
+Xcode'un derleme sistemi [artımlı
+derlemeler](https://en.wikipedia.org/wiki/Incremental_build_model) sağlayarak
+tek bir makinede verimliliği artırır. Ancak derleme yapıları farklı ortamlar
+arasında paylaşılmaz, bu da sizi [Sürekli Entegrasyon (CI)
+ortamlarınızda](https://en.wikipedia.org/wiki/Continuous_integration) veya yerel
+geliştirme ortamlarınızda (Mac'inizde) aynı kodu tekrar tekrar oluşturmaya
+zorlar.
 
-Tuist addresses these challenges with its caching feature, significantly
-reducing build times both in local development and CI environments. This
-approach not only accelerates feedback loops but also minimizes the need for
-context switching, ultimately boosting productivity.
+Tuist, hem yerel geliştirme hem de CI ortamlarında derleme sürelerini önemli
+ölçüde azaltan önbellekleme özelliği ile bu zorlukların üstesinden gelir. Bu
+yaklaşım yalnızca geri bildirim döngülerini hızlandırmakla kalmaz, aynı zamanda
+bağlam değiştirme ihtiyacını da en aza indirir ve sonuçta üretkenliği artırır.
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module
-  cache</LocalizedLink>
+İki tür önbellekleme sunuyoruz:
+- <LocalizedLink href="/guides/features/cache/module-cache">Modül
+  önbelleği</LocalizedLink>
 - <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  cache</LocalizedLink>
+  önbelleği</LocalizedLink>
 
-## Module cache {#module-cache}
+## Modül önbelleği {#module-cache}
 
-For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities, we provide a powerful caching system,
-which caches individual modules as binaries and shares them across your team and
-CI environments.
+Tuist'in <LocalizedLink href="/guides/features/projects">proje
+oluşturma</LocalizedLink> yeteneklerini kullanan projeler için, tek tek
+modülleri ikili dosyalar olarak önbelleğe alan ve bunları ekibiniz ve CI
+ortamlarınız arasında paylaşan güçlü bir önbellekleme sistemi sağlıyoruz.
 
-While you can also use the new Xcode cache, this feature is currently optimized
-for local builds and you will likely have a lower cache hit rate compared to the
-generated project caching. However, the decision for which caching solution to
-use depends on your specific needs and preferences. You may also combine both
-caching solutions to achieve the best results.
+Yeni Xcode önbelleğini de kullanabilirsiniz, ancak bu özellik şu anda yerel
+derlemeler için optimize edilmiştir ve oluşturulmuş projele önbelleğine kıyasla
+muhtemelen daha düşük bir önbellek isabet oranına sahip olacaksınız. Bununla
+birlikte, hangi önbellekleme çözümünün kullanılacağına ilişkin karar, özel
+ihtiyaçlarınıza ve tercihlerinize bağlıdır. En iyi sonuçları elde etmek için her
+iki önbellekleme çözümünü de birleştirebilirsiniz.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
-Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği
+hakkında daha fazla bilgi edinin →</LocalizedLink>
 
-## Xcode cache {#xcode-cache}
+## Xcode önbelleği {#xcode-cache}
 
 ::: warning STATE OF CACHE IN XCODE
 <!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole
-spectrum of build tasks is not yet path-independent. Still you can experience
-benefits by plugging Tuist's remote cache, and we expect build times to improve
-over time as the build system's capability keeps improving.
+Xcode önbelleği şu anda yerel artımlı derlemeler için optimize edilmiştir ve
+derleme görevlerinin tamamı henüz yoldan bağımsız değildir. Yine de Tuist'in
+uzak önbelleğini takarak avantajlar elde edebilirsiniz ve derleme sisteminin
+kapasitesi gelişmeye devam ettikçe derleme sürelerinin de zaman içinde
+iyileşmesini bekliyoruz.
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to
-other build systems like Bazel and Buck. The new caching capability is available
-since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
-whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities or not.
+Apple, Bazel ve Buck gibi diğer derleme sistemlerine benzer şekilde derleme
+düzeyinde yeni bir önbellekleme çözümü üzerinde çalışıyor. Yeni önbellekleme
+özelliği Xcode 26'dan beri mevcut ve Tuist artık Tuist'in
+<LocalizedLink href="/guides/features/projects">proje oluşturma</LocalizedLink>
+yeteneklerini kullanıp kullanmadığınıza bakılmaksızın sorunsuz bir şekilde
+entegre oluyor.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
-cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği
+hakkında daha fazla bilgi edinin →</LocalizedLink>
