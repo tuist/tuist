@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/tr/>\n"
 "Language: tr\n"
@@ -30,40 +31,40 @@ msgid "%{app_name} icon"
 msgstr "%{app_name} simgesi"
 
 #: lib/tuist_web/controllers/error_html.ex:22
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "400"
-msgstr ""
+msgstr "400"
 
 #: lib/tuist_web/controllers/error_html.ex:37
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "401"
-msgstr ""
+msgstr "401"
 
 #: lib/tuist_web/controllers/error_html.ex:58
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "404"
-msgstr ""
+msgstr "404"
 
 #: lib/tuist_web/controllers/error_html.ex:79
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "429"
-msgstr ""
+msgstr "429"
 
 #: lib/tuist_web/controllers/error_html.ex:94
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "500"
-msgstr ""
+msgstr "500"
 
 #: lib/tuist_web/components/account_dropdown.ex:60
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Account settings"
-msgstr ""
+msgstr "Hesap ayarları"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:121
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:125
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Avg."
-msgstr ""
+msgstr "Ortalama"
 
 #: lib/tuist_web/controllers/error_html.ex:16
 #, elixir-autogen, elixir-format, fuzzy
@@ -71,9 +72,9 @@ msgid "Bad request"
 msgstr "Kötü istek"
 
 #: lib/tuist_web/components/layouts/account.html.heex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Billing"
-msgstr ""
+msgstr "Faturalandırma"
 
 #: lib/tuist_web/components/app_layout_components.ex:45
 #, elixir-autogen, elixir-format, fuzzy
@@ -81,9 +82,9 @@ msgid "Build Runs"
 msgstr "Yapı Çalışmaları"
 
 #: lib/tuist_web/components/app_layout_components.ex:28
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr ""
+msgstr "Derlemeler"
 
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format, fuzzy
@@ -139,9 +140,9 @@ msgid "Generate Runs"
 msgstr "Çalıştırmalar Oluşturun"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "Başlayın"
 
 #: lib/tuist_web/controllers/error_html.ex:143
 #, elixir-autogen, elixir-format, fuzzy
@@ -259,9 +260,9 @@ msgid "Prev"
 msgstr "Prev"
 
 #: lib/tuist_web/components/app_layout_components.ex:157
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "Önizlemeler"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
@@ -270,9 +271,9 @@ msgstr "Projeler"
 
 #: lib/tuist_web/components/app_layout_components.ex:169
 #: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format, fuzzy
@@ -395,9 +396,9 @@ msgstr "Çok fazla istek var."
 
 #: lib/tuist_web/components/app_layout_components.ex:219
 #: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Icon"
-msgstr ""
+msgstr "Tuist İkon"
 
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format, fuzzy
@@ -418,9 +419,9 @@ msgid "Unknown"
 msgstr "Bilinmiyor"
 
 #: lib/tuist_web/components/app_layout_components.ex:149
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcode Önbelleği"
 
 #: lib/tuist_web/controllers/error_html.ex:29
 #, elixir-autogen, elixir-format, fuzzy
