@@ -16,7 +16,7 @@ TuistはCLIを通じてローカルサーバーを提供し、**アプリ開発�
 
 このページでは、その設定方法と機能について説明する。
 
-::: 情報
+::: info
 <!-- -->
 Tuist MCPサーバーは、あなたが対話したいプロジェクトの真実のソースとしてXcodeの最新のプロジェクトを使用します。
 <!-- -->
@@ -91,7 +91,8 @@ tuist mcp setup vscode --path /path/to/project
 
 手動で設定したい場合、または別のMCPクライアントを使用している場合は、Tuist MCPサーバーをクライアントの設定に追加してください：
 
-::: code-group
+コードグループ
+
 ```json [Global Tuist installation (e.g. Homebrew)]
 {
   "mcpServers": {
