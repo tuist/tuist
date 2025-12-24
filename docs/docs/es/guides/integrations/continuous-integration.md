@@ -138,7 +138,7 @@ que contiene la versión de Tuist.
 <!-- -->
 :::
 
-### Xcode Cloud {#xcode-cloud}
+### Xcode en la nube {#xcode-cloud}
 
 En [Xcode Cloud](https://developer.apple.com/xcode-cloud/), que utiliza los
 proyectos de Xcode como fuente de verdad, tendrás que añadir un script
@@ -170,7 +170,7 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTENTICACIÓN
+::: info AUTHENTICATION
 <!-- -->
 Utilice un
 token<LocalizedLink href="/guides/server/authentication#project-tokens">de
@@ -234,7 +234,7 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTENTICACIÓN
+::: info AUTHENTICATION
 <!-- -->
 Antes de usar la autenticación OIDC, necesitas
 <LocalizedLink href="/guides/integrations/gitforge/github">conectar tu
@@ -303,7 +303,7 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTICACIÓN
+::: info AUTHENTICATION
 <!-- -->
 Antes de usar la autenticación OIDC, necesitas
 <LocalizedLink href="/guides/integrations/gitforge/github">conectar tu
@@ -357,7 +357,7 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTICACIÓN
+::: info AUTHENTICATION
 <!-- -->
 Cree un
 <LocalizedLink href="/guides/server/authentication#project-tokens">project
