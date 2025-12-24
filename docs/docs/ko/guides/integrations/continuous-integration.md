@@ -17,7 +17,7 @@
 
 ## 예제 {#example}
 
-### GitHub 액션 {#github-actions}
+### GitHub 작업 {#github-actions}
 
 GitHub 작업](https://docs.github.com/en/actions)에서
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
@@ -115,7 +115,7 @@ jobs:
 <!-- -->
 :::
 
-::: 정보 OIDC 설정
+::: info OIDC SETUP
 <!-- -->
 OIDC 인증을 사용하기 전에
 <LocalizedLink href="/guides/integrations/gitforge/github">GitHub
@@ -163,7 +163,7 @@ tuist generate
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
 1}프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
 설정합니다.
@@ -225,7 +225,7 @@ jobs:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
 OIDC 인증을 사용하기 전에
 <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
@@ -293,7 +293,7 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
 OIDC 인증을 사용하기 전에
 <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
@@ -304,7 +304,7 @@ Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩�
 <!-- -->
 :::
 
-### 코드매직 {#코드매직}
+### 코드매직 {#codemagic}
 
 코드매직](https://codemagic.io)에서 워크플로에 추가 단계를 추가하여 Tuist를 설치할 수 있습니다:
 
@@ -345,7 +345,7 @@ workflows:
 <!-- -->
 :::
 
-정보 인증::: 정보 인증
+::: info AUTHENTICATION
 <!-- -->
 1}프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
 <!-- -->
