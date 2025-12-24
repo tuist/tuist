@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# مشروع Xcode {#xxcode-project}
+# مشروع Xcode {#xcode-project}
 
 لإضافة حزم باستخدام السجل في مشروع Xcode الخاص بك، استخدم واجهة مستخدم Xcode
 الافتراضية. يمكنك البحث عن الحزم في السجل عن طريق النقر على الزر `+` في علامة
