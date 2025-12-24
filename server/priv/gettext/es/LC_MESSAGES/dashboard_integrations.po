@@ -3,15 +3,16 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"PO-Revision-Date: 2025-12-24 20:50+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
+"dashboard_integrations/es/>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
+"X-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -23,11 +24,10 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-
 #: lib/tuist_web/live/integrations_live.html.heex:50
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Add new project connection"
-msgstr ""
+msgstr "Añadir nueva conexión de proyecto"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
 #, elixir-autogen, elixir-format
@@ -35,39 +35,39 @@ msgid "Cancel"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:65
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Choose Tuist project"
-msgstr ""
+msgstr "Elegir proyecto Tuist"
 
 #: lib/tuist_web/live/integrations_live.html.heex:92
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a repository"
-msgstr ""
+msgstr "Elija un repositorio"
 
 #: lib/tuist_web/live/integrations_live.html.heex:43
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Choose repository to connect to"
-msgstr ""
+msgstr "Elija el repositorio al que conectarse"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Connect any of your GitHub repositories to a project"
-msgstr ""
+msgstr "Conecta cualquiera de tus repositorios de GitHub a un proyecto"
 
 #: lib/tuist_web/live/integrations_live.ex:147
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago}"
-msgstr ""
+msgstr "Conectado %{time_ago}"
 
 #: lib/tuist_web/live/integrations_live.ex:149
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago} by %{name}"
-msgstr ""
+msgstr "Conectado %{time_ago} por %{name}"
 
 #: lib/tuist_web/live/integrations_live.html.heex:120
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Create Connection"
-msgstr ""
+msgstr "Crear conexión"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -75,9 +75,9 @@ msgid "GitHub"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Install GitHub App"
-msgstr ""
+msgstr "Instalar la aplicación GitHub"
 
 #: lib/tuist_web/live/integrations_live.ex:30
 #: lib/tuist_web/live/integrations_live.html.heex:2
@@ -86,26 +86,28 @@ msgid "Integrations"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:159
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Manage"
-msgstr ""
+msgstr "Gestione"
 
 #: lib/tuist_web/live/integrations_live.html.heex:27
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Manage integration"
-msgstr ""
+msgstr "Gestionar la integración"
 
 #: lib/tuist_web/live/integrations_live.html.heex:162
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Remove connection"
-msgstr ""
+msgstr "Eliminar conexión"
 
 #: lib/tuist_web/live/integrations_live.ex:15
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr ""
+msgstr "No está autorizado a realizar esta acción."
 
 #: lib/tuist_web/live/integrations_live.html.heex:38
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
+"Tu acceso a los repositorios depende de tu configuración de integración con "
+"GitHub y Tuist."
