@@ -5,11 +5,12 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# رؤى الحزمة {#bundle-size}
+# رؤى الحزمة {#حجم الحزمة}
 
-::: warning متطلبات
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -19,11 +20,11 @@
 عبر حزمك أو تجريد الرموز الثنائية غير المستخدمة. توفر لك Tuist الأدوات والرؤى
 لمساعدتك في الحفاظ على صغر حجم تطبيقك - كما أننا نراقب حجم تطبيقك بمرور الوقت.
 
-## الاستخدام {#usage}
+## الاستخدام {#استخدام}
 
 لتحليل حزمة، يمكنك استخدام الأمر `tuist inspect bundle`:
 
-::: code-group
+:::: مجموعة الرموز
 ```bash [Analyze an .ipa]
 tuist inspect bundle App.ipa
 ```
@@ -41,11 +42,12 @@ tuist inspect bundle App.app
 
 ![الحزمة المحللة] (/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## التكامل المستمر {#continuous-integration}
+## التكامل المستمر {# التكامل المستمر}
 
 لتتبع حجم الحزمة بمرور الوقت، ستحتاج إلى تحليل الحزمة على CI. أولاً، ستحتاج إلى
 التأكد من أن CI الخاص بك هو
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> مصادق عليه </LocalizedLink>:
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+مصادق عليه </LocalizedLink>:
 
 مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
 
@@ -59,7 +61,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 بمجرد الإعداد، ستتمكن من رؤية كيف يتطور حجم الحزمة بمرور الوقت:
@@ -69,9 +71,12 @@ jobs:
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-::: warning التكامل مع منصة GIT مطلوب
+:::: تحذير التكامل مع منصة GIT مطلوب
 <!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج <LocalizedLink href="/guides/server/accounts-and-projects">مشروع Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
+للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+مع <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>منصة
+<LocalizedLink href="/guides/server/authentication">Git.
 <!-- -->
 :::
 
