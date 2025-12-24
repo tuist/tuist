@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_previews/ko/>\n"
 "Language: ko\n"
@@ -25,9 +26,9 @@ msgstr ""
 ## effect: edit them in PO (.po) files instead.
 #
 #: lib/tuist_web/live/preview_live.html.heex:66
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "%{app_name} icon"
-msgstr ""
+msgstr "%{app_name} icon"
 
 #: lib/tuist_web/live/preview_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
@@ -79,9 +80,9 @@ msgstr "Tuist 앱이 설치되어 있지 않으신가요?"
 
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/preview_live.html.heex:82
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Download"
-msgstr ""
+msgstr "다운로드"
 
 #: lib/tuist_web/live/preview_live.html.heex:168
 #, elixir-autogen, elixir-format, fuzzy
@@ -94,9 +95,9 @@ msgid "Latest app previews"
 msgstr "최신 앱 미리보기"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr ""
+msgstr "이름"
 
 #: lib/tuist_web/live/preview_live.html.heex:144
 #: lib/tuist_web/live/previews_live.ex:179
@@ -118,9 +119,9 @@ msgstr "플랫폼"
 #: lib/tuist_web/live/previews_live.ex:24
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/previews_live.html.heex:33
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "미리보기"
 
 #: lib/tuist_web/live/preview_live.html.heex:189
 #, elixir-autogen, elixir-format, fuzzy
