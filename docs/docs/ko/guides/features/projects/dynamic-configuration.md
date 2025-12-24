@@ -5,7 +5,7 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# 동적 구성 {#dynamic-configuration}
+# 동적 구성 {#동적 구성}
 
 생성 시 프로젝트를 동적으로 구성해야 하는 특정 시나리오가 있을 수 있습니다. 예를 들어 프로젝트가 생성되는 환경에 따라 앱의 이름, 번들
 식별자 또는 배포 대상을 변경하고 싶을 수 있습니다. Tuist는 매니페스트 파일에서 액세스할 수 있는 환경 변수를 통해 이를 지원합니다.
