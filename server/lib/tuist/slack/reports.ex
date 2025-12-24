@@ -20,6 +20,8 @@ defmodule Tuist.Slack.Reports do
       test_duration: compute_test_duration_metrics(project.id, current_start, current_end, previous_start, previous_end),
       cache_hit_rate:
         compute_cache_hit_rate_metrics(project.id, current_start, current_end, previous_start, previous_end),
+      selective_test_effectiveness:
+        compute_selective_test_metrics(project.id, current_start, current_end, previous_start, previous_end),
       bundle_size: compute_bundle_size_metrics(project)
     }
   end
@@ -29,6 +31,7 @@ defmodule Tuist.Slack.Reports do
       build_duration_blocks(report.build_duration) ++
         test_duration_blocks(report.test_duration) ++
         cache_hit_rate_blocks(report.cache_hit_rate) ++
+        selective_test_blocks(report.selective_test_effectiveness) ++
         bundle_size_blocks(report.bundle_size)
 
     if Enum.empty?(metric_blocks) do
@@ -139,6 +142,20 @@ defmodule Tuist.Slack.Reports do
     }
   end
 
+  defp compute_selective_test_metrics(project_id, current_start, current_end, previous_start, previous_end) do
+    current_data = CommandEvents.selective_testing_hit_rate(project_id, current_start, current_end, [])
+    previous_data = CommandEvents.selective_testing_hit_rate(project_id, previous_start, previous_end, [])
+
+    current = calculate_selective_test_rate(current_data)
+    previous = calculate_selective_test_rate(previous_data)
+
+    %{
+      current: current,
+      previous: previous,
+      change_pct: calculate_change_percentage(current, previous)
+    }
+  end
+
   defp calculate_hit_rate(nil), do: nil
 
   defp calculate_hit_rate(%{cacheable_targets_count: nil}), do: nil
@@ -151,6 +168,19 @@ defmodule Tuist.Slack.Reports do
        }) do
     total_hits = (local_hits || 0) + (remote_hits || 0)
     total_hits / cacheable
+  end
+
+  defp calculate_selective_test_rate(nil), do: nil
+  defp calculate_selective_test_rate(%{test_targets_count: nil}), do: nil
+  defp calculate_selective_test_rate(%{test_targets_count: 0}), do: nil
+
+  defp calculate_selective_test_rate(%{
+         test_targets_count: test_targets,
+         local_test_hits_count: local_hits,
+         remote_test_hits_count: remote_hits
+       }) do
+    total_hits = (local_hits || 0) + (remote_hits || 0)
+    total_hits / test_targets
   end
 
   defp compute_bundle_size_metrics(project) do
@@ -271,6 +301,23 @@ defmodule Tuist.Slack.Reports do
         text: %{
           type: "mrkdwn",
           text: ":zap: *Cache Hit Rate*\n#{rate_text} #{change_text}"
+        }
+      }
+    ]
+  end
+
+  defp selective_test_blocks(%{current: nil}), do: []
+
+  defp selective_test_blocks(%{current: current, change_pct: change_pct}) do
+    change_text = format_change(change_pct, :higher_is_better)
+    rate_text = "#{Float.round(current * 100, 1)}%"
+
+    [
+      %{
+        type: "section",
+        text: %{
+          type: "mrkdwn",
+          text: ":dart: *Selective Test Effectiveness*\n#{rate_text} #{change_text}"
         }
       }
     ]
