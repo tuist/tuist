@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Ciągła integracja (CI) {#ciągła-integracja-ci}
+# Ciągła integracja (CI) {#continuous-integration-ci}
 
 Aby uruchamiać polecenia Tuist w przepływach pracy [ciągłej
 integracji](https://en.wikipedia.org/wiki/Continuous_integration), należy
@@ -169,7 +169,7 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Użyj tokenu
 <LocalizedLink href="/guides/server/authentication#project-tokens">projektu</LocalizedLink>,
@@ -234,7 +234,7 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
 <LocalizedLink href="/guides/integrations/gitforge/github"> połączyć
@@ -304,7 +304,7 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
 <LocalizedLink href="/guides/integrations/gitforge/github"> połączyć
@@ -358,7 +358,7 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Utwórz
 <LocalizedLink href="/guides/server/authentication#project-tokens">project
