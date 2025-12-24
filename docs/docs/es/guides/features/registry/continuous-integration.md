@@ -10,7 +10,7 @@
 Para utilizar el registro en su CI, debe asegurarse de que ha iniciado sesión en
 el registro ejecutando `tuist registry login` como parte de su flujo de trabajo.
 
-::: info SOLO XCODE INTEGRATION
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 La creación de un nuevo llavero predesbloqueado sólo es necesaria si se utiliza
 la integración de paquetes en Xcode.
@@ -65,7 +65,7 @@ jobs:
       - # Your build steps
 ```
 
-### Resolución incremental entre entornos {#incremental-resolution-across-environments}
+### Resolución incremental en todos los entornos {#incremental-resolution-across-environments}
 
 Las resoluciones limpias/frías son ligeramente más rápidas con nuestro registro,
 y puede experimentar mejoras aún mayores si persiste las dependencias resueltas
