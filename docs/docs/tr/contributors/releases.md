@@ -5,52 +5,53 @@
   "description": "Learn how Tuist's continuous release process works"
 }
 ---
-# Releases
+# Sürümler
 
-Tuist uses a continuous release system that automatically publishes new versions
-whenever meaningful changes are merged to the main branch. This approach ensures
-that improvements reach users quickly without manual intervention from
-maintainers.
+Tuist, anlamlı değişiklikler ana dalla birleştirildiğinde yeni sürümleri
+otomatik olarak yayınlayan sürekli bir sürüm sistemi kullanır. Bu yaklaşım,
+bakımcıların manuel müdahalesi olmadan iyileştirmelerin kullanıcılara hızlı bir
+şekilde ulaşmasını sağlar.
 
-## Overview
+## Genel Bakış
 
-We continuously release three main components:
-- **Tuist CLI** - The command-line tool
-- **Tuist Server** - The backend services
-- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed
-  to TestFlight, see more [here](#app-store-release)
+Sürekli olarak üç ana bileşeni piyasaya sürüyoruz:
+- **Tuist CLI** - Komut satırı aracı
+- **Tuist Sunucusu** - Arka uç hizmetleri
+- **Tuist Uygulaması** - macOS ve iOS uygulamaları (iOS uygulaması yalnızca
+  TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakın}
 
-Each component has its own release pipeline that runs automatically on every
-push to the main branch.
+Her bileşenin, ana dala yapılan her gönderimde otomatik olarak çalışan kendi
+sürüm işlem hattı vardır.
 
-## How it works
+## Nasıl çalışır
 
-### 1. Commit conventions
+### 1. Sözleşmeleri taahhüt edin
 
-We use [Conventional Commits](https://www.conventionalcommits.org/) to structure
-our commit messages. This allows our tooling to understand the nature of
-changes, determine version bumps, and generate appropriate changelogs.
+Taahhüt mesajlarımızı yapılandırmak için [Conventional
+Commits](https://www.conventionalcommits.org/) kullanıyoruz. Bu, araçlarımızın
+değişikliklerin doğasını anlamasına, sürüm atlamalarını belirlemesine ve uygun
+değişiklik günlükleri oluşturmasına olanak tanır.
 
-Format: `type(scope): description`
+Biçim: `tür (kapsam): açıklama`
 
-#### Commit types and their impact
+#### Taahhüt türleri ve etkileri
 
-| Type       | Description               | Version Impact             | Example                                         |
-| ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
-| `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
-| `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
-| `docs`     | Documentation changes     | No release                 | `docs: update installation guide`               |
-| `style`    | Code style changes        | No release                 | `style: format code with swiftformat`           |
-| `refactor` | Code refactoring          | No release                 | `refactor(server): simplify auth logic`         |
-| `perf`     | Performance improvements  | Patch version bump         | `perf(cli): optimize dependency resolution`     |
-| `test`     | Test additions/changes    | No release                 | `test: add unit tests for cache`                |
-| `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
-| `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
+| Tip          | Açıklama                       | Sürüm Etkisi                    | Örnekler                                              |
+| ------------ | ------------------------------ | ------------------------------- | ----------------------------------------------------- |
+| `feat`       | Yeni özellik veya kabiliyet    | Küçük sürüm yükseltmesi (x.Y.z) | `feat(CLI): Swift 6 için destek ekleyin`              |
+| `düzeltmek`  | Hata düzeltme                  | Yama sürümü çarpması (x.y.Z)    | `fix(app): projeler açılırken oluşan çökme giderildi` |
+| `dokümanlar` | Dokümantasyon değişiklikleri   | Serbest bırakma yok             | `dokümanlar: güncelleme kurulum kilavuzu`             |
+| `stil`       | Kod stili değişiklikleri       | Serbest bırakma yok             | `style: swiftformat ile kodu biçimlendir`             |
+| `refactor`   | Kod yeniden düzenleme          | Serbest bırakma yok             | `refactor(server): auth mantığını basitleştirin`      |
+| `mükemmel`   | Performans iyileştirmeleri     | Yama sürümü yükseltme           | `perf(CLI): bağımlılık çözümlemesini optimize eder`   |
+| `test`       | Test eklemeleri/değişiklikleri | Serbest bırakma yok             | `test: önbellek için birim testleri ekleyin`          |
+| `chore`      | Bakım görevleri                | Serbest bırakma yok             | `chore: bağımlılıkları güncelle`                      |
+| `ci`         | CI/CD değişiklikleri           | Serbest bırakma yok             | `ci: sürümler için iş akışı ekleyin`                  |
 
-#### Breaking changes
+#### Kırılma değişiklikleri
 
-Breaking changes trigger a major version bump (X.0.0) and should be indicated in
-the commit body:
+Kırıcı değişiklikler büyük sürüm artışını (X.0.0) tetikler ve commit gövdesinde
+belirtilmelidir:
 
 ```
 feat(cli): change default cache location
@@ -59,53 +60,55 @@ BREAKING CHANGE: The cache is now stored in ~/.tuist/cache instead of .tuist-cac
 Users will need to clear their old cache directory.
 ```
 
-### 2. Change detection
+### 2. Değişiklik tespiti
 
-Each component uses [git cliff](https://git-cliff.org/) to:
-- Analyze commits since the last release
-- Filter commits by scope (cli, app, server)
-- Determine if there are releasable changes
-- Generate changelogs automatically
+Her bileşen [git cliff](https://git-cliff.org/) kullanır:
+- Son sürümden bu yana yapılan değişiklikleri analiz edin
+- İşlemleri kapsama göre filtreleme (CLI, app, server)
+- Serbest bırakılabilir değişiklikler olup olmadığını belirleyin
+- Değişiklik günlüklerini otomatik olarak oluşturun
 
-### 3. Release pipeline
+### 3. Boru hattını serbest bırakın
 
-When releasable changes are detected:
+Serbest bırakılabilir değişiklikler tespit edildiğinde:
 
-1. **Version calculation**: The pipeline determines the next version number
-2. **Changelog generation**: git cliff creates a changelog from commit messages
-3. **Build process**: The component is built and tested
-4. **Release creation**: A GitHub release is created with artifacts
-5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for
-   CLI)
+1. **Sürüm hesaplama**: Boru hattı bir sonraki sürüm numarasını belirler
+2. **Değişiklik günlüğü oluşturma**: git cliff, commit mesajlarından bir
+   değişiklik günlüğü oluşturur
+3. **Oluşturma süreci**: Bileşen oluşturulur ve test edilir
+4. **Sürüm oluşturma**: Artifact'lar ile bir GitHub sürümü oluşturulur
+5. **Dağıtım**: Güncellemeler paket yöneticilerine gönderilir (örneğin, CLI için
+   Homebrew)
 
-### 4. Scope filtering
+### 4. Kapsam filtreleme
 
-Each component only releases when it has relevant changes:
+Her bileşen yalnızca ilgili değişiklikler olduğunda yayınlanır:
 
-- **CLI**: Commits with `(cli)` scope or no scope
-- **App**: Commits with `(app)` scope
-- **Server**: Commits with `(server)` scope
+- **CLI**: `(cli)` kapsamı veya kapsamı olmayan komutlar
+- **Uygulama**: ` (app)` kapsamı ile commitler
+- **Sunucu**: ` (sunucu)` kapsamı ile commitler
 
-## Writing good commit messages
+## İyi commit mesajları yazma
 
-Since commit messages directly influence release notes, it's important to write
-clear, descriptive messages:
+Taahhüt mesajları sürüm notlarını doğrudan etkilediğinden, net ve açıklayıcı
+mesajlar yazmak önemlidir:
 
-### Do:
-- Use present tense: "add feature" not "added feature"
-- Be concise but descriptive
-- Include the scope when changes are component-specific
-- Reference issues when applicable: `fix(cli): resolve build cache issue
-  (#1234)`
+### Yap:
+- Şimdiki zaman kullanın: "özellik eklendi" değil "özellik eklendi"
+- Kısa ama açıklayıcı olun
+- Değişiklikler bileşene özgü olduğunda kapsamı dahil edin
+- Uygun olduğunda sorunlara referans verin: `fix(CLI): derleme önbelleği
+  sorununu çözün (#1234)`
 
-### Don't:
-- Use vague messages like "fix bug" or "update code"
-- Mix multiple unrelated changes in one commit
-- Forget to include breaking change information
+### Yapma:
+- "Hatayı düzelt" veya "kodu güncelle" gibi belirsiz mesajlar kullanın
+- Birden fazla ilgisiz değişikliği tek bir işlemde karıştırma
+- Son dakika değişiklik bilgilerini eklemeyi unutun
 
-### Breaking changes
+### Kırılma değişiklikleri
 
-For breaking changes, include `BREAKING CHANGE:` in the commit body:
+Kırılma değişiklikleri için, commit gövdesine `BREAKING CHANGE:` adresini
+ekleyin:
 
 ```
 feat(cli): change cache directory structure
@@ -114,65 +117,66 @@ BREAKING CHANGE: Cache files are now stored in a new directory structure.
 Users need to clear their cache after updating.
 ```
 
-## Release workflows
+## Yayın iş akışları
 
-The release workflows are defined in:
-- `.github/workflows/cli-release.yml` - CLI releases
-- `.github/workflows/app-release.yml` - App releases
-- `.github/workflows/server-release.yml` - Server releases
+Sürüm iş akışları şurada tanımlanmıştır:
+- `.github/workflows/cli-release.yml` - CLI sürümleri
+- `.github/workflows/app-release.yml` - Uygulama sürümleri
+- `.github/workflows/server-release.yml` - Sunucu sürümleri
 
-Each workflow:
-- Runs on pushes to main
-- Can be triggered manually
-- Uses git cliff for change detection
-- Handles the entire release process
+Her iş akışı:
+- Ana şebekeye itme ile çalışır
+- Manuel olarak tetiklenebilir
+- Değişiklik tespiti için git cliff kullanır
+- Tüm sürüm sürecini yönetir
 
-## Monitoring releases
+## Salımların izlenmesi
 
-You can monitor releases through:
-- [GitHub Releases page](https://github.com/tuist/tuist/releases)
-- GitHub Actions tab for workflow runs
-- Changelog files in each component directory
+Sürümleri şu yolla izleyebilirsiniz:
+- [GitHub Sürümler sayfası](https://github.com/tuist/tuist/releases)
+- İş akışı çalıştırmaları için GitHub Eylemleri sekmesi
+- Her bileşen dizinindeki değişiklik günlüğü dosyaları
 
-## Benefits
+## Avantajlar
 
-This continuous release approach provides:
+Bu sürekli sürüm yaklaşımı şunları sağlar:
 
-- **Fast delivery**: Changes reach users immediately after merging
-- **Reduced bottlenecks**: No waiting for manual releases
-- **Clear communication**: Automated changelogs from commit messages
-- **Consistent process**: Same release flow for all components
-- **Quality assurance**: Only tested changes are released
+- **Hızlı teslimat**: Değişiklikler birleştirildikten hemen sonra kullanıcılara
+  ulaşır
+- **Azaltılmış darboğazlar**: Manuel sürümler için beklemek yok
+- **Açık iletişim**: Commit mesajlarından otomatik değişiklik günlükleri
+- **Tutarlı süreç**: Tüm bileşenler için aynı sürüm akışı
+- **Kalite güvencesi**: Sadece test edilen değişiklikler yayınlanır
 
-## Troubleshooting
+## Sorun Giderme
 
-If a release fails:
+Serbest bırakma başarısız olursa:
 
-1. Check the GitHub Actions logs for the failed workflow
-2. Ensure your commit messages follow the conventional format
-3. Verify that all tests pass
-4. Check that the component builds successfully
+1. Başarısız iş akışı için GitHub Actions günlüklerini kontrol edin
+2. Taahhüt mesajlarınızın geleneksel formatı takip ettiğinden emin olun
+3. Tüm testlerin geçtiğini doğrulayın
+4. Bileşenin başarıyla derlendiğini kontrol edin
 
-For urgent fixes that need immediate release:
-1. Ensure your commit has a clear scope
-2. After merging, monitor the release workflow
-3. If needed, trigger a manual release
+Hemen yayınlanması gereken acil düzeltmeler için:
+1. Taahhüdünüzün net bir kapsamı olduğundan emin olun
+2. Birleştirmeden sonra sürüm iş akışını izleyin
+3. Gerekirse manuel serbest bırakmayı tetikleyin
 
-## App Store release
+## App Store sürümü
 
-While the CLI and Server follow the continuous release process described above,
-the **iOS app** is an exception due to Apple's App Store review process:
+CLI ve Sunucu yukarıda açıklanan sürekli sürüm sürecini takip ederken, **iOS
+uygulaması** Apple'ın App Store inceleme süreci nedeniyle bir istisnadır:
 
-- **Manual releases**: iOS app releases require manual submission to the App
-  Store
-- **Review delays**: Each release must go through Apple's review process, which
-  can take 1-7 days
-- **Batched changes**: Multiple changes are typically bundled together in each
-  iOS release
-- **TestFlight**: Beta versions may be distributed via TestFlight before App
-  Store release
-- **Release notes**: Must be written specifically for App Store guidelines
+- **Manuel sürümler**: iOS uygulama sürümlerinin App Store'a manuel olarak
+  gönderilmesi gerekir
+- **İnceleme gecikmeleri**: Her sürüm Apple'ın inceleme sürecinden geçmelidir ve
+  bu süreç 1-7 gün sürebilir
+- **Toplu değişiklikler**: Her iOS sürümünde genellikle birden fazla değişiklik
+  bir araya getirilir
+- **TestFlight**: Beta sürümleri App Store'da yayınlanmadan önce TestFlight
+  aracılığıyla dağıtılabilir
+- **Sürüm notları**: App Store yönergeleri için özel olarak yazılmalıdır
 
-The iOS app still follows the same commit conventions and uses git cliff for
-changelog generation, but the actual release to users happens on a less
-frequent, manual schedule.
+iOS uygulaması hala aynı commit kurallarını takip ediyor ve değişiklik günlüğü
+oluşturmak için git cliff kullanıyor, ancak kullanıcılara gerçek sürüm daha az
+sıklıkta, manuel bir programda gerçekleşiyor.
