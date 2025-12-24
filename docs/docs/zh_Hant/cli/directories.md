@@ -5,32 +5,28 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# 目錄{#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Tuist 遵循 [XDG
+基本目錄規格](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，在系統上的多個目錄中組織檔案。這提供了一種簡潔、標準的方式來管理組態、快取和狀態檔案。
 
-## Supported environment variables {#supported-environment-variables}
+## 支援的環境變數{#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+Tuist 支援標準 XDG 變數和 Tuist 特有的前綴變數。Tuist 特有的變數 (前綴為`TUIST_`)具有優先權，讓您可以將 Tuist
+與其他應用程式分開設定。
 
-### Configuration directory {#configuration-directory}
+### 設定目錄{#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
-- `XDG_CONFIG_HOME`
+**環境變數：**
+- `TUIST_XDG_CONFIG_HOME` (優先)
+- `xdg_config_home`
 
-**Default:** `~/.config/tuist`
+**預設：** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**用於：**
+- 伺服器憑證 (`credentials/{host}.json`)
 
-**Example:**
+**範例：**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +37,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### 快取記憶體目錄{#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**環境變數：**
+- `TUIST_XDG_CACHE_HOME` (優先)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**預設：** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**用於：**
+- **外掛程式** ：下載並編譯的外掛程式快取
+- **ProjectDescriptionHelpers** ：已編譯的專案描述輔助工具
+- **Manifests** ：快取清單檔案
+- **專案** ：產生自動化專案快取
+- **EditProjects** ：編輯指令的快取記憶體
+- **運行**: 測試和建立運行分析資料
+- **二進位檔案** ：建立工件二進位檔案 (不可跨環境共享)
+- **SelectiveTests** ：選擇性測試快取
 
-**Example:**
+**範例：**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +66,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### 國家目錄{#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**環境變數：**
+- `TUIST_XDG_STATE_HOME` (優先)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**預設：** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**用於：**
+- **日誌** ：日誌檔案 (`logs/{uuid}.log`)
+- **鎖** ：驗證鎖檔案 (`{handle}.sock`)
 
-**Example:**
+**範例：**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +89,24 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## 優先順序{#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+在決定使用哪個目錄時，Tuist 會依下列順序檢查環境變數：
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **Tuist 特有的變數** (例如：`TUIST_XDG_CONFIG_HOME`)
+2. **標準 XDG 變數** (例如`XDG_CONFIG_HOME`)
+3. **預設位置** (例如`~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+這可讓您
+- 使用標準的 XDG 變數，以一致的方式組織您所有的應用程式
+- 當您需要 Tuist 的不同位置時，使用 Tuist 專用變數覆寫
+- 依靠合理的預設值，無需任何設定
 
-## Common use cases {#common-use-cases}
+## 常見用例{#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### 每個專案隔離 Tuist{#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+您可能想要隔離 Tuist 的快取和每個專案的狀態：
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +115,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### CI/CD 環境{#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+在 CI 環境中，您可能想要使用臨時目錄：
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +139,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### 使用獨立目錄進行除錯{#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+在調試問題時，您可能會想要一筆勾消：
 
 ```bash
 # Create temporary directories for debugging
