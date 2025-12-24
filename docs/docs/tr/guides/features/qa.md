@@ -9,85 +9,88 @@
 
 ::: warning EARLY PREVIEW
 <!-- -->
-Tuist QA is currently in early preview. Sign up at
-[tuist.dev/qa](https://tuist.dev/qa) to get access.
+Tuist QA şu anda erken önizleme aşamasındadır. Erişim için
+[tuist.dev/qa](https://tuist.dev/qa) adresinden kaydolun.
 <!-- -->
 :::
 
-Quality mobile app development relies on comprehensive testing, but traditional
-approaches have limitations. Unit tests are fast and cost-effective, yet they
-miss real-world user scenarios. Acceptance testing and manual QA can capture
-these gaps, but they're resource-intensive and don't scale well.
+Kaliteli mobil uygulama geliştirme kapsamlı testlere dayanır, ancak geleneksel
+yaklaşımların sınırlamaları vardır. Birim testleri hızlı ve uygun maliyetlidir,
+ancak gerçek dünyadaki kullanıcı senaryolarını gözden kaçırırlar. Kabul testi ve
+manuel QA bu boşlukları yakalayabilir, ancak bunlar yoğun kaynak gerektirir ve
+iyi ölçeklenemez.
 
-Tuist's QA agent solves this challenge by simulating authentic user behavior. It
-autonomously explores your app, recognizes interface elements, executes
-realistic interactions, and flags potential issues. This approach helps you
-identify bugs and usability problems early in development while avoiding the
-overhead and maintenance burden of conventional acceptance and QA testing.
+Tuist'in QA aracı, gerçek kullanıcı davranışını simüle ederek bu zorluğu çözer.
+Otonom olarak uygulamanızı araştırır, arayüz öğelerini tanır, gerçekçi
+etkileşimler yürütür ve olası sorunları işaretler. Bu yaklaşım, hataları ve
+kullanılabilirlik sorunlarını geliştirmenin erken aşamalarında belirlemenize
+yardımcı olurken, geleneksel kabul ve KG testlerinin ek yükünden ve bakım
+yükünden kaçınmanıza yardımcı olur.
 
-## Prerequisities {#prerequisites}
+## Ön Koşullar {#prerequisites}
 
-To start using Tuist QA, you need to:
-- Set up uploading
-  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> from
-  your PR CI workflow, which the agent can then use for testing
-- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink>
-  with GitHub, so you can trigger the agent directly from your PR
+Tuist QA'yı kullanmaya başlamak için yapmanız gerekenler:
+- Temsilcinin daha sonra test için kullanabileceği PR CI iş akışınızdan
+  <LocalizedLink href="/guides/features/previews">İncelemeler</LocalizedLink>
+  yüklemeyi ayarlayın
+- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub ile entegre
+  edin</LocalizedLink>, böylece aracıyı doğrudan PR'nizden tetikleyebilirsiniz
 
-## Usage {#usage}
+## Kullanım {#usage}
 
-Tuist QA is currently triggered directly from a PR. Once you have a preview
-associated with your PR, you can trigger the QA agent by commenting `/qa test I
-want to test feature A` on the PR:
+Tuist QA şu anda doğrudan bir PR'den tetiklenmektedir. PR'nizle ilişkili bir
+önizlemeniz olduğunda, PR üzerinde `/qa test A özelliğini test etmek istiyorum`
+şeklinde yorum yaparak QA aracısını tetikleyebilirsiniz:
 
-![QA trigger comment](/images/guides/features/qa/qa-trigger-comment.png)
+![QA tetikleyici yorumu](/images/guides/features/qa/qa-trigger-comment.png)
 
-The comment includes a link to the live session where you can see in realtime
-the QA agent's progress and any issues it finds. Once the agent completes its
-run, it will post a summary of the results back to the PR:
+Yorum, QA aracısının ilerlemesini ve bulduğu sorunları gerçek zamanlı olarak
+görebileceğiniz canlı oturuma bir bağlantı içerir. Temsilci çalışmasını
+tamamladığında, sonuçların bir özetini PR'a geri gönderecektir:
 
-![QA test summary](/images/guides/features/qa/qa-test-summary.png)
+![QA test özeti](/images/guides/features/qa/qa-test-summary.png)
 
-As part of the report in the dashboard, which the PR comment links to, you will
-get a list of issues and a timeline, so you can inspect how the issue exactly
-happened:
+PR yorumunun bağlantı verdiği gösterge tablosundaki raporun bir parçası olarak,
+sorunların bir listesini ve bir zaman çizelgesini alacaksınız, böylece sorunun
+tam olarak nasıl gerçekleştiğini inceleyebilirsiniz:
 
-![QA timeline](/images/guides/features/qa/qa-timeline.png)
+![QA zaman çizelgesi](/images/guides/features/qa/qa-timeline.png)
 
-You can see all QA runs that we do for our
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
-app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+1}iOS uygulamamız</LocalizedLink> için yaptığımız tüm QA çalışmalarını genel
+panomuzda görebilirsiniz: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
-The QA agent runs autonomously and cannot be interrupted with additional prompts
-once started. We provide detailed logs throughout the execution to help you
-understand how the agent interacted with your app. These logs are valuable for
-iterating on your app context and testing prompts to better guide the agent's
-behavior. If you have feedback about how the agent performs with your app,
-please let us know through [GitHub
-Issues](https://github.com/tuist/tuist/issues), our [Slack
-community](https://slack.tuist.dev) or our [community
-forum](https://community.tuist.dev).
+QA aracısı otonom olarak çalışır ve bir kez başlatıldıktan sonra ek istemlerle
+kesintiye uğratılamaz. Temsilcinin uygulamanızla nasıl etkileşime girdiğini
+anlamanıza yardımcı olmak için yürütme boyunca ayrıntılı günlükler sağlıyoruz.
+Bu günlükler, uygulama bağlamınız üzerinde yineleme yapmak ve aracının
+davranışını daha iyi yönlendirmek için istemleri test etmek açısından
+değerlidir. Temsilcinin uygulamanızla nasıl performans gösterdiği hakkında geri
+bildiriminiz varsa, lütfen [GitHub
+Sorunları](https://github.com/tuist/tuist/issues), [Slack
+topluluğumuz](https://slack.tuist.dev) veya [topluluk
+forumumuz](https://community.tuist.dev) aracılığıyla bize bildirin.
 <!-- -->
 :::
 
-### App context {#app-context}
+### Uygulama bağlamı {#app-context}
 
-The agent might need more context about your app to be able to navigate it well.
-We have three types of app context:
-- App description
-- Credentials
-- Launch argument groups
+Temsilci, iyi bir şekilde gezinebilmek için uygulamanız hakkında daha fazla
+içeriğe ihtiyaç duyabilir. Üç tür uygulama bağlamımız vardır:
+- Uygulama açıklaması
+- Kimlik Bilgileri
+- Tartışma gruplarını başlatın
 
-All of them can be configured in the dashboard settings of your project
-(`Settings` > `QA`).
+Bunların hepsi projenizin pano ayarlarında yapılandırılabilir (`Settings` >
+`QA`).
 
-#### App description {#app-description}
+#### Uygulama açıklaması {#app-description}
 
-App description is for providing extra context about what your app does and how
-it works. This is a long-form text field that is passed as part of the prompt
-when kicking off the agent. An example could be:
+Uygulama açıklaması, uygulamanızın ne yaptığı ve nasıl çalıştığı hakkında ekstra
+bağlam sağlamak içindir. Bu, müşteri temsilcisini başlatırken komut isteminin
+bir parçası olarak aktarılan uzun biçimli bir metin alanıdır. Bir örnek şöyle
+olabilir:
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -95,24 +98,27 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### Credentials {#credentials}
+#### Kimlik Bilgileri {#credentials}
 
-In case the agent needs to sign in to the app to test some features, you can
-provide credentials for the agent to use. The agent will fill in these
-credentials if it recognizes that it needs to sign in.
+Temsilcinin bazı özellikleri test etmek için uygulamada oturum açması
+gerekiyorsa, temsilcinin kullanması için kimlik bilgileri sağlayabilirsiniz.
+Temsilci, oturum açması gerektiğini fark ederse bu kimlik bilgilerini
+dolduracaktır.
 
-#### Launch argument groups {#launch-argument-groups}
+#### Tartışma gruplarını başlatın {#launch-argument-groups}
 
-Launch argument groups are selected based on your testing prompt before running
-the agent. For example, if you don't want the agent to repeatedly sign in,
-wasting your tokens and runner minutes, you can specify your credentials here
-instead. If the agent recognizes that it should start the session signed in, it
-will use the credentials launch argument group when launching the app.
+Başlatma bağımsız değişken grupları, aracıyı çalıştırmadan önce test isteminize
+göre seçilir. Örneğin, aracının tekrar tekrar oturum açmasını, jetonlarınızı ve
+çalıştırıcı dakikalarınızı boşa harcamasını istemiyorsanız, bunun yerine kimlik
+bilgilerinizi burada belirtebilirsiniz. Aracı oturumu oturum açmış olarak
+başlatması gerektiğini fark ederse, uygulamayı başlatırken kimlik bilgileri
+başlatma bağımsız değişken grubunu kullanacaktır.
 
-![Launch argument groups](/images/guides/features/qa/launch-argument-groups.png)
+![Argüman gruplarını
+başlat](/images/guides/features/qa/launch-argument-groups.png)
 
-These launch arguments are your standard Xcode launch arguments. Here's an
-example for how to use them to automatically sign in:
+Bu başlatma argümanları standart Xcode başlatma argümanlarıdır. İşte bunları
+otomatik olarak oturum açmak için nasıl kullanacağınıza dair bir örnek:
 
 ```swift
 import ArgumentParser
