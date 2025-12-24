@@ -5,58 +5,59 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# Hesaplar ve projeler {#accounts-and-projects}
 
-Some Tuist features require a server which adds persistence of data and can
-interact with other services. To interact with the server, you need an account
-and a project that you connect to your local project.
+Bazı Tuist özellikleri, verilerin kalıcılığını sağlayan ve diğer hizmetlerle
+etkileşime girebilen bir sunucu gerektirir. Sunucu ile etkileşime geçmek için
+bir hesaba ve yerel projenize bağladığınız bir projeye ihtiyacınız vardır.
 
-## Accounts {#accounts}
+## Hesaplar {#accounts}
 
-To use the server, you'll need an account. There are two types of accounts:
+Sunucuyu kullanmak için bir hesaba ihtiyacınız olacak. İki tür hesap vardır:
 
-- **Personal account:** Those accounts are created automaticaly when you sign up
-  and are identified by a handle that's obtained either from the identity
-  provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are
-  identified by a handle that's defined by the developer. Organizations allow
-  inviting other members to collaborate on projects.
+- **Kişisel hesap:** Bu hesaplar, kaydolduğunuzda otomatik olarak oluşturulur ve
+  kimlik sağlayıcısından (örneğin GitHub) veya e-posta adresinin ilk bölümünden
+  elde edilen bir tanıtıcı ile tanımlanır.
+- **Organizasyon hesabı:** Bu hesaplar manuel olarak oluşturulur ve geliştirici
+  tarafından tanımlanan bir tanıtıcı ile tanımlanır. Organizasyonlar, diğer
+  üyelerin projeler üzerinde işbirliği yapmaya davet edilmesine izin verir.
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to
-theirs, where you can have personal and organization accounts, and they are
-identified by a *handle* that's used when constructing URLs.
+GitHub](https://github.com)'a aşinaysanız, konsept onlarınkine benzer; kişisel
+ve kurumsal hesaplarınız olabilir ve bunlar URL'ler oluşturulurken kullanılan
+bir *tanıtıcısı* ile tanımlanır.
 
 ::: info CLI-FIRST
 <!-- -->
-Most operations to manage accounts and projects are done through the CLI. We are
-working on a web interface that will make it easier to manage accounts and
-projects.
+Hesapları ve projeleri yönetmek için çoğu işlem CLI aracılığıyla yapılır.
+Hesapları ve projeleri yönetmeyi kolaylaştıracak bir web arayüzü üzerinde
+çalışıyoruz.
 <!-- -->
 :::
 
-You can manage the organization through the subcommands under
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
-create a new organization account, run:
+Organizasyonu <LocalizedLink href="/cli/organization">`tuist
+organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
+yönetebilirsiniz. Yeni bir organizasyon hesabı oluşturmak için çalıştırın:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## Projeler {#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your
-account through a remote project. Continuing with the comparison with GitHub,
-it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist
-project`</LocalizedLink> to create and manage projects.
+Projelerinizin, ister Tuist'in ister ham Xcode'un olsun, uzak bir proje
+aracılığıyla hesabınızla entegre edilmesi gerekir. GitHub ile karşılaştırmaya
+devam edersek, değişikliklerinizi gönderdiğiniz bir yerel ve bir uzak depoya
+sahip olmak gibidir. Projeleri oluşturmak ve yönetmek için
+<LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> adresini
+kullanabilirsiniz.
 
-Projects are identified by a full handle, which is the result of concatenating
-the organization handle and the project handle. For example, if you have an
-organization with the handle `tuist`, and a project with the handle `tuist`, the
-full handle would be `tuist/tuist`.
+Projeler, kuruluş tanıtıcısı ve proje tanıtıcısının birleştirilmesinin sonucu
+olan tam tanıtıcı ile tanımlanır. Örneğin, `tuist` tanıtıcısına sahip bir
+kuruluşunuz ve `tuist` tanıtıcısına sahip bir projeniz varsa, tam tanıtıcı
+`tuist/tuist` olacaktır.
 
-The binding between the local and the remote project is done through the
-configuration file. If you don't have any, create it at `Tuist.swift` and add
-the following content:
+Yerel ve uzak proje arasındaki bağlama, yapılandırma dosyası aracılığıyla
+yapılır. Eğer yoksa, `Tuist.swift` adresinde oluşturun ve aşağıdaki içeriği
+ekleyin:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
@@ -64,14 +65,14 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-Note that there are some features like
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
-require you having a Tuist project. If you are using raw Xcode projects, you
-won't be able to use those features.
+Tuist projesine sahip olmanızı gerektiren
+<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> gibi
+bazı özellikler olduğunu unutmayın. Ham Xcode projeleri kullanıyorsanız, bu
+özellikleri kullanamazsınız.
 <!-- -->
 :::
 
-Your project's URL is constructed by using the full handle. For example, Tuist's
-dashboard, which is public, is accessible at
-[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
-the project's full handle.
+Projenizin URL'si tam tanıtıcı kullanılarak oluşturulur. Örneğin, Tuist'in
+herkese açık olan kontrol paneline
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist) adresinden erişilebilir;
+burada `tuist/tuist` projenin tam tanıtıcısıdır.
