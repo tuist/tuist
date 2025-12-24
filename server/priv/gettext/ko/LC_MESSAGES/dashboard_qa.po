@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ko/>\n"
 "Language: ko\n"
@@ -30,9 +31,9 @@ msgid " or sit back and relax..."
 msgstr " 아니면 편안히 앉아 휴식을 취하세요..."
 
 #: lib/tuist_web/live/qa_run_live.html.heex:34
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "%{app_name} icon"
-msgstr ""
+msgstr "%{app_name} icon"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:513
 #, elixir-autogen, elixir-format, fuzzy
@@ -174,9 +175,9 @@ msgstr "번들 식별자"
 #: lib/tuist_web/live/qa_live.html.heex:61
 #: lib/tuist_web/live/qa_settings_live.html.heex:157
 #: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "취소"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -208,9 +209,9 @@ msgstr "자격 증명"
 #: lib/tuist_web/live/qa_settings_live.html.heex:140
 #: lib/tuist_web/live/qa_settings_live.html.heex:179
 #: lib/tuist_web/live/qa_settings_live.html.heex:222
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Description"
-msgstr ""
+msgstr "설명"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:108
 #, elixir-autogen, elixir-format, fuzzy
@@ -236,9 +237,9 @@ msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:648
 #: lib/tuist_web/live/qa_settings_live.html.heex:84
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Email"
-msgstr ""
+msgstr "이메일"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
@@ -278,9 +279,9 @@ msgstr "예상 결과 포함"
 
 #: lib/tuist_web/live/qa_live.html.heex:263
 #: lib/tuist_web/live/qa_run_live.html.heex:331
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Issues"
-msgstr ""
+msgstr "발견된 문제들"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:182
 #, elixir-autogen, elixir-format, fuzzy
@@ -330,9 +331,9 @@ msgstr ""
 #: lib/tuist_web/live/qa_settings_live.html.heex:134
 #: lib/tuist_web/live/qa_settings_live.html.heex:176
 #: lib/tuist_web/live/qa_settings_live.html.heex:212
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr ""
+msgstr "이름"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:404
 #, elixir-autogen, elixir-format, fuzzy
@@ -350,9 +351,9 @@ msgid "No QA runs yet"
 msgstr "아직 QA 실행이 없습니다."
 
 #: lib/tuist_web/live/qa_live.html.heex:212
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr ""
+msgstr "아직 데이터 없음"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -382,9 +383,9 @@ msgid "None"
 msgstr "없음"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:74
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "개요"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
@@ -403,9 +404,9 @@ msgid "Password for test account"
 msgstr "테스트 계정의 비밀번호"
 
 #: lib/tuist_web/live/qa_live.html.heex:240
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pending"
-msgstr ""
+msgstr "보류 중"
 
 #: lib/tuist_web/live/qa_live.html.heex:256
 #: lib/tuist_web/live/qa_run_live.html.heex:113
@@ -452,9 +453,9 @@ msgstr "테스트에 대한 명확한 지침 제공"
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "자주하는 질문"
 
 #: lib/tuist_web/live/ops_qa_logs_live.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -545,9 +546,9 @@ msgstr "테스트 실행 중..."
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:55
 #: lib/tuist_web/live/qa_settings_live.html.heex:97
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "저장"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
@@ -566,9 +567,9 @@ msgstr "에서 시작"
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
 #: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "상태"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:608
 #, elixir-autogen, elixir-format, fuzzy
@@ -622,9 +623,9 @@ msgid "Tuist documentation"
 msgstr "Tuist 문서"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:172
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr ""
+msgstr "알 수 없음"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:253
 #, elixir-autogen, elixir-format, fuzzy
@@ -647,9 +648,9 @@ msgid "View Logs"
 msgstr "로그 보기"
 
 #: lib/tuist_web/live/qa_settings_live.ex:17
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr ""
+msgstr "이 작업을 수행할 권한이 없습니다."
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:135
 #: lib/tuist_web/live/qa_settings_live.html.heex:213
@@ -694,9 +695,9 @@ msgid "Apply"
 msgstr "신청하기"
 
 #: lib/tuist_web/live/qa_live.html.heex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "맞춤형"
 
 #: lib/tuist_web/live/qa_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
