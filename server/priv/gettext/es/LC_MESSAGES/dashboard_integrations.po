@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/es/>\n"
 "Language: es\n"
@@ -30,9 +31,9 @@ msgid "Add new project connection"
 msgstr "Añadir nueva conexión de proyecto"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Cancelar"
 
 #: lib/tuist_web/live/integrations_live.html.heex:65
 #, elixir-autogen, elixir-format, fuzzy
@@ -70,9 +71,9 @@ msgid "Create Connection"
 msgstr "Crear conexión"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "GitHub"
-msgstr ""
+msgstr "GitHub"
 
 #: lib/tuist_web/live/integrations_live.html.heex:19
 #, elixir-autogen, elixir-format, fuzzy
@@ -81,9 +82,9 @@ msgstr "Instalar la aplicación GitHub"
 
 #: lib/tuist_web/live/integrations_live.ex:30
 #: lib/tuist_web/live/integrations_live.html.heex:2
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Integrations"
-msgstr ""
+msgstr "Integrations"
 
 #: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format, fuzzy
