@@ -5,15 +5,15 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# ベストプラクティス{#best-practices}
+# ベストプラクティス{#best-practices}。
 
 長年、さまざまなチームやプロジェクトと作業する中で、私たちはTuistやXcodeプロジェクトで作業する際に従うことを推奨する一連のベストプラクティスを特定しました。これらのプラクティスは強制的なものではありませんが、維持と拡張を容易にする方法でプロジェクトを構造化するのに役立ちます。
 
 ## Xcode {#xcode}
 
-### 落胆パターン{#discouraged-patterns}
+### 落胆パターン{#discouraged-patterns}。
 
-#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}
+#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}。
 
 多くの組織では、異なるリモート環境をモデル化するためにビルド構成を使用している（例：`Debug-Production` や`Release-Canary`
 ）が、この方法にはいくつかの欠点がある：
@@ -53,7 +53,8 @@ Tuistのワイルドカードパターン（例えば、`Sources/**/*.swift`
 より合理的な開発体験のために、従来の`Target.sources` および`Target.resources`
 属性の代わりに、ビルド可能なフォルダを採用することを推奨する。
 
-::: code-group
+コードグループ
+
 ```swift [With buildable folders]
 let target = Target(
   name: "App",
