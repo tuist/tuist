@@ -5,18 +5,15 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# 新增依賴{#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide
-additional functionality. To do so, run the following command to have the best
-experience editing your project:
+專案通常會依賴第三方函式庫來提供額外的功能。為此，請執行下列指令，以獲得編輯專案的最佳體驗：
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the
-`Package.swift` and add the
+一個包含您專案檔案的 Xcode 專案將會開啟。編輯`Package.swift` 並加入
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,8 +41,7 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a
-dependency:
+然後編輯專案中的應用程式目標，將`Kingfisher` 宣告為相依性：
 
 ```swift
 import ProjectDescription
@@ -85,33 +81,32 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift
-Package Manager](https://www.swift.org/documentation/package-manager/).
+然後使用 [Swift
+套件管理員](https://www.swift.org/documentation/package-manager/)，執行`tuist install`
+來解析並拉取相依性。
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
-only to resolve dependencies. Tuist then converts them into Xcode projects and
-targets for maximum configurability and control.
+Tuist 推薦的相依性方法僅使用 Swift Package Manager (SPM) 來解決相依性問題。然後 Tuist 將其轉換為 Xcode
+專案和目標，以達到最大的可配置性和控制性。
 <!-- -->
 :::
 
-## Visualize the project {#visualize-the-project}
+## 視覺化專案{#visualize-the-project}
 
-You can visualize the project structure by running:
+您可以執行下列步驟，以視覺化專案結構：
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+指令會輸出並開啟專案目錄中的`graph.png` 檔案：
 
-![Project graph](/images/guides/quick-start/graph.png)
+！[專案圖形](/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## 使用相依性{#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following
-changes to the `ContentView.swift` file:
+執行`tuist generate` 在 Xcode 中開啟專案，並對`ContentView.swift` 檔案進行下列變更：
 
 ```swift
 import SwiftUI
@@ -135,4 +130,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+從 Xcode 執行應用程式，您應該會看到從 URL 載入的圖片。
