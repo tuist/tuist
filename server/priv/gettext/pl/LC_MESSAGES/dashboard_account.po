@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/pl/>\n"
 "Language: pl\n"
@@ -123,9 +123,9 @@ msgstr "E-mail rozliczeniowy"
 #: lib/tuist_web/live/create_organization_live.ex:62
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Anuluj"
 
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
@@ -363,9 +363,9 @@ msgstr ""
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "Rozpocznij"
 
 #: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format, fuzzy
@@ -503,9 +503,9 @@ msgstr "Nie znaleziono członków"
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:248
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise"
-msgstr ""
+msgstr "Lokalnie"
 
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
@@ -704,9 +704,9 @@ msgid "Standard support: Via Slack and email"
 msgstr "Standardowe wsparcie: Przez Slack i e-mail"
 
 #: lib/tuist_web/live/members_live.ex:277
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Status"
 
 #: lib/tuist_web/live/account_settings_live.ex:137
 #, elixir-autogen, elixir-format, fuzzy
