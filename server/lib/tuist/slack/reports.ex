@@ -11,6 +11,7 @@ defmodule Tuist.Slack.Reports do
     {current_start, current_end, previous_start, previous_end} = compute_date_ranges(frequency, last_report_at)
 
     %{
+      account_name: project.account.name,
       project_name: project.name,
       frequency: frequency,
       period: format_period(current_start, current_end),
@@ -24,16 +25,27 @@ defmodule Tuist.Slack.Reports do
   end
 
   def format_report_blocks(report) do
-    [
-      header_block(report),
-      context_block(report),
-      divider_block()
-    ] ++
+    metric_blocks =
       build_duration_blocks(report.build_duration) ++
-      test_duration_blocks(report.test_duration) ++
-      cache_hit_rate_blocks(report.cache_hit_rate) ++
-      bundle_size_blocks(report.bundle_size) ++
-      [footer_block(report.project_name)]
+        test_duration_blocks(report.test_duration) ++
+        cache_hit_rate_blocks(report.cache_hit_rate) ++
+        bundle_size_blocks(report.bundle_size)
+
+    if Enum.empty?(metric_blocks) do
+      [
+        header_block(report),
+        context_block(report),
+        divider_block(),
+        no_data_block(),
+        footer_block(report.account_name, report.project_name)
+      ]
+    else
+      [
+        header_block(report),
+        context_block(report),
+        divider_block()
+      ] ++ metric_blocks ++ [footer_block(report.account_name, report.project_name)]
+    end
   end
 
   defp compute_date_ranges(_frequency, last_report_at) when not is_nil(last_report_at) do
@@ -166,9 +178,12 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp format_period(start_dt, end_dt) do
-    start_str = Calendar.strftime(start_dt, "%b %d, %H:%M")
-    end_str = Calendar.strftime(end_dt, "%b %d, %H:%M %Z")
-    "#{start_str} - #{end_str}"
+    start_ts = DateTime.to_unix(start_dt)
+    end_ts = DateTime.to_unix(end_dt)
+    start_fallback = Calendar.strftime(start_dt, "%b %d, %H:%M")
+    end_fallback = Calendar.strftime(end_dt, "%b %d, %H:%M")
+
+    "<!date^#{start_ts}^{date_short} {time}|#{start_fallback}> - <!date^#{end_ts}^{date_short} {time}|#{end_fallback}>"
   end
 
   defp header_block(report) do
@@ -178,7 +193,7 @@ defmodule Tuist.Slack.Reports do
       type: "header",
       text: %{
         type: "plain_text",
-        text: "#{report.project_name} - #{frequency_label} Report"
+        text: "#{frequency_label} #{report.project_name} Report"
       }
     }
   end
@@ -197,40 +212,58 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp build_duration_blocks(%{ci: ci, local: local, overall: overall}) do
-    [
-      %{
-        type: "section",
-        text: %{
-          type: "mrkdwn",
-          text:
-            ":hammer_and_wrench: *Build Duration*\n" <>
-              format_duration_line("Overall", overall) <>
-              format_duration_line("CI", ci) <>
-              format_duration_line("Local", local)
+    lines =
+      [
+        maybe_duration_line("Overall", overall),
+        maybe_duration_line("CI", ci),
+        maybe_duration_line("Local", local)
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if Enum.empty?(lines) do
+      []
+    else
+      [
+        %{
+          type: "section",
+          text: %{
+            type: "mrkdwn",
+            text: ":hammer_and_wrench: *Build Duration*\n" <> Enum.join(lines)
+          }
         }
-      }
-    ]
+      ]
+    end
   end
 
   defp test_duration_blocks(%{ci: ci, local: local, overall: overall}) do
-    [
-      %{
-        type: "section",
-        text: %{
-          type: "mrkdwn",
-          text:
-            ":test_tube: *Test Duration*\n" <>
-              format_duration_line("Overall", overall) <>
-              format_duration_line("CI", ci) <>
-              format_duration_line("Local", local)
+    lines =
+      [
+        maybe_duration_line("Overall", overall),
+        maybe_duration_line("CI", ci),
+        maybe_duration_line("Local", local)
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if Enum.empty?(lines) do
+      []
+    else
+      [
+        %{
+          type: "section",
+          text: %{
+            type: "mrkdwn",
+            text: ":test_tube: *Test Duration*\n" <> Enum.join(lines)
+          }
         }
-      }
-    ]
+      ]
+    end
   end
+
+  defp cache_hit_rate_blocks(%{current: nil}), do: []
 
   defp cache_hit_rate_blocks(%{current: current, change_pct: change_pct}) do
     change_text = format_change(change_pct, :higher_is_better)
-    rate_text = if current, do: "#{Float.round(current * 100, 1)}%", else: "N/A"
+    rate_text = "#{Float.round(current * 100, 1)}%"
 
     [
       %{
@@ -269,7 +302,7 @@ defmodule Tuist.Slack.Reports do
     ]
   end
 
-  defp footer_block(project_name) do
+  defp footer_block(account_name, project_name) do
     base_url = Tuist.Environment.app_url()
 
     %{
@@ -277,13 +310,26 @@ defmodule Tuist.Slack.Reports do
       elements: [
         %{
           type: "mrkdwn",
-          text: "<#{base_url}/#{project_name}|View full analytics in Tuist>"
+          text: "<#{base_url}/#{account_name}/#{project_name}|View analytics>"
         }
       ]
     }
   end
 
-  defp format_duration_line(label, %{current: current, change_pct: change_pct}) do
+  defp no_data_block do
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: "No analytics data available for this period."
+      }
+    }
+  end
+
+  defp maybe_duration_line(_label, %{current: nil}), do: nil
+  defp maybe_duration_line(_label, %{current: 0}), do: nil
+
+  defp maybe_duration_line(label, %{current: current, change_pct: change_pct}) do
     duration_text = format_duration(current)
     change_text = format_change(change_pct, :lower_is_better)
     "#{label}: #{duration_text} #{change_text}\n"
