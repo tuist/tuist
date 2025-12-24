@@ -5,11 +5,11 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 인사이트 {#insights}
+# 인사이트 {#인사이트}
 
-경고 요구 사항 ::: warning 요구 사항
+경고 요구 사항 ::: 경고 요구 사항
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
+- 1}Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -28,7 +28,7 @@
 <!-- -->
 :::
 
-## 빌드 {#builds}
+## 빌드 {#빌드}
 
 CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만 로컬 개발 환경에 대한 가시성은 동일하지 않을 수 있습니다. 하지만 로컬 빌드
 시간은 개발자 경험에 영향을 미치는 가장 중요한 요소 중 하나입니다.
@@ -46,7 +46,7 @@ CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만
 
 ::: info Mise란?
 <!-- -->
-<LocalizedLink href="/guides/server/accounts-and-projects"> 생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
+1} 생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
 <!-- -->
 :::
 > 
@@ -67,7 +67,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip 실수 및 프로젝트 경로
+::: 팁 실수 및 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -88,7 +88,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 
 ![빌드 인사이트가 있는 대시보드](/images/guides/features/insights/builds-dashboard.png)
 
-## 테스트 {#tests}
+## 테스트 {#테스트}
 
 빌드를 추적하는 것 외에도 테스트를 모니터링할 수도 있습니다. 테스트 인사이트를 통해 느린 테스트를 식별하거나 실패한 CI 실행을 빠르게 이해할
 수 있습니다.
@@ -105,7 +105,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip 실수 및 프로젝트 경로
+::: 팁 실수 및 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -215,7 +215,8 @@ CI에 대한 빌드 및 테스트 인사이트를 추적하려면 CI가
 
 또한 다음 중 하나를 수행해야 합니다:
 - `xcodebuild` 동작을 호출할 때
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> 명령을 사용합니다.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> 명령을 사용합니다.
 - `xcodebuild` 호출에 `-resultBundlePath` 을 추가합니다.
 
 `xcodebuild` 가 `-resultBundlePath` 없이 프로젝트를 빌드하거나 테스트하면 필요한 활동 로그 및 결과 번들 파일이
