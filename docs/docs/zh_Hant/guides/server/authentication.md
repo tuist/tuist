@@ -115,7 +115,7 @@ tuist account tokens create my-account \
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci` | `project:cache:write`,`project:previews:write`,`project:bundles:write`,`project:tests:write`,`project:builds:write`,`project:runs:write` |
 
-### 持續整合{#continuous-integration}
+### 持續整合 (CI){#continuous-integration-ci}
 
 對於不支援 OIDC 的 CI 環境，您可以使用`ci` 範圍群組建立帳號令牌，以驗證您的 CI 工作流程：
 
