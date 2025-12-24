@@ -287,6 +287,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp get_slack_channels(%{slack_channels: slack_channels_async}) do
     if slack_channels_async.ok? do
       slack_channels_async.result
+      |> Enum.sort_by(& &1.name)
     else
       []
     end
@@ -305,6 +306,28 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_hour(hour) when hour == 12, do: "12PM"
   defp format_hour(hour), do: "#{hour - 12}PM"
 
+  defp format_days_range(days) do
+    days
+    |> Enum.sort()
+    |> Enum.chunk_while(
+      [],
+      fn day, acc ->
+        case acc do
+          [] -> {:cont, [day]}
+          [prev | _] when day == prev + 1 -> {:cont, [day | acc]}
+          _ -> {:cont, Enum.reverse(acc), [day]}
+        end
+      end,
+      fn acc -> {:cont, Enum.reverse(acc), []} end
+    )
+    |> Enum.map(&format_day_group/1)
+    |> Enum.join(", ")
+  end
+
+  defp format_day_group([single]), do: day_name(single)
+  defp format_day_group([first, last]), do: "#{day_name(first)}, #{day_name(last)}"
+  defp format_day_group([first | rest]), do: "#{day_name(first)}-#{day_name(List.last(rest))}"
+
   defp format_slack_reports_description(%{selected_project: project, user_timezone: user_timezone}) do
     if project.slack_report_enabled do
       channel_str =
@@ -319,10 +342,7 @@ defmodule TuistWeb.ProjectSettingsLive do
 
       time_str = if hour, do: format_hour(hour), else: ""
 
-      day_str =
-        days
-        |> Enum.map(&day_name/1)
-        |> Enum.join(", ")
+      day_str = format_days_range(days)
 
       schedule_str = dgettext("dashboard_projects", "%{days} at %{time}", days: day_str, time: time_str)
 
