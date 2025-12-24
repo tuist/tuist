@@ -5,13 +5,13 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# 인증 {#authentication}
+# 인증 {#인증}
 
 서버와 상호 작용하려면 CLI에서 [무기명
 인증](https://swagger.io/docs/specification/authentication/bearer-authentication/)을
 사용하여 요청을 인증해야 합니다. CLI는 사용자 인증, 계정 인증 또는 OIDC 토큰 사용을 지원합니다.
 
-## 사용자 {#as-a-user}로서
+## 사용자 {#사용자}로서
 
 컴퓨터에서 로컬로 CLI를 사용할 때는 사용자로 인증하는 것이 좋습니다. 사용자로 인증하려면 다음 명령을 실행해야 합니다:
 
@@ -28,9 +28,8 @@ CLI는 서버에 요청할 때 자동으로 자격 증명을 조회합니다. �
 
 ## OIDC 토큰 {#oidc-tokens}
 
-OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 비밀 번호를 관리할 필요 없이 자동으로 인증할 수 있습니다.
-지원되는 CI 환경에서 실행할 때 CLI는 자동으로 OIDC 토큰 공급자를 감지하고 CI에서 제공한 토큰을 Tuist 액세스 토큰으로
-교환합니다.
+OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 비밀번호를 관리할 필요 없이 자동으로 인증할 수 있습니다.
+지원되는 CI 환경에서 실행할 때 CLI는 자동으로 OIDC 토큰 공급자를 감지하고 CI가 제공한 토큰을 Tuist 액세스 토큰으로 교환합니다.
 
 ### 지원되는 CI 공급자 {#supported-ci-providers}
 
@@ -41,12 +40,14 @@ OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 �
 ### OIDC 인증 설정 {#setting-up-oidc-authentication}
 
 1. **저장소를 Tuist에 연결**:
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합 가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합
+   가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
 
 2. **튜이스트 인증 로그인`** 을 실행합니다: CI 워크플로우에서 인증이 필요한 명령 전에 `tuist auth login` 을
    실행하세요. CLI는 자동으로 CI 환경을 감지하고 OIDC를 사용하여 인증합니다.
 
-공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속 연동 가이드</LocalizedLink>를 참조하세요.
+공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속
+연동 가이드</LocalizedLink>를 참조하세요.
 
 ### OIDC 토큰 범위 {#oidc-token-scopes}
 
@@ -81,11 +82,11 @@ tuist account tokens create my-account \
 | 옵션       | 설명                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------- |
 | `--범위`   | 필수입니다. 토큰을 부여할 범위를 쉼표로 구분한 목록입니다.                                                               |
-| `--이름`   | 필수입니다. 토큰의 고유 식별자(1~32자, 영숫자, 하이픈 및 밑줄만 해당).                                                    |
+| `--이름`   | 필수. 토큰의 고유 식별자(1~32자, 영숫자, 하이픈 및 밑줄만 해당).                                                       |
 | `--만료`   | 선택 사항입니다. 토큰이 만료되는 시기. ` 30d` (일), `6m` (개월) 또는 `1y` (년)과 같은 형식을 사용합니다. 지정하지 않으면 토큰이 만료되지 않습니다. |
 | `--프로젝트` | 토큰을 특정 프로젝트 핸들로 제한합니다. 지정하지 않으면 토큰이 모든 프로젝트에 액세스할 수 있습니다.                                       |
 
-### 사용 가능한 범위 {#available-scopes}
+### 사용 가능한 범위 {#사용 가능한 범위}
 
 | 범위             | 설명                   |
 | -------------- | -------------------- |
@@ -110,7 +111,7 @@ tuist account tokens create my-account \
 
 ### 범위 그룹 {#scope-groups}
 
-범위 그룹은 하나의 식별자로 여러 개의 관련 범위를 편리하게 부여할 수 있는 방법을 제공합니다. 범위 그룹을 사용하면 해당 그룹에 포함된 모든
+범위 그룹은 하나의 식별자로 여러 개의 관련 범위를 부여할 수 있는 편리한 방법을 제공합니다. 범위 그룹을 사용하면 해당 그룹에 포함된 모든
 개별 범위를 포함하도록 자동으로 확장됩니다.
 
 | 범위 그룹 | 포함된 범위                                                                                |
@@ -128,7 +129,7 @@ tuist account tokens create my-account --scopes ci --name ci
 이렇게 하면 일반적인 CI 작업(캐시, 미리보기, 번들, 테스트, 빌드 및 실행)에 필요한 모든 범위가 포함된 토큰이 생성됩니다. 생성된 토큰을
 CI 환경에 비밀로 저장하고 `TUIST_TOKEN` 환경 변수로 설정합니다.
 
-### 계정 토큰 관리 {#managing-account-tokens}
+### 계정 토큰 관리 {#관리-계정-토큰}
 
 계정의 모든 토큰을 나열하려면 다음과 같이 하세요:
 
@@ -142,7 +143,7 @@ tuist account tokens list my-account
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### 계정 토큰 사용 {#using-account-tokens}
+### 계정 토큰 사용 {#사용하는-계정-토큰}
 
 계정 토큰은 환경 변수 `TUIST_TOKEN` 으로 정의해야 합니다:
 
@@ -150,7 +151,7 @@ tuist account tokens revoke my-account ci-cache-token
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip 계정 토큰 사용 시기
+::: 팁 계정 토큰 사용 시기
 <!-- -->
 필요할 때 계정 토큰을 사용하세요:
 - OIDC를 지원하지 않는 CI 환경에서의 인증
