@@ -5,7 +5,7 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# مشروع Xcode {#xxcode-project}
+# مشروع Xcode {#xcode-project}
 
 :::: متطلبات التحذير
 <!-- -->
