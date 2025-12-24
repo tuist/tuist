@@ -57,7 +57,7 @@ Xcode와 XcodeProj 구조 때문에, 의존성 그래프의 유지 보수는 지
 - `SDK`: 시스템 SDK와의 종속성을 선언합니다.
 - `XCTest`: XCTest와의 종속성을 선언합니다.
 
-정보 종속성 조건 ::: info 종속성 조건
+정보 종속성 조건 ::: 정보 종속성 조건
 <!-- -->
 모든 종속성 유형은 플랫폼에 따라 종속성을 조건부로 연결하기 위해 `조건` 옵션을 허용합니다. 기본적으로 대상에서 지원하는 모든 플랫폼에 대한
 종속성을 연결합니다.
@@ -79,7 +79,8 @@ Xcode의 기본 통합은 가장 편리하지만 중대형 프로젝트에 필�
 XcodeProj의 타깃을 사용하여 프로젝트에 Swift 패키지를 통합할 수 있는 XcodeProj 기반 통합을 제공합니다. 덕분에 통합을 더
 잘 제어할 수 있을 뿐만 아니라
 <LocalizedLink href="/guides/features/cache">캐싱</LocalizedLink> 및
-<LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
+<LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트
+실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift 패키지 기능을 지원하거나 더 많은 패키지 구성을 처리하는 데 더 많은 시간이 걸릴 가능성이
 높습니다. 그러나 Swift 패키지와 XcodeProj 대상 간의 매핑 로직은 오픈 소스이며 커뮤니티에서 기여할 수 있습니다. 이는 비공개
@@ -121,7 +122,7 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip 패키지 설정
+::: 팁 패키지 설정
 <!-- -->
 컴파일러 지시어로 래핑된 `PackageSettings` 인스턴스를 사용하면 패키지가 통합되는 방식을 구성할 수 있습니다. 예를 들어, 위의
 예에서는 패키지에 사용되는 기본 제품 유형을 재정의하는 데 사용됩니다. 기본적으로 이 옵션은 필요하지 않습니다.
@@ -160,8 +161,8 @@ tuist install
 
 이미 눈치채셨겠지만, 저희는 종속성 해결이 자체 명령인 [CocoaPods](https://cocoapods.org)'와 유사한 접근 방식을
 취하고 있습니다. 이를 통해 사용자는 종속성 해결 및 업데이트 시기를 제어할 수 있으며, 프로젝트에서 Xcode를 열고 컴파일할 준비를 할 수
-있습니다. 이 부분은 프로젝트가 성장함에 따라 Apple과 Swift 패키지 관리자의 통합이 제공하는 개발자 환경이 시간이 지남에 따라 저하되는
-부분입니다.
+있습니다. 이 부분은 프로젝트가 성장함에 따라 Apple과 Swift 패키지 관리자의 통합이 제공하는 개발자 경험이 시간이 지남에 따라 저하되는
+부분이라고 생각합니다.
 
 그런 다음 프로젝트 대상에서 `TargetDependency.external` 종속성 유형을 사용하여 해당 종속성을 참조할 수 있습니다:
 
@@ -191,7 +192,7 @@ let project = Project(
 <!-- -->
 :::
 
-::: info 외부 패키지에 대해 생성된 계획 없음
+::: 정보 외부 패키지에 대해 생성된 계획 없음
 <!-- -->
 **스키마** 는 스키마 목록을 깔끔하게 유지하기 위해 Swift 패키지 프로젝트에 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할
 수 있습니다.
@@ -218,7 +219,7 @@ let target = .target(name: "MyTarget", dependencies: [
 
 Swift 매크로 및 빌드 도구 플러그인의 경우 각각 `.macro` 및 `.plugin` 형식을 사용해야 합니다.
 
-::: warning SPM 빌드 도구 플러그인
+::: 경고 SPM 빌드 도구 플러그인
 <!-- -->
 프로젝트 종속성에 대해 Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을
 사용하는 경우에도 SPM 빌드 도구 플러그인은 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을
@@ -274,7 +275,7 @@ let project = Project(
 )
 ```
 
-### 카르타고 {#carthage}
+### 카르타고 {#카르타고}
 
 Carthage](https://github.com/carthage/carthage)는 `frameworks` 또는 `xcframeworks`
 를 출력하므로 `carthage update` 를 실행하여 `Carthage/Build` 디렉터리에 종속성을 출력한 다음 `.framework`
@@ -288,15 +289,14 @@ carthage update
 tuist generate
 ```
 
-::: warning 빌드 및 테스트
+::: 경고 빌드 및 테스트
 <!-- -->
-`tuist build` 및 `tuist test` 를 통해 프로젝트를 빌드하고 테스트하는 경우에도 마찬가지로 `tuist build` 또는
-`tuist test` 를 실행하기 전에 `carthage update` 명령을 실행하여 Carthage가 해결한 종속성이 있는지 확인해야
-합니다.
+프로젝트를 빌드하고 테스트하는 경우 `xcodebuild build` 및 `tuist test`, 마찬가지로 빌드 또는 테스트 전에
+`carthage update` 명령을 실행하여 Carthage에서 해결된 종속성이 있는지 확인해야 합니다.
 <!-- -->
 :::
 
-### 코코아팟 {#cocoapods}
+### 코코아팟 {#코코아팟}
 
 [CocoaPods](https://cocoapods.org)은 Xcode 프로젝트가 종속성을 통합할 것으로 예상합니다. Tuist를 사용하여
 프로젝트를 생성한 다음 `pod install` 을 실행하여 프로젝트와 Pods 종속성이 포함된 작업 공간을 생성하여 종속성을 통합할 수
@@ -316,10 +316,10 @@ pod install
 <!-- -->
 :::
 
-## 정적 또는 동적 {#static-or-dynamic}
+## 정적 또는 동적 {#정적-또는-동적}
 
-프레임워크와 라이브러리는 정적 또는 동적으로 연결할 수 있으며, **앱 크기 및 부팅 시간** 과 같은 측면에 중대한 영향을 미치는 선택입니다.
-그 중요성에도 불구하고 이 결정은 많은 고려 없이 내려지는 경우가 많습니다.
+프레임워크와 라이브러리는 정적으로 또는 동적으로 연결할 수 있으며, **앱 크기 및 부팅 시간** 과 같은 측면에 중대한 영향을 미치는
+선택입니다. 그 중요성에도 불구하고 이 결정은 많은 고려 없이 내려지는 경우가 많습니다.
 
 **일반적인 경험 법칙(** )은 빠른 부팅 시간을 달성하기 위해 릴리스 빌드에서 가능한 한 많은 것을 정적으로 링크하고, 빠른 반복 시간을
 달성하기 위해 디버그 빌드에서 가능한 한 많은 것을 동적으로 링크하는 것을 원한다는 것입니다.
@@ -331,7 +331,11 @@ pod install
 같은 컴파일 시간 솔루션으로 이 문제를 해결하려고 시도했습니다. 그러나 이는 컴파일 그래프에 새로운 동적 변수를 추가하여 비결정성의 새로운
 소스를 추가하고 컴파일 그래프에 의존하는 Swift 미리 보기와 같은 일부 기능을 불안정하게 만들 수 있습니다.
 
-다행히도 Tuist는 정적과 동적 간의 변경과 관련된 복잡성을 개념적으로 압축하여 연결 유형 전반에 걸쳐 표준인 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 합성합니다. <LocalizedLink href="/guides/features/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 결합하면 호출 시 연결 유형을 전달하고 매니페스트의 값을 사용하여 타겟의 제품 유형을 설정할 수 있습니다.
+다행히도 Tuist는 정적과 동적 간의 변경과 관련된 복잡성을 개념적으로 압축하여 연결 유형 전반에 걸쳐 표준인
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들
+접근자</LocalizedLink>를 합성합니다. 환경 변수</LocalizedLink>를 통한
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">동적 구성과
+결합하면 호출 시 연결 유형을 전달하고 매니페스트의 값을 사용하여 타겟의 제품 유형을 설정할 수 있습니다.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -344,13 +348,14 @@ func productType() -> Product {
 }
 ```
 
-튜이스트 <LocalizedLink href="/guides/features/projects/cost-of-convenience">은 비용</LocalizedLink> 때문에 암시적 설정을 통한 편의성을 기본값으로 제공하지 않는다는 점에 유의하세요. 즉, 결과 바이너리가
+튜이스트 <LocalizedLink href="/guides/features/projects/cost-of-convenience">은
+비용</LocalizedLink> 때문에 암시적 설정을 통한 편의성을 기본값으로 제공하지 않는다는 점에 유의하세요. 즉, 결과 바이너리가
 올바른지 확인하기 위해 사용자가 링크 유형과 [`-ObjC` 링커
 플래그](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)와
 같이 때때로 필요한 추가 빌드 설정을 설정하는 데 의존한다는 의미입니다. 따라서 올바른 결정을 내릴 수 있는 리소스를 문서 형태로 제공하는 것이
 저희의 입장입니다.
 
-::: tip 예시: 컴포저블 아키텍처
+::: 팁 예시: 컴포저블 아키텍처
 <!-- -->
 많은 프로젝트에서 통합하는 Swift 패키지는 [컴포저블
 아키텍처](https://github.com/pointfreeco/swift-composable-architecture)입니다. 자세한 내용은
@@ -358,7 +363,7 @@ func productType() -> Product {
 <!-- -->
 :::
 
-### 시나리오 {#scenarios}
+### 시나리오 {#시나리오}
 
 링크를 정적 또는 동적으로만 설정하는 것이 가능하지 않거나 좋은 생각이 아닌 시나리오가 몇 가지 있습니다. 다음은 정적 링크와 동적 링크를
 혼합해야 할 수 있는 시나리오의 전체 목록이 아닙니다:
@@ -380,9 +385,9 @@ Objective-C 종속성을 통합할 때 [Apple 기술 Q&A
 QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)에 설명된
 대로 런타임 충돌을 방지하기 위해 소비 대상에 특정 플래그를 포함해야 할 수 있습니다.
 
-빌드 시스템과 Tuist는 플래그가 필요한지 여부를 유추할 방법이 없고, 플래그에는 잠재적으로 바람직하지 않은 부작용이 있을 수 있기 때문에
-Tuist는 이러한 플래그를 자동으로 적용하지 않으며, Swift 패키지 관리자는 `-ObjC` ` .unsafeFlag` 대부분의 패키지는
-필요한 경우 기본 링크 설정의 일부로 포함할 수 없다고 간주하기 때문입니다.
+빌드 시스템과 Tuist는 해당 플래그가 필요한지 여부를 유추할 방법이 없고, 해당 플래그에는 잠재적으로 바람직하지 않은 부작용이 있을 수 있기
+때문에 Tuist는 이러한 플래그를 자동으로 적용하지 않으며, Swift 패키지 관리자에서는 `-ObjC` ` .unsafeFlag` 대부분의
+패키지는 필요한 경우 기본 링크 설정의 일부로 포함할 수 없습니다.
 
 오브젝티브-C 종속성(또는 내부 오브젝티브-C 대상)의 소비자는 필요한 경우 `-ObjC` 또는 `-force_load` 플래그를 적용하고,
 소비 대상에 `OTHER_LDFLAGS` 를 설정해야 합니다.
@@ -446,7 +451,7 @@ let package = Package(
 ### 컴포저블 아키텍처 {#the-composable-architecture}
 
 여기](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
-및 [문제 해결 섹션](#troubleshooting)에 설명된 대로 패키지를 정적으로 링크할 때 Tuist의 기본 링크 유형인
+및 [문제 해결 섹션](#troubleshooting)에 설명된 대로 패키지를 정적으로 연결할 때 Tuist의 기본 연결 유형인
 `OTHER_LDFLAGS` 빌드 설정을 `$(상속된) -ObjC` 로 설정해야 합니다. 또는 패키지의 제품 유형을 재정의하여 동적으로 연결할
 수 있습니다. 정적으로 연결할 때 테스트 및 앱 타겟은 일반적으로 문제 없이 작동하지만 SwiftUI 미리보기가 손상됩니다. 이 문제는 모든
 것을 동적으로 연결하여 해결할 수 있습니다. 아래 예시에서
@@ -457,7 +462,7 @@ let package = Package(
 
 다음 구성은 모든 것을 동적으로 연결하므로 앱 + 테스트 대상 및 SwiftUI 미리보기가 작동합니다.
 
-::: tip 정적 또는 동적
+::: 팁 정적 또는 동적
 <!-- -->
 동적 링크가 항상 권장되는 것은 아닙니다. 자세한 내용은 [정적 또는 동적](#static-or-dynamic) 섹션을 참조하세요. 이 예에서는
 단순화를 위해 모든 종속성을 조건 없이 동적으로 연결했습니다.
@@ -517,12 +522,14 @@ let packageSettings = PackageSettings(
 <!-- -->
 :::
 
-### 전이적 정적 종속성 유출 `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### 전이적 정적 종속성 유출 `.swiftmodule` {#전이적-정적-종속성 유출-스위프트모듈}
 
 동적 프레임워크 또는 라이브러리가 `import StaticSwiftModule` 을 통해 정적 프레임워크 또는 라이브러리에 의존하는 경우,
 해당 심볼이 동적 프레임워크 또는 라이브러리의 `.swiftmodule` 에 포함되어
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">컴파일이 실패</LocalizedLink>할 수 있습니다. 이를 방지하려면
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>를 사용하여 정적 종속성을 임포트해야 합니다:
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">컴파일이
+실패</LocalizedLink>할 수 있습니다. 이를 방지하려면
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>를 사용하여 정적 종속성을 임포트해야 합니다:
 
 ```swift
 internal import StaticModule
