@@ -5,50 +5,51 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# Editing {#editing}
+# Düzenleme {#editing}
 
-Unlike traditional Xcode projects or Swift Packages, where changes are done
-through Xcode's UI, Tuist-managed projects are defined in Swift code contained
-in **manifest files**. If you're familiar with Swift Packages and the
-`Package.swift` file, the approach is very similar.
+Değişikliklerin Xcode'un kullanıcı arayüzü üzerinden yapıldığı geleneksel Xcode
+projelerinin veya Swift paketi olan Swift paketi projelerinin aksine, Tuist
+tarafından yönetilen projeler **manifest dosyalarında** bulunan Swift kodunda
+tanımlanır. Swift paketi ve `Package.swift` dosyasını biliyorsanız, yaklaşım çok
+benzerdir.
 
-You could edit these files using any text editor, but we recommend to use
-Tuist-provided workflow for that, `tuist edit`. The workflow creates an Xcode
-project that contains all manifest files and allows you to edit and compile
-them. Thanks to using Xcode, you get all the benefits of **code completion,
-syntax highlighting, and error checking**.
+Bu dosyaları herhangi bir metin düzenleyici kullanarak düzenleyebilirsiniz,
+ancak bunun için Tuist tarafından sağlanan iş akışını kullanmanızı öneririz,
+`tuist edit`. İş akışı, tüm manifesto dosyalarını içeren bir Xcode projesi
+oluşturur ve bunları düzenlemenize ve derlemenize olanak tanır. Xcode kullanımı
+sayesinde **kod tamamlama, sözdizimi vurgulama ve hata denetiminin tüm
+avantajlarından yararlanabilirsiniz**.
 
-## Edit the project {#edit-the-project}
+## Projeyi düzenleyin {#edit-the-project}
 
-To edit your project, you can run the following command in a Tuist project
-directory or a sub-directory:
+Projenizi düzenlemek için, bir Tuist proje dizininde veya bir alt dizinde
+aşağıdaki komutu çalıştırabilirsiniz:
 
 ```bash
 tuist edit
 ```
 
-The command creates an Xcode project in a global directory and opens it in
-Xcode. The project includes a `Manifests` directory that you can build to ensure
-all your manifests are valid.
+Komut, genel bir dizinde bir Xcode projesi oluşturur ve bunu Xcode'da açar.
+Proje, tüm manifestolarınızın geçerli olduğundan emin olmak için
+oluşturabileceğiniz bir `Manifests` dizini içerir.
 
 ::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
-`tuist edit` resolves the manifests to be included by using the glob
-`**/{Manifest}.swift` from the project's root directory (the one containing the
-`Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the
-project.
+`tuist edit`, projenin kök dizininden ( `Tuist.swift` dosyasını içeren)
+`**/{Manifest}.swift` glob'unu kullanarak dahil edilecek manifestoları çözümler.
+Projenin kök dizininde geçerli bir `Tuist.swift` dosyası olduğundan emin olun.
 <!-- -->
 :::
 
-### Ignoring manifest files {#ignoring-manifest-files}
+### Manifesto dosyalarını yok sayma {#ignoring-manifest-files}
 
-If your project contains Swift files with the same name as manifest files (e.g.,
-`Project.swift`) in subdirectories that are not actual Tuist manifests, you can
-create a `.tuistignore` file at the root of your project to exclude them from
-the editing project.
+Projeniz, gerçek Tuist manifestoları olmayan alt dizinlerde manifesto
+dosyalarıyla aynı ada sahip Swift dosyaları içeriyorsa (örneğin,
+`Project.swift`), bunları düzenleme projesinden hariç tutmak için projenizin kök
+dizininde bir `.tuistignore` dosyası oluşturabilirsiniz.
 
-The `.tuistignore` file uses glob patterns to specify which files should be
-ignored:
+`.tuistignore` dosyası, hangi dosyaların göz ardı edileceğini belirtmek için
+glob kalıpları kullanır:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -58,16 +59,16 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-This is particularly useful when you have test fixtures or example code that
-happens to use the same naming convention as Tuist manifest files.
+Bu, özellikle Tuist bildirim dosyalarıyla aynı adlandırma kuralını kullanan test
+fikstürleriniz veya örnek kodunuz olduğunda kullanışlıdır.
 
-## Edit and generate workflow {#edit-and-generate-workflow}
+## İş akışını düzenleme ve oluşturma {#edit-and-generate-workflow}
 
-As you might have noticed, the editing can't be done from the generated Xcode
-project. That's by design to prevent the generated project from having a
-dependency on Tuist, ensuring you can move from Tuist in the future with little
-effort.
+Fark etmiş olabileceğiniz gibi, düzenleme oluşturulan Xcode projesinden
+yapılamaz. Bu, oluşturulmuş projelenin Tuist'e bağımlı olmasını önlemek ve
+gelecekte Tuist'ten çok az çabayla geçebilmenizi sağlamak için tasarım
+gereğidir.
 
-When iterating on a project, we recommend running `tuist edit` from a terminal
-session to get an Xcode project to edit the project, and use another terminal
-session to run `tuist generate`.
+Bir proje üzerinde yineleme yaparken, projeyi düzenlemek üzere bir Xcode projesi
+almak için bir terminal oturumundan `tuist edit` çalıştırmanızı ve `tuist
+generate` çalıştırmak için başka bir terminal oturumu kullanmanızı öneririz.
