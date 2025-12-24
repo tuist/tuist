@@ -5,58 +5,42 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# 帳戶和專案{#accounts-and-projects}
 
-Some Tuist features require a server which adds persistence of data and can
-interact with other services. To interact with the server, you need an account
-and a project that you connect to your local project.
+有些 Tuist 功能需要伺服器，伺服器可增加資料的持久性，並可與其他服務互動。要與伺服器互動，您需要一個帳號和一個專案，並連接到您的本機專案。
 
-## Accounts {#accounts}
+## 帳戶{#accounts}
 
-To use the server, you'll need an account. There are two types of accounts:
+要使用伺服器，您需要一個帳戶。有兩種類型的帳戶：
 
-- **Personal account:** Those accounts are created automaticaly when you sign up
-  and are identified by a handle that's obtained either from the identity
-  provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are
-  identified by a handle that's defined by the developer. Organizations allow
-  inviting other members to collaborate on projects.
+- **個人帳戶：** 當您註冊時會自動建立這些帳號，並透過從身分提供者 (例如 GitHub) 取得的句柄或電子郵件地址的第一部分來識別。
+- **組織帳戶：** 這些帳號是手動建立的，由開發人員定義的句柄來識別。組織允許邀請其他成員合作進行專案。
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to
-theirs, where you can have personal and organization accounts, and they are
-identified by a *handle* that's used when constructing URLs.
+如果您熟悉 [GitHub](https://github.com)，其概念與他們類似，您可以擁有個人和組織帳號，並透過*句柄* 來識別，該句柄會在構建 URL
+時使用。
 
 ::: info CLI-FIRST
 <!-- -->
-Most operations to manage accounts and projects are done through the CLI. We are
-working on a web interface that will make it easier to manage accounts and
-projects.
+管理帳戶和專案的大部分作業都是透過 CLI 完成。我們正在開發 Web 介面，讓帳戶和專案管理變得更容易。
 <!-- -->
 :::
 
-You can manage the organization through the subcommands under
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
-create a new organization account, run:
+您可以透過 <LocalizedLink href="/cli/organization">`tuist
+organization`</LocalizedLink> 下的子指令管理組織。若要建立新的組織帳戶，請執行
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## 專案{#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your
-account through a remote project. Continuing with the comparison with GitHub,
-it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist
-project`</LocalizedLink> to create and manage projects.
+您的專案，無論是 Tuist 的或原始 Xcode 的，都需要透過遠端專案與您的帳戶整合。繼續與 GitHub
+作比較，這就像您有一個本機和一個遠端儲存庫，您可以在那裡推送您的變更。您可以使用
+<LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> 來建立和管理專案。
 
-Projects are identified by a full handle, which is the result of concatenating
-the organization handle and the project handle. For example, if you have an
-organization with the handle `tuist`, and a project with the handle `tuist`, the
-full handle would be `tuist/tuist`.
+專案以完整句柄來識別，完整句柄是組織句柄和專案句柄串連的結果。例如，如果組織的句柄是`tuist` ，專案的句柄是`tuist`
+，完整句柄就是`tuist/tuist` 。
 
-The binding between the local and the remote project is done through the
-configuration file. If you don't have any, create it at `Tuist.swift` and add
-the following content:
+本地專案和遠端專案之間的綁定是透過設定檔完成的。如果沒有，請在`Tuist.swift` 建立，並加入下列內容：
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
@@ -64,14 +48,12 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-Note that there are some features like
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
-require you having a Tuist project. If you are using raw Xcode projects, you
-won't be able to use those features.
+請注意，有些功能如
+<LocalizedLink href="/guides/features/cache">二進位快取</LocalizedLink>，需要您擁有 Tuist
+專案。如果您使用的是原始的 Xcode 專案，則無法使用這些功能。
 <!-- -->
 :::
 
-Your project's URL is constructed by using the full handle. For example, Tuist's
-dashboard, which is public, is accessible at
-[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
-the project's full handle.
+您專案的 URL 是使用完整句柄來建立的。例如，Tuist 的儀表板是公開的，可在
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist) 存取，其中`tuist/tuist`
+是專案的完整句柄。
