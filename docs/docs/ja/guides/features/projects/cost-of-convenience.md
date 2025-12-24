@@ -33,7 +33,7 @@ Manager](https://www.swift.org/documentation/package-manager/)によって解決
 
 ## 便利さが邪魔をする{#convenience-getting-in-your-way}」。
 
-### 共有構築済み製品ディレクトリ {#shared-built-products-directory}
+### 共有構築済み製品ディレクトリ {#shared-built-products-directory}。
 
 Xcode は、各製品の派生データディレクトリ内のディレクトリを使用します。その中には、コンパイルされたバイナリ、dSYM
 ファイル、ログなどのビルドアーティファクトが格納されます。プロジェクトの全製品が同じディレクトリに入り、デフォルトで他のターゲットからリンクすることができるため、**、暗黙のうちに互いに依存しているターゲットが存在することになるかもしれません。**
@@ -79,7 +79,7 @@ SwiftUIプレビューやSwiftマクロのようないくつかのエディタ�
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## 明示的、明示的、明示的{#explicit-explicit-and-explicit}
+## 明示的、明示的、明示的{#explicit-explicit-and-explicit}。
 
 Xcodeを使った開発をスケールさせたいと考えているすべての開発者や組織に推奨する、文章以外の重要な原則があるとすれば、それはexplicitnessを受け入れるべきだということです。そして、もしエクスプリシットネスが生のXcodeプロジェクトで管理するのが難しいのであれば、[Tuist](https://tuist.io)か[Bazel](https://bazel.build)のどちらか他のものを検討すべきである。**そうして初めて、信頼性、予測可能性、最適化が可能になる。**
 
