@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcodeプロジェクト {#xcode-project}
+# Xcodeプロジェクト{#xcode-project}
 
 Xcode プロジェクトでレジストリを使用してパッケージを追加するには、デフォルトの Xcode UI を使用します。Xcode の`Package
 Dependencies` タブの`+`
