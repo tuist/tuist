@@ -41,7 +41,7 @@ rozpocząć tłumaczenie.
 Tłumaczenia są synchronizowane z powrotem do repozytorium źródłowego za pomocą
 żądań ściągnięcia GitHub, które opiekunowie sprawdzają i scalają.
 
-::: warning NIE MODYFIKUJ ZASOBÓW W JĘZYKU DOCELOWYM
+::: ostrzeżenie NIE MODYFIKUJ ZASOBÓW W JĘZYKU DOCELOWYM
 <!-- -->
 Weblate segmentuje pliki w celu powiązania języka źródłowego i docelowego. Jeśli
 zmodyfikujesz język źródłowy, przerwiesz powiązanie, a uzgodnienie może
