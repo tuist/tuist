@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# استخدام تويست مع حزمة سويفت <Badge type="warning" text="beta" /> {##استخدام تويست مع حزمة سويفت-شارة-تحذير-نص-بيتا-}
+# استخدام تويست مع حزمة سويفت <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 يدعم تويست استخدام `Package.swift.swift` كـ DSL لمشاريعك ويحول أهداف الحزمة
 الخاصة بك إلى مشروع Xcode أصلي وأهدافه.
@@ -20,7 +20,7 @@
 <!-- -->
 :::
 
-:::: معلومات الدليل الجذري
+::: info ROOT DIRECTORY
 <!-- -->
 تتوقّع أوامر تويست بنية دليل
 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">دليل
@@ -28,7 +28,7 @@
 <!-- -->
 :::
 
-## استخدام تويست مع حزمة سويفت {#استخدام تويست مع حزمة سويفت}
+## استخدام تويست مع حزمة سويفت {#using-tuist-with-a-swift-package}
 
 سوف نستخدم تويست مع مستودع [TootSDK Package]
 (https://github.com/TootSDK/TootSDK) الذي يحتوي على حزمة سويفت. أول شيء نحتاج
