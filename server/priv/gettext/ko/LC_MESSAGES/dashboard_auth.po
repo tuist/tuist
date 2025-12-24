@@ -3,15 +3,17 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"PO-Revision-Date: 2025-12-24 20:46+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
+"dashboard_auth/ko/>\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
+"X-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -23,81 +25,82 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-
 #: lib/tuist_web/live/user_confirmation_live.ex:25
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Account confirmed!"
-msgstr ""
+msgstr "계정이 확인되었습니다!"
 
 #: lib/tuist_web/live/user_registration_live.ex:292
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Account created successfully! Please log in."
-msgstr ""
+msgstr "계정이 성공적으로 생성되었습니다! 로그인하세요."
 
 #: lib/tuist_web/live/user_registration_live.ex:304
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Account name is already taken"
-msgstr ""
+msgstr "이미 누군가 사용 중인 계정 이름 입니다"
 
 #: lib/tuist_web/live/user_registration_live.ex:187
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Already have an account?"
-msgstr ""
+msgstr "이미 계정이 있으신가요?"
 
 #: lib/tuist_web/live/connect_live.ex:97
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
+"이미 Tuist 프로젝트를 설정하셨나요? 설정을 건너뛰고 서비스 현황으로 "
+"이동하세요."
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:72
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Back to log in"
-msgstr ""
+msgstr "로그인으로 돌아가기"
 
 #: lib/tuist_web/live/user_registration_live.ex:39
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Binary caching"
-msgstr ""
+msgstr "바이너리 캐싱"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:30
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Change your password"
-msgstr ""
+msgstr "비밀번호 변경"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:40
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Check your email"
-msgstr ""
+msgstr "이메일 확인"
 
 #: lib/tuist_web/live/user_registration_live.ex:219
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr ""
+msgstr "받은 편지함에서 확인 이메일을 확인한 후 링크를 클릭하여 계속 진행하세요."
 
 #: lib/tuist_web/live/choose_username_live.ex:48
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username"
-msgstr ""
+msgstr "사용자 아이디 선택"
 
 #: lib/tuist_web/live/choose_username_live.ex:50
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username for your personal account"
-msgstr ""
+msgstr "개인 계정의 사용자 아이디를 선택하세요"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:50
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Confirm password"
-msgstr ""
+msgstr "비밀번호 확인"
 
 #: lib/tuist_web/live/user_registration_live.ex:217
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Confirm your account"
-msgstr ""
+msgstr "계정 확인"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:44
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Confirmation failed"
-msgstr ""
+msgstr "확인 실패"
 
 #: lib/tuist_web/live/connect_live.ex:12
 #, elixir-autogen, elixir-format
@@ -121,9 +124,9 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:86
 #: lib/tuist_web/live/user_okta_login_live.ex:90
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Contact us"
-msgstr ""
+msgstr "우리에게 문의하세요"
 
 #: lib/tuist_web/live/choose_username_live.ex:73
 #, elixir-autogen, elixir-format
@@ -131,9 +134,9 @@ msgid "Continue"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:59
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Dashboard"
-msgstr ""
+msgstr "서비스 현황"
 
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format
@@ -150,14 +153,14 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:135
 #: lib/tuist_web/live/user_okta_login_live.ex:72
 #: lib/tuist_web/live/user_registration_live.ex:148
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Email address"
-msgstr ""
+msgstr "이메일 주소"
 
 #: lib/tuist_web/live/user_registration_live.ex:307
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Email is already taken"
-msgstr ""
+msgstr "이미 누군가 사용 중인 이메일 입니다"
 
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format
@@ -190,9 +193,9 @@ msgid "Install Tuist CLI"
 msgstr ""
 
 #: lib/tuist_web/live/user_registration_live.ex:54
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Instantly share your app using a URL."
-msgstr ""
+msgstr "URL로 즉시 앱 공유."
 
 #: lib/tuist_web/live/sso_login_live.ex:81
 #: lib/tuist_web/live/user_okta_login_live.ex:84
@@ -210,9 +213,9 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:172
 #: lib/tuist_web/live/user_okta_login_live.ex:80
 #: lib/tuist_web/live/user_registration_live.ex:192
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Log in"
-msgstr ""
+msgstr "로그인"
 
 #: lib/tuist_web/live/sso_login_live.ex:52
 #: lib/tuist_web/live/user_login_live.ex:45
@@ -228,9 +231,9 @@ msgid "Log in to your enterprise account via Okta"
 msgstr ""
 
 #: lib/tuist_web/live/user_okta_login_live.ex:34
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Logging in via Okta failed"
-msgstr ""
+msgstr "Okta로 로그인하지 못했습니다"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:42
 #, elixir-autogen, elixir-format
@@ -243,9 +246,9 @@ msgid "Next steps"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No SSO organization found for this email"
-msgstr ""
+msgstr "이 이메일에 대한 SSO 조직을 찾을 수 없습니다"
 
 #: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format
@@ -269,9 +272,9 @@ msgid "Password reset successfully."
 msgstr ""
 
 #: lib/tuist_web/live/user_registration_live.ex:51
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "미리보기"
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
@@ -295,16 +298,16 @@ msgid "Run this command to link your project to the dashboard."
 msgstr ""
 
 #: lib/tuist_web/live/user_registration_live.ex:27
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective testing"
-msgstr ""
+msgstr "선택적 테스트"
 
 #: lib/tuist_web/live/user_login_live.ex:183
 #: lib/tuist_web/live/user_registration_live.ex:181
 #: lib/tuist_web/live/user_registration_live.ex:262
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Sign up"
-msgstr ""
+msgstr "가입하기"
 
 #: lib/tuist_web/live/user_registration_live.ex:75
 #, elixir-autogen, elixir-format
@@ -312,9 +315,9 @@ msgid "Sign up for Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:114
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "This username has already been taken"
-msgstr ""
+msgstr "이 사용자 아이디는 누군가 이미 사용 중 입니다"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
@@ -362,15 +365,15 @@ msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:63
 #: lib/tuist_web/live/user_registration_live.ex:169
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Username"
-msgstr ""
+msgstr "사용자 이름"
 
 #: lib/tuist_web/live/choose_username_live.ex:64
 #: lib/tuist_web/live/user_registration_live.ex:172
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Username may only contain alphanumeric characters"
-msgstr ""
+msgstr "사용자 이름은 영문/숫자만 포함할 수 있습니다"
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format
@@ -378,34 +381,34 @@ msgid "Waiting for connection"
 msgstr ""
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:31
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "We'll send a password reset link to your inbox"
-msgstr ""
+msgstr "비밀번호 재설정 링크를 받은 편지함으로 보내드립니다"
 
 #: lib/tuist_web/live/user_login_live.ex:47
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome back! Please log in to continue"
-msgstr ""
+msgstr "다시 오신 것을 환영합니다! 계속하려면 로그인하세요"
 
 #: lib/tuist_web/live/user_registration_live.ex:77
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome! Create an account to continue"
-msgstr ""
+msgstr "환영합니다! 계속하려면 계정을 만드세요"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:51
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue"
-msgstr ""
+msgstr "탭을 닫고 계속할 수 있습니다"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:47
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the app"
-msgstr ""
+msgstr "탭을 닫고 앱에서 계속 진행할 수 있습니다"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the terminal"
-msgstr ""
+msgstr "탭을 닫고 터미널에서 계속할 수 있습니다"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:46
 #, elixir-autogen, elixir-format
@@ -435,9 +438,9 @@ msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:46
 #: lib/tuist_web/live/connect_live.ex:62
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "mise"
-msgstr ""
+msgstr "mise"
 
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format
