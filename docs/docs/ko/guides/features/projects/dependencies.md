@@ -57,7 +57,7 @@ Xcode와 XcodeProj 구조 때문에, 의존성 그래프의 유지 보수는 지
 - `SDK`: 시스템 SDK와의 종속성을 선언합니다.
 - `XCTest`: XCTest와의 종속성을 선언합니다.
 
-정보 종속성 조건 ::: 정보 종속성 조건
+::: info DEPENDENCY CONDITIONS
 <!-- -->
 모든 종속성 유형은 플랫폼에 따라 종속성을 조건부로 연결하기 위해 `조건` 옵션을 허용합니다. 기본적으로 대상에서 지원하는 모든 플랫폼에 대한
 종속성을 연결합니다.
@@ -73,7 +73,7 @@ Xcode와 XcodeProj 구조 때문에, 의존성 그래프의 유지 보수는 지
 Swift 패키지는 프로젝트에서 종속성을 선언하는 데 권장되는 방법입니다. Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의
 XcodeProj 기반 통합을 사용하여 통합할 수 있습니다.
 
-#### 튜이스트의 XcodeProj 기반 통합 {#tuists-xcodeprojbased-integration}
+#### Tuist의 XcodeProj 기반 통합 {#tuists-xcodeprojbased-integration}
 
 Xcode의 기본 통합은 가장 편리하지만 중대형 프로젝트에 필요한 유연성과 제어 기능이 부족합니다. 이를 극복하기 위해 Tuist는
 XcodeProj의 타깃을 사용하여 프로젝트에 Swift 패키지를 통합할 수 있는 XcodeProj 기반 통합을 제공합니다. 덕분에 통합을 더
@@ -122,7 +122,7 @@ let package = Package(
 <!-- -->
 :::
 
-::: 팁 패키지 설정
+::: tip PACKAGE SETTINGS
 <!-- -->
 컴파일러 지시어로 래핑된 `PackageSettings` 인스턴스를 사용하면 패키지가 통합되는 방식을 구성할 수 있습니다. 예를 들어, 위의
 예에서는 패키지에 사용되는 기본 제품 유형을 재정의하는 데 사용됩니다. 기본적으로 이 옵션은 필요하지 않습니다.
@@ -192,7 +192,7 @@ let project = Project(
 <!-- -->
 :::
 
-::: 정보 외부 패키지에 대해 생성된 계획 없음
+::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
 **스키마** 는 스키마 목록을 깔끔하게 유지하기 위해 Swift 패키지 프로젝트에 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할
 수 있습니다.
@@ -219,7 +219,7 @@ let target = .target(name: "MyTarget", dependencies: [
 
 Swift 매크로 및 빌드 도구 플러그인의 경우 각각 `.macro` 및 `.plugin` 형식을 사용해야 합니다.
 
-::: 경고 SPM 빌드 도구 플러그인
+::: warning SPM Build Tool Plugins
 <!-- -->
 프로젝트 종속성에 대해 Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을
 사용하는 경우에도 SPM 빌드 도구 플러그인은 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을
@@ -275,7 +275,7 @@ let project = Project(
 )
 ```
 
-### 카르타고 {#카르타고}
+### 카르타고 {#carthage}
 
 Carthage](https://github.com/carthage/carthage)는 `frameworks` 또는 `xcframeworks`
 를 출력하므로 `carthage update` 를 실행하여 `Carthage/Build` 디렉터리에 종속성을 출력한 다음 `.framework`
@@ -289,14 +289,14 @@ carthage update
 tuist generate
 ```
 
-::: 경고 빌드 및 테스트
+::: warning BUILD AND TEST
 <!-- -->
 프로젝트를 빌드하고 테스트하는 경우 `xcodebuild build` 및 `tuist test`, 마찬가지로 빌드 또는 테스트 전에
 `carthage update` 명령을 실행하여 Carthage에서 해결된 종속성이 존재하는지 확인해야 합니다.
 <!-- -->
 :::
 
-### 코코아팟 {#코코아팟}
+### 코코아팟 {#cocoapods}
 
 [CocoaPods](https://cocoapods.org)은 Xcode 프로젝트가 종속성을 통합할 것으로 예상합니다. Tuist를 사용하여
 프로젝트를 생성한 다음 `pod install` 을 실행하여 프로젝트와 Pods 종속성이 포함된 작업 공간을 생성하여 종속성을 통합할 수
@@ -316,7 +316,7 @@ pod install
 <!-- -->
 :::
 
-## 정적 또는 동적 {#정적-또는-동적}
+## 정적 또는 동적 {#static-or-dynamic}
 
 프레임워크와 라이브러리는 정적 또는 동적으로 연결할 수 있으며, **앱 크기 및 부팅 시간** 과 같은 측면에 중대한 영향을 미치는 선택입니다.
 그 중요성에도 불구하고 이 결정은 많은 고려 없이 내려지는 경우가 많습니다.
@@ -355,7 +355,7 @@ func productType() -> Product {
 같이 때때로 필요한 추가 빌드 설정을 설정하는 데 의존한다는 의미입니다. 따라서 올바른 결정을 내리는 데 도움이 되는 리소스를 문서 형태로
 제공하는 것이 저희의 입장입니다.
 
-::: 팁 예시: 컴포저블 아키텍처
+::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
 많은 프로젝트에서 통합하는 Swift 패키지는 [컴포저블
 아키텍처](https://github.com/pointfreeco/swift-composable-architecture)입니다. 자세한 내용은
@@ -363,7 +363,7 @@ func productType() -> Product {
 <!-- -->
 :::
 
-### 시나리오 {#시나리오}
+### 시나리오 {#scenarios}
 
 링크를 정적 또는 동적으로만 설정하는 것이 가능하지 않거나 좋은 생각이 아닌 시나리오가 몇 가지 있습니다. 다음은 정적 링크와 동적 링크를
 혼합해야 할 수 있는 시나리오의 전체 목록이 아닙니다:
@@ -399,7 +399,7 @@ Google의 오픈 소스 라이브러리는 강력하지만 구축 방식에서 �
 
 다음은 Firebase와 Google의 다른 Apple 플랫폼 라이브러리를 통합하기 위해 따라야 할 몇 가지 팁입니다:
 
-#### `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}에 `-ObjC` 가 추가되었는지 확인합니다.
+#### `OTHER_LDFLAGS에 `-ObjC` 가 추가되었는지 확인합니다.` {#ensure-objc-is-added-to-other_ldflags}
 
 Google의 많은 라이브러리는 Objective-C로 작성되었습니다. 따라서 이를 사용하는 모든 대상은 `OTHER_LDFLAGS` 빌드
 설정에 `-ObjC` 태그를 포함해야 합니다. 이는 `.xcconfig` 파일에서 설정하거나 Tuist 매니페스트 내의 타겟 설정에서 수동으로
@@ -417,7 +417,7 @@ Target.target(
 
 자세한 내용은 위의 [Objective-C 종속성](#objective-c-dependencies) 섹션을 참조하세요.
 
-#### `FBLPromises` 의 제품 유형을 동적 프레임워크로 설정 {#set-the-product-type-for-fblpromises-to-dynamic-framework}
+#### `FBLPromises` 의 제품 유형을 동적 프레임워크로 설정합니다. {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
 특정 Google 라이브러리는 `FBLPromises`, 또 다른 Google 라이브러리에 의존합니다. 다음과 같이 보이는
 `FBLPromises` 를 언급하는 크래시가 발생할 수 있습니다:
@@ -462,7 +462,7 @@ let package = Package(
 
 다음 구성은 모든 것을 동적으로 연결하므로 앱 + 테스트 대상 및 SwiftUI 미리보기가 작동합니다.
 
-::: 팁 정적 또는 동적
+::: tip STATIC OR DYNAMIC
 <!-- -->
 동적 링크가 항상 권장되는 것은 아닙니다. 자세한 내용은 [정적 또는 동적](#static-or-dynamic) 섹션을 참조하세요. 이 예에서는
 단순화를 위해 모든 종속성을 조건 없이 동적으로 연결했습니다.
@@ -522,7 +522,7 @@ let packageSettings = PackageSettings(
 <!-- -->
 :::
 
-### 전이적 정적 종속성 유출 `.swiftmodule` {#전이적-정적-종속성 유출-스위프트모듈}
+### 전이적 정적 종속성이 `.swiftmodule을 통해 누출되는 경우` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
 동적 프레임워크 또는 라이브러리가 `import StaticSwiftModule` 을 통해 정적 프레임워크 또는 라이브러리에 의존하는 경우,
 해당 심볼이 동적 프레임워크 또는 라이브러리의 `.swiftmodule` 에 포함되어
