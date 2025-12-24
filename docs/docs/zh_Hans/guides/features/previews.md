@@ -27,8 +27,9 @@
 
 代码组
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -57,6 +58,15 @@ tuist run App@latest # Runs latest App preview associated with the project's def
 tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
+
+警告 CI 中的唯一建造编号
+<!-- -->
+利用大多数 CI 提供商公开的 CI 运行编号，确保`CFBundleVersion` （构建版本）是唯一的。例如，在 GitHub Actions
+中，可以将`CFBundleVersion` 设置为 <code v-pre>${{ github.run_number }}</code> 变量。
+
+上传具有相同二进制文件（构建）和相同`CFBundleVersion` 的预览将失败。
+<!-- -->
+:::
 
 ## 音轨 {#tracks}
 
@@ -119,7 +129,8 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 
 警告 需要与 GIT 平台集成
 <!-- -->
-要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
+要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>集成。
 <!-- -->
 :::
 
