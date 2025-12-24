@@ -7,15 +7,16 @@
 ---
 # Generated 프로젝트 {#generated-projects}
 
-경고 요구 사항 ::: warning 요구 사항
+경고 요구 사항 ::: 경고 요구 사항
 <!-- -->
-- <LocalizedLink href="/guides/features/projects"> 생성된 프로젝트</LocalizedLink>
-- <LocalizedLink href="/guides/features/projects">Tuist 계정 및 프로젝트</LocalizedLink>
+- 1} 생성된 프로젝트</LocalizedLink>
+- 1}Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
 생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령을 사용합니다. 이 명령은
-<LocalizedLink href="/guides/features/cache#cache-warming">캐시 워밍업</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를
+<LocalizedLink href="/guides/features/cache#cache-warming">캐시
+워밍업</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를
 <LocalizedLink href="/guides/features/projects/hashing">해시</LocalizedLink>하고,
 성공하면 향후 실행에서 변경된 내용을 확인하기 위해 해시를 유지합니다.
 
@@ -42,8 +43,8 @@
 
 ## UI 테스트 {#ui-tests}
 
-Tuist는 UI 테스트의 선택적 테스트를 지원합니다. 그러나 Tuist는 미리 대상을 알고 있어야 합니다. ` 대상` 매개 변수를 지정한
-경우에만 Tuist는 다음과 같이 선택적으로 UI 테스트를 실행합니다:
+Tuist는 UI 테스트의 선택적 테스트를 지원합니다. 그러나 Tuist는 미리 대상을 알아야 합니다. ` 대상` 매개 변수를 지정한 경우에만
+Tuist는 다음과 같이 선택적으로 UI 테스트를 실행합니다:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
