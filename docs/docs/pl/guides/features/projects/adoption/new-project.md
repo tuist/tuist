@@ -5,7 +5,7 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# Utwórz nowy projekt {#create-a-new-project}.
+# Utwórz nowy projekt {#create-a-new-project}
 
 Najprostszym sposobem na rozpoczęcie nowego projektu z Tuist jest użycie
 polecenia `tuist init`. Polecenie to uruchamia interaktywny interfejs CLI, który
@@ -109,7 +109,7 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-::: ostrzeżenie
+::: warning
 <!-- -->
 Tuist używa katalogu `Tuist/` do określenia katalogu głównego projektu, a
 następnie szuka innych plików manifestu globalizujących katalogi. Zalecamy
