@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_auth/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -190,9 +190,9 @@ msgid "Install Tuist CLI"
 msgstr "安裝 Tuist CLI"
 
 #: lib/tuist_web/live/user_registration_live.ex:54
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Instantly share your app using a URL."
-msgstr ""
+msgstr "透過連結即時分享您的應用程式"
 
 #: lib/tuist_web/live/sso_login_live.ex:81
 #: lib/tuist_web/live/user_okta_login_live.ex:84
