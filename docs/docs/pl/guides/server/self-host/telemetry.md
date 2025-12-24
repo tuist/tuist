@@ -16,7 +16,7 @@ końcowy `/metrics` na porcie 9091. Interwał
 Prometheusa powinien być ustawiony na mniej niż 10_000 sekund (zalecamy
 zachowanie domyślnej wartości 15 sekund).
 
-## PostHog analytics {#posthog-analytics}
+## Analityka PostHog {#posthog-analytics}
 
 Tuist integruje się z [PostHog](https://posthog.com/) w celu analizy zachowań
 użytkowników i śledzenia zdarzeń. Pozwala to zrozumieć, w jaki sposób
@@ -77,7 +77,7 @@ Gdy PostHog jest włączony, Tuist automatycznie śledzi:
 - Dane PostHog są przetwarzane zgodnie z polityką prywatności PostHog i
   konfiguracją użytkownika
 
-## Elixir metrics {#elixir-metrics}
+## Metryki Elixir {#elixir-metrics}
 
 Domyślnie uwzględniamy metryki środowiska uruchomieniowego Elixir, BEAM, Elixir
 i niektórych używanych przez nas bibliotek. Poniżej znajdują się niektóre z
@@ -94,7 +94,7 @@ metryk, których można się spodziewać:
 Zalecamy sprawdzenie tych stron, aby dowiedzieć się, które metryki są dostępne i
 jak z nich korzystać.
 
-## Runs metrics {#runs-metrics}
+## Wskaźniki przebiegu {#runs-metrics}
 
 Zestaw wskaźników związanych z Tuist Runs.
 
@@ -126,7 +126,7 @@ Całkowity czas trwania każdego uruchomienia tuist w milisekundach.
 
 Zestaw metryk związanych z Tuist Cache.
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+### `tuist_cache_events_total` (licznik) {#tuist_cache_events_total-counter}
 
 Całkowita liczba zdarzeń binarnej pamięci podręcznej.
 
@@ -144,7 +144,7 @@ Liczba załadowań do binarnej pamięci podręcznej.
 
 Liczba bajtów przesłanych do binarnej pamięci podręcznej.
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_downloads_total` (licznik) {#tuist_cache_downloads_total-counter}
 
 Liczba pobrań do binarnej pamięci podręcznej.
 
@@ -154,7 +154,7 @@ Liczba bajtów pobranych z binarnej pamięci podręcznej.
 
 ---
 
-## Metryki podglądów {#previews-metrics}
+## Wskaźniki podglądu {#previews-metrics}
 
 Zestaw metryk związanych z funkcją podglądu.
 
@@ -380,7 +380,7 @@ Całkowita liczba przypadków przesłania danych do zdalnej pamięci masowej.
 
 Zestaw metryk związanych z uwierzytelnianiem.
 
-### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_token_refresh_error_total` (licznik) {#tuist_authentication_token_refresh_error_total-counter}
 
 Całkowita liczba błędów odświeżania tokenów.
 
@@ -431,11 +431,11 @@ Liczba połączeń z bazą danych, które są gotowe do przypisania do zapytania
 danych.
 
 
-### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
+### `tuist_repo_pool_db_connection_connected` (licznik) {#tuist_repo_pool_db_connection_connected-counter}
 
 Liczba połączeń nawiązanych z bazą danych.
 
-### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
+### `tuist_repo_pool_db_connection_disconnected` (licznik) {#tuist_repo_pool_db_connection_disconnected-counter}
 
 Liczba połączeń, które zostały rozłączone z bazą danych.
 
@@ -444,7 +444,7 @@ Liczba połączeń, które zostały rozłączone z bazą danych.
 Zestaw metryk związanych z interakcjami Tuist z innymi usługami za pośrednictwem
 protokołu HTTP.
 
-### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
+### `tuist_http_request_count` (licznik) {#tuist_http_request_count-last_value}
 
 Liczba wychodzących żądań HTTP.
 
@@ -457,7 +457,7 @@ połączenia).
 Rozkład czasu trwania żądań wychodzących (w tym czasu oczekiwania na przypisanie
 do połączenia).
 
-### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
+### `tuist_http_queue_count` (licznik) {#tuist_http_queue_count-counter}
 
 Liczba żądań, które zostały pobrane z puli.
 
@@ -477,7 +477,7 @@ Czas pobierania połączenia z puli.
 
 Czas bezczynności połączenia w oczekiwaniu na odzyskanie.
 
-### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
+### `tuist_http_connection_count` (licznik) {#tuist_http_connection_count-counter}
 
 Liczba nawiązanych połączeń.
 
@@ -489,7 +489,7 @@ Czas potrzebny do nawiązania połączenia z hostem.
 
 Rozkład czasu potrzebnego do nawiązania połączenia z hostem.
 
-### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+### `tuist_http_send_count` (licznik) {#tuist_http_send_count-counter}
 
 Liczba żądań, które zostały wysłane po przypisaniu do połączenia z puli.
 
@@ -502,7 +502,7 @@ Czas potrzebny na ukończenie żądań po przypisaniu do połączenia z puli.
 Rozkład czasu potrzebnego na ukończenie żądań po przypisaniu do połączenia z
 puli.
 
-### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
+### `tuist_http_receive_count` (licznik) {#tuist_http_receive_count-counter}
 
 Liczba otrzymanych odpowiedzi na wysłane żądania.
 
