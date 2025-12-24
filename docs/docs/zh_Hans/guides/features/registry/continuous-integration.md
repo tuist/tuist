@@ -30,7 +30,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 
 `tuist 注册表登录` 会将凭证存储在默认钥匙串中。在运行_ `tuist registry login` 之前，确保已创建并解锁默认钥匙串_。
 
-此外，您还需要确保设置了`TUIST_CONFIG_TOKEN` 环境变量。您可以根据此处的文档
+此外，您还需要确保`TUIST_TOKEN` 环境变量已设置。您可以根据此处的文档
 <LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>
 创建一个环境变量。
 
@@ -53,7 +53,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
