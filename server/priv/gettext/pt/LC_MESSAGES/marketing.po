@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2025-12-24 16:02+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Portuguese <https://translate.tuist.dev/projects/tuist/marketing/pt/>\nLanguage: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n > 1;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2025-12-24 16:02+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Portuguese <https://translate.tuist.dev/projects/tuist/marketing/pt/>\nLanguage: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n > 1;\nX-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -221,9 +221,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:245
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:260
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cache"
-msgstr ""
+msgstr "Cache"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:478
 #, elixir-autogen, elixir-format
@@ -237,9 +237,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:426
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
 #: lib/tuist_web/marketing/structured_markup.ex:218
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Changelog"
-msgstr ""
+msgstr "Changelog"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:6
 #, elixir-autogen, elixir-format
@@ -331,9 +331,9 @@ msgid "Contact us"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:624
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Contributors"
-msgstr ""
+msgstr "Contributors"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:300
 #, elixir-autogen, elixir-format
@@ -457,9 +457,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:141
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:368
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:298
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Features"
-msgstr ""
+msgstr "Recursos"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:25
 #, elixir-autogen, elixir-format
@@ -492,9 +492,9 @@ msgstr "Projetos gerados"
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:255
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:4
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:207
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Generated projects"
-msgstr ""
+msgstr "Generated projects"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:6
 #, elixir-autogen, elixir-format
@@ -516,9 +516,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:35
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:28
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "Get started"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:248
 #, elixir-autogen, elixir-format
@@ -592,9 +592,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:96
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:155
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:296
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Insights"
-msgstr ""
+msgstr "Insights"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:41
 #, elixir-autogen, elixir-format
@@ -825,9 +825,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:280
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:295
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:142
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "Previews"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:67
 #, elixir-autogen, elixir-format
@@ -900,9 +900,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:414
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:429
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:156
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Registry"
-msgstr ""
+msgstr "Registry"
 
 #: lib/tuist_web/marketing/components/marketing_home_components.ex:67
 #, elixir-autogen, elixir-format
@@ -911,9 +911,9 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:243
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:456
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "Resources"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:22
 #, elixir-autogen, elixir-format
@@ -935,9 +935,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:313
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:325
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:109
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective testing"
-msgstr ""
+msgstr "Selective testing"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:52
 #, elixir-autogen, elixir-format
@@ -1208,9 +1208,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:535
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:591
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:625
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist"
-msgstr ""
+msgstr "Tuist"
 
 #: lib/tuist_web/marketing/layouts/root.html.heex:55
 #: lib/tuist_web/marketing/layouts/root.html.heex:61
