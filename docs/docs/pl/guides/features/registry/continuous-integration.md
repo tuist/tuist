@@ -5,12 +5,12 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Ciągła integracja (CI) {#ciągła-integracja-ci}
+# Ciągła integracja (CI) {#continuous-integration-ci}
 
 Aby korzystać z rejestru w CI, należy upewnić się, że zalogowano się do
 rejestru, uruchamiając `tuist registry login` jako część przepływu pracy.
 
-::: info TYLKO INTEGRACJA XCODE
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 Utworzenie nowego wstępnie odblokowanego pęku kluczy jest wymagane tylko w
 przypadku korzystania z integracji pakietów w Xcode.
