@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ja/>\n"
 "Language: ja\n"
@@ -402,9 +403,9 @@ msgid "Hit rate"
 msgstr "ヒット率"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Hits"
-msgstr ""
+msgstr "ヒット数"
 
 #: lib/tuist_web/live/bundle_live.ex:883
 #: lib/tuist_web/live/bundles_live.ex:379
@@ -637,9 +638,9 @@ msgid "Space usage"
 msgstr "スペース利用"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "ステータス"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format, fuzzy
@@ -796,16 +797,16 @@ msgstr "応募する"
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
 #: lib/tuist_web/live/xcode_cache_live.html.heex:41
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "キャンセル"
 
 #: lib/tuist_web/live/bundles_live.html.heex:124
 #: lib/tuist_web/live/module_cache_live.html.heex:62
 #: lib/tuist_web/live/xcode_cache_live.html.heex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "カスタム"
 
 #: lib/tuist_web/live/bundles_live.html.heex:121
 #: lib/tuist_web/live/module_cache_live.html.heex:59
