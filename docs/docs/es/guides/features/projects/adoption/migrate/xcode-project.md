@@ -30,7 +30,7 @@ forma coherente y de que sigan siendo sencillos.
 Con el objetivo de facilitarle esa labor, le damos algunas pautas basadas en los
 comentarios que hemos recibido de los usuarios.
 
-## Crear andamio de proyecto {#create-project-scaffold}
+## Crear un andamiaje de proyectos {#create-project-scaffold}
 
 En primer lugar, crea un andamio para tu proyecto con los siguientes archivos
 Tuist:
@@ -86,7 +86,7 @@ let package = Package(
 archivo `Tuist.swift` es donde puedes definir la configuración de Tuist para tu
 proyecto.
 
-::: tip NOMBRE DEL PROYECTO CON -TUIST SUFFIX
+::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 Para evitar conflictos con el proyecto Xcode existente, recomendamos añadir el
 sufijo `-Tuist` al nombre del proyecto. Puedes eliminarlo una vez que hayas
@@ -94,7 +94,7 @@ migrado completamente tu proyecto a Tuist.
 <!-- -->
 :::
 
-## Construye y prueba el proyecto Tuist en CI {#build-and-test-the-tuist-project-in-ci}
+## Construir y probar el proyecto Tuist en CI {#build-and-test-the-tuist-project-in-ci}
 
 Para asegurarte de que la migración de cada cambio es válida, te recomendamos
 que amplíes tu integración continua para construir y probar el proyecto generado
@@ -106,7 +106,7 @@ tuist generate
 xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## Extraiga la configuración de compilación del proyecto en archivos `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}
+## Extraiga la configuración de compilación del proyecto en `.xcconfig` archivos {#extract-the-project-build-settings-into-xcconfig-files}
 
 Extraiga la configuración de compilación del proyecto en un archivo `.xcconfig`
 para que el proyecto sea más sencillo y fácil de migrar. Puede utilizar el
@@ -176,7 +176,7 @@ let package = Package(
 )
 ```
 
-::: tip TIPOS DE PRODUCTO
+::: tip PRODUCT TYPES
 <!-- -->
 Puedes anular el tipo de producto para un paquete específico añadiéndolo al
 diccionario `productTypes` en la estructura `PackageSettings`. Por defecto,
@@ -205,7 +205,7 @@ Migre los objetivos uno a uno. Recomendamos hacer un pull request por cada
 objetivo para asegurarse de que los cambios se revisan y prueban antes de
 fusionarlos.
 
-### Extraiga la configuración de compilación de destino en archivos `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}
+### Extraiga la configuración de compilación de destino en `.xcconfig` files {#extract-the-target-build-settings-into-xcconfig-files}
 
 Al igual que hizo con la configuración de compilación del proyecto, extraiga la
 configuración de compilación del destino en un archivo `.xcconfig` para que el
@@ -251,7 +251,7 @@ let project = Project(
 )
 ```
 
-::: info TARGETAS DE PRUEBA
+::: info TEST TARGETS
 <!-- -->
 Si el objetivo tiene un objetivo de prueba asociado, deberá definirlo también en
 el archivo `Project.swift` repitiendo los mismos pasos.
@@ -266,7 +266,7 @@ Además, puede utilizar [xcdiff](https://github.com/bloomberg/xcdiff) para
 comparar el proyecto Xcode generado con el existente y asegurarse de que los
 cambios son correctos.
 
-### Repetir {#repeat}
+### Repita {#repeat}
 
 Repita hasta que todos los objetivos estén completamente migrados. Una vez que
 haya terminado, le recomendamos que actualice sus pipelines CI y CD para
@@ -275,7 +275,7 @@ construir y probar el proyecto utilizando `tuist generate` seguido de
 
 ## Solución de problemas {#troubleshooting}
 
-### Errores de compilación debidos a ficheros ausentes. {#errores-de-compilación-debido-a-ficheros-que-faltan}
+### Errores de compilación por falta de archivos. {#compilation-errors-due-to-missing-files}
 
 Si los archivos asociados a los objetivos de tu proyecto Xcode no estuvieran
 todos contenidos en un directorio del sistema de archivos que representara al
