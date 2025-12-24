@@ -7,7 +7,7 @@
 ---
 # SSO {#sso}
 
-## جوجل {#جوجل}
+## جوجل {#google}
 
 إذا كان لديك منتدى مؤسسة Google Workspace وتريد أن تتم إضافة أي مطوِّر يقوم
 بتسجيل الدخول بنفس النطاق المستضاف من Google إلى منتدى مؤسسة Tuist، يمكنك إعداده
@@ -23,7 +23,7 @@ tuist organization update sso my-organization --provider google --organization-i
 <!-- -->
 :::
 
-## أوكتا {#أوكتا}
+## أوكتا {#okta}
 
 يتوفر SSO مع Okta لعملاء المؤسسات فقط. إذا كنت مهتمًا بإعداده، يرجى الاتصال بنا
 على [contact@tuist.dev] (mailto:contact@tuist.dev).
