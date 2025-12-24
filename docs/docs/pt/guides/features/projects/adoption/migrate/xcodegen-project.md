@@ -26,7 +26,6 @@ Swift as a configuration format. Swift is a programming language that developers
 are familiar with, and that provides them with the convenience of using Xcode's
 autocompletion, type-checking, and validation features.
 <!-- -->
-:::
 
 What follows are some considerations and guidelines to help you migrate your
 projects from XcodeGen to Tuist.
@@ -36,7 +35,6 @@ projects from XcodeGen to Tuist.
 Both Tuist and XcodeGen provide a `generate` command that turns your project
 declaration into Xcode projects and workspaces.
 
-::: code-group
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -46,7 +44,6 @@ xcodegen generate
 tuist generate
 ```
 <!-- -->
-:::
 
 The difference lays in the editing experience. With Tuist, you can run the
 `tuist edit` command, which generates an Xcode project on the fly that you can
@@ -61,7 +58,6 @@ workspaces. You can also have a project `Project.swift` with targets that
 reference targets from other projects. In those cases, Tuist will generate an
 Xcode Workspace including all the projects.
 
-::: code-group
 
 ```bash [XcodeGen directory structure]
 /
@@ -75,7 +71,6 @@ Xcode Workspace including all the projects.
   Workspace.swift
 ```
 <!-- -->
-:::
 
 ::: tip XCODE'S LANGUAGE
 <!-- -->
@@ -83,7 +78,6 @@ Both XcodeGen and Tuist embrace Xcode's language and concepts. However, Tuist's
 Swift-based configuration provides you with the convenience of using Xcode's
 autocompletion, type-checking, and validation features.
 <!-- -->
-:::
 
 ## Spec templates {#spec-templates}
 
@@ -92,10 +86,10 @@ it doesn't support reusability across YAML files out of the box. This is a
 common need when describing projects, which XcodeGen had to solve with their own
 propietary solution named *"templates"*. With Tuist's re-usability is built into
 the language itself, Swift, and through a Swift module named
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, which allow reusing code across all your manifest
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, which allow reusing code across all your manifest
 files.
 
-::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 
