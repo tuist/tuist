@@ -5,7 +5,7 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Recenzje kodu {#code-reviews}
+# Recenzje kodów {#code-reviews}
 
 Przeglądanie pull requestów jest powszechnym rodzajem wkładu. Pomimo ciągłej
 integracji (CI) zapewniającej, że kod robi to, co powinien, to nie wystarczy.
@@ -29,7 +29,7 @@ Duże pull requesty są trudne do przejrzenia i łatwiej jest przeoczyć szczeg�
 Jeśli pull request staje się zbyt duży i niemożliwy do zarządzania, zasugeruj
 autorowi jego rozbicie.
 
-::: info WYJĄTKI
+::: info EXCEPTIONS
 <!-- -->
 Istnieje kilka scenariuszy, w których podział pull requesta nie jest możliwy, na
 przykład gdy zmiany są ściśle powiązane i nie można ich podzielić. W takich
@@ -54,7 +54,7 @@ który konsekwentnie daje ten sam wynik i jest łatwy do zrozumienia i utrzymani
 Recenzenci spędzają większość czasu na przeglądaniu kodu implementacji, ale
 testy są równie ważne, ponieważ również są kodem.
 
-## Zmiany przełomowe {#breaking-changes}
+## Przełomowe zmiany {#breaking-changes}
 
 Uszkadzające zmiany są złym doświadczeniem dla użytkowników Tuist. Wkład
 powinien unikać wprowadzania przełomowych zmian, chyba że jest to absolutnie
