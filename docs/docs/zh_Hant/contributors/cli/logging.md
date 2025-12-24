@@ -5,12 +5,10 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Logging {#logging}
+# 記錄{#logging}
 
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface
-for logging. The package abstracts away the implementation details of logging,
-allowing the CLI to be agnostic to the logging backend. The logger is
-dependency-injected using task locals and can be accessed anywhere using:
+CLI 採用 [swift-log](https://github.com/apple/swift-log) 記錄介面。此套件抽象出記錄的實作細節，讓 CLI
+與記錄後端無關。日誌記錄器是使用任務本地端（task locals）進行依賴注入（dependency-injected），並可在任何地方使用以下方式存取：
 
 ```bash
 Logger.current
@@ -18,18 +16,12 @@ Logger.current
 
 ::: info
 <!-- -->
-Task locals don't propagate the value when using `Dispatch` or detached tasks,
-so if you use them, you'll need to get it and pass it to the asynchronous
-operation.
+當使用`Dispatch` 或分離的任務時，任務本地端不會傳播值，所以如果您使用它們，您需要取得該值並將它傳給異步操作。
 <!-- -->
 :::
 
-## What to log {#what-to-log}
+## 記錄什麼{#what-to-log}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better. When building new
-features, put yourself in the shoes of a developer coming across unexpected
-behavior, and think about what information would be helpful to them. Ensure you
-you use the right [log
-level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
-Otherwise developers won't be able to filter out the noise.
+日誌不是 CLI
+的使用者介面。當問題發生時，它們是診斷問題的工具。因此，您提供的資訊越多越好。在建立新功能時，站在開發人員遇到意外行為的立場，想想哪些資訊會對他們有幫助。確保使用正確的
+[日誌層級](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)。否則開發人員無法濾除雜訊。
