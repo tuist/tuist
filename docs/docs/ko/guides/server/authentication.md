@@ -5,13 +5,13 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# 인증 {#인증}
+# 인증 {#authentication}
 
 서버와 상호 작용하려면 CLI에서 [무기명
 인증](https://swagger.io/docs/specification/authentication/bearer-authentication/)을
 사용하여 요청을 인증해야 합니다. CLI는 사용자 인증, 계정 인증 또는 OIDC 토큰 사용을 지원합니다.
 
-## 사용자 {#사용자}로서
+## 사용자로서 {#as-a-user}
 
 컴퓨터에서 로컬로 CLI를 사용할 때는 사용자로 인증하는 것이 좋습니다. 사용자로 인증하려면 다음 명령을 실행해야 합니다:
 
@@ -31,7 +31,7 @@ CLI는 서버에 요청할 때 자동으로 자격 증명을 조회합니다. �
 OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 비밀 번호를 관리할 필요 없이 자동으로 인증할 수 있습니다.
 지원되는 CI 환경에서 실행할 때 CLI는 자동으로 OIDC 토큰 공급자를 감지하고 CI가 제공한 토큰을 Tuist 액세스 토큰으로 교환합니다.
 
-### 지원되는 CI 공급자 {#supported-ci-providers}
+### 지원되는 CI 제공업체 {#supported-ci-providers}
 
 - GitHub 작업
 - CircleCI
@@ -54,7 +54,7 @@ OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 �
 OIDC 토큰에는 리포지토리에 연결된 모든 프로젝트에 대한 액세스 권한을 제공하는 `ci` 범위 그룹이 부여됩니다. ` ci` 범위에 포함되는
 항목에 대한 자세한 내용은 [범위 그룹](#scope-groups)을 참조하세요.
 
-팁 보안 혜택 ::: 보안 혜택
+::: tip SECURITY BENEFITS
 <!-- -->
 OIDC 인증이 수명이 긴 토큰보다 더 안전한 이유는 다음과 같습니다:
 - 회전하거나 관리할 비밀이 없습니다.
@@ -86,7 +86,7 @@ tuist account tokens create my-account \
 | `--만료`   | 선택 사항입니다. 토큰이 만료되는 시기. ` 30d` (일), `6m` (개월) 또는 `1y` (년)과 같은 형식을 사용합니다. 지정하지 않으면 토큰이 만료되지 않습니다. |
 | `--프로젝트` | 토큰을 특정 프로젝트 핸들로 제한합니다. 지정하지 않으면 토큰이 모든 프로젝트에 액세스할 수 있습니다.                                       |
 
-### 사용 가능한 범위 {#사용 가능한 범위}
+### 사용 가능한 범위 {#available-scopes}
 
 | 범위             | 설명                   |
 | -------------- | -------------------- |
@@ -129,7 +129,7 @@ tuist account tokens create my-account --scopes ci --name ci
 이렇게 하면 일반적인 CI 작업(캐시, 미리보기, 번들, 테스트, 빌드 및 실행)에 필요한 모든 범위가 포함된 토큰이 생성됩니다. 생성된 토큰을
 CI 환경에 비밀로 저장하고 `TUIST_TOKEN` 환경 변수로 설정합니다.
 
-### 계정 토큰 관리 {#관리-계정-토큰}
+### 계정 토큰 관리 {#managing-account-tokens}
 
 계정의 모든 토큰을 나열하려면 다음과 같이 하세요:
 
@@ -143,7 +143,7 @@ tuist account tokens list my-account
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### 계정 토큰 사용 {#사용하는-계정-토큰}
+### 계정 토큰 사용 {#using-account-tokens}
 
 계정 토큰은 환경 변수 `TUIST_TOKEN` 으로 정의해야 합니다:
 
@@ -151,7 +151,7 @@ tuist account tokens revoke my-account ci-cache-token
 export TUIST_TOKEN=your-account-token
 ```
 
-::: 팁 계정 토큰 사용 시기
+::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
 필요할 때 계정 토큰을 사용하세요:
 - OIDC를 지원하지 않는 CI 환경에서의 인증
