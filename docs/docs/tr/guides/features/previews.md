@@ -5,29 +5,29 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# Previews {#previews}
+# Önizlemeler {#previews}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-When building an app, you may want to share it with others to get feedback.
-Traditionally, this is something that teams do by building, signing, and pushing
-their apps to platforms like Apple's
-[TestFlight](https://developer.apple.com/testflight/). However, this process can
-be cumbersome and slow, especially when you're just looking for quick feedback
-from a colleague or a friend.
+Bir uygulama geliştirirken, geri bildirim almak için başkalarıyla paylaşmak
+isteyebilirsiniz. Geleneksel olarak bu, ekiplerin uygulamalarını oluşturarak,
+imzalayarak ve Apple'ın [TestFlight](https://developer.apple.com/testflight/)
+gibi platformlarına göndererek yaptıkları bir şeydir. Ancak bu süreç, özellikle
+de sadece bir iş arkadaşınızdan veya bir arkadaşınızdan hızlı geri bildirim
+almak istediğinizde zahmetli ve yavaş olabilir.
 
-To make this process more streamlined, Tuist provides a way to generate and
-share previews of your apps with anyone.
+Bu süreci daha kolay hale getirmek için Tuist, uygulamalarınızın önizlemelerini
+oluşturmanın ve herkesle paylaşmanın bir yolunu sunuyor.
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-When building for device, it is currently your responsibility to ensure the app
-is signed correctly. We plan to streamline this in the future.
+Cihaz için oluştururken, uygulamanın doğru şekilde imzalandığından emin olmak şu
+anda sizin sorumluluğunuzdadır. Gelecekte bunu kolaylaştırmayı planlıyoruz.
 <!-- -->
 :::
 
@@ -47,23 +47,23 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-The command will generate a link that you can share with anyone to run the app –
-either on a simulator or an actual device. All they'll need to do is to run the
-command below:
+Komut, uygulamayı simülatörde veya gerçek bir cihazda çalıştırmak için herhangi
+biriyle paylaşabileceğiniz bir bağlantı oluşturacaktır. Tek yapmaları gereken
+aşağıdaki komutu çalıştırmak:
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile
-device using the Preview link. The links to `.ipa` previews are by default
-_public_. In the future, you will have an option to make them private, so that
-the recipient of the link would need to authenticate with their Tuist account to
-download the app.
+Bir `.ipa` dosyasını paylaşırken, Önizleme bağlantısını kullanarak uygulamayı
+doğrudan mobil cihazdan indirebilirsiniz. ` .ipa` önizleme bağlantıları
+varsayılan olarak _herkese açık_. Gelecekte, bunları özel yapma seçeneğiniz
+olacak, böylece bağlantının alıcısının uygulamayı indirmek için Tuist hesabıyla
+kimlik doğrulaması yapması gerekecektir.
 
-`tuist run` also enables you to run a latest preview based on a specifier such
-as `latest`, branch name, or a specific commit hash:
+`tuist run` ayrıca `latest`, branch name veya belirli bir commit hash gibi bir
+belirticiye dayalı olarak en son önizlemeyi çalıştırmanızı sağlar:
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -73,45 +73,47 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run
-number that most CI providers expose. For example, in GitHub Actions you can set
-the `CFBundleVersion` to the <code v-pre>${{ github.run_number }}</code>
-variable.
+Çoğu CI sağlayıcısının ortaya çıkardığı bir CI çalışma numarasından yararlanarak
+`CFBundleVersion` (derleme sürümü) öğesinin benzersiz olduğundan emin olun.
+Örneğin, GitHub Actions'ta `CFBundleVersion` adresini <code v-pre>${{
+github.run_number }}</code> değişkenine ayarlayabilirsiniz.
 
-Uploading a preview with the same binary (build) and the same `CFBundleVersion`
-will fail.
+Aynı ikili dosyaya (derleme) ve aynı `CFBundleVersion` adresine sahip bir
+önizleme yüklemek başarısız olacaktır.
 <!-- -->
 :::
 
-## Tracks {#tracks}
+## Parçalar {#tracks}
 
-Tracks allow you to organize your previews into named groups. For example, you
-might have a `beta` track for internal testers and a `nightly` track for
-automated builds. Tracks are lazily created — simply specify a track name when
-sharing, and it will be created automatically if it doesn't exist.
+Parçalar, önizlemelerinizi adlandırılmış gruplar halinde düzenlemenizi sağlar.
+Örneğin, dahili test kullanıcıları için bir `beta` izi ve otomatik derlemeler
+için bir `nightly` iziniz olabilir. Parçalar tembel bir şekilde oluşturulur -
+paylaşırken bir parça adı belirtmeniz yeterlidir; mevcut değilse otomatik olarak
+oluşturulacaktır.
 
-To share a preview on a specific track, use the `--track` option:
+Belirli bir parçada önizleme paylaşmak için `--track` seçeneğini kullanın:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-This is useful for:
-- **Organizing previews**: Group previews by purpose (e.g., `beta`, `nightly`,
-  `internal`)
-- **In-app updates**: The Tuist SDK uses tracks to determine which updates to
-  notify users about
-- **Filtering**: Easily find and manage previews by track in the Tuist dashboard
+Bu şunlar için yararlıdır:
+- **Önizlemeleri düzenleme**: Önizlemeleri amaca göre gruplama (örneğin, `beta`,
+  `gecelik`, `dahili`)
+- **Uygulama içi güncellemeler**: Tuist SDK, kullanıcıları hangi güncellemeler
+  hakkında bilgilendireceğini belirlemek için izleri kullanır
+- **Filtreleme**: Tuist kontrol panelinde parçaya göre önizlemeleri kolayca
+  bulun ve yönetin
 
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
-Only people with access to the organization the project belongs to can access
-the previews. We plan to add support for expiring links.
+Önizlemelere yalnızca projenin ait olduğu kuruluşa erişimi olan kişiler
+erişebilir. Süresi dolan bağlantılar için destek eklemeyi planlıyoruz.
 <!-- -->
 :::
 
-## Tuist macOS app {#tuist-macos-app}
+## Tuist macOS uygulaması {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -120,21 +122,23 @@ the previews. We plan to add support for expiring links.
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar
-app. Instead of running Previews via the Tuist CLI, you can
-[download](https://tuist.dev/download) the macOS app. You can also install the
-app by running `brew install --cask tuist/tuist/tuist`.
+Tuist Önizlemelerini çalıştırmayı daha da kolaylaştırmak için bir Tuist macOS
+menü çubuğu uygulaması geliştirdik. Tuist CLI aracılığıyla Önizlemeleri
+çalıştırmak yerine, macOS uygulamasını
+[indirebilirsiniz](https://tuist.dev/download). Uygulamayı `brew install --cask
+tuist/tuist/tuist` çalıştırarak da yükleyebilirsiniz.
 
-When you now click on "Run" in the Preview page, the macOS app will
-automatically launch it on your currently selected device.
+Şimdi Önizleme sayfasında "Çalıştır "a tıkladığınızda, macOS uygulaması otomatik
+olarak o anda seçili cihazınızda başlatılacaktır.
 
 ::: warning REQUIREMENTS
 <!-- -->
-You need to have Xcode locally installed and be on macOS 14 or later.
+Xcode'un yerel olarak yüklü olması ve macOS 14 veya sonraki bir sürümü
+kullanıyor olmanız gerekir.
 <!-- -->
 :::
 
-## Tuist iOS app {#tuist-ios-app}
+## Tuist iOS uygulaması {#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -145,57 +149,59 @@ You need to have Xcode locally installed and be on macOS 14 or later.
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
-your previews.
+MacOS uygulamasına benzer şekilde, Tuist iOS uygulamaları da önizlemelerinize
+erişmeyi ve çalıştırmayı kolaylaştırıyor.
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">remote
-project</LocalizedLink> with a
+Otomatik çekme/birleştirme isteği yorumları almak için
+<LocalizedLink href="/guides/server/accounts-and-projects">uzak
+projenizi</LocalizedLink> bir
 <LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
+platformu</LocalizedLink> ile entegre edin.
 <!-- -->
 :::
 
-Testing new functionality should be a part of any code review. But having to
-build an app locally adds unnecessary friction, often leading to developers
-skipping testing functionality on their device at all. But *what if each pull
-request contained a link to the build that would automatically run the app on a
-device you selected in the Tuist macOS app?*
+Yeni işlevlerin test edilmesi, her kod incelemesinin bir parçası olmalıdır.
+Ancak bir uygulamayı yerel olarak derlemek zorunda kalmak gereksiz sürtüşmeler
+yaratır ve genellikle geliştiricilerin cihazlarındaki işlevselliği test etmeyi
+atlamasına neden olur. Ancak *her çekme isteği, uygulamayı Tuist macOS
+uygulamasında seçtiğiniz bir cihazda otomatik olarak çalıştıracak yapıya bir
+bağlantı içeriyor olsaydı ne olurdu?*
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
-link directly in your pull requests: ![GitHub app comment with a Tuist Preview
-link](/images/guides/features/github-app-with-preview.png)
+Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandıktan
+sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share
+MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
+bir Önizleme bağlantısı yayınlayacaktır: ![Tuist Önizleme bağlantısı içeren
+GitHub uygulama yorumu](/images/guides/features/github-app-with-preview.png)
 
 
-## In-app update notifications {#in-app-update-notifications}
+## Uygulama içi güncelleme bildirimleri {#in-app-update-notifications}
 
-The [Tuist SDK](https://github.com/tuist/sdk) enables your app to detect when a
-newer preview version is available and notify users. This is useful for keeping
-testers on the latest build.
+Tuist SDK](https://github.com/tuist/sdk), uygulamanızın daha yeni bir önizleme
+sürümünün mevcut olduğunu algılamasını ve kullanıcıları bilgilendirmesini
+sağlar. Bu, test kullanıcılarını en son sürümde tutmak için kullanışlıdır.
 
-The SDK checks for updates within the same **preview track**. When you share a
-preview with an explicit track using `--track`, the SDK will look for updates on
-that track. If no track is specified, the git branch is used as the track — so a
-preview built from the `main` branch will only notify about newer previews also
-built from `main`.
+SDK, aynı **önizleme izi** içindeki güncellemeleri kontrol eder. Bir önizlemeyi
+`--track` kullanarak açık bir parça ile paylaştığınızda, SDK bu parçadaki
+güncellemeleri arayacaktır. Herhangi bir iz belirtilmezse, git dalı iz olarak
+kullanılır - bu nedenle `ana` dalından oluşturulan bir önizleme yalnızca `ana`
+dalından da oluşturulan daha yeni önizlemeler hakkında bildirimde bulunacaktır.
 
-### Installation {#sdk-installation}
+### Kurulum {#sdk-installation}
 
-Add Tuist SDK as a Swift Package dependency:
+Tuist SDK'yı bir Swift paketi bağımlılığı olarak ekleyin:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Monitor for updates {#sdk-monitor-updates}
+### Güncellemeler için izleyin {#sdk-monitor-updates}
 
-Use `monitorPreviewUpdates` to periodically check for new preview versions:
+Yeni önizleme sürümlerini periyodik olarak kontrol etmek için
+`monitorPreviewUpdates` adresini kullanın:
 
 ```swift
 import TuistSDK
@@ -216,9 +222,9 @@ struct MyApp: App {
 }
 ```
 
-### Single update check {#sdk-single-check}
+### Tek güncelleme kontrolü {#sdk-single-check}
 
-For manual update checking:
+Manuel güncelleme kontrolü için:
 
 ```swift
 let sdk = TuistSDK(
@@ -231,9 +237,9 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### Stopping update monitoring {#sdk-stop-monitoring}
+### Güncelleme izlemeyi durdurma {#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` returns a `Task` that can be cancelled:
+`monitorPreviewUpdates` iptal edilebilen bir `Task` döndürür:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
@@ -246,44 +252,45 @@ task.cancel()
 
 ::: info
 <!-- -->
-Update checking is automatically disabled on simulators and App Store builds.
+Güncelleme denetimi simülatörlerde ve App Store yapılarında otomatik olarak
+devre dışı bırakılır.
 <!-- -->
 :::
 
-## README badge {#readme-badge}
+## README rozeti {#readme-badge}
 
-To make Tuist Previews more visible in your repository, you can add a badge to
-your `README` file that points to the latest Tuist Preview:
+Tuist Önizlemelerini deponuzda daha görünür kılmak için, `README` dosyanıza en
+son Tuist Önizlemesine işaret eden bir rozet ekleyebilirsiniz:
 
 [![Tuist
-Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+Önizleme](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-To add the badge to your `README`, use the following markdown and replace the
-account and project handles with your own:
+Rozeti `README` adresinize eklemek için aşağıdaki işaretlemeyi kullanın ve hesap
+ve proje tanıtıcılarını kendi tanıtıcılarınızla değiştirin:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-If your project contains multiple apps with different bundle identifiers, you
-can specify which app's preview to link to by adding a `bundle-id` query
-parameter:
+Projeniz farklı paket tanımlayıcılarına sahip birden fazla uygulama içeriyorsa,
+`bundle-id` sorgu parametresini ekleyerek hangi uygulamanın önizlemesine
+bağlantı verileceğini belirtebilirsiniz:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## Automations {#automations}
+## Otomasyonlar {#automations}
 
-You can use the `--json` flag to get a JSON output from the `tuist share`
-command:
+`tuist share` komutundan bir JSON çıktısı almak için `--json` bayrağını
+kullanabilirsiniz:
 ```
 tuist share --json
 ```
 
-The JSON output is useful to create custom automations, such as posting a Slack
-message using your CI provider. The JSON contains a `url` key with the full
-preview link and a `qrCodeURL` key with the URL to the QR code image to make it
-easier to download previews from a real device. An example of a JSON output is
-below:
+JSON çıktısı, CI sağlayıcınızı kullanarak bir Slack mesajı göndermek gibi özel
+otomasyonlar oluşturmak için kullanışlıdır. JSON, tam önizleme bağlantısını
+içeren bir `url` anahtarı ve gerçek bir cihazdan önizlemeleri indirmeyi
+kolaylaştırmak için QR kod görüntüsünün URL'sini içeren bir `qrCodeURL` anahtarı
+içerir. JSON çıktısının bir örneği aşağıdadır:
 ```json
 {
   "id": 1234567890,
