@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/tr/>\n"
 "Language: tr\n"
@@ -1059,9 +1060,9 @@ msgstr "İptal"
 #: lib/tuist_web/live/test_runs_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:501
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "Özel"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:55
 #: lib/tuist_web/live/test_runs_live.html.heex:55
