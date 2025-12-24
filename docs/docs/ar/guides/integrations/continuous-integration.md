@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# التكامل المستمر (CI) {#التكامل المستمر-التكامل-سي}
+# التكامل المستمر (CI) {#continuous-integration-ci}
 
 لتشغيل أوامر Tuist في عمليات سير عمل [التكامل المستمر]
 (https://en.wikipedia.org/wiki/Continuous_integration) الخاصة بك، ستحتاج إلى
@@ -17,9 +17,9 @@
 
 تقدم الأقسام التالية أمثلة على كيفية القيام بذلك على منصات CI المختلفة.
 
-## أمثلة {#أمثلة}
+## أمثلة {#examples}
 
-### إجراءات GitHub {#github-ACTions}
+### إجراءات GitHub {#github-actions}
 
 في [إجراءات GitHub](https://docs.github.com/en/actions) يمكنك استخدام مصادقة
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
@@ -117,7 +117,7 @@ jobs:
 <!-- -->
 :::
 
-:::: معلومات إعداد OIDC
+::: info OIDC SETUP
 <!-- -->
 قبل استخدام مصادقة OIDC، تحتاج إلى
 <LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
@@ -135,7 +135,7 @@ jobs:
 <!-- -->
 :::
 
-### سحابة Xcode السحابية {#xcode-cloud-cloud}
+### سحابة Xcode السحابية {#xcode-cloud}
 
 في [Xcode Cloud] (https://developer.apple.com/xcode-cloud/)، الذي يستخدم مشاريع
 Xcode كمصدر للحقيقة، ستحتاج إلى إضافة [ما بعد الاستنساخ]
@@ -167,7 +167,7 @@ tuist generate
 <!-- -->
 :::
 
-:::: معلومات المصادقة
+::: info AUTHENTICATION
 <!-- -->
 استخدم رمزًا مميزًا
 <LocalizedLink href="/guides/server/authentication#project-tokens"> للمشروع
@@ -176,7 +176,7 @@ Xcode Cloud الخاص بك.
 <!-- -->
 :::
 
-### سيركل سي آي {#circleCI}
+### سيركلسي {#circleci}
 
 في [CircleCI](https://circleci.com) يمكنك استخدام مصادقة
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
@@ -231,7 +231,7 @@ jobs:
 <!-- -->
 :::
 
-:::: معلومات المصادقة
+::: info AUTHENTICATION
 <!-- -->
 قبل استخدام مصادقة OIDC، تحتاج إلى
 <LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
@@ -243,7 +243,7 @@ Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، 
 <!-- -->
 :::
 
-### بيترايز {#بيترايز}
+### بيترايز {#bitrise}
 
 على [Bitrise](https://bitrise.io) يمكنك استخدام مصادقة
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
@@ -300,7 +300,7 @@ workflows:
 <!-- -->
 :::
 
-:::: معلومات المصادقة
+::: info AUTHENTICATION
 <!-- -->
 قبل استخدام مصادقة OIDC، تحتاج إلى
 <LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
@@ -312,7 +312,7 @@ Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، 
 <!-- -->
 :::
 
-### كودمجيك {#كودمجيك}
+### كودماغك {#codemagic}
 
 في [Codemagic] (https://codemagic.io)، يمكنك إضافة خطوة إضافية إلى سير عملك
 لتثبيت Tuist:
@@ -354,7 +354,7 @@ workflows:
 <!-- -->
 :::
 
-:::: معلومات المصادقة
+::: info AUTHENTICATION
 <!-- -->
 قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز
 مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
