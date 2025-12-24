@@ -7,7 +7,7 @@
 ---
 # プレビュー
 
-::: warning 要件
+警告 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
@@ -23,10 +23,11 @@
 <!-- -->
 :::
 
-::: code-group
+コードグループ
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -57,6 +58,16 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::警告 CIにおけるユニークビルド番号
+<!-- -->
+`CFBundleVersion` (ビルドバージョン) が一意であることを確認するには、ほとんどの CI プロバイダが公開している CI run number
+を利用します。例えば、GitHub Actions では、`CFBundleVersion` を <code v-pre>${{
+github.run_number }}</code> 変数に設定できます。
+
+同じバイナリ（ビルド）と同じ`CFBundleVersion` を持つプレビューのアップロードは失敗します。
+<!-- -->
+:::
+
 ## トラック {#tracks}
 
 トラックによって、プレビューを名前付きのグループに整理することができます。例えば、社内テスター用に`beta`
@@ -75,13 +86,13 @@ tuist share App --track nightly
 - **アプリ内アップデート** ：Tuist SDKは、どのアップデートをユーザーに通知するかを決定するためにトラックを使用します。
 - **フィルタリング** ：Tuistのダッシュボードでトラックごとのプレビューを簡単に検索・管理できる
 
-::: warning プレビューの可視性
+警告 プレビューの可視性
 <!-- -->
 プレビューにアクセスできるのは、プロジェクトが所属する組織にアクセスできる人だけです。期限切れリンクのサポートを追加する予定です。
 <!-- -->
 :::
 
-## TuistのmacOSアプリ{#tuist-macos-app}
+## TuistのmacOSアプリ{#tuist-macos-app}。
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -96,13 +107,13 @@ install --cask tuist/tuist/tuist` を実行してアプリをインストール�
 
 プレビューページで「実行」をクリックすると、macOSアプリが現在選択されているデバイス上で自動的に起動します。
 
-::: warning 要件
+警告 要件
 <!-- -->
 Xcodeをローカルにインストールし、macOS 14以降を使用している必要があります。
 <!-- -->
 :::
 
-## TuistのiOSアプリ{#tuist-ios-app}
+## TuistのiOSアプリ{#tuist-ios-app}。
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -126,12 +137,13 @@ GITプラットフォームとの統合が必要です。
 新しい機能のテストは、あらゆるコードレビューの一部であるべきだ。しかし、アプリをローカルでビルドしなければならないことは、不必要な摩擦を増やし、開発者が自分のデバイスで機能をテストすることをスキップしてしまうことになりがちだ。しかし、*、各プルリクエストに、Tuist
 macOSアプリで選択したデバイス上でアプリを自動的に実行するビルドへのリンクが含まれていたらどうだろう？*
 
-Tuistプロジェクトが[GitHub](https://github.com)などのGitプラットフォームと接続されたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>を追加します。するとTuistはプルリクエストに直接プレビューリンクを投稿します: ![GitHub
+Tuistプロジェクトが[GitHub](https://github.com)などのGitプラットフォームと接続されたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink>を追加します。するとTuistはプルリクエストに直接プレビューリンクを投稿します: ![GitHub
 app comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png).
 
 
-## アプリ内アップデート通知{#in-app-update-notifications}
+## アプリ内アップデート通知{#in-app-update-notifications}。
 
 Tuist
 SDK](https://github.com/tuist/sdk)を使用すると、新しいプレビュー版が利用可能になったことをアプリが検出し、ユーザーに通知することができます。これはテスターを最新ビルドに保つのに便利です。
@@ -148,7 +160,7 @@ Swift Packageの依存関係としてTuist SDKを追加する：
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### アップデートの監視{#sdk-monitor-updates}
+### アップデートの監視{#sdk-monitor-updates}。
 
 `monitorPreviewUpdates` を使用して、新しいプレビュー・バージョンを定期的にチェックしてください：
 
@@ -171,7 +183,7 @@ struct MyApp: App {
 }
 ```
 
-### 単一更新チェック{#sdk-single-check}
+### 単一更新チェック{#sdk-single-check}。
 
 手動更新チェック用：
 
@@ -186,7 +198,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### アップデート監視の停止{#sdk-stop-monitoring}
+### アップデート監視の停止{#sdk-stop-monitoring}。
 
 `monitorPreviewUpdates` ` キャンセル可能なタスク` を返す：
 
@@ -199,13 +211,13 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: 情報
+::: info
 <!-- -->
 アップデートチェックは、シミュレータおよびApp Storeビルドでは自動的に無効になります。
 <!-- -->
 :::
 
-## READMEバッジ {#readme-badge}
+## READMEバッジ {#readme-badge}。
 
 Tuistプレビューをリポジトリでより見やすくするために、`README` ファイルに最新のTuistプレビューを指すバッジを追加することができます：
 
