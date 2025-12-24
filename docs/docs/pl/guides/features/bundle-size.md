@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Wgląd w pakiet {#bundle-size}
+# Informacje o pakiecie {#bundle-size}
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
@@ -72,9 +72,9 @@ czasie:
 ![Wykres rozmiaru
 pakietu](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
+## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
-::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
