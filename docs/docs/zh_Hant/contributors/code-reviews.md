@@ -5,62 +5,36 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Code reviews {#code-reviews}
+# 代碼檢閱{#code-reviews}
 
-Reviewing pull requests is a common type of contribution. Despite continuous
-integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
-There are contribution traits that can’t be automated: design, code structure &
-architecture, tests quality, or typos. The following sections represent
-different aspects of the code review process.
+審查 pull request 是一種常見的貢獻方式。儘管持續整合 (CI)
+可確保程式碼達到預期的效果，但這還不夠。有些貢獻的特質是無法自動化的：設計、程式碼結構與架構、測試品質或錯誤。以下各節代表程式碼檢閱流程的不同面向。
 
-## Readability {#readability}
+## 可讀性{#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of
-time figuring out what the code does, the code implementation needs to be
-improved.** Suggest splitting the code into smaller abstractions that are easier
-to understand. Alternative, and as a last resource, they can add a comment
-explaining the reasoning behind it. Ask yourself if you’d be able to understand
-the code in a near future, without any surrounding context like the pull request
-description.
+程式碼是否清楚地表達了它的意圖？**如果您需要花一大堆時間來搞清楚程式碼的作用，那麼程式碼的實作就需要改進。**
+建議將代碼分割成更容易理解的小抽象。另類的，也是最後的資源，他們可以加上註解解釋背後的理由。問問自己，如果沒有拉取請求描述等任何周圍的上下文，你是否能夠在不久的將來理解這段程式碼。
 
-## Small pull requests {#small-pull-requests}
+## 小的拉取請求{#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a
-pull request becomes too large and unmanageable, suggest the author to break it
-down.
+大的拉取請求很難審閱，也很容易遺漏細節。如果拉取請求變得太大且無法管理，建議作者將其分解。
 
 ::: info EXCEPTIONS
 <!-- -->
-There are few scenarios where splitting up the pull request is not possible,
-like when the changes are tightly coupled and can’t be split. In those cases,
-the author should provide a clear explanation of the changes and the reasoning
-behind them.
+有幾種情況是不可能分割 pull request 的，例如當變更是緊耦合的，無法分割。在這種情況下，作者應該提供清楚的變更解釋及其背後的原因。
 <!-- -->
 :::
 
-## Consistency {#consistency}
+## 一致性{#consistency}
 
-It’s important that the changes are consistent with the rest of the project.
-Inconsistencies complicate maintenance, and therefore we should avoid them. If
-there’s an approach to output messages to the user, or report errors, we should
-stick to that. If the author disagrees with the project’s standards, suggest
-them to open an issue where we can discuss them further.
+變更與專案的其他部分保持一致是很重要的。不一致會讓維護工作變得複雜，因此我們應該避免。如果有向使用者輸出訊息或報告錯誤的方法，我們應該堅持。如果作者不同意專案的標準，建議他們開啟一個問題，讓我們可以進一步討論。
 
-## Tests {#tests}
+## 測試{#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be
-tested, and all tests should pass. A good test is a test that consistently
-produces the same result and that it’s easy to understand and maintain.
-Reviewers spend most of the review time in the implementation code, but tests
-are equally important because they are code too.
+透過測試可以放心地變更程式碼。拉取請求上的程式碼應該經過測試，而且所有的測試都應該通過。一個好的測試是能持續產生相同的結果，而且容易理解和維護。審查員大部分的審查時間都花在實作程式碼上，但測試也同樣重要，因為它們也是程式碼。
 
-## Breaking changes {#breaking-changes}
+## 突破性變更{#breaking-changes}
 
-Breaking changes are a bad user experience for users of Tuist. Contributions
-should avoid introducing breaking changes unless it’s strictly necessary. There
-are many language features that we can leverage to evolve the interface of Tuist
-without resorting to a breaking change. Whether a change is breaking or not
-might not be obvious. A method to verify whether the change is breaking is
-running Tuist against the fixture projects in the fixtures directory. It
-requires putting ourselves in the user’s shoes and imagine how the changes would
-impact them.
+對 Tuist 使用者而言，破壞性變更會造成不良的使用者經驗。除非絕對必要，否則應該避免引入破壞性變更。我們可以利用許多語言特性來發展 Tuist
+的介面，而無需進行破壞性變更。一項變更是否會造成破壞可能並不顯著。驗證變更是否破壞的一種方法是針對 fixtures 目錄中的 fixture 專案執行
+Tuist。這需要站在使用者的立場，想像這些變更會如何影響使用者。
