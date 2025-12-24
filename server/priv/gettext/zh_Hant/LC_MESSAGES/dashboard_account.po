@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_account/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -65,9 +66,9 @@ msgstr "管理員"
 #: lib/tuist/billing.ex:37
 #: lib/tuist_web/live/billing_live.ex:187
 #: lib/tuist_web/live/billing_live.html.heex:58
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Air"
-msgstr ""
+msgstr "Air"
 
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format, fuzzy
@@ -76,9 +77,9 @@ msgstr "所有帳單信函將發送到此電子郵件"
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "All features, no credit card required"
-msgstr ""
+msgstr "完整功能，無需信用卡"
 
 #: lib/tuist_web/live/members_live.ex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -139,14 +140,14 @@ msgid "Choose where your artifacts, like module cache binaries, are stored for l
 msgstr "選擇您的藝術品（如模組快取二進位檔）儲存位置，以符合法律規定。"
 
 #: lib/tuist/billing.ex:47
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Community support"
-msgstr ""
+msgstr "社群支援"
 
 #: lib/tuist_web/live/billing_live.ex:193
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Community support via forum"
-msgstr ""
+msgstr "透過論壇獲得社群支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:111
 #, elixir-autogen, elixir-format, fuzzy
@@ -196,9 +197,9 @@ msgstr ""
 
 #: lib/tuist/billing.ex:77
 #: lib/tuist_web/live/billing_live.html.heex:88
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "建立您的方案或自行託管您的實例。"
 
 #: lib/tuist_web/live/billing_live.ex:199
 #: lib/tuist_web/live/billing_live.ex:228
@@ -210,9 +211,9 @@ msgstr "目前計劃"
 #: lib/tuist/billing.ex:78
 #: lib/tuist_web/live/billing_live.ex:245
 #: lib/tuist_web/live/billing_live.html.heex:70
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "客製化"
 
 #: lib/tuist/billing.ex:81
 #: lib/tuist_web/live/billing_live.ex:247
@@ -226,9 +227,9 @@ msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr "自訂條款：量身定制的協議，滿足您的特定需求"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:153
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Dashboard"
-msgstr ""
+msgstr "儀表板"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #, elixir-autogen, elixir-format, fuzzy
@@ -302,9 +303,9 @@ msgstr "輸入您的使用者名稱以確認"
 #: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:243
 #: lib/tuist_web/live/billing_live.html.heex:61
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Enterprise"
-msgstr ""
+msgstr "企業版"
 
 #: lib/tuist_web/live/account_settings_live.ex:157
 #, elixir-autogen, elixir-format, fuzzy
@@ -315,9 +316,9 @@ msgstr "歐洲"
 #: lib/tuist_web/live/billing_live.ex:189
 #: lib/tuist_web/live/billing_live.html.heex:67
 #: lib/tuist_web/live/billing_live.html.heex:68
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Free"
-msgstr ""
+msgstr "免費"
 
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format, fuzzy
@@ -325,9 +326,9 @@ msgid "Free tier exceeded"
 msgstr "超出免費等級"
 
 #: lib/tuist_web/live/billing_live.ex:191
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Free under tier limits"
-msgstr ""
+msgstr "免費方案限額內免費"
 
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format, fuzzy
@@ -351,9 +352,9 @@ msgstr "慷慨的每月免費等級：使用量以免費等級限制為上限"
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "立即開始"
 
 #: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format
@@ -513,15 +514,15 @@ msgstr "密碼不匹配"
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pay nothing if below free tier limits"
-msgstr ""
+msgstr "低於免費方案限額無需付費"
 
 #: lib/tuist/billing.ex:66
 #: lib/tuist_web/live/billing_live.ex:221
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pay only for what you use per feature"
-msgstr ""
+msgstr "按功能使用量付費"
 
 #: lib/tuist_web/live/billing_live.html.heex:243
 #, elixir-autogen, elixir-format, fuzzy
@@ -549,9 +550,9 @@ msgid "Pricing details"
 msgstr "定價詳情"
 
 #: lib/tuist/billing.ex:85
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support"
-msgstr ""
+msgstr "優先支援"
 
 #: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format, fuzzy
@@ -566,9 +567,9 @@ msgstr "優先支援：透過共用的 Slack 頻道"
 #: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:215
 #: lib/tuist_web/live/billing_live.html.heex:60
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pro"
-msgstr ""
+msgstr "Pro"
 
 #: lib/tuist_web/live/account_settings_live.ex:153
 #, elixir-autogen, elixir-format, fuzzy
@@ -661,9 +662,9 @@ msgid "Select region"
 msgstr "選擇區域"
 
 #: lib/tuist/billing.ex:84
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Self-host your instance of Tuist"
-msgstr ""
+msgstr "自行託管您的 Tuist 實例"
 
 #: lib/tuist_web/live/account_settings_live.ex:32
 #: lib/tuist_web/live/account_settings_live.html.heex:3
@@ -672,14 +673,14 @@ msgid "Settings"
 msgstr "設定"
 
 #: lib/tuist/billing.ex:67
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Standard support"
-msgstr ""
+msgstr "標準支援"
 
 #: lib/tuist_web/live/billing_live.ex:222
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Standard support via Slack and email"
-msgstr ""
+msgstr "透過 Slack 和電子郵件獲得標準支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:128
 #, elixir-autogen, elixir-format
@@ -816,9 +817,9 @@ msgstr ""
 
 #: lib/tuist/billing.ex:58
 #: lib/tuist_web/live/billing_live.html.heex:85
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing after free tier."
-msgstr ""
+msgstr "超出免費方案後按用量計費。"
 
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
@@ -925,9 +926,9 @@ msgstr "免費等級以上"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:218
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "and up"
-msgstr ""
+msgstr "起"
 
 #: lib/tuist_web/live/billing_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
