@@ -10,7 +10,8 @@
 使用 Tuist 启动新项目的最直接方法是使用`tuist init` 命令。该命令会启动一个交互式 CLI，引导您完成项目设置。出现提示时，请确保选择创建
 "生成项目 "选项。
 
-然后，您可以 <LocalizedLink href="/guides/features/projects/editing"> 编辑项目</LocalizedLink>，运行`tuist edit` ，Xcode
+然后，您可以 <LocalizedLink href="/guides/features/projects/editing">
+编辑项目</LocalizedLink>，运行`tuist edit` ，Xcode
 将打开一个项目，您可以在其中编辑项目。生成的文件之一是`Project.swift` ，其中包含项目定义。如果您熟悉 Swift
 包管理器，可以将其理解为`Package.swift` ，但要使用 Xcode 项目的行话。
 
