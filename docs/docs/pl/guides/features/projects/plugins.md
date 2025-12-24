@@ -56,7 +56,7 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### Wtyczka szablonów dostępu do zasobów {#resource-accessor-templates-plugin}
+### Wtyczka szablonów akcesorów zasobów {#resource-accessor-templates-plugin}
 
 Jeśli potrzebujesz udostępnić
 <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">syntetyzowane
@@ -108,7 +108,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Wtyczka zadań <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: ostrzeżenie USUNIĘTO
+::: warning DEPRECATED
 <!-- -->
 Wtyczki zadań są przestarzałe. Sprawdź [ten wpis na
 blogu](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects), jeśli
@@ -140,7 +140,7 @@ Jeśli korzystasz z Tuist do dystrybucji zadań, zalecamy zbudowanie swojego
   zainstalować uruchamiając `mise install`, mogą je uruchomić bezpośrednio lub
   poprzez `tuist xxx`.
 
-::: info PRZYSZŁOŚĆ PROJEKTOWANIA
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 Planujemy skonsolidować modele `ProjectAutomation` i `XcodeGraph` w jeden,
 kompatybilny wstecz framework, który udostępni użytkownikowi cały graf projektu.
@@ -185,14 +185,14 @@ let tuist = Tuist(
 Po dodaniu wtyczek, `tuist install` pobierze wtyczki z globalnego katalogu
 cache.
 
-::: info BRAK ROZWIĄZANIA WERSJI
+::: info NO VERSION RESOLUTION
 <!-- -->
 Jak być może zauważyłeś, nie zapewniamy rozdzielczości wersji dla wtyczek.
 Zalecamy używanie tagów Git lub SHA, aby zapewnić powtarzalność.
 <!-- -->
 :::
 
-::: tip OPIS PROJEKTU HELPERS PLUGINS
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 W przypadku korzystania z wtyczki pomocników opisu projektu, nazwa modułu
 zawierającego pomocników jest nazwą wtyczki
