@@ -170,13 +170,13 @@
         </div>
         <div data-part="setting-row">
           <label data-part="dropdown-label">
-            {dgettext("dashboard_projects", "Time (UTC)")}
+            {dgettext("dashboard_projects", "Time")}
           </label>
           <.dropdown
             id="slack-time-dropdown"
             label={
               if @selected_project.slack_report_schedule_time do
-                "#{@selected_project.slack_report_schedule_time.hour}:00"
+                "#{get_local_hour(@selected_project.slack_report_schedule_time, @user_timezone)}:00"
               else
                 dgettext("dashboard_projects", "Select time")
               end
@@ -185,17 +185,15 @@
             <.dropdown_item
               :for={hour <- 0..23}
               value={Integer.to_string(hour)}
-              label={"#{hour}:00 UTC"}
+              label={"#{hour}:00"}
               phx-click="update_slack_schedule_time"
               phx-value-hour={hour}
               data-selected={
-                @selected_project.slack_report_schedule_time &&
-                  @selected_project.slack_report_schedule_time.hour == hour
+                get_local_hour(@selected_project.slack_report_schedule_time, @user_timezone) == hour
               }
             >
               <:right_icon :if={
-                @selected_project.slack_report_schedule_time &&
-                  @selected_project.slack_report_schedule_time.hour == hour
+                get_local_hour(@selected_project.slack_report_schedule_time, @user_timezone) == hour
               }>
                 <.icon name="check" />
               </:right_icon>

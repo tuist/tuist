@@ -30,12 +30,10 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
   def perform(_job) do
     now = DateTime.utc_now()
-    current_hour = now.hour
-    current_day_of_week = Date.day_of_week(DateTime.to_date(now))
 
-    projects = list_projects_with_due_reports(current_hour, current_day_of_week)
+    projects = list_enabled_projects()
 
-    for project <- projects do
+    for project <- projects, is_due?(project, now) do
       %{project_id: project.id}
       |> __MODULE__.new()
       |> Oban.insert()
@@ -44,15 +42,32 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     :ok
   end
 
-  defp list_projects_with_due_reports(current_hour, current_day_of_week) do
+  defp list_enabled_projects do
     Repo.all(
       from(p in Project,
         where: p.slack_report_enabled == true,
         where: not is_nil(p.slack_channel_id),
-        where: fragment("EXTRACT(HOUR FROM ?) = ?", p.slack_report_schedule_time, ^current_hour),
-        where: ^current_day_of_week in p.slack_report_days_of_week
+        where: not is_nil(p.slack_report_schedule_time),
+        where: not is_nil(p.slack_report_timezone)
       )
     )
+  end
+
+  defp is_due?(project, now_utc) do
+    timezone = project.slack_report_timezone
+    local_now = Timex.Timezone.convert(now_utc, timezone)
+    local_hour = local_now.hour
+    local_day = Date.day_of_week(DateTime.to_date(local_now))
+
+    scheduled_local_hour = get_scheduled_local_hour(project.slack_report_schedule_time, timezone)
+    days_of_week = project.slack_report_days_of_week || []
+
+    local_hour == scheduled_local_hour and local_day in days_of_week
+  end
+
+  defp get_scheduled_local_hour(utc_datetime, timezone) do
+    local_datetime = Timex.Timezone.convert(utc_datetime, timezone)
+    local_datetime.hour
   end
 
   defp send_report(project) do

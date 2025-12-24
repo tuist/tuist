@@ -33,6 +33,7 @@ defmodule Tuist.Projects.Project do
     field :slack_report_frequency, Ecto.Enum, values: [daily: 0, weekly: 1]
     field :slack_report_days_of_week, {:array, :integer}
     field :slack_report_schedule_time, :utc_datetime
+    field :slack_report_timezone, :string
     field :slack_report_enabled, :boolean
 
     belongs_to :account, Account
@@ -82,6 +83,7 @@ defmodule Tuist.Projects.Project do
       :slack_report_frequency,
       :slack_report_days_of_week,
       :slack_report_schedule_time,
+      :slack_report_timezone,
       :slack_report_enabled
     ])
     |> validate_name()

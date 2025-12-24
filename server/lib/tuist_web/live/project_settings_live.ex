@@ -177,13 +177,18 @@ defmodule TuistWeb.ProjectSettingsLive do
   def handle_event(
         "update_slack_schedule_time",
         %{"hour" => hour_str},
-        %{assigns: %{selected_project: selected_project}} = socket
+        %{assigns: %{selected_project: selected_project, user_timezone: user_timezone}} = socket
       ) do
-    hour = String.to_integer(hour_str)
-    schedule_time = DateTime.new!(~D[2000-01-01], Time.new!(hour, 0, 0), "Etc/UTC")
+    local_hour = String.to_integer(hour_str)
+    timezone = user_timezone || "Etc/UTC"
+
+    utc_time = local_hour_to_utc(local_hour, timezone)
 
     {:ok, updated_project} =
-      Projects.update_project(selected_project, %{slack_report_schedule_time: schedule_time})
+      Projects.update_project(selected_project, %{
+        slack_report_schedule_time: utc_time,
+        slack_report_timezone: timezone
+      })
 
     socket = assign(socket, selected_project: updated_project)
     {:noreply, socket}
@@ -248,4 +253,19 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp day_name(5), do: dgettext("dashboard_projects", "Fri")
   defp day_name(6), do: dgettext("dashboard_projects", "Sat")
   defp day_name(7), do: dgettext("dashboard_projects", "Sun")
+
+  defp local_hour_to_utc(local_hour, timezone) do
+    today = Date.utc_today()
+    local_datetime = DateTime.new!(today, Time.new!(local_hour, 0, 0), timezone)
+    DateTime.shift_zone!(local_datetime, "Etc/UTC")
+  end
+
+  defp get_local_hour(nil, _timezone), do: nil
+
+  defp get_local_hour(utc_datetime, timezone) when is_binary(timezone) do
+    local_datetime = Timex.Timezone.convert(utc_datetime, timezone)
+    local_datetime.hour
+  end
+
+  defp get_local_hour(utc_datetime, _timezone), do: utc_datetime.hour
 end
