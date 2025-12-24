@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Неявные импорты {#implicit-imports}
+# Неявный импорт {#implicit-imports}
 
 Чтобы уменьшить сложность ведения графа проекта Xcode с необработанным проектом
 Xcode, Apple разработала систему сборки таким образом, что зависимости могут
@@ -29,7 +29,7 @@ tuist inspect implicit-imports
 Если команда обнаруживает неявный импорт, она завершает работу с кодом выхода,
 отличным от нуля.
 
-::: наконечник VALIDATE IN CI
+::: tip VALIDATE IN CI
 <!-- -->
 Мы настоятельно рекомендуем запускать эту команду в рамках команды
 <LocalizedLink href="/guides/features/automate/continuous-integration">continuous
@@ -38,7 +38,7 @@ integration</LocalizedLink> каждый раз, когда новый код в
 <!-- -->
 :::
 
-::: предупреждение НЕ ВСЕ ВЗАИМНЫЕ СЛУЧАИ ВЫЯВЛЕНЫ
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
 Поскольку Tuist полагается на статический анализ кода для обнаружения неявных
 зависимостей, он может уловить не все случаи. Например, Tuist не может понять
