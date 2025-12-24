@@ -8,7 +8,8 @@
 # Migrar un proyecto Xcode {#migrate-an-xcode-project}
 
 A menos que
-<LocalizedLink href="/guides/features/projects/adoption/new-project">crees un nuevo proyecto usando Tuist</LocalizedLink>, en cuyo caso se te configura todo
+<LocalizedLink href="/guides/features/projects/adoption/new-project">crees un
+nuevo proyecto usando Tuist</LocalizedLink>, en cuyo caso se te configura todo
 automáticamente, tendrás que definir tus proyectos de Xcode usando las
 primitivas de Tuist. Lo tedioso de este proceso depende de la complejidad de tus
 proyectos.
@@ -102,7 +103,7 @@ por Tuist a partir de tu archivo de manifiesto:
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## Extraiga la configuración de compilación del proyecto en archivos `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}
@@ -259,17 +260,18 @@ el archivo `Project.swift` repitiendo los mismos pasos.
 
 ### Validar la migración de destino {#validate-the-target-migration}
 
-Ejecute `tuist build` y `tuist test` para asegurarse de que el proyecto se
-construye y las pruebas pasan. Además, puede utilizar
-[xcdiff](https://github.com/bloomberg/xcdiff) para comparar el proyecto Xcode
-generado con el existente y asegurarse de que los cambios son correctos.
+Ejecute `tuist generate` seguido de `xcodebuild build` para asegurarse de que el
+proyecto se construye, y `tuist test` para asegurarse de que las pruebas pasan.
+Además, puede utilizar [xcdiff](https://github.com/bloomberg/xcdiff) para
+comparar el proyecto Xcode generado con el existente y asegurarse de que los
+cambios son correctos.
 
 ### Repetir {#repeat}
 
-Repite hasta que todos los objetivos estén completamente migrados. Una vez que
-haya terminado, le recomendamos que actualice sus canalizaciones de CI y CD para
-compilar y probar el proyecto utilizando los comandos `tuist build` y `tuist
-test` para beneficiarse de la velocidad y fiabilidad que proporciona Tuist.
+Repita hasta que todos los objetivos estén completamente migrados. Una vez que
+haya terminado, le recomendamos que actualice sus pipelines CI y CD para
+construir y probar el proyecto utilizando `tuist generate` seguido de
+`xcodebuild build` y `tuist test`.
 
 ## Solución de problemas {#troubleshooting}
 
