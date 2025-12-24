@@ -5,18 +5,18 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# 問題報告{#issue-reporting}。
+# 問題報告{#issue-reporting}
 
 Tuistのユーザーとして、バグや予期せぬ動作に出くわすことがあるかもしれません。そのような場合は、ぜひご報告ください。
 
-## GitHub issuesは私たちのチケット発券プラットフォームです{#github-issues-is-our-ticketing-platform}。
+## GitHub issuesは私たちのチケット管理プラットフォームです。{#github-issues-is-our-ticketing-platform}
 
 課題はSlackや他のプラットフォームではなく、[GitHub
 issues](https://github.com/tuist/tuist/issues)としてGitHubで報告してください。GitHub
 は問題のトレースや管理に適しており、コードベースに近く、問題の進捗を追跡することができます。さらに、GitHub
 では問題の説明が長文になるため、報告者に問題について考えさせ、より多くの文脈を提供することができます。
 
-## コンテキストが重要{#context-is-crucial}。
+## コンテキストが重要{#context-is-crucial}
 
 十分なコンテクストがないissueは不完全とみなされ、著者は追加のコンテクストを求められます。提供されない場合、その問題はクローズされます。このように考えてください：あなたがより多くの文脈を提供すればするほど、私たちは問題を理解し、それを修正することが容易になります。ですから、問題を解決してほしいのであれば、できるだけ多くの背景を提供してください。以下の質問に答えてみてください：
 
@@ -27,26 +27,26 @@ issues](https://github.com/tuist/tuist/issues)としてGitHubで報告してく�
 
 また、最低限**再現可能なプロジェクト** を提出していただきます。
 
-## 再現可能なプロジェクト{#reproducible-project}。
+## 再現可能なプロジェクト{#reproducible-project}
 
-### 再現可能なプロジェクトとは何か？{再現可能なプロジェクトとは何か？｝
+### 再現可能なプロジェクトとは何か？{#what-is-a-reproducible-project}
 
 再現可能なプロジェクトとは、ある問題を実証するための小さなTuistプロジェクトのことで、多くの場合この問題はTuistのバグによって引き起こされます。再現可能なプロジェクトは、バグを明確に示すために必要な最低限の機能を含んでいなければなりません。
 
-### なぜ再現可能なテストケースを作成すべきなのか？{#why-should-you-create-a-reproducible-test-case} 再現可能なテストケースを作るべき理由とは？
+### なぜ再現可能なテストケースを作成する必要があるのでしょうか？{#why-should-you-create-a-reproducible-test-case}
 
 再現可能なプロジェクトがあれば、問題の原因を切り分けることができ、それが問題解決への第一歩となります！バグレポートの最も重要な部分は、バグを再現するために必要な正確な手順を記述することです。
 
 再現可能なプロジェクトは、バグの原因となる特定の環境を共有するのに最適な方法です。あなたの再現可能なプロジェクトは、あなたを助けたい人々を助ける最良の方法です。
 
-### 再現可能なプロジェクトを作成する手順{#steps-to-create-a-reproducible-project}。
+### 再現可能なプロジェクトの作成手順{#steps-to-create-a-reproducible-project}
 
 - 新しいgitリポジトリを作成する。
 - リポジトリ・ディレクトリの`tuist init` を使ってプロジェクトを初期化する。
 - あなたが見たエラーを再現するために必要なコードを追加してください。
 - コードを公開し（GitHubアカウントで公開するのがよいでしょう）、issueを作成する際にリンクを張ってください。
 
-### 再現可能なプロジェクトの利点{#benefits-of-reproducible-projects}。
+### 再現可能なプロジェクトの利点{#benefits-of-reproducible-projects}
 
 - **表面積が小さい：** エラー以外のすべてを取り除くことで、バグを見つけるために掘る必要がなくなる。
 - **秘密のコードを公開する必要はありません：**
