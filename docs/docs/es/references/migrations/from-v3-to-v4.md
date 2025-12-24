@@ -51,7 +51,8 @@ Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 Ten en cuenta que aún puedes instalar Tuist usando Homebrew, que es un popular
 gestor de paquetes para macOS. Puedes encontrar las instrucciones sobre cómo
 instalar Tuist usando Homebrew en la
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">guía de instalación</LocalizedLink>.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">guía
+de instalación</LocalizedLink>.
 <!-- -->
 :::
 
