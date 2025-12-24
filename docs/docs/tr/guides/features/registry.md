@@ -5,40 +5,40 @@
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Registry {#registry}
+# Kayıt {#registry}
 
-As the number of dependencies grows, so does the time to resolve them. While
-other package managers like [CocoaPods](https://cocoapods.org/) or
-[npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not.
-Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of
-each repository, which can be time-consuming and takes up more memory than a
-centralized approach would. To address this, Tuist provides an implementation of
-the [Package
-Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
-so you can download only the commits you _actually need_. The packages in the
-registry are based on the [Swift Package Index](https://swiftpackageindex.com/)
-– if you can find a package there, the package is also available in the Tuist
-Registry. Additionally, the packages are distributed across the globe using an
-edge storage for minimum latency when resolving them.
+Bağımlılıkların sayısı arttıkça, bunları çözme süresi de artar.
+CocoaPods](https://cocoapods.org/) veya [npm](https://www.npmjs.com/) gibi diğer
+paket yöneticileri merkezileştirilmiş olsa da Swift paketi paket yöneticisi
+merkezileştirilmemiştir. Bu nedenle, SwiftPM'nin her deponun derin bir klonunu
+yaparak bağımlılıkları çözmesi gerekir, bu da zaman alıcı olabilir ve merkezi
+bir yaklaşımdan daha fazla bellek kaplar. Bunu ele almak için Tuist, [Paket
+Kayıt](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)
+için bir uygulama sağlar, böylece yalnızca _gerçekten ihtiyacınız olan
+taahhütleri indirebilirsiniz_. Kayıt defterindeki paketler [Swift Paket
+İndeksi](https://swiftpackageindex.com/) temel alınarak oluşturulmuştur. - Eğer
+orada bir paket bulabilirseniz, o paket Tuist Kayıt Defterinde de mevcuttur. Ek
+olarak, paketler çözümlenirken minimum gecikme için bir uç depolama kullanılarak
+dünya çapında dağıtılır.
 
-## Usage {#usage}
+## Kullanım {#usage}
 
-To set up the registry, run the following command in your project's directory:
+Kayıt defterini ayarlamak için projenizin dizininde aşağıdaki komutu çalıştırın:
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration file that enables the registry
-for your project. Ensure this file is committed so your team can also benefit
-from the registry.
+Bu komut, projeniz için kayıt defterini etkinleştiren bir kayıt defteri
+yapılandırma dosyası oluşturur. Ekibinizin de kayıt defterinden yararlanabilmesi
+için bu dosyanın işlendiğinden emin olun.
 
-### Authentication (optional) {#authentication}
+### Kimlik Doğrulama (isteğe bağlı) {#authentication}
 
-Authentication is **optional**. Without authentication, you can use the registry
-with a rate limit of **1,000 requests per minute** per IP address. To get a
-higher rate limit of **20,000 requests per minute**, you can authenticate by
-running:
+Kimlik doğrulama **isteğe bağlıdır**. Kimlik doğrulama olmadan, kayıt defterini
+IP adresi başına **dakikada 1.000 istek** hız sınırıyla kullanabilirsiniz. Daha
+yüksek bir hız sınırı elde etmek için **dakikada 20.000 istek** çalıştırarak
+kimlik doğrulaması yapabilirsiniz:
 
 ```bash
 tuist registry login
@@ -46,44 +46,43 @@ tuist registry login
 
 ::: info
 <!-- -->
-Authentication requires a
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-project</LocalizedLink>.
+Kimlik doğrulama için
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı
+ve</LocalizedLink> projesi gerekir.
 <!-- -->
 :::
 
-### Resolving dependencies {#resolving-dependencies}
+### Bağımlılıkları çözme {#resolving-dependencies}
 
-To resolve dependencies from the registry instead of from source control,
-continue reading based on your project setup:
+Bağımlılıkları kaynak denetimi yerine kayıt defterinden çözmek için proje
+kurulumunuza göre okumaya devam edin:
 - <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
-  project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated
-  project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated
-  project with the XcodeProj-based package integration</LocalizedLink>
+  projesi</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Xcode paket
+  entegrasyonu ile oluşturulmuş projele</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj
+  tabanlı paket entegrasyonu ile oluşturulmuş projele</LocalizedLink>
 - <LocalizedLink href="/guides/features/registry/swift-package">Swift
-  package</LocalizedLink>
+  paketi</LocalizedLink>
 
-To set up the registry on the CI, follow this guide:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
-integration</LocalizedLink>.
+CI'da kayıt defterini ayarlamak için bu kılavuzu izleyin:
+<LocalizedLink href="/guides/features/registry/continuous-integration">Sürekli
+tümleştirme</LocalizedLink>.
 
-### Package registry identifiers {#package-registry-identifiers}
+### Paket kayıt tanımlayıcıları {#package-registry-identifiers}
 
-When you use package registry identifiers in a `Package.swift` or
-`Project.swift` file, you need to convert the URL of the package to the registry
-convention. The registry identifier is always in the form of
-`{organization}.{repository}`. For example, to use the registry for the
-`https://github.com/pointfreeco/swift-composable-architecture` package, the
-package registry identifier would be
-`pointfreeco.swift-composable-architecture`.
+Paket kayıt defteri tanımlayıcılarını bir `Package.swift` veya `Project.swift`
+dosyasında kullandığınızda, paketin URL'sini kayıt defteri kuralına
+dönüştürmeniz gerekir. Kayıt tanımlayıcısı her zaman
+`{organizasyon}.{repository}` biçimindedir. Örneğin,
+`https://github.com/pointfreeco/swift-composable-architecture` Swift paketi için
+kayıt defterini kullanmak için, paket kayıt defteri tanımlayıcısı
+`pointfreeco.swift-composable-architecture` şeklinde olacaktır.
 
 ::: info
 <!-- -->
-The identifier can't contain more than one dot. If the repository name contains
-a dot, it's replaced with an underscore. For example, the
-`https://github.com/groue/GRDB.swift` package would have the registry identifier
-`groue.GRDB_swift`.
+Tanımlayıcı birden fazla nokta içeremez. Depo adı bir nokta içeriyorsa, bu nokta
+alt çizgi ile değiştirilir. Örneğin, `https://github.com/groue/GRDB.swift`
+paketi `groue.GRDB_swift` kayıt defteri tanımlayıcısına sahip olacaktır.
 <!-- -->
 :::
