@@ -5,20 +5,20 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcode project {#xcode-project}
+# Xcode projesi {#xcode-project}
 
-To add packages using the registry in your Xcode project, use the default Xcode
-UI. You can search for packages in the registry by clicking on the `+` button in
-the `Package Dependencies` tab in Xcode. If the package is available in the
-registry, you will see the `tuist.dev` registry in the top right:
+Xcode projenizde kayıt defterini kullanarak paket eklemek için varsayılan Xcode
+kullanıcı arayüzünü kullanın. Xcode'da `Paket Bağımlılıkları` sekmesindeki `+`
+düğmesine tıklayarak kayıt defterinde paketleri arayabilirsiniz. Paket kayıt
+defterinde mevcutsa, sağ üstte `tuist.dev` kayıt defterini göreceksiniz:
 
-![Adding package
-dependencies](/images/guides/features/build/registry/registry-add-package.png)
+![Paket bağımlılıkları
+ekleniyor](/images/guides/features/build/registry/registry-add-package.png)
 
 ::: info
 <!-- -->
-Xcode currently doesn't support automatically replacing source control packages
-with their registry equivalents. You will need to manually remove the source
-control package and add the registry package to speed up the resolution.
+Xcode şu anda kaynak kontrol paketlerini kayıt defteri eşdeğerleriyle otomatik
+olarak değiştirmeyi desteklemiyor. Çözümü hızlandırmak için kaynak kontrol
+paketini manuel olarak kaldırmanız ve kayıt paketini eklemeniz gerekecektir.
 <!-- -->
 :::
