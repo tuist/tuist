@@ -10,14 +10,14 @@
 如果您在**全局安装了 Tuist** （例如通过 Homebrew），则可以为 Bash 和 Zsh 安装 shell
 completions，以自动完成命令和选项。
 
-警告什么是全球安装
+::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
 全局安装是指在 shell 的`$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录下运行`tuist` 。这是 Homebrew
 的默认安装方法。
 <!-- -->
 :::
 
-#### Zsh {#zsh}
+#### Zsh{#zsh}
 
 如果您安装了 [oh-my-zsh](https://ohmyz.sh/) ，您已经有一个自动加载完成脚本的目录
 -`.oh-my-zsh/completions` 。将新的完成脚本复制到该目录中名为`_tuist` 的新文件中：
@@ -40,7 +40,7 @@ compinit
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash {#bash}
+#### 巴什{#bash}
 
 如果已经安装了
 [bash-completion](https://github.com/scop/bash-completion)，可以直接将新的完成脚本复制到文件`/usr/local/etc/bash_completion.d/_tuist`
@@ -57,7 +57,7 @@ tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 source ~/.bash_completions/example.bash
 ```
 
-#### 鱼 {#fish}
+#### 鱼类{#fish}
 
 如果使用 [fish
 shell](https://fishshell.com)，可以将新的完成脚本复制到`~/.config/fish/completions/tuist.fish`
