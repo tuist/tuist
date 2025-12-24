@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
 "Language: ja\n"
@@ -195,9 +195,9 @@ msgid "Members"
 msgstr "メンバー"
 
 #: lib/tuist_web/components/app_layout_components.ex:99
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "モジュールキャッシュ"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:115
 #, elixir-autogen, elixir-format, fuzzy
@@ -392,9 +392,9 @@ msgstr "リクエストが多すぎる。"
 
 #: lib/tuist_web/components/app_layout_components.ex:219
 #: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Icon"
-msgstr ""
+msgstr "Tuistアイコン"
 
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format, fuzzy
@@ -413,9 +413,9 @@ msgid "Unknown"
 msgstr "不明"
 
 #: lib/tuist_web/components/app_layout_components.ex:149
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcodeキャッシュ"
 
 #: lib/tuist_web/controllers/error_html.ex:29
 #, elixir-autogen, elixir-format, fuzzy
