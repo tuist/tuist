@@ -100,7 +100,8 @@ integrację pakietów Swift w projekcie przy użyciu celów XcodeProj. Dzięki t
 możemy nie tylko zapewnić większą kontrolę nad integracją, ale także uczynić ją
 kompatybilną z przepływami pracy, takimi jak
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> i
-<LocalizedLink href="/guides/features/test/selective-testing">selektywne uruchamianie testów</LocalizedLink>.
+<LocalizedLink href="/guides/features/test/selective-testing">selektywne
+uruchamianie testów</LocalizedLink>.
 
 Integracja XcodeProj może zająć więcej czasu, aby obsługiwać nowe funkcje
 pakietów Swift lub obsługiwać więcej konfiguracji pakietów. Jednak logika
@@ -254,7 +255,7 @@ let target = .target(name: "MyTarget", dependencies: [
 W przypadku makr Swift i wtyczek Build Tool należy użyć odpowiednio typów
 `.macro` i `.plugin`.
 
-::: warning SPM Build Tool Plugins
+::: ostrzeżenie SPM Build Tool Plugins
 <!-- -->
 Wtyczki narzędzi kompilacji SPM muszą być zadeklarowane przy użyciu mechanizmu
 [Domyślna integracja Xcode](#xcode-s-default-integration), nawet jeśli używana
@@ -328,12 +329,12 @@ carthage update
 tuist generate
 ```
 
-::: warning BUDUJ I TESTUJ
+::: ostrzeżenie BUDUJ I TESTUJ
 <!-- -->
-Jeśli budujesz i testujesz swój projekt za pomocą `tuist build` i `tuist test`,
-musisz również upewnić się, że zależności rozwiązane przez Carthage są obecne,
-uruchamiając polecenie `carthage update` przed uruchomieniem `tuist build` lub
-`tuist test`.
+Jeśli budujesz i testujesz swój projekt za pomocą `xcodebuild build` i `tuist
+test`, musisz również upewnić się, że zależności rozwiązane przez Carthage są
+obecne, uruchamiając polecenie `carthage update` przed budowaniem lub
+testowaniem.
 <!-- -->
 :::
 
@@ -352,7 +353,7 @@ tuist generate
 pod install
 ```
 
-::: warning
+::: ostrzeżenie
 <!-- -->
 Zależności CocoaPods nie są kompatybilne z przepływami pracy, takimi jak `build`
 lub `test`, które uruchamiają `xcodebuild` zaraz po wygenerowaniu projektu. Są
@@ -387,9 +388,11 @@ stają się zawodne.
 
 Na szczęście Tuist koncepcyjnie kompresuje złożoność związaną ze zmianą między
 statycznym i dynamicznym i syntetyzuje
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>, które są standardowe dla wszystkich typów linkowania.
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink>, które są standardowe dla wszystkich typów linkowania.
 W połączeniu z
-<LocalizedLink href="/guides/features/projects/dynamic-configuration"> dynamicznymi konfiguracjami poprzez zmienne środowiskowe</LocalizedLink>, możesz
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">
+dynamicznymi konfiguracjami poprzez zmienne środowiskowe</LocalizedLink>, możesz
 przekazać typ łączenia w czasie wywołania i użyć wartości w swoich manifestach,
 aby ustawić typ produktu swoich celów.
 
@@ -405,7 +408,9 @@ func productType() -> Product {
 ```
 
 Należy pamiętać, że Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">nie jest domyślnie wygodny poprzez niejawną konfigurację ze względu na jego koszty </LocalizedLink>. Oznacza to, że polegamy na ustawieniu typu linkowania i
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> nie jest
+domyślnie wygodny poprzez niejawną konfigurację ze względu na jego koszty
+</LocalizedLink>. Oznacza to, że polegamy na ustawieniu typu linkowania i
 wszelkich dodatkowych ustawień kompilacji, które są czasami wymagane, takich jak
 flaga linkera [`-ObjC`
 ](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -599,7 +604,7 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: warning
+::: ostrzeżenie
 <!-- -->
 Zamiast `import Sharing` należy `import SwiftSharing`.
 <!-- -->
@@ -610,9 +615,11 @@ Zamiast `import Sharing` należy `import SwiftSharing`.
 Gdy dynamiczny framework lub biblioteka zależy od statycznych poprzez `import
 StaticSwiftModule`, symbole są zawarte w `.swiftmodule` dynamicznego frameworka
 lub biblioteki, potencjalnie
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1"> powodując niepowodzenie kompilacji</LocalizedLink>. Aby temu zapobiec, należy
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">
+powodując niepowodzenie kompilacji</LocalizedLink>. Aby temu zapobiec, należy
 zaimportować zależność statyczną za pomocą
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule
