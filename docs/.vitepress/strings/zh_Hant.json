@@ -328,7 +328,7 @@
                                     "text": "Xcode 專案"
                                 },
                                 "generated-project": {
-                                    "text": ""
+                                    "text": "專案生成"
                                 },
                                 "xcodeproj-integration": {
                                     "text": "基於 XcodeProj 的整合"
@@ -351,7 +351,7 @@
                                     "text": "Xcode 專案"
                                 },
                                 "generated-project": {
-                                    "text": ""
+                                    "text": "專案生成"
                                 }
                             }
                         },
