@@ -3,15 +3,16 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Portuguese <https://translate.tuist.dev/projects/tuist/"
+"dashboard_builds/pt/>\n"
 "Language: pt\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
+"X-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -23,7 +24,6 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-
 #: lib/tuist_web/live/build_run_live.html.heex:674
 #: lib/tuist_web/live/generate_runs_live.html.heex:63
 #, elixir-autogen, elixir-format
@@ -309,9 +309,9 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.ex:254
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
 #: lib/tuist_web/live/run_detail_live.html.heex:102
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "Commands"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:74
 #: lib/tuist_web/live/run_detail_live.html.heex:149
@@ -885,19 +885,19 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1269
 #: lib/tuist_web/live/run_detail_live.html.heex:247
 #: lib/tuist_web/live/run_detail_live.html.heex:513
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Search..."
-msgstr ""
+msgstr "Search"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:237
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective Testing"
-msgstr ""
+msgstr "Selective testing"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:210
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test hits"
-msgstr ""
+msgstr "Selective testing"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:212
 #, elixir-autogen, elixir-format
