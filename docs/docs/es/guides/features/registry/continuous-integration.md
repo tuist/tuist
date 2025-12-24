@@ -37,7 +37,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 Asegúrese de que su llavero predeterminado está creado y desbloqueado _antes de
 ejecutar_ `tuist registry login`.
 
-Además, debe asegurarse de que la variable de entorno `TUIST_CONFIG_TOKEN` está
+Además, debe asegurarse de que la variable de entorno `TUIST_TOKEN` está
 configurada. Puede crear una siguiendo la documentación
 <LocalizedLink href="/guides/server/authentication#as-a-project">aquí</LocalizedLink>.
 
@@ -60,7 +60,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
