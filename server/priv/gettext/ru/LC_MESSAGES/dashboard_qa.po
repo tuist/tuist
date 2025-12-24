@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ru/>\n"
 "Language: ru\n"
@@ -31,9 +32,9 @@ msgid " or sit back and relax..."
 msgstr " или откиньтесь на спинку кресла и расслабьтесь..."
 
 #: lib/tuist_web/live/qa_run_live.html.heex:34
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "%{app_name} icon"
-msgstr ""
+msgstr "Иконка %{app_name}"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:513
 #, elixir-autogen, elixir-format, fuzzy
@@ -175,9 +176,9 @@ msgstr "Идентификатор пакета"
 #: lib/tuist_web/live/qa_live.html.heex:61
 #: lib/tuist_web/live/qa_settings_live.html.heex:157
 #: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Отменить"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -209,9 +210,9 @@ msgstr "Учетные данные"
 #: lib/tuist_web/live/qa_settings_live.html.heex:140
 #: lib/tuist_web/live/qa_settings_live.html.heex:179
 #: lib/tuist_web/live/qa_settings_live.html.heex:222
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Description"
-msgstr ""
+msgstr "Описание"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:108
 #, elixir-autogen, elixir-format, fuzzy
@@ -237,9 +238,9 @@ msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:648
 #: lib/tuist_web/live/qa_settings_live.html.heex:84
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Email"
-msgstr ""
+msgstr "Электронная почта"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
@@ -279,9 +280,9 @@ msgstr "Включите ожидаемые результаты"
 
 #: lib/tuist_web/live/qa_live.html.heex:263
 #: lib/tuist_web/live/qa_run_live.html.heex:331
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Issues"
-msgstr ""
+msgstr "Задачи"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:182
 #, elixir-autogen, elixir-format, fuzzy
@@ -331,9 +332,9 @@ msgstr ""
 #: lib/tuist_web/live/qa_settings_live.html.heex:134
 #: lib/tuist_web/live/qa_settings_live.html.heex:176
 #: lib/tuist_web/live/qa_settings_live.html.heex:212
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr ""
+msgstr "Имя"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:404
 #, elixir-autogen, elixir-format, fuzzy
@@ -351,9 +352,9 @@ msgid "No QA runs yet"
 msgstr "Пока нет QA-пробегов"
 
 #: lib/tuist_web/live/qa_live.html.heex:212
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr ""
+msgstr "Пока нет данных"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -383,9 +384,9 @@ msgid "None"
 msgstr "Нет"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:74
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "Обзор"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
@@ -404,9 +405,9 @@ msgid "Password for test account"
 msgstr "Пароль для тестовой учетной записи"
 
 #: lib/tuist_web/live/qa_live.html.heex:240
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pending"
-msgstr ""
+msgstr "В ожидании"
 
 #: lib/tuist_web/live/qa_live.html.heex:256
 #: lib/tuist_web/live/qa_run_live.html.heex:113
@@ -453,9 +454,9 @@ msgstr "Предоставьте четкие инструкции по тест
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/live/ops_qa_logs_live.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -548,9 +549,9 @@ msgstr "Запуск тестов..."
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:55
 #: lib/tuist_web/live/qa_settings_live.html.heex:97
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "Сохранить"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
@@ -570,9 +571,9 @@ msgstr "Начало в"
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
 #: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Статус"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:608
 #, elixir-autogen, elixir-format, fuzzy
@@ -628,9 +629,9 @@ msgid "Tuist documentation"
 msgstr "Туистская документация"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:172
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr ""
+msgstr "Неизвестный"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:253
 #, elixir-autogen, elixir-format, fuzzy
@@ -655,9 +656,9 @@ msgid "View Logs"
 msgstr "Просмотр журналов"
 
 #: lib/tuist_web/live/qa_settings_live.ex:17
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr ""
+msgstr "У вас нет прав для выполнения этого действия."
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:135
 #: lib/tuist_web/live/qa_settings_live.html.heex:213
@@ -704,9 +705,9 @@ msgid "Apply"
 msgstr "Применить"
 
 #: lib/tuist_web/live/qa_live.html.heex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "Индивидуальный"
 
 #: lib/tuist_web/live/qa_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
