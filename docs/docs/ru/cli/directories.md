@@ -5,32 +5,32 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# Справочники {#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
+Tuist организует свои файлы в нескольких каталогах в вашей системе, следуя
+спецификации [XDG Base Directory
 Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Это обеспечивает чистый, стандартный способ управления файлами конфигурации,
+кэша и состояния.
 
-## Supported environment variables {#supported-environment-variables}
+## Поддерживаемые переменные окружения {#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+Tuist поддерживает как стандартные переменные XDG, так и специфические для Tuist
+варианты с префиксом. Варианты, специфичные для Tuist (с префиксом `TUIST_`),
+имеют приоритет, что позволяет настраивать Tuist отдельно от других приложений.
 
-### Configuration directory {#configuration-directory}
+### Каталог конфигурации {#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
+**Переменные среды:**
+- `TUIST_XDG_CONFIG_HOME` (имеет приоритет)
 - `XDG_CONFIG_HOME`
 
-**Default:** `~/.config/tuist`
+**По умолчанию:** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**Используется для:**
+- Учетные данные сервера (`credentials/{host}.json`)
 
-**Example:**
+**Пример:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +41,27 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### Каталог кэша {#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**Переменные среды:**
+- `TUIST_XDG_CACHE_HOME` (имеет приоритет)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**По умолчанию:** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**Используется для:**
+- **Плагины**: Загруженный и скомпилированный кэш плагинов
+- **ProjectDescriptionHelpers**: Скомпилированные помощники для описания
+  проектов
+- **Манифесты**: Кэшированные файлы манифеста
+- **Проекты**: Сгенерированный кэш проекта автоматизации
+- **EditProjects**: Кэш для команды редактирования
+- **Запуски**: тестирование и создание аналитических данных.
+- **Бинарные файлы**: Двоичные файлы артефактов сборки (не подлежат совместному
+  использованию в разных средах)
+- **Выборочные тесты**: Кэш для выборочного тестирования
 
-**Example:**
+**Пример:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +72,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### Государственный справочник {#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**Переменные среды:**
+- `TUIST_XDG_STATE_HOME` (имеет приоритет)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**По умолчанию:** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**Используется для:**
+- **Журналы**: Файлы журналов (`logs/{uuid}.log`)
+- **Замки**: Файлы блокировки аутентификации (`{ дескриптор}.sock`)
 
-**Example:**
+**Пример:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +95,27 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## Порядок старшинства {#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+Определяя, какой каталог использовать, Tuist проверяет переменные окружения в
+следующем порядке:
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **Специфическая для Туиста переменная** (например, `TUIST_XDG_CONFIG_HOME`).
+2. **Стандартная переменная XDG** (например, `XDG_CONFIG_HOME`).
+3. **Расположение по умолчанию** (например, `~/.config/tuist`).
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+Это позволит вам:
+- Используйте стандартные переменные XDG для последовательной организации всех
+  ваших приложений
+- Переопределите переменные, специфичные для Tuist, если вам нужны разные места
+  для Tuist
+- Полагайтесь на разумные значения по умолчанию без какой-либо настройки
 
-## Common use cases {#common-use-cases}
+## Общие случаи использования {#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### Изолирование Туиста для каждого проекта {#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+Возможно, вы захотите изолировать кэш и состояние Tuist для каждого проекта:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +124,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### Среды CI/CD {#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+В среде CI вы можете захотеть использовать временные каталоги:
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +148,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### Отладка с изолированными каталогами {#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+При отладке проблем вам может понадобиться чистый лист:
 
 ```bash
 # Create temporary directories for debugging
