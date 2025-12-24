@@ -5,84 +5,86 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Authentication {#authentication}
+# Kimlik Doğrulama {#authentication}
 
-To interact with the server, the CLI needs to authenticate the requests using
-[bearer
-authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-The CLI supports authenticating as a user, as an account, or using an OIDC
-token.
+Sunucu ile etkileşime geçmek için CLI'nin [bearer
+authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/)
+kullanarak isteklerin kimliğini doğrulaması gerekir. CLI, kullanıcı olarak,
+hesap olarak veya OIDC belirteci kullanarak kimlik doğrulamayı destekler.
 
-## As a user {#as-a-user}
+## Bir kullanıcı olarak {#as-a-user}
 
-When using the CLI locally on your machine, we recommend authenticating as a
-user. To authenticate as a user, you need to run the following command:
+CLI'yı makinenizde yerel olarak kullanırken, kullanıcı olarak kimlik doğrulaması
+yapmanızı öneririz. Kullanıcı olarak kimlik doğrulaması yapmak için aşağıdaki
+komutu çalıştırmanız gerekir:
 
 ```bash
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you
-authenticate, the CLI will store a long-lived refresh token and a short-lived
-access token under `~/.config/tuist/credentials`. Each file in the directory
-represents the domain you authenticated against, which by default should be
-`tuist.dev.json`. The information stored in that directory is sensitive, so
-**make sure to keep it safe**.
+Komut sizi web tabanlı bir kimlik doğrulama akışına yönlendirecektir. Kimlik
+doğrulaması yaptıktan sonra CLI, `~/.config/tuist/credentials` altında uzun
+ömürlü bir yenileme belirteci ve kısa ömürlü bir erişim belirteci
+depolayacaktır. Dizindeki her dosya, varsayılan olarak `tuist.dev.json` olması
+gereken kimlik doğrulaması yaptığınız etki alanını temsil eder. Bu dizinde
+saklanan bilgiler hassastır, bu nedenle **güvende tuttuğunuzdan emin olun**.
 
-The CLI will automatically look up the credentials when making requests to the
-server. If the access token is expired, the CLI will use the refresh token to
-get a new access token.
+CLI, sunucuya istekte bulunurken kimlik bilgilerini otomatik olarak arayacaktır.
+Erişim belirtecinin süresi dolmuşsa, CLI yeni bir erişim belirteci almak için
+yenileme belirtecini kullanacaktır.
 
-## OIDC tokens {#oidc-tokens}
+## OIDC belirteçleri {#oidc-tokens}
 
-For CI environments that support OpenID Connect (OIDC), Tuist can authenticate
-automatically without requiring you to manage long-lived secrets. When running
-in a supported CI environment, the CLI will automatically detect the OIDC token
-provider and exchange the CI-provided token for a Tuist access token.
+OpenID Connect'i (OIDC) destekleyen CI ortamları için Tuist, uzun ömürlü gizli
+dizileri yönetmenize gerek kalmadan otomatik olarak kimlik doğrulaması
+yapabilir. Desteklenen bir CI ortamında çalışırken, CLI otomatik olarak OIDC
+token sağlayıcısını algılar ve CI tarafından sağlanan token'ı bir Tuist erişim
+token'ı ile değiştirir.
 
-### Supported CI providers {#supported-ci-providers}
+### Desteklenen CI sağlayıcıları {#supported-ci-providers}
 
-- GitHub Actions
+- GitHub Eylemleri
 - CircleCI
 - Bitrise
 
-### Setting up OIDC authentication {#setting-up-oidc-authentication}
+### OIDC kimlik doğrulamasını ayarlama {#setting-up-oidc-authentication}
 
-1. **Connect your repository to Tuist**: Follow the
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
-   guide</LocalizedLink> to connect your GitHub repository to your Tuist
-   project.
+1. **Deponuzu Tuist'e bağlayın**: GitHub deponuzu Tuist projenize bağlamak için
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub entegrasyon
+   kılavuzunu</LocalizedLink> izleyin.
 
-2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
-   before any commands that require authentication. The CLI will automatically
-   detect the CI environment and authenticate using OIDC.
+2. **tuist auth login`** komutunu çalıştırın: CI iş akışınızda, kimlik doğrulama
+   gerektiren tüm komutlardan önce `tuist auth login` komutunu çalıştırın. CLI,
+   CI ortamını otomatik olarak algılayacak ve OIDC kullanarak kimlik doğrulaması
+   yapacaktır.
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for provider-specific configuration examples.
+Sağlayıcıya özgü yapılandırma örnekleri için
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+Entegrasyon kılavuzuna</LocalizedLink> bakın.
 
-### OIDC token scopes {#oidc-token-scopes}
+### OIDC belirteç kapsamları {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group, which provides access to all
-projects connected to the repository. See [Scope groups](#scope-groups) for
-details about what the `ci` scope includes.
+OIDC belirteçlerine, depoya bağlı tüm projelere erişim sağlayan `ci` kapsam
+grubu verilir. ` ci` kapsamının neleri içerdiği hakkında ayrıntılar için [Kapsam
+grupları](#scope-groups) bölümüne bakın.
 
 ::: tip SECURITY BENEFITS
 <!-- -->
-OIDC authentication is more secure than long-lived tokens because:
-- No secrets to rotate or manage
-- Tokens are short-lived and scoped to individual workflow runs
-- Authentication is tied to your repository identity
+OIDC kimlik doğrulaması uzun ömürlü belirteçlerden daha güvenlidir çünkü:
+- Döndürülecek veya yönetilecek sır yok
+- Belirteçler kısa ömürlüdür ve bireysel iş akışı çalıştırmalarına kapsamlıdır
+- Kimlik doğrulama, depo kimliğinize bağlıdır
 <!-- -->
 :::
 
-## Account tokens {#account-tokens}
+## Hesap belirteçleri {#account-tokens}
 
-For CI environments that don't support OIDC, or when you need fine-grained
-control over permissions, you can use account tokens. Account tokens allow you
-to specify exactly which scopes and projects the token can access.
+OIDC'yi desteklemeyen CI ortamları için veya izinler üzerinde ayrıntılı kontrole
+ihtiyaç duyduğunuzda hesap belirteçlerini kullanabilirsiniz. Hesap belirteçleri,
+belirtecin tam olarak hangi kapsamlara ve projelere erişebileceğini belirtmenize
+olanak tanır.
 
-### Creating an account token {#creating-an-account-token}
+### Hesap belirteci oluşturma {#creating-an-account-token}
 
 ```bash
 tuist account tokens create my-account \
@@ -91,80 +93,80 @@ tuist account tokens create my-account \
   --expires 1y
 ```
 
-The command accepts the following options:
+Komut aşağıdaki seçenekleri kabul eder:
 
-| Option       | Description                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
-| `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
-| `--expires`  | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
-| `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified.                                              |
+| Opsiyon             | Açıklama                                                                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--kapsamlar`       | Gerekli. Belirtecin verileceği kapsamların virgülle ayrılmış listesi.                                                                                                |
+| `--name`            | Gerekli. Belirteç için benzersiz bir tanımlayıcı (1-32 karakter, yalnızca alfanümerik, tire ve alt çizgi).                                                           |
+| `-- süresi doluyor` | İsteğe bağlı. Belirtecin süresinin ne zaman dolacağı. ` 30d` (gün), `6m` (ay) veya `1y` (yıl) gibi biçimleri kullanın. Belirtilmezse, belirtecin süresi asla dolmaz. |
+| `--projeler`        | Belirteci belirli proje tanıtıcılarıyla sınırlayın. Belirtilmediği takdirde belirtecin tüm projelere erişimi vardır.                                                 |
 
-### Available scopes {#available-scopes}
+### Mevcut kapsamlar {#available-scopes}
 
-| Scope                    | Description                           |
-| ------------------------ | ------------------------------------- |
-| `account:members:read`   | Read account members                  |
-| `account:members:write`  | Manage account members                |
-| `account:registry:read`  | Read from the Swift package registry  |
-| `account:registry:write` | Publish to the Swift package registry |
-| `project:previews:read`  | Download previews                     |
-| `project:previews:write` | Upload previews                       |
-| `project:admin:read`     | Read project settings                 |
-| `project:admin:write`    | Manage project settings               |
-| `project:cache:read`     | Download cached binaries              |
-| `project:cache:write`    | Upload cached binaries                |
-| `project:bundles:read`   | View bundles                          |
-| `project:bundles:write`  | Upload bundles                        |
-| `project:tests:read`     | Read test results                     |
-| `project:tests:write`    | Upload test results                   |
-| `project:builds:read`    | Read build analytics                  |
-| `project:builds:write`   | Upload build analytics                |
-| `project:runs:read`      | Read command runs                     |
-| `project:runs:write`     | Create and update command runs        |
+| Kapsam                   | Açıklama                                     |
+| ------------------------ | -------------------------------------------- |
+| `account:members:read`   | Hesap üyelerini okuyun                       |
+| `hesap:üyeler:yaz`       | Hesap üyelerini yönetme                      |
+| `account:registry:read`  | Swift paketi kayıt defterinden okuma         |
+| `account:registry:write` | Swift paketi kayıt defterinde yayınlama      |
+| `proje:önizleme:oku`     | Önizlemeleri indirin                         |
+| `project:previews:write` | Önizlemeleri yükleyin                        |
+| `project:admin:read`     | Proje ayarlarını okuma                       |
+| `project:admin:write`    | Proje ayarlarını yönetme                     |
+| `project:cache:read`     | Önbelleğe alınmış ikili dosyaları indirin    |
+| `project:cache:write`    | Önbelleğe alınmış ikili dosyaları yükleme    |
+| `project:bundles:read`   | Paketleri görüntüle                          |
+| `project:bundles:write`  | Paketleri yükleyin                           |
+| `project:tests:read`     | Test sonuçlarını okuyun                      |
+| `project:tests:write`    | Test sonuçlarını yükleme                     |
+| `project:builds:read`    | Yapı analizlerini okuyun                     |
+| `project:builds:write`   | Yapı analizlerini yükle                      |
+| `project:runs:read`      | Oku komutu çalışır                           |
+| `project:runs:write`     | Komut çalıştırmaları oluşturma ve güncelleme |
 
-### Scope groups {#scope-groups}
+### Kapsam grupları {#scope-groups}
 
-Scope groups provide a convenient way to grant multiple related scopes with a
-single identifier. When you use a scope group, it automatically expands to
-include all the individual scopes it contains.
+Kapsam grupları, tek bir tanımlayıcı ile birden fazla ilgili kapsamı vermek için
+uygun bir yol sağlar. Bir kapsam grubu kullandığınızda, otomatik olarak içerdiği
+tüm bireysel kapsamları içerecek şekilde genişler.
 
-| Scope Group | Included Scopes                                                                                                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+| Kapsam Grubu | Dahil Edilen Dürbünler                                                                                                                        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci`         | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
 
-### Continuous Integration {#continuous-integration}
+### Sürekli Entegrasyon {#continuous-integration}
 
-For CI environments that don't support OIDC, you can create an account token
-with the `ci` scope group to authenticate your CI workflows:
+OIDC'yi desteklemeyen CI ortamlarında, CI iş akışlarınızın kimliğini doğrulamak
+için `ci` kapsam grubuyla bir hesap belirteci oluşturabilirsiniz:
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
 ```
 
-This creates a token with all the scopes needed for typical CI operations
-(cache, previews, bundles, tests, builds, and runs). Store the generated token
-as a secret in your CI environment and set it as the `TUIST_TOKEN` environment
-variable.
+Bu, tipik CI işlemleri (önbellek, önizlemeler, paketler, testler, derlemeler ve
+çalıştırmalar) için gereken tüm kapsamlara sahip bir belirteç oluşturur.
+Oluşturulan belirteci CI ortamınızda gizli olarak saklayın ve `TUIST_TOKEN`
+ortam değişkeni olarak ayarlayın.
 
-### Managing account tokens {#managing-account-tokens}
+### Hesap belirteçlerini yönetme {#managing-account-tokens}
 
-To list all tokens for an account:
+Bir hesaba ait tüm belirteçleri listelemek için:
 
 ```bash
 tuist account tokens list my-account
 ```
 
-To revoke a token by name:
+Bir belirteci adıyla iptal etmek için:
 
 ```bash
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### Using account tokens {#using-account-tokens}
+### Hesap belirteçlerini kullanma {#using-account-tokens}
 
-Account tokens are expected to be defined as the environment variable
-`TUIST_TOKEN`:
+Hesap belirteçlerinin `TUIST_TOKEN` ortam değişkeni olarak tanımlanması
+beklenir:
 
 ```bash
 export TUIST_TOKEN=your-account-token
@@ -172,10 +174,10 @@ export TUIST_TOKEN=your-account-token
 
 ::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
-Use account tokens when you need:
-- Authentication in CI environments that don't support OIDC
-- Fine-grained control over which operations the token can perform
-- A token that can access multiple projects within an account
-- Time-limited tokens that automatically expire
+İhtiyacınız olduğunda hesap jetonlarını kullanın:
+- OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
+- Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
+- Bir hesap içinde birden fazla projeye erişebilen bir token
+- Otomatik olarak sona eren zaman sınırlı tokenlar
 <!-- -->
 :::
