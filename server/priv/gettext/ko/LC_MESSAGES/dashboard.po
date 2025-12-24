@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/ko/>\n"
 "Language: ko\n"
@@ -93,9 +93,9 @@ msgstr "번들"
 #: lib/tuist_web/components/runs/ran_by_badge.ex:15
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "CI"
-msgstr ""
+msgstr "CI"
 
 #: lib/tuist_web/components/app_layout_components.ex:122
 #, elixir-autogen, elixir-format, fuzzy
@@ -134,9 +134,9 @@ msgid "Flags"
 msgstr "플래그"
 
 #: lib/tuist_web/components/app_layout_components.ex:134
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Generate Runs"
-msgstr ""
+msgstr "실행 생성"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -264,9 +264,9 @@ msgid "Previews"
 msgstr "미리보기"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Projects"
-msgstr ""
+msgstr "프로젝트"
 
 #: lib/tuist_web/components/app_layout_components.ex:169
 #: lib/tuist_web/components/layouts/ops.html.heex:16
