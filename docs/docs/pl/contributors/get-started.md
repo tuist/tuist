@@ -71,7 +71,8 @@ wygenerowanego przez Tuist w celu przetestowania narzędzia.
 
 Jeśli chcesz edytować projekt, na przykład w celu dodania zależności lub
 dostosowania celów, możesz użyć polecenia
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit` </LocalizedLink>. Jest ono rzadko używane, ale warto wiedzieć, że istnieje.
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
+</LocalizedLink>. Jest ono rzadko używane, ale warto wiedzieć, że istnieje.
 
 ## Run Tuist {#run-tuist}
 
@@ -94,7 +95,7 @@ poniżej:
 ![Przykład ustawienia katalogu roboczego do uruchomienia
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning KOMPILACJA OPISU PROJEKTU
+::: ostrzeżenie KOMPILACJA OPISU PROJEKTU
 <!-- -->
 Interfejs CLI `tuist` zależy od obecności frameworka `ProjectDescription` w
 katalogu zbudowanych produktów. Jeśli `tuist` nie uruchomi się, ponieważ nie
