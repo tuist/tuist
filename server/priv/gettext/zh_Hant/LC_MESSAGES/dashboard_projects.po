@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -127,9 +128,9 @@ msgid "Build time saved"
 msgstr "節省建造時間"
 
 #: lib/tuist_web/live/overview_live.html.heex:642
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr ""
+msgstr "建置"
 
 #: lib/tuist_web/live/overview_live.html.heex:622
 #, elixir-autogen, elixir-format, fuzzy
@@ -358,9 +359,9 @@ msgid "Preview access"
 msgstr "預覽存取"
 
 #: lib/tuist_web/live/overview_live.html.heex:472
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "預覽"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:117
 #: lib/tuist_web/live/project_settings_live.html.heex:189
@@ -375,9 +376,9 @@ msgid "Projects"
 msgstr "專案"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:13
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/live/projects_live.ex:180
 #, elixir-autogen, elixir-format, fuzzy
@@ -514,9 +515,9 @@ msgstr "申請"
 #: lib/tuist_web/live/overview_live.html.heex:70
 #: lib/tuist_web/live/overview_live.html.heex:543
 #: lib/tuist_web/live/overview_live.html.heex:701
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "客製化"
 
 #: lib/tuist_web/live/overview_live.html.heex:67
 #: lib/tuist_web/live/overview_live.html.heex:540
