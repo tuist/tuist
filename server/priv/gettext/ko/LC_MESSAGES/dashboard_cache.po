@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ko/>\n"
 "Language: ko\n"
@@ -160,9 +161,9 @@ msgid "Branch:"
 msgstr "Branch:"
 
 #: lib/tuist_web/live/bundle_live.ex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle"
-msgstr ""
+msgstr "번들"
 
 #: lib/tuist_web/live/bundle_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -186,9 +187,9 @@ msgstr "번들을 찾을 수 없습니다."
 
 #: lib/tuist_web/live/bundles_live.ex:25
 #: lib/tuist_web/live/bundles_live.html.heex:281
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Bundles"
-msgstr ""
+msgstr "번들"
 
 #: lib/tuist_web/live/module_cache_live.ex:254
 #: lib/tuist_web/live/module_cache_live.html.heex:31
@@ -198,9 +199,9 @@ msgstr "CI"
 
 #: lib/tuist_web/live/cache_runs_live.ex:20
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Runs"
-msgstr ""
+msgstr "캐시 실행 내역"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:136
 #: lib/tuist_web/live/xcode_cache_live.html.heex:146
@@ -402,9 +403,9 @@ msgid "Hit rate"
 msgstr "적중률"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Hits"
-msgstr ""
+msgstr "조회수"
 
 #: lib/tuist_web/live/bundle_live.ex:883
 #: lib/tuist_web/live/bundles_live.ex:379
@@ -475,9 +476,9 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:643
 #: lib/tuist_web/live/bundles_live.ex:901
 #: lib/tuist_web/live/bundles_live.html.heex:345
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr ""
+msgstr "이름"
 
 #: lib/tuist_web/live/bundles_live.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
@@ -490,9 +491,9 @@ msgstr "아직 번들 없음"
 #: lib/tuist_web/live/module_cache_live.html.heex:534
 #: lib/tuist_web/live/xcode_cache_live.html.heex:378
 #: lib/tuist_web/live/xcode_cache_live.html.heex:519
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr ""
+msgstr "아직 데이터 없음"
 
 #: lib/tuist_web/live/bundle_live.html.heex:576
 #, elixir-autogen, elixir-format, fuzzy
@@ -521,9 +522,9 @@ msgid "Other"
 msgstr "기타"
 
 #: lib/tuist_web/live/bundle_live.html.heex:168
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "개요"
 
 #: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
@@ -635,9 +636,9 @@ msgid "Space usage"
 msgstr "공간 사용량"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "상태"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format, fuzzy
@@ -655,17 +656,17 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:577
 #: lib/tuist_web/live/bundle_live.html.heex:676
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr ""
+msgstr "검색어를 변경해 보세요"
 
 #: lib/tuist_web/live/bundle_live.html.heex:52
 #: lib/tuist_web/live/bundle_live.html.heex:530
 #: lib/tuist_web/live/bundles_live.ex:917
 #: lib/tuist_web/live/bundles_live.html.heex:351
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr ""
+msgstr "유형"
 
 #: lib/tuist_web/live/bundles_live.html.heex:70
 #, elixir-autogen, elixir-format, fuzzy
@@ -677,9 +678,9 @@ msgstr "유형:"
 #: lib/tuist_web/live/bundle_live.html.heex:158
 #: lib/tuist_web/live/bundle_live.html.heex:225
 #: lib/tuist_web/live/bundles_live.ex:382
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr ""
+msgstr "알 수 없음"
 
 #: lib/tuist_web/live/bundle_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
@@ -706,9 +707,9 @@ msgid "XCArchive"
 msgstr "XCArchive"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:20
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcode 캐시"
 
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
@@ -717,9 +718,9 @@ msgstr "지난 번들과 비교"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:394
 #: lib/tuist_web/live/xcode_cache_live.html.heex:298
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p50"
-msgstr ""
+msgstr "p50"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -733,9 +734,9 @@ msgstr "P50 적중률"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:381
 #: lib/tuist_web/live/xcode_cache_live.html.heex:285
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p90"
-msgstr ""
+msgstr "p90"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:65
 #, elixir-autogen, elixir-format, fuzzy
@@ -749,9 +750,9 @@ msgstr "P90 적중률"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:368
 #: lib/tuist_web/live/xcode_cache_live.html.heex:272
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p99"
-msgstr ""
+msgstr "p99"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:64
 #, elixir-autogen, elixir-format, fuzzy
@@ -794,16 +795,16 @@ msgstr "신청하기"
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
 #: lib/tuist_web/live/xcode_cache_live.html.heex:41
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "취소"
 
 #: lib/tuist_web/live/bundles_live.html.heex:124
 #: lib/tuist_web/live/module_cache_live.html.heex:62
 #: lib/tuist_web/live/xcode_cache_live.html.heex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "맞춤형"
 
 #: lib/tuist_web/live/bundles_live.html.heex:121
 #: lib/tuist_web/live/module_cache_live.html.heex:59
