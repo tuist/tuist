@@ -5,15 +5,18 @@
   "description": "Learn how to create and use plugins in Tuist to extend its functionality."
 }
 ---
-# المكونات الإضافية {#plugins}
+# المكونات الإضافية {#المكونات الإضافية}
 
 المكوّنات الإضافية هي أداة لمشاركة وإعادة استخدام القطع الأثرية ل Tuist عبر
 مشاريع متعددة. يتم دعم القطع الأثرية التالية:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> عبر مشاريع متعددة.
-- <LocalizedLink href="/guides/features/projects/templates">القوالب</LocalizedLink> عبر مشاريع متعددة.
+- <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف
+  المشروع</LocalizedLink> عبر مشاريع متعددة.
+- <LocalizedLink href="/guides/features/projects/templates">القوالب</LocalizedLink>
+  عبر مشاريع متعددة.
 - المهام عبر مشاريع متعددة.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">قالب ملحق الموارد</LocalizedLink> عبر مشاريع متعددة
+- <LocalizedLink href="/guides/features/projects/synthesized-files">قالب ملحق
+  الموارد</LocalizedLink>قالب</LocalizedLink> عبر مشاريع متعددة
 
 لاحظ أن الإضافات مصممة لتكون طريقة بسيطة لتوسيع وظائف تويست. لذلك هناك **بعض
 القيود التي يجب مراعاتها**:
@@ -27,15 +30,15 @@
 بك على إطار توليد تويست،
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-## أنواع المكونات الإضافية {#plugin-types}
+## أنواع المكونات الإضافية {# أنواع المكونات الإضافية}
 
-### المكوّن الإضافي المساعد لوصف المشروع {#project-description-helper-plugin}
+### المكوّن الإضافي المساعد لوصف المشروع {#project-descript-helper-plugin-plugin}
 
 يتم تمثيل المكوّن الإضافي المساعد لوصف المشروع بدليل يحتوي على `Plugin.swift`
 ملف بيان يوضح اسم المكوّن الإضافي ودليل `ProjectDescriptionHelpers` يحتوي على
 ملفات Swift المساعدة.
 
-::: code-group
+:::: مجموعة الرموز
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -51,16 +54,17 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### المكون الإضافي لقوالب ملحق الموارد {#resource-accessor-templates-plugin}
+### المكون الإضافي لقوالب ملحق الموارد {#resource-accessor-accessor-templates-plugin}
 
 إذا كنت بحاجة إلى مشاركة
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors"> ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
+ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات
 الإضافية. يُمثّل المكوّن الإضافي بدليل يحتوي على `Plugin.swift` ملف بيان يُعلن
 اسم المكوّن الإضافي ودليل `ResourceSynthesizizizers` يحتوي على ملفات قالب قالب
 ملحق الموارد.
 
 
-::: code-group
+:::: مجموعة الرموز
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -100,9 +104,9 @@ let plugin = Plugin(name: "MyPlugin")
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### المكون الإضافي للمهمة <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
+### المكون الإضافي للمهمة <Badge type="warning" text="deprecated" /> {#المكون الإضافي للمهمة-المكون الإضافي-شارة-تحذير-نص-مهمل-}
 
-::: warning DEPRECATED
+:::: تحذير DEPRECATED
 <!-- -->
 تم إهمال المكونات الإضافية للمهام. راجع [هذه التدوينة]
 (https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) إذا كنت تبحث عن
@@ -115,7 +119,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin`
 إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية
 في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد
-الأداة.
+الأداة.</task-name>
 
 إذا كنت تستخدم تويست لتوزيع المهام، فإننا نوصي ببناء
 - يمكنك الاستمرار في استخدام `ProjectAutomation.xcframework` الموزعة مع كل إصدار
@@ -129,7 +133,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - إذا قمت بتسمية أداتك `tuist-{xxx}` ويمكن للمستخدمين تثبيتها عن طريق تشغيل
   `mise install` ، يمكنهم تشغيلها إما باستدعائها مباشرة، أو من خلال `tuist xxx`.
 
-::: info عن مستقبل المشروع
+::::: معلومات عن مستقبل المشروع
 <!-- -->
 نحن نخطط لدمج نماذج `ProjectAutomation` و `XcodeGraph` في إطار عمل واحد متوافق
 مع الإصدارات السابقة يعرض جوهر الرسم البياني للمشروع للمستخدم. علاوة على ذلك،
@@ -138,7 +142,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 <!-- -->
 :::
 
-## استخدام الإضافات {#using-plugins}
+## استخدام الإضافات {# استخدام الإضافات}
 
 لاستخدام مكون إضافي، يجب عليك إضافته إلى ملف
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift.swift`</LocalizedLink>
@@ -174,14 +178,14 @@ let tuist = Tuist(
 بعد إضافة الإضافات، سيقوم `tuist install` بجلب الإضافات في دليل ذاكرة التخزين
 المؤقت العامة.
 
-::: info لا يوجد حل للإصدار
+:::: المعلومات لا يوجد حل للإصدار
 <!-- -->
 كما لاحظت، نحن لا نوفر دقة الإصدار للإضافات. نوصي باستخدام علامات Git أو SHAs
 لضمان إمكانية التكرار.
 <!-- -->
 :::
 
-::: tip وصف المشروع المساعدين المساعدين
+:::: إكرامية وصف المشروع المساعدين المساعدين
 <!-- -->
 عند استخدام المكون الإضافي لمساعدي وصف المشروع، يكون اسم الوحدة النمطية التي
 تحتوي على المساعدين هو اسم المكون الإضافي
