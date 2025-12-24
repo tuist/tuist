@@ -480,7 +480,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         if target.type.supportsSources {
-            sources = try SourceFilesList.from(sources: target.sources, path: targetPath, excluding: target.exclude)
+            let packageManifestFiles = [
+                "Package.swift",
+                "Package@swift*.swift",
+            ]
+            var exclude = target.exclude
+            let packageRelativePath = packageFolder.relative(to: targetPath)
+            exclude.append(contentsOf: try packageManifestFiles.map {
+                packageRelativePath.appending(try .init(validating: $0)).pathString
+            })
+            sources = try SourceFilesList.from(sources: target.sources, path: targetPath, excluding: exclude)
         }
 
         if target.type.supportsResources {
