@@ -22,13 +22,15 @@ o nasz algorytm
 Testowanie selektywne działa z `xcodebuild`, który obsługuje dowolny projekt
 Xcode, lub jeśli generujesz swoje projekty za pomocą Tuist, możesz zamiast tego
 użyć polecenia `tuist test`, które zapewnia dodatkowe udogodnienia, takie jak
-integracja z <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
+integracja z <LocalizedLink href="/guides/features/cache">binary
+cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
 instrukcjami opartymi na konfiguracji projektu:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany projekt</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany
+  projekt</LocalizedLink>
 
-::: warning GRANULARNOŚĆ MODUŁOWA A GRANULARNOŚĆ NA POZIOMIE PLIKU
+::: ostrzeżenie GRANULARNOŚĆ MODUŁOWA A GRANULARNOŚĆ NA POZIOMIE PLIKU
 <!-- -->
 Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
 testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
@@ -37,7 +39,7 @@ zmaksymalizować korzyści płynące z testowania selektywnego.
 <!-- -->
 :::
 
-::: warning OBJĘTOŚĆ TESTOWA
+::: ostrzeżenie OBJĘTOŚĆ TESTOWA
 <!-- -->
 Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
 jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
@@ -53,7 +55,7 @@ przebiegami w przyszłości.
 
 ## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
 
-::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: ostrzeżenie WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
