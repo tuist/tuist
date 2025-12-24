@@ -9,9 +9,9 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
-:::
 
 Working on large projects shouldn't feel like a chore. In fact, it should be as
 enjoyable as working on a project you started just two weeks ago. One of the
@@ -26,11 +26,9 @@ In other words, Tuist Insights helps you to answer questions such as:
 - Has the build time significantly increased in the last week?
 - Have my tests become slower? Which ones?
 
-::: info
 <!-- -->
 Tuist Insights are in early development.
 <!-- -->
-:::
 
 ## Builds {#builds}
 
@@ -45,19 +43,16 @@ command by adding it to your scheme's post-action:
 ![Post-action for inspecting
 builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
-::: info
 <!-- -->
 We recommend setting the "Provide build settings from" to the executable or your
 main build target to enable Tuist to track the build configuration.
 <!-- -->
-:::
 
-::: info
 <!-- -->
-If you are not using <LocalizedLink href="/guides/features/projects">generated projects</LocalizedLink>, the post-scheme action is not executed in case the
+If you are not using <LocalizedLink href="/guides/features/projects">generated
+projects</LocalizedLink>, the post-scheme action is not executed in case the
 build fails.
 <!-- -->
-:::
 > 
 > An undocumented feature in Xcode allows you to execute it even in this case.
 > Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
@@ -86,7 +81,6 @@ depend on how you installed Mise. Moreover, don't forget to inherit the build
 settings from a target in your project such that you can run Mise from the
 directory pointed to by $SRCROOT.
 <!-- -->
-:::
 
 
 Your local builds are now tracked as long as you are logged in to your Tuist
@@ -98,7 +92,6 @@ they evolve over time:
 <!-- -->
 To quickly access the dashboard, run `tuist project show --web` from the CLI.
 <!-- -->
-:::
 
 ![Dashboard with build
 insights](/images/guides/features/insights/builds-dashboard.png)
@@ -130,7 +123,6 @@ depend on how you installed Mise. Moreover, don't forget to inherit the build
 settings from a target in your project such that you can run Mise from the
 directory pointed to by $SRCROOT.
 <!-- -->
-:::
 
 Your test runs are now tracked as long as you are logged in to your Tuist
 account. You can access your test insights in the Tuist dashboard and see how
@@ -146,12 +138,10 @@ such as when debugging failures or slow tests on the CI:
 
 ## Generated projects {#generated-projects}
 
-::: info
 <!-- -->
 Auto-generated schemes automatically include both `tuist inspect build` and
 `tuist inspect test` post-actions.
 <!-- -->
-:::
 > 
 > If you are not interested in tracking insights in your auto-generated schemes,
 > disable them using the
@@ -238,7 +228,8 @@ To track build and test insights on CI, you will need to ensure that your CI is
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 
 Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
+- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` builds or tests your project without `-resultBundlePath`, the
