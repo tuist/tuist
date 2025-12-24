@@ -5,155 +5,159 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Principles {#principles}
+# Prensipler {#principles}
 
-This page describes principles that are pillars to the design and development of
-Tuist. They evolve with the project and are meant to ensure a sustainable growth
-that is well-aligned with the project foundation.
+Bu sayfada, Tuist'in tasarım ve geliştirilmesinde temel teşkil eden ilkeler
+açıklanmaktadır. Bunlar projeyle birlikte gelişir ve proje temeliyle uyumlu
+sürdürülebilir bir büyüme sağlamayı amaçlar.
 
-## Default to conventions {#default-to-conventions}
+## Varsayılan kurallar {#default-to-conventions}
 
-One of the reasons why Tuist exists is because Xcode is weak in conventions and
-that leads to complex projects that are hard to scale up and maintain. For that
-reason, Tuist takes a different approach by defaulting to simple and thoroughly
-designed conventions. **Developers can opt-out from the conventions, but that’s
-a conscious decision that doesn’t feel natural.**
+Tuist'in var olma nedenlerinden biri, Xcode'un kurallar konusunda zayıf olması
+ve bunun da ölçeklendirilmesi ve bakımı zor olan karmaşık projelere yol
+açmasıdır. Bu nedenle Tuist, basit ve kapsamlı bir şekilde tasarlanmış kuralları
+varsayılan olarak kabul ederek farklı bir yaklaşım benimsiyor. **Geliştiriciler
+kurallardan vazgeçebilir, ancak bu doğal hissettirmeyen bilinçli bir karardır.**
 
-For example, there’s a convention for defining dependencies between targets by
-using the provided public interface. By doing that, Tuist ensures that the
-projects are generated with the right configurations for the linking to work.
-Developers have the option to define the dependencies through build settings,
-but they’d be doing it implicitly and therefore breaking Tuist features such as
-`tuist graph` or `tuist cache` that rely on some conventions being followed.
+Örneğin, sağlanan genel arayüzü kullanarak hedefler arasındaki bağımlılıkları
+tanımlamak için bir kural vardır. Tuist bunu yaparak, projelerin bağlantıların
+çalışması için doğru konfigürasyonlarla oluşturulmasını sağlar. Geliştiriciler
+bağımlılıkları derleme ayarları aracılığıyla tanımlama seçeneğine sahiptir,
+ancak bunu örtük olarak yaparlar ve bu nedenle bazı kuralların izlenmesine
+dayanan `tuist graph` veya `tuist cache` gibi Tuist özelliklerini bozarlar.
 
-The reason why we default to conventions is that the more decision we can make
-on behalf of the developers, the more focus they’ll have crafting features for
-their apps. When we are left with no conventions like it’s the case in many
-projects, we have to make decisions that will end up not being consistent with
-other decisions and as a consequence, there’ll be an accidental complexity that
-will be hard to manage.
+Kurallara bağlı kalmamızın nedeni, geliştiriciler adına ne kadar çok karar
+verebilirsek, uygulamaları için özellik oluşturmaya o kadar çok odaklanabilecek
+olmalarıdır. Birçok projede olduğu gibi elimizde hiçbir kural olmadığında, diğer
+kararlarla tutarlı olmayan kararlar almak zorunda kalırız ve bunun sonucunda da
+yönetilmesi zor bir karmaşıklık ortaya çıkar.
 
-## Manifests are the source of truth {#manifests-are-the-source-of-truth}
+## Manifestolar gerçeğin kaynağıdır {#manifests-are-the-source-of-truth}
 
-Having many layers of configurations and contracts between them results in a
-project setup that is hard to reason about and maintain. Think for a second on
-an average project. The definition of the project lives in the `.xcodeproj`
-directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in
-pipelines. Those are three layers with contracts between them that we need to
-maintain. *How often have you been in a situation where you changed something in
-your projects, and then a week later you realized that the release scripts
-broke?*
+Çok sayıda konfigürasyon katmanına ve bunlar arasında sözleşmelere sahip olmak,
+mantık yürütmesi ve sürdürmesi zor bir proje kurulumuyla sonuçlanır. Ortalama
+bir proje üzerinde bir saniye düşünün. Projenin tanımı `.xcodeproj`
+dizinlerinde, CLI komut dosyalarında (örneğin `Fastfiles`) ve CI mantığı boru
+hatlarında bulunur. Bunlar, aralarında sürdürmemiz gereken sözleşmeler olan üç
+katmandır. *Ne sıklıkla projelerinizde bir şeyleri değiştirdiğiniz ve bir hafta
+sonra sürüm betiklerinin bozulduğunu fark ettiğiniz bir durumda kaldınız?*
 
-We can simplify this by having a single source of truth, the manifest files.
-Those files provide Tuist with the information that it needs to generate Xcode
-projects that developers can use to edit their files. Moreover, it allows having
-standard commands for building projects from a local or CI environment.
+Tek bir doğruluk kaynağına, yani manifesto dosyalarına sahip olarak bunu
+basitleştirebiliriz. Bu dosyalar Tuist'e, geliştiricilerin dosyalarını
+düzenlemek için kullanabilecekleri Xcode projeleri oluşturmak için ihtiyaç
+duyduğu bilgileri sağlar. Ayrıca, yerel veya CI ortamından projeler oluşturmak
+için standart komutlara sahip olmayı sağlar.
 
-**Tuist should own the complexity and expose a simple, safe, and enjoyable
-interface to describe their projects as explicitly as possible.**
+**Tuist, karmaşıklığı sahiplenmeli ve projelerini olabildiğince açık bir şekilde
+tanımlamak için basit, güvenli ve eğlenceli bir arayüz ortaya koymalıdır.**
 
-## Make the implicit explicit {#make-the-implicit-explicit}
+## Örtülü olanı açık hale getirin {#make-the-implicit-explicit}
 
-Xcode supports implicit configurations. A good example of that is inferring the
-implicitly defined dependencies. While implicitness is fine for small projects,
-where configurations are simple, as projects get larger it might cause slowness
-or odd behaviors.
+Xcode örtük yapılandırmaları destekler. Bunun iyi bir örneği, örtük olarak
+tanımlanmış bağımlılıkların çıkarılmasıdır. Yapılandırmaların basit olduğu küçük
+projeler için örtüklük iyi olsa da, projeler büyüdükçe yavaşlığa veya garip
+davranışlara neden olabilir.
 
-Tuist should provide explicit APIs for implicit Xcode behaviors. It should also
-support defining Xcode implicitness but implemented in such a way that
-encourages developers to opt for the explicit approach. Supporting Xcode
-implicitness and intricacies facilitates the adoption of Tuist, after which
-teams can take some time to get rid of the implicitness.
+Tuist, örtük Xcode davranışları için açık API'ler sağlamalıdır. Ayrıca Xcode
+örtüklüğünün tanımlanmasını desteklemeli ancak geliştiricileri açık yaklaşımı
+tercih etmeye teşvik edecek şekilde uygulanmalıdır. Xcode örtüklüğünü ve
+karmaşıklıklarını desteklemek Tuist'in benimsenmesini kolaylaştırır, ardından
+ekiplerin örtüklükten kurtulması biraz zaman alabilir.
 
-The definition of dependencies is a good example of that. While developers can
-define dependencies through build settings and phases, Tuist provides a
-beautiful API that encourages its adoption.
+Bağımlılıkların tanımlanması buna iyi bir örnektir. Geliştiriciler
+bağımlılıkları derleme ayarları ve aşamaları aracılığıyla tanımlayabilirken,
+Tuist bunun benimsenmesini teşvik eden güzel bir API sağlar.
 
-**Designing the API to be explicit allows Tuist to run some checks and
-optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
-it enables features like `tuist graph`, which exports a representation of the
-dependency graph, or `tuist cache`, which caches all the targets as binaries.
+**API'nin açık olacak şekilde tasarlanması, Tuist'in projeler üzerinde aksi
+takdirde mümkün olmayacak bazı kontroller ve optimizasyonlar yapmasını sağlar.**
+Ayrıca, bağımlılık grafiğinin bir temsilini dışa aktaran `tuist graph` veya tüm
+hedefleri ikili dosyalar olarak önbelleğe alan `tuist cache` gibi özellikleri
+etkinleştirir.
 
 ::: tip
 <!-- -->
-We should treat each request to port features from Xcode as an opportunity to
-simplify concepts with simple and explicit APIs.
+Xcode'dan özelliklerin taşınmasına yönelik her talebi, basit ve açık API'lerle
+kavramları basitleştirmek için bir fırsat olarak değerlendirmeliyiz.
 <!-- -->
 :::
 
-## Keep it simple {#keep-it-simple}
+## Basit tutun {#keep-it-simple}
 
-One of the main challenges when scaling Xcode projects comes from the fact that
-**Xcode exposes a lot of complexity to the users.** Due to that, teams have a
-high bus factor and only a few people in the team understand the project and the
-errors that the build system throws. That’s a bad situation to be in because the
-team relies on a few people.
+Xcode projelerini ölçeklendirirken karşılaşılan temel zorluklardan biri,
+**Xcode'un kullanıcılara çok fazla karmaşıklık sunmasından kaynaklanmaktadır.**
+Bu nedenle, ekipler yüksek bir veri yolu faktörüne sahiptir ve ekipteki yalnızca
+birkaç kişi projeyi ve derleme sisteminin attığı hataları anlar. Bu içinde
+bulunulması kötü bir durum çünkü ekip birkaç kişiye güveniyor.
 
-Xcode is a great tool, but so many years of improvements, new platforms, and
-programming languages, are reflected on their surface, which struggled to remain
-simple.
+Xcode harika bir araç, ancak yıllarca süren iyileştirmeler, yeni platformlar ve
+programlama dilleri, basit kalmak için mücadele eden yüzeyine yansıyor.
 
-Tuist should take the opportunity to keep things simple because working on
-simple things is fun and motivates us. No one wants to spend time trying to
-debug an error that happens at the very end of the compilation process, or
-understanding why they are not able to run the app on their devices. Xcode
-delegates the tasks to its underlying build system and in some cases it does a
-very poor job translating errors into actionable items. Have you ever got a
-*“framework X not found”* error and you didn’t know what to do? Imagine if we
-got a list of potential root causes for the bug.
+Tuist, işleri basit tutma fırsatını değerlendirmelidir çünkü basit şeyler
+üzerinde çalışmak eğlencelidir ve bizi motive eder. Hiç kimse derleme sürecinin
+en sonunda meydana gelen bir hatayı ayıklamak veya uygulamayı cihazlarında neden
+çalıştıramadıklarını anlamak için zaman harcamak istemez. Xcode, görevleri temel
+derleme sistemine devrediyor ve bazı durumlarda hataları eyleme geçirilebilir
+öğelere dönüştürme konusunda çok kötü bir iş çıkarıyor. Hiç *"framework X not
+found"* hatası aldınız ve ne yapacağınızı bilemediniz mi? Hatanın olası kök
+nedenlerinin bir listesini aldığımızı hayal edin.
 
-## Start from the developer’s experience {#start-from-the-developers-experience}
+## Geliştiricinin deneyiminden yola çıkın {#start-from-the-developers-experience}
 
-Part of the reason why there is a lack of innovation around Xcode, or put
-differently, not as much as in other programming environments, is because **we
-often start analyzing problems from existing solutions.** As a consequence, most
-of the solutions that we find nowadays revolve around the same ideas and
-workflows. While it’s good to include existing solutions in the equations, we
-should not let them constrain our creativity.
+Xcode'da yenilik eksikliğinin ya da başka bir deyişle diğer programlama
+ortamlarında olduğu kadar yenilik olmamasının bir nedeni de **sorunları analiz
+etmeye genellikle mevcut çözümlerden başlamamızdır.** Sonuç olarak, bugünlerde
+bulduğumuz çözümlerin çoğu aynı fikirler ve iş akışları etrafında dönüyor.
+Mevcut çözümleri denklemlere dahil etmek iyi olsa da, bunların yaratıcılığımızı
+kısıtlamasına izin vermemeliyiz.
 
-We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in
-[this podcast](https://tom.preston-werner.com/): *“Most things can be achieved,
-whatever you have in your head you can probably pull off with code as long as is
-possible within the constrains of the universe”.* If **we imagine how we’d like
-the developer experience to be**, it’s just a matter of time to pull it off — by
-starting to analyze the problems from the developer experience gives us a unique
-point of view that will lead us to solutions that users will love to use.
+Tom Preston](https://tom.preston-werner.com/)'ın [bu
+podcast](https://tom.preston-werner.com/)'de belirttiği gibi düşünmeyi
+seviyoruz: *"Çoğu şey başarılabilir, kafanızda ne varsa muhtemelen evrenin
+kısıtlamaları dahilinde mümkün olduğu sürece kodla başarabilirsiniz".* Eğer
+**geliştirici deneyiminin nasıl olmasını istediğimizi hayal edersek**, bunu
+başarmak sadece zaman meselesidir - sorunları geliştirici deneyiminden analiz
+etmeye başlamak bize kullanıcıların severek kullanacağı çözümlere götürecek
+benzersiz bir bakış açısı sağlar.
 
-We might feel tempted to follow what everyone is doing, even if that means
-sticking with the inconveniences that everyone continues to complain about.
-Let’s not do that. How do I imagine archiving my app? How would I love code
-signing to be? What processes can I help streamline with Tuist? For example,
-adding support for [Fastlane](https://fastlane.tools/) is a solution to a
-problem that we need to understand first. We can get to the root of the problem
-by asking “why” questions. Once we narrow down where the motivation comes from,
-we can think of how Tuist can help them best. Maybe the solution is integrating
-with Fastlane, but it’s important we don’t disregard other equally valid
-solutions that we can put on the table before making trade-offs.
+Herkesin şikayet etmeye devam ettiği rahatsızlıklara katlanmak anlamına gelse
+bile, herkesin yaptığını takip etmek bize cazip gelebilir. Bunu yapmayalım.
+Uygulamamı arşivlemeyi nasıl hayal ediyorum? Kod imzalamanın nasıl olmasını
+isterdim? Tuist ile hangi süreçleri kolaylaştırmaya yardımcı olabilirim?
+Örneğin, [Fastlane](https://fastlane.tools/) için destek eklemek, önce anlamamız
+gereken bir soruna çözümdür. "Neden" sorusunu sorarak sorunun kökenine
+inebiliriz. Motivasyonun nereden geldiğini daralttıktan sonra, Tuist'in onlara
+en iyi nasıl yardımcı olabileceğini düşünebiliriz. Belki de çözüm Fastlane ile
+entegre olmaktır, ancak değiş tokuş yapmadan önce masaya koyabileceğimiz eşit
+derecede geçerli diğer çözümleri göz ardı etmememiz önemlidir.
 
-## Errors can and will happen {#errors-can-and-will-happen}
+## Hatalar olabilir ve olacaktır {#errors-can-and-will-happen}
 
-We, developers, have an inherent temptation to disregard that errors can happen.
-As a result, we design and test software only considering the ideal scenario.
+Biz geliştiricilerin doğasında hataların olabileceğini göz ardı etme eğilimi
+vardır. Sonuç olarak, yazılımı yalnızca ideal senaryoyu göz önünde bulundurarak
+tasarlıyor ve test ediyoruz.
 
-Swift, its type system, and a well-architected code might help prevent some
-errors, but not all of them because some are out of our control. We can’t assume
-the user will always have an internet connection, or that the system commands
-will return successfully. The environments in which Tuist runs are not sandboxes
-that we control, and hence we need to make an effort to understand how they
-might change and impact Tuist.
+Swift, tip sistemi ve iyi tasarlanmış bir kod bazı hataları önlemeye yardımcı
+olabilir, ancak hepsini değil çünkü bazıları bizim kontrolümüz dışında.
+Kullanıcının her zaman internet bağlantısına sahip olacağını ya da sistem
+komutlarının başarıyla geri döneceğini varsayamayız. Tuist'in çalıştığı ortamlar
+bizim kontrolümüzde olan kum havuzları değildir ve bu nedenle bunların nasıl
+değişebileceğini ve Tuist'i nasıl etkileyebileceğini anlamak için çaba
+göstermemiz gerekir.
 
-Poorly handled errors result in bad user experience, and users might lose trust
-in the project. We want users to enjoy every single piece of Tuist, even the way
-we present errors to them.
+Kötü ele alınan hatalar kötü kullanıcı deneyimine neden olur ve kullanıcılar
+projeye olan güvenlerini kaybedebilir. Kullanıcıların Tuist'in her bir
+parçasından, hatta hataları onlara sunma şeklimizden bile keyif almalarını
+istiyoruz.
 
-We should put ourselves in the shoes of users and imagine what we’d expect the
-error to tell us. If the programming language is the communication channel
-through which errors propagate, and the users are the destination of the errors,
-they should be written in the same language that the target (users) speak. They
-should include enough information to know what happened and hide the information
-that is not relevant. Also, they should be actionable by telling users what
-steps they can take to recover from them.
+Kendimizi kullanıcıların yerine koymalı ve hatanın bize ne söylemesini
+beklediğimizi hayal etmeliyiz. Eğer programlama dili hataların yayıldığı bir
+iletişim kanalı ve kullanıcılar da hataların hedefi ise, hatalar hedefin
+(kullanıcıların) konuştuğu dilde yazılmalıdır. Ne olduğunu bilmek için yeterli
+bilgi içermeli ve ilgili olmayan bilgileri gizlemelidirler. Ayrıca,
+kullanıcılara bu hatalardan kurtulmak için hangi adımları atabileceklerini
+söyleyerek eyleme geçirilebilir olmalıdırlar.
 
-And last but not least, our test cases should contemplate failing scenarios. Not
-only they ensure that we are handling errors as we are supposed to, but prevent
-future developers from breaking that logic.
+Ve son olarak, test senaryolarımız başarısızlık senaryolarını düşünmelidir.
+Bunlar yalnızca hataları olması gerektiği gibi ele aldığımızdan emin olmamızı
+sağlamakla kalmaz, aynı zamanda gelecekteki geliştiricilerin bu mantığı
+bozmasını da önler.
