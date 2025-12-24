@@ -10,7 +10,7 @@
 プロジェクトが大きくなると、コードを共有し、境界を定義し、ビルド時間を改善するために、複数のターゲットに分割するのが一般的である。複数のターゲットとは、**依存関係グラフ**
 を形成する、ターゲット間の依存関係を定義することを意味する。
 
-## XcodeProj-codifiedグラフ{#xcodeprojcodified-graphs}
+## XcodeProj-codifiedグラフ{#xcodeprojcodified-graphs}。
 
 Xcode と XcodeProj
 の設計のために、依存関係グラフのメンテナンスは、面倒でエラーが発生しやすい作業になることがあります。以下は、あなたが遭遇するかもしれない問題のいくつかの例です：
@@ -56,7 +56,7 @@ Tuistはプロジェクト生成時にグラフを検証し、サイクルがな
 <!-- -->
 :::
 
-## 外部依存{#external-dependencies}
+## 外部依存{#external-dependencies}。
 
 Tuistでは、プロジェクト内で外部依存関係を宣言することもできる。
 
@@ -65,7 +65,7 @@ Tuistでは、プロジェクト内で外部依存関係を宣言することも
 Swift
 Packagesは、あなたのプロジェクトで依存関係を宣言する私たちの推奨する方法です。あなたは、Xcodeのデフォルトの統合メカニズムを使用するか、TuistのXcodeProjベースの統合を使用してそれらを統合することができます。
 
-#### TuistのXcodeProjベースの統合{#tuists-xcodeprojbased-integration}
+#### TuistのXcodeProjベースの統合{#tuists-xcodeprojbased-integration}。
 
 Xcodeのデフォルトの統合は最も便利なものではあるが、中規模や大規模のプロジェクトに必要な柔軟性とコントロールに欠けている。これを克服するために、TuistはXcodeProjベースの統合を提供しており、XcodeProjのターゲットを使用してプロジェクトにSwift
 Packagesを統合することができます。そのおかげで、統合をよりコントロールできるだけでなく、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>や<LocalizedLink href="/guides/features/test/selective-testing">選択的テスト実行</LocalizedLink>のようなワークフローと互換性を持たせることができます。
@@ -77,7 +77,7 @@ XcodeProj
 
 外部の依存関係を追加するには、`Tuist/` の下か、プロジェクトのルートに`Package.swift` を作成する必要があります。
 
-::: code-group
+コードグループ
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -152,7 +152,7 @@ tuist install
 
 プロジェクトのターゲットから、`TargetDependency.external` 依存関係タイプを使用して、これらの依存関係を参照できます：
 
-::: code-group
+コードグループ
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -185,7 +185,7 @@ let project = Project(
 <!-- -->
 :::
 
-#### Xcodeのデフォルトの統合{#xcodes-default-integration}
+#### Xcodeのデフォルトの統合{#xcodes-default-integration}。
 
 Xcode のデフォルトの統合メカニズムを使用したい場合は、プロジェクトをインスタンス化するときに、リスト`パッケージ` を渡すことができます：
 
@@ -273,11 +273,11 @@ carthage update
 tuist generate
 ```
 
-::: warning ビルドとテスト
+警告 ビルドとテスト
 <!-- -->
-`tuist build` および`tuist test` を使ってプロジェクトをビルドおよびテストする場合も同様に、`tuist build`
-または`tuist test` を実行する前に`carthage update`
-コマンドを実行して、Carthageで解決された依存関係が存在することを確認する必要があります。
+`xcodebuild build` and`tuist test`
+を使用してプロジェクトをビルドおよびテストする場合も同様に、ビルドまたはテストの前に`carthage update` コマンドを実行して、Carthage
+で解決された依存関係が存在することを確認する必要があります。
 <!-- -->
 :::
 
@@ -301,7 +301,7 @@ CocoaPodsの依存関係は、`build` や`test` のような、プロジェク�
 <!-- -->
 :::
 
-## 静的か動的か{#static-or-dynamic}
+## 静的か動的か{#static-or-dynamic}。
 
 フレームワークやライブラリは、静的にリンクすることも、動的にリンクすることもできる。**この選択は、アプリのサイズや起動時間**
 などに大きな影響を与える。その重要性にもかかわらず、この決定はあまり考慮されずに行われることが多い。
@@ -314,7 +314,7 @@ Package Managerの静的リンクと動的リンクの自動決定や、[Mergeab
 Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)のようなコンパイル時のソリューションで問題を解決しようとしました。しかし、これはコンパイルグラフに新しい動的変数を追加し、非決定性の新しいソースを追加し、コンパイルグラフに依存する
 Swift プレビューのようないくつかの機能が信頼できなくなる可能性があります。
 
-幸運なことに、Tuistは静的と動的の間の変更に関連する複雑さを概念的に圧縮し、リンクタイプ間で標準的な<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">バンドルアクセサ</LocalizedLink>を合成します。<LocalizedLink href="/guides/features/cache">環境変数による動的設定</LocalizedLink>と組み合わせることで、呼び出し時にリンクタイプを渡し、マニフェストでその値を使用してターゲットのプロダクトタイプを設定することができます。
+幸運なことに、Tuistは静的と動的の間の変更に関連する複雑さを概念的に圧縮し、リンクタイプ間で標準的な<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">バンドルアクセサ</LocalizedLink>を合成します。3}環境変数による動的設定</LocalizedLink>と組み合わせることで、呼び出し時にリンクタイプを渡し、マニフェストでその値を使用してターゲットのプロダクトタイプを設定することができます。
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -330,14 +330,14 @@ func productType() -> Product {
 Tuist<LocalizedLink href="/guides/features/projects/cost-of-convenience">はそのコスト</LocalizedLink>のため、暗黙の設定による利便性をデフォルトにしないことに注意してください。これが意味するのは、結果のバイナリが正しいことを保証するために、リンクタイプや、[`-ObjC`
 リンカフラグ](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)のような時に必要となる追加のビルド設定をあなたが設定することに依存しているということです。したがって、私たちのスタンスは、正しい判断を下すためのリソースを、通常はドキュメントの形で提供することです。
 
-::: tip 例：コンポーザブル・アーキテクチャー
+::: ヒント 例：コンポーザブル・アーキテクチャー
 <!-- -->
 多くのプロジェクトが統合しているSwiftパッケージは、[The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture)です。詳細は[このセクション](#the-composable-architecture)を参照してください。
 <!-- -->
 :::
 
-### シナリオ{#scenarios}
+### シナリオ{#scenarios}。
 
 リンクを完全に静的または動的に設定することが、実行不可能であったり、良い考えで
 ないシナリオもある。以下は、スタティック・リンクとダイナミック・リンクを混在させる必要があるシナリオの非網羅的なリストである：
@@ -349,9 +349,9 @@ Architecture](https://github.com/pointfreeco/swift-composable-architecture)で�
 
 グラフに変更を加える際、Tuistはグラフを分析し、「静的副作用」を検出した場合には警告を表示する。この警告は、動的ターゲットを介して静的ターゲットに過渡的に依存するターゲットを静的にリンクすることで発生する可能性のある問題を特定するためのものです。これらの副作用は、しばしばバイナリサイズの増大や、最悪の場合にはランタイムクラッシュとして現れます。
 
-## トラブルシューティング{#troubleshooting}
+## トラブルシューティング{#troubleshooting}。
 
-### Objective-Cの依存関係{#objectivec-dependencies}
+### Objective-Cの依存関係{#objectivec-dependencies}。
 
 Objective-Cの依存関係を統合する場合、[Apple Technical Q&A
 QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)に詳述されているように、実行時のクラッシュを回避するために、コンシューマターゲットに特定のフラグを含める必要がある場合があります。
@@ -491,13 +491,14 @@ let packageSettings = PackageSettings(
 
 動的なフレームワークやライブラリーが`import StaticSwiftModule`
 を通して静的なものに依存する場合、そのシンボルは動的なフレームワークやライブラリーの`.swiftmodule`
-に含まれ、<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">コンパイルに失敗</LocalizedLink>する可能性があります。これを防ぐには、<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>を使用して静的依存関係をインポートする必要があります：
+に含まれ、<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">コンパイルに失敗</LocalizedLink>する可能性があります。これを防ぐには、<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>を使用して静的依存関係をインポートする必要があります：
 
 ```swift
 internal import StaticModule
 ```
 
-::: 情報
+::: info
 <!-- -->
 インポートのアクセスレベルは、Swift 6に含まれています。Swift の古いバージョンを使用している場合は、代わりに
 <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
