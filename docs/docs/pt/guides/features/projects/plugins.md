@@ -10,11 +10,13 @@
 Plugins are a tool to share and reuse Tuist artifacts across multiple projects.
 The following artifacts are supported:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Project description helpers</LocalizedLink> across multiple projects.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Project
+  description helpers</LocalizedLink> across multiple projects.
 - <LocalizedLink href="/guides/features/projects/templates">Templates</LocalizedLink>
   across multiple projects.
 - Tasks across multiple projects.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource accessor</LocalizedLink> template across multiple projects
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource
+  accessor</LocalizedLink> template across multiple projects
 
 Note that plugins are designed to be a simple way to extend Tuist's
 functionality. Therefore there are **some limitations to consider**:
@@ -36,7 +38,6 @@ A project description helper plugin is represented by a directory containing a
 `Plugin.swift` manifest file that declares the plugin's name and a
 `ProjectDescriptionHelpers` directory containing the helper Swift files.
 
-::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -50,18 +51,17 @@ let plugin = Plugin(name: "MyPlugin")
 └── ...
 ```
 <!-- -->
-:::
 
 ### Resource accessor templates plugin {#resource-accessor-templates-plugin}
 
 If you need to share
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized resource accessors</LocalizedLink> you can use this type of plugin. The plugin
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized
+resource accessors</LocalizedLink> you can use this type of plugin. The plugin
 is represented by a directory containing a `Plugin.swift` manifest file that
 declares the plugin's name and a `ResourceSynthesizers` directory containing the
 resource accessor template files.
 
 
-::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -78,7 +78,6 @@ let plugin = Plugin(name: "MyPlugin")
 └── ...
 ```
 <!-- -->
-:::
 
 The name of the template is the [camel
 case](https://en.wikipedia.org/wiki/Camel_case) version of the resource type:
@@ -109,7 +108,6 @@ Task plugins are deprecated. Check out [this blog
 post](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) if you are
 looking for an automation solution for your project.
 <!-- -->
-:::
 
 Tasks are `$PATH`-exposed executables that are invocable through the `tuist`
 command if they follow the naming convention `tuist-<task-name>`. In earlier
@@ -139,7 +137,6 @@ graph to the user. Moreover, we'll extract the generation logic into a new
 layer, `XcodeGraph` that you can also use from your own CLI. Think of it as
 building your own Tuist.
 <!-- -->
-:::
 
 ## Using plugins {#using-plugins}
 
@@ -182,7 +179,6 @@ cache directory.
 As you might have noted, we don't provide version resolution for plugins. We
 recommend using Git tags or SHAs to ensure reproducibility.
 <!-- -->
-:::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
@@ -194,4 +190,3 @@ import MyTuistPlugin
 let project = Project.app(name: "MyCoolApp", platform: .iOS)
 ```
 <!-- -->
-:::
