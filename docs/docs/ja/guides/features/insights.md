@@ -5,7 +5,7 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 洞察 {#insights}
+# インサイト{#insights}
 
 警告 要件
 <!-- -->
@@ -26,7 +26,7 @@ Tuist Insightsは開発初期段階にある。
 <!-- -->
 :::
 
-## ビルド {#builds}
+## ビルド{#builds}
 
 おそらくCIワークフローのパフォーマンスに関するメトリクスは持っているだろうが、ローカルの開発環境については同じように可視化できていないかもしれない。しかし、ローカルのビルド時間は、開発者のエクスペリエンスに貢献する最も重要な要素の1つです。
 
@@ -64,7 +64,7 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: 先端 ミセ＆プロジェクト・パス
+::: tip MISE & PROJECT PATHS
 <!-- -->
 あなたの環境の`PATH` 環境変数は、scheme
 postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
@@ -98,7 +98,7 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: 先端 ミセ＆プロジェクト・パス
+::: tip MISE & PROJECT PATHS
 <!-- -->
 あなたの環境の`PATH` 環境変数は、scheme
 postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
@@ -194,7 +194,7 @@ testAction: .testAction(
 )
 ```
 
-## 継続的インテグレーション{#continuous-integration}。
+## 継続的インテグレーション{#continuous-integration}
 
 CIでビルドとテストのインサイトを追跡するには、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証されていることを確認する必要がある</LocalizedLink>。
 
