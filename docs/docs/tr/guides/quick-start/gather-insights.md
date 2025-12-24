@@ -5,21 +5,21 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# İçgörü toplayın {#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those
-capabilities is gathering insights about your project and builds. All you need
-is to have an account with a project in the server.
+Tuist, yeteneklerini genişletmek için bir sunucu ile entegre olabilir. Bu
+yeteneklerden biri de projeniz ve derlemeleriniz hakkında bilgi toplamaktır.
+İhtiyacınız olan tek şey, sunucuda bir projeye sahip bir hesabınızın olmasıdır.
 
-First of all, you'll need to authenticate by running:
+Her şeyden önce, çalıştırarak kimlik doğrulaması yapmanız gerekir:
 
 ```bash
 tuist auth login
 ```
 
-## Create a project {#create-a-project}
+## Bir proje oluşturun {#create-a-project}
 
-You can then create a project by running:
+Daha sonra çalıştırarak bir proje oluşturabilirsiniz:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,13 +27,13 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+Projenin tam tanıtıcısını temsil eden `my-handle/MyApp` adresini kopyalayın.
 
-## Connect projects {#connect-projects}
+## Projeleri bağlayın {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your
-local project. Run `tuist edit` and edit the `Tuist.swift` file to include the
-full handle of the project:
+Projeyi sunucuda oluşturduktan sonra, yerel projenize bağlamanız gerekecektir. `
+tuist edit` adresini çalıştırın ve `Tuist.swift` dosyasını projenin tam
+tanıtıcısını içerecek şekilde düzenleyin:
 
 ```swift
 import ProjectDescription
@@ -41,21 +41,23 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run
-`tuist test` to run the tests reporting the results to the server.
+İşte bu! Artık projeniz ve derlemeleriniz hakkında bilgi toplamaya hazırsınız.
+Sonuçları sunucuya bildiren testleri çalıştırmak için `tuist test` adresini
+çalıştırın.
 
 ::: info
 <!-- -->
-Tuist enqueues the results locally and tries to send them without blocking the
-command. Therefore, they might not be sent immediately after the command
-finishes. In CI, the results are sent immediately.
+Tuist sonuçları yerel olarak sıraya koyar ve komutu engellemeden göndermeye
+çalışır. Bu nedenle, komut bittikten hemen sonra gönderilmeyebilirler. CI'da
+sonuçlar hemen gönderilir.
 <!-- -->
 :::
 
 
-![An image that shows a list of runs in the
-server](/images/guides/quick-start/runs.png)
+![Sunucudaki çalıştırmaların listesini gösteren bir
+görüntü](/images/guides/quick-start/runs.png)
 
-Having data from your projects and builds is crucial in making informed
-decisions. Tuist will continue to extend its capabilities, and you'll benefit
-from them without having to change your project configuration. Magic, right? 🪄
+Projelerinizden ve derlemelerinizden gelen verilere sahip olmak, bilinçli
+kararlar almak için çok önemlidir. Tuist, yeteneklerini genişletmeye devam
+edecek ve siz de proje yapılandırmanızı değiştirmek zorunda kalmadan bunlardan
+yararlanacaksınız. Sihir, değil mi? 🪄
