@@ -10,7 +10,7 @@
 Tuist obsługuje korzystanie z `Package.swift` jako DSL dla projektów i
 konwertuje cele pakietu na natywny projekt Xcode i cele.
 
-::: ostrzeżenie
+::: warning
 <!-- -->
 Celem tej funkcji jest zapewnienie programistom łatwego sposobu oceny wpływu
 przyjęcia Tuist w ich pakietach Swift. W związku z tym nie planujemy obsługiwać
@@ -30,7 +30,7 @@ katalog `Tuist` lub `.git`.
 <!-- -->
 :::
 
-## Używanie Tuist z pakietem Swift {#using-tuist-with-a-swift-package}.
+## Korzystanie z Tuist z pakietem Swift {#using-tuist-with-a-swift-package}
 
 Będziemy używać Tuist z repozytorium [TootSDK
 Package](https://github.com/TootSDK/TootSDK), które zawiera pakiet Swift.
