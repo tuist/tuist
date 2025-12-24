@@ -7,7 +7,8 @@
 ---
 # Xcode 프로젝트 마이그레이션 {#migrate-an-xcode-project}
 
-<LocalizedLink href="/guides/features/projects/adoption/new-project">Tuist를 사용해 새로운 프로젝트 생성</LocalizedLink>을 하지 않는다면 Tuist의 기본 구성 요소를 사용해 Xcode 프로젝트를 직접 정의해야
+<LocalizedLink href="/guides/features/projects/adoption/new-project">Tuist를 사용해
+새로운 프로젝트 생성</LocalizedLink>을 하지 않는다면 Tuist의 기본 구성 요소를 사용해 Xcode 프로젝트를 직접 정의해야
 합니다. 이 과정이 얼마나 번거로운지는 프로젝트의 복잡도에 따라 달라집니다.
 
 이미 알고 있듯이, Xcode 프로젝트는 시간이 지남에 따라 더 복잡하고 어려워질 수 있습니다: 디렉토리 구조와 일치하지 않는 그룹, 여러 타겟
@@ -87,7 +88,7 @@ let package = Package(
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## 프로젝트 빌드 설정을 `.xcconfig` 파일로 분리 {#extract-the-project-build-settings-into-xcconfig-files}
@@ -229,14 +230,15 @@ let project = Project(
 
 ### 타겟 마이그레이션 검증 {#validate-the-target-migration}
 
-`tuist build`와 `tuist test`를 수행하여 프로젝트 빌드와 테스트가 정상적으로 수행되는지 확인합니다. 또한
-[xcdiff](https://github.com/bloomberg/xcdiff)을 사용하여 생성된 Xcode 프로젝트와 기존 Xcode
-프로젝트를 비교하여 변경 사항이 올바른지 확인할 수 있습니다.
+`tuist generate` 를 실행한 다음 `xcodebuild build` 를 실행하여 프로젝트가 빌드되는지 확인하고 `tuist
+test` 를 실행하여 테스트가 통과되었는지 확인합니다. 또한
+[xcdiff](https://github.com/bloomberg/xcdiff)을 사용하여 생성된 Xcode 프로젝트를 기존 프로젝트와
+비교하여 변경 사항이 올바른지 확인할 수 있습니다.
 
 ### 반복 {#repeat}
 
-모든 타겟을 완전히 마이그레이션할 때까지 반복합니다. 마이그레이션 완료 후에 Tuist가 제공하는 속도와 안전성의 이점을 위해 `tuist
-build`와 `tuist test` 명령어를 사용해 프로젝트 빌드와 테스트를 수행하도록 CI와 CD 파이프라인을을 업데이트하길 권장합니다.
+모든 대상이 완전히 마이그레이션될 때까지 반복합니다. 완료되면 CI 및 CD 파이프라인을 업데이트하여 `tuist 생성` 다음
+`xcodebuild 빌드` 및 `tuist 테스트` 를 사용하여 프로젝트를 빌드하고 테스트하는 것이 좋습니다.
 
 ## 문제 해결 {#troubleshooting}
 
