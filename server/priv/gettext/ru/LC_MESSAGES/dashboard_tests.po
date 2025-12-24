@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
 "Language: ru\n"
@@ -461,9 +462,9 @@ msgstr "Нет данных"
 #: lib/tuist_web/live/test_runs_live.html.heex:473
 #: lib/tuist_web/live/tests_live.html.heex:432
 #: lib/tuist_web/live/tests_live.html.heex:824
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr ""
+msgstr "Пока нет данных"
 
 #: lib/tuist_web/live/test_run_live.html.heex:1295
 #, elixir-autogen, elixir-format, fuzzy
@@ -518,9 +519,9 @@ msgid "Optimization Summary"
 msgstr "Резюме по оптимизации"
 
 #: lib/tuist_web/live/test_run_live.html.heex:80
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "Обзор"
 
 #: lib/tuist_web/live/test_case_live.ex:59
 #: lib/tuist_web/live/test_case_live.html.heex:68
@@ -682,9 +683,9 @@ msgstr "Сортировать по:"
 #: lib/tuist_web/live/test_run_live.html.heex:678
 #: lib/tuist_web/live/test_run_live.html.heex:899
 #: lib/tuist_web/live/test_runs_live.ex:38
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Статус"
 
 #: lib/tuist_web/live/test_case_live.html.heex:112
 #, elixir-autogen, elixir-format, fuzzy
@@ -708,9 +709,9 @@ msgstr "Резюме"
 #: lib/tuist_web/live/test_cases_live.html.heex:401
 #: lib/tuist_web/live/test_cases_live.html.heex:418
 #: lib/tuist_web/live/test_cases_live.html.heex:458
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Test Case"
-msgstr ""
+msgstr "Тестовые сценарии"
 
 #: lib/tuist_web/live/test_case_live.html.heex:161
 #, elixir-autogen, elixir-format, fuzzy
@@ -723,9 +724,9 @@ msgstr "Выполнение тестовых заданий"
 #: lib/tuist_web/live/test_run_live.html.heex:369
 #: lib/tuist_web/live/test_run_live.html.heex:387
 #: lib/tuist_web/live/tests_live.html.heex:834
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Test Cases"
-msgstr ""
+msgstr "Тестовые сценарии"
 
 #: lib/tuist_web/live/test_run_live.html.heex:110
 #, elixir-autogen, elixir-format, fuzzy
@@ -743,16 +744,16 @@ msgid "Test Optimizations"
 msgstr "Оптимизация тестирования"
 
 #: lib/tuist_web/live/test_run_live.ex:51
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Test Run"
-msgstr ""
+msgstr "Тестовые запуски"
 
 #: lib/tuist_web/live/test_run_live.html.heex:3
 #: lib/tuist_web/live/test_runs_live.ex:23
 #: lib/tuist_web/live/test_runs_live.html.heex:378
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Test Runs"
-msgstr ""
+msgstr "Тестовые запуски"
 
 #: lib/tuist_web/live/test_run_live.html.heex:374
 #: lib/tuist_web/live/test_run_live.html.heex:546
@@ -848,9 +849,9 @@ msgid "Test suites"
 msgstr "Тестовые наборы"
 
 #: lib/tuist_web/live/tests_live.ex:20
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tests"
-msgstr ""
+msgstr "Тесты"
 
 #: lib/tuist_web/live/tests_live.html.heex:134
 #, elixir-autogen, elixir-format, fuzzy
@@ -904,9 +905,9 @@ msgstr "Общее количество выполнений данного те
 
 #: lib/tuist_web/live/test_run_live.html.heex:1067
 #: lib/tuist_web/live/test_run_live.html.heex:1195
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr ""
+msgstr "Попробуйте изменить поисковый запрос"
 
 #: lib/tuist_web/live/test_case_live.html.heex:283
 #: lib/tuist_web/live/test_run_live.html.heex:526
@@ -932,9 +933,9 @@ msgstr "Туистская версия"
 #: lib/tuist_web/live/test_runs_live.html.heex:442
 #: lib/tuist_web/live/tests_live.html.heex:776
 #: lib/tuist_web/live/tests_live.html.heex:801
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr ""
+msgstr "Неизвестный"
 
 #: lib/tuist_web/live/test_run_live.ex:840
 #, elixir-autogen, elixir-format, fuzzy
@@ -957,9 +958,9 @@ msgstr "версия macOS"
 #: lib/tuist_web/live/test_runs_live.html.heex:358
 #: lib/tuist_web/live/tests_live.html.heex:293
 #: lib/tuist_web/live/tests_live.html.heex:664
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p50"
-msgstr ""
+msgstr "p50"
 
 #: lib/tuist_web/live/test_cases_live.ex:258
 #: lib/tuist_web/live/test_cases_live.html.heex:128
@@ -978,9 +979,9 @@ msgstr "p50 продолжительность испытаний"
 #: lib/tuist_web/live/test_runs_live.html.heex:345
 #: lib/tuist_web/live/tests_live.html.heex:280
 #: lib/tuist_web/live/tests_live.html.heex:648
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p90"
-msgstr ""
+msgstr "p90"
 
 #: lib/tuist_web/live/test_cases_live.ex:255
 #: lib/tuist_web/live/test_cases_live.html.heex:127
@@ -999,9 +1000,9 @@ msgstr "p90 продолжительность пробного запуска"
 #: lib/tuist_web/live/test_runs_live.html.heex:332
 #: lib/tuist_web/live/tests_live.html.heex:267
 #: lib/tuist_web/live/tests_live.html.heex:632
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p99"
-msgstr ""
+msgstr "p99"
 
 #: lib/tuist_web/live/test_cases_live.ex:252
 #: lib/tuist_web/live/test_cases_live.html.heex:126
@@ -1055,17 +1056,17 @@ msgstr "Применить"
 #: lib/tuist_web/live/test_runs_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:67
 #: lib/tuist_web/live/tests_live.html.heex:510
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Отменить"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:58
 #: lib/tuist_web/live/test_runs_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:58
 #: lib/tuist_web/live/tests_live.html.heex:501
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "Индивидуальный"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:55
 #: lib/tuist_web/live/test_runs_live.html.heex:55
