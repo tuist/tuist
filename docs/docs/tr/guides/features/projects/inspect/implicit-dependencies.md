@@ -5,42 +5,43 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Implicit imports {#implicit-imports}
+# Örtük ithalat {#implicit-imports}
 
-To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
-project, Apple designed the build system in a way that allows dependencies to be
-implicitly defined. This means that a product, for example an app, can depend on
-a framework, even without declaring the dependency explicitly. At a small scale,
-this is fine, but as the project graph grows in complexity, the implicitness
-might manifest as unreliable incremental builds or editor-based features such as
-previews or code completion.
+Apple, ham Xcode projesiyle bir Xcode proje grafiği tutmanın karmaşıklığını
+hafifletmek için derleme sistemini bağımlılıkların dolaylı olarak tanımlanmasına
+izin verecek şekilde tasarladı. Bu, bir ürünün, örneğin bir uygulamanın,
+bağımlılığı açıkça bildirmeden bile bir çerçeveye bağlı olabileceği anlamına
+gelir. Küçük ölçekte bu sorun teşkil etmez, ancak proje grafiği
+karmaşıklaştıkça, örtüklük güvenilir olmayan artımlı derlemeler veya önizlemeler
+veya kod tamamlama gibi düzenleyici tabanlı özellikler olarak ortaya çıkabilir.
 
-The problem is that you can't prevent implicit dependencies from happening. Any
-developer can add an `import` statement to their Swift code, and the implicit
-dependency will be created. This is where Tuist comes in. Tuist provides a
-command to inspect the implicit dependencies by statically analyzing the code in
-your project. The following command will output the implicit dependencies of
-your project:
+Sorun şu ki, örtük bağımlılıkların oluşmasını engelleyemezsiniz. Herhangi bir
+geliştirici Swift koduna bir `import` ifadesi ekleyebilir ve örtük bağımlılık
+oluşturulur. İşte bu noktada Tuist devreye giriyor. Tuist, projenizdeki kodu
+statik olarak analiz ederek örtük bağımlılıkları incelemek için bir komut
+sağlar. Aşağıdaki komut, projenizin örtük bağımlılıklarının çıktısını
+verecektir:
 
 ```bash
 tuist inspect implicit-imports
 ```
 
-If the command detects any implicit imports, it exits with an exit code other
-than zero.
+Komut herhangi bir örtük içe aktarma tespit ederse, sıfırdan farklı bir çıkış
+koduyla çıkar.
 
 ::: tip VALIDATE IN CI
 <!-- -->
-We strongly recommend to run this command as part of your
-<LocalizedLink href="/guides/features/automate/continuous-integration">continuous
-integration</LocalizedLink> command every time new code is pushed upstream.
+Bu komutu, her yeni kod yayınlandığında
+<LocalizedLink href="/guides/features/automate/continuous-integration">sürekli
+entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
+şiddetle tavsiye ederiz.
 <!-- -->
 :::
 
 ::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
-Since Tuist relies on static code analysis to detect implicit dependencies, it
-might not catch all cases. For example, Tuist is unable to understand
-conditional imports through compiler directives in code.
+Tuist, örtük bağımlılıkları tespit etmek için statik kod analizine
+dayandığından, tüm durumları yakalayamayabilir. Örneğin, Tuist koddaki derleyici
+direktifleri aracılığıyla koşullu içe aktarmaları anlayamaz.
 <!-- -->
 :::
