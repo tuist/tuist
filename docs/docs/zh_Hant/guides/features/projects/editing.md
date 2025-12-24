@@ -5,50 +5,38 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# Editing {#editing}
+# 編輯{#editing}
 
-Unlike traditional Xcode projects or Swift Packages, where changes are done
-through Xcode's UI, Tuist-managed projects are defined in Swift code contained
-in **manifest files**. If you're familiar with Swift Packages and the
-`Package.swift` file, the approach is very similar.
+與傳統的 Xcode 專案或 Swift Packages 不同，前者的變更是透過 Xcode 的 UI 來完成，而 Tuist 管理的專案則是以 Swift
+程式碼來定義，包含在**manifest 檔案** 中。如果您熟悉 Swift Packages 和`Package.swift` 檔案，則方法非常相似。
 
-You could edit these files using any text editor, but we recommend to use
-Tuist-provided workflow for that, `tuist edit`. The workflow creates an Xcode
-project that contains all manifest files and allows you to edit and compile
-them. Thanks to using Xcode, you get all the benefits of **code completion,
-syntax highlighting, and error checking**.
+您可以使用任何文字編輯器編輯這些檔案，但我們建議您使用 Tuist 提供的工作流程，`tuist edit` 。該工作流程會建立一個包含所有清單檔案的
+Xcode 專案，並允許您編輯和編譯它們。由於使用 Xcode，您可以獲得**代碼完成、語法高亮和錯誤檢查** 的所有好處。
 
-## Edit the project {#edit-the-project}
+## 編輯專案{#edit-the-project}
 
-To edit your project, you can run the following command in a Tuist project
-directory or a sub-directory:
+要編輯專案，您可以在 Tuist 專案目錄或子目錄中執行下列指令：
 
 ```bash
 tuist edit
 ```
 
-The command creates an Xcode project in a global directory and opens it in
-Xcode. The project includes a `Manifests` directory that you can build to ensure
-all your manifests are valid.
+該指令會在全局目錄中建立一個 Xcode 專案，並在 Xcode 中開啟。該專案包含一個`Manifests`
+目錄，您可以建立該目錄，以確保您所有的manifests都是有效的。
 
 ::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
-`tuist edit` resolves the manifests to be included by using the glob
-`**/{Manifest}.swift` from the project's root directory (the one containing the
-`Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the
-project.
+`tuist edit` 使用專案根目錄（包含`Tuist.swift` 檔案的目錄）中的 glob`**/{Manifest}.swift`
+解析要包含的清單。請確定專案根目錄中有一個有效的`Tuist.swift` 。
 <!-- -->
 :::
 
-### Ignoring manifest files {#ignoring-manifest-files}
+### 忽略清單檔案{#ignoring-manifest-files}
 
-If your project contains Swift files with the same name as manifest files (e.g.,
-`Project.swift`) in subdirectories that are not actual Tuist manifests, you can
-create a `.tuistignore` file at the root of your project to exclude them from
-the editing project.
+如果專案的子目錄中包含與清單檔案同名的 Swift 檔案 (例如`Project.swift`)，而這些檔案並非實際的 Tuist
+清單，您可以在專案根目錄建立`.tuistignore` 檔案，將這些檔案排除在編輯專案之外。
 
-The `.tuistignore` file uses glob patterns to specify which files should be
-ignored:
+`.tuistignore` 檔案使用 glob 模式指定應該忽略哪些檔案：
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -58,16 +46,11 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-This is particularly useful when you have test fixtures or example code that
-happens to use the same naming convention as Tuist manifest files.
+當您的測試夾具或範例程式碼碰巧使用與 Tuist 清單檔案相同的命名慣例時，此功能尤其有用。
 
-## Edit and generate workflow {#edit-and-generate-workflow}
+## 編輯和產生工作流程{#edit-and-generate-workflow}
 
-As you might have noticed, the editing can't be done from the generated Xcode
-project. That's by design to prevent the generated project from having a
-dependency on Tuist, ensuring you can move from Tuist in the future with little
-effort.
+您可能已經注意到，編輯工作無法在產生的 Xcode 專案中完成。這是為了防止生成的專案依賴於 Tuist 而設計的，以確保您將來可以輕鬆地從 Tuist
+轉移到其他專案。
 
-When iterating on a project, we recommend running `tuist edit` from a terminal
-session to get an Xcode project to edit the project, and use another terminal
-session to run `tuist generate`.
+迭代專案時，建議從終端會話執行`tuist edit` ，取得 Xcode 專案來編輯專案，並使用另一個終端會話執行`tuist generate` 。
