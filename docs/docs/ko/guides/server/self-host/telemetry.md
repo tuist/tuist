@@ -5,7 +5,7 @@
   "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# 원격 측정 {#telemetry}
+# 원격 측정 {#텔레메트리}
 
 Prometheus](https://prometheus.io/) 및 [Grafana](https://grafana.com/)와 같은 시각화
 도구를 사용하여 Tuist 서버에서 수집한 지표를 수집하여 필요에 맞는 사용자 지정 대시보드를 만들 수 있습니다. Prometheus 메트릭은
@@ -26,10 +26,10 @@ PostHog 통합은 선택 사항이며 적절한 환경 변수를 설정하여 �
 
 | 환경 변수              | 설명                    | 필수  | 기본값 | 예                                                 |
 | ------------------ | --------------------- | --- | --- | ------------------------------------------------- |
-| `튜이스트_포스트호그_API_키` | PostHog 프로젝트 API 키    | 아니요 |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `튜이스트_포스트호그_URL`   | PostHog API 엔드포인트 URL | 아니요 |     | `https://eu.i.posthog.com`                        |
+| `튜이스트_포스트호그_API_키` | PostHog 프로젝트 API 키    | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `튜이스트_포스트호그_URL`   | PostHog API 엔드포인트 URL | No  |     | `https://eu.i.posthog.com`                        |
 
-정보 분석 지원 ::: info 분석 지원
+정보 분석 지원 ::: 정보 분석 지원
 <!-- -->
 분석은 `TUIST_POSTHOG_API_KEY` 및 `TUIST_POSTHOG_URL` 이 모두 구성된 경우에만 활성화됩니다. 두 변수 중
 하나라도 누락되면 분석 이벤트가 전송되지 않습니다.
@@ -47,7 +47,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
   - `마케팅` - 마케팅 페이지 및 공개 콘텐츠의 이벤트
   - `대시보드` - 기본 애플리케이션 대시보드 및 인증된 영역의 이벤트
   - `api-docs` - API 문서 페이지의 이벤트
-- **페이지 조회수**: Phoenix 라이브뷰를 사용한 페이지 탐색 자동 추적
+- **페이지 조회수**: 피닉스 라이브뷰를 사용한 페이지 탐색 자동 추적
 - **사용자 지정 이벤트**: 기능 사용 및 사용자 상호작용을 위한 애플리케이션별 이벤트
 
 ### 개인정보 보호 고려 사항 {#posthog-privacy}
@@ -57,7 +57,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 - 모든 분석은 사용자 개인 정보를 존중하고 데이터 보호 모범 사례를 따릅니다.
 - PostHog 데이터는 PostHog의 개인정보처리방침 및 사용자 설정에 따라 처리됩니다.
 
-## 엘릭서 메트릭 {#elixir-metrics}
+## 엘릭서 메트릭 {#엘릭서-메트릭}
 
 기본적으로 Elixir 런타임, BEAM, Elixir 및 우리가 사용하는 일부 라이브러리에 대한 메트릭이 포함됩니다. 다음은 예상할 수 있는
 몇 가지 메트릭입니다:
@@ -79,24 +79,24 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 총 튜이스트 런 횟수입니다.
 
-#### 태그 {#tuist-runs-total-tags}
+#### 태그 {#튜이스트-런-총-태그}
 
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ### `tuist_runs_duration_milliseconds` (히스토그램) {#tuist_runs_duration_milliseconds-histogram}
 
-각 튜토리얼의 총 실행 시간(밀리초)입니다.
+각 튜티스트의 총 실행 시간(밀리초)입니다.
 
-#### 태그 {#tuist-runs-duration-miliseconds-tags}
+#### 태그 {#튜이스트-런-지속 시간-밀리초-태그}
 
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ## 캐시 메트릭 {#cache-metrics}
@@ -107,7 +107,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 바이너리 캐시 이벤트의 총 개수입니다.
 
-#### 태그 {#tuist-cache-events-total-tags}
+#### 태그 {#튜이스트-캐시-이벤트-총-태그}
 
 | 태그       | 설명                                                  |
 | -------- | --------------------------------------------------- |
@@ -159,7 +159,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에서 가져온 개체의 크기(바이트 단위)입니다.
 
-#### 태그 {#tuist-storage-get-object-size-size-bytes-tags}
+#### 태그 {#튜이스트-저장소-객체 크기-크기-바이트-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -170,7 +170,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에서 개체 크기를 가져오는 데 걸리는 시간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-get-object-size-duration-miliseconds-tags}
+#### 태그 {#튜이스트-저장소-객체-크기-지속 시간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -191,7 +191,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에서 모든 개체를 삭제하는 데 걸리는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-delete-all-objects-duration-milliseconds-tags}{#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}
+#### 태그 {#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}
 
 | 태그         | 설명                            |
 | ---------- | ----------------------------- |
@@ -202,7 +202,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에서 모든 프로젝트 개체가 삭제된 횟수입니다.
 
-#### 태그 {#tuist-storage-delete-all-objects-count-tags}
+#### 태그 {#튜이스트-저장소-삭제-모든-개체-수-태그}
 
 | 태그         | 설명                            |
 | ---------- | ----------------------------- |
@@ -213,7 +213,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에 업로드를 시작하는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-업로드 시작 기간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -223,18 +223,18 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에 업로드가 시작된 횟수입니다.
 
-#### 태그 {#tuist-storage-multipart-start-upload-duration-count-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-업로드 시작-기간-수-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_밀리초` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
 원격 저장소에서 객체를 문자열로 가져오는 데 걸리는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
+#### 태그 {#튜이스트 저장소-객체를 문자열로 가져오기-지속 시간-밀리초 태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -255,7 +255,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에 있는 개체의 존재 여부를 확인하는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-check-object-existence-duration-milliseconds-tags}
+#### 태그 {#튜이스트-저장소-확인-객체-존재-기간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -265,7 +265,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에서 개체의 존재를 확인한 횟수입니다.
 
-#### 태그 {#tuist-storage-check-object-existence-count-tags}
+#### 태그 {#튜이스트-저장소-확인-객체-존재-수-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -275,7 +275,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에 있는 개체에 대해 미리 지정된 다운로드 URL을 생성하는 데 걸리는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
+#### 태그 {#튜이스트-저장소-생성-다운로드-사전 지정 URL-기간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -286,7 +286,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에 있는 개체에 대해 다운로드 미리 지정된 URL이 생성된 횟수입니다.
 
-#### 태그 {#tuist-storage-generate-download-presigned-url-count-tags}
+#### 태그 {#튜이스트-스토리지-생성-다운로드-사전-서명된-URL-수-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -294,9 +294,9 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-원격 스토리지에 있는 개체에 대한 파트 업로드 사전 지정 URL을 생성하는 기간(밀리초)입니다.
+원격 저장소에 있는 개체에 대한 파트 업로드 사전 지정 URL을 생성하는 기간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-기간-밀리초-태그}
 
 | 태그            | 설명                      |
 | ------------- | ----------------------- |
@@ -308,7 +308,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지의 개체에 대해 파트 업로드 지정 URL이 생성된 횟수입니다.
 
-#### 태그 {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-count-tags}
 
 | 태그            | 설명                      |
 | ------------- | ----------------------- |
@@ -320,7 +320,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 저장소에 업로드를 완료하는 데 걸리는 시간(밀리초)입니다.
 
-#### 태그 {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-완료-업로드-기간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -332,7 +332,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에 업로드가 완료된 총 횟수입니다.
 
-#### 태그 {#tuist-storage-multipart-complete-upload-count-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-완료-업로드-수-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -341,7 +341,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 ---
 
-## 인증 메트릭 {#authentication-metrics}
+## 인증 메트릭 {#인증-메트릭}
 
 인증과 관련된 메트릭 집합입니다.
 
@@ -349,7 +349,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 토큰 새로 고침 오류의 총 개수입니다.
 
-#### 태그 {#tuist-authentication-token-refresh-error-total-tags}
+#### 태그 {#튜이스트-인증-토큰-새로고침-오류-총-태그}
 
 | 태그            | 설명                                                           |
 | ------------- | ------------------------------------------------------------ |
@@ -372,7 +372,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 계정(사용자 및 조직)과 관련된 일련의 메트릭입니다.
 
-### `tuist_accounts_조직_총계` (last_value) {#tuist_accounts_조직_총계-마지막_값}
+### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_조직_총계-마지막_값}
 
 총 조직 수입니다.
 
@@ -381,7 +381,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 총 사용자 수입니다.
 
 
-## 데이터베이스 메트릭 {#database-metrics}
+## 데이터베이스 메트릭 {#데이터베이스-메트릭}
 
 데이터베이스 연결과 관련된 메트릭 집합입니다.
 
@@ -414,7 +414,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 발신 요청 기간의 합계(연결에 할당되기 위해 대기한 시간 포함)입니다.
 
-### `tuist_http_request_duration_nanosecond_버킷` (배포) {#tuist_http_request_duration_나노초_버킷-distribution}
+### `tuist_http_request_duration_nanosecond_버킷` (배포) {#tuist_http_request_duration_nanosecond_버킷-distribution}
 발신 요청의 기간 분포(연결에 할당되기 위해 대기한 시간 포함).
 
 ### `tuist_http_queue_count` (카운터) {#tuist_http_queue_count-counter}
@@ -451,7 +451,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 ### `tuist_http_send_count` (카운터) {#tuist_http_send_count-counter}
 
-풀에서 연결에 할당된 후 전송된 요청의 수입니다.
+풀에서 연결에 할당된 후 전송된 요청 수입니다.
 
 ### `tuist_http_send_duration_나노초_sum` (합계) {#tuist_http_send_duration_나노초_sum-sum}
 
@@ -469,9 +469,9 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 응답을 받는 데 소요된 시간입니다.
 
-### `tuist_http_receive_duration_나노초_버킷` (배포) {#tuist_http_receive_duration_나노초_버킷-distribution}
+### `tuist_http_receive_duration_nanoseconds_버킷` (배포) {#tuist_http_receive_duration_나노초_버킷-distribution}
 
-응답 수신에 소요된 시간의 분포입니다.
+응답을 받는 데 소요된 시간의 분포입니다.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
