@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# バンドル・インサイト {#bundle-size}
+# バンドル・インサイト{#bundle-size}
 
 警告 要件
 <!-- -->
@@ -37,7 +37,7 @@ tuist inspect bundle App.app
 
 分析されたバンドル](/images/guides/features/bundle-size/analyzed-bundle.png)。
 
-## 継続的インテグレーション{#continuous-integration}。
+## 継続的インテグレーション{#continuous-integration}
 
 バンドルのサイズを経時的に追跡するには、CI上のバンドルを分析する必要があります。まず、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります：
 
@@ -60,9 +60,9 @@ jobs:
 
 ![バンドルサイズグラフ](/images/guides/features/bundle-size/bundle-size-graph.png)。
 
-## プル/マージリクエストのコメント {#pullmerge-request-comments}
+## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
-GITプラットフォームとの統合が必要です。
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
 <!-- -->
