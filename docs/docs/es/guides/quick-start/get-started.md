@@ -32,7 +32,7 @@ selectivas</LocalizedLink>,
 <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, y el
 <LocalizedLink href="/guides/features/registry">registro</LocalizedLink>.
 
-::: info MIGRAR UN PROYECTO EXISTENTE
+::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
 Si desea migrar un proyecto existente a proyectos generados para mejorar la
 experiencia del desarrollador y aprovechar nuestra
