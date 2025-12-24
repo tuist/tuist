@@ -9,9 +9,9 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
-:::
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing
@@ -28,12 +28,12 @@ share previews of your apps with anyone.
 When building for device, it is currently your responsibility to ensure the app
 is signed correctly. We plan to streamline this in the future.
 <!-- -->
-:::
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -43,7 +43,6 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 <!-- -->
-:::
 
 The command will generate a link that you can share with anyone to run the app –
 either on a simulator or an actual device. All they'll need to do is to run the
@@ -68,6 +67,17 @@ tuist run App@latest # Runs latest App preview associated with the project's def
 tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
+
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run
+number that most CI providers expose. For example, in GitHub Actions you can set
+the `CFBundleVersion` to the <code v-pre>${{ github.run_number }}</code>
+variable.
+
+Uploading a preview with the same binary (build) and the same `CFBundleVersion`
+will fail.
+<!-- -->
 
 ## Tracks {#tracks}
 
@@ -95,7 +105,6 @@ This is useful for:
 Only people with access to the organization the project belongs to can access
 the previews. We plan to add support for expiring links.
 <!-- -->
-:::
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -118,7 +127,6 @@ automatically launch it on your currently selected device.
 <!-- -->
 You need to have Xcode locally installed and be on macOS 14 or later.
 <!-- -->
-:::
 
 ## Tuist iOS app {#tuist-ios-app}
 
@@ -139,10 +147,11 @@ your previews.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">remote
+project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git
+platform</LocalizedLink>.
 <!-- -->
-:::
 
 Testing new functionality should be a part of any code review. But having to
 build an app locally adds unnecessary friction, often leading to developers
@@ -151,7 +160,8 @@ request contained a link to the build that would automatically run the app on a
 device you selected in the Tuist macOS app?*
 
 Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
+[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
 link directly in your pull requests: ![GitHub app comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)
 
@@ -231,7 +241,6 @@ task.cancel()
 <!-- -->
 Update checking is automatically disabled on simulators and App Store builds.
 <!-- -->
-:::
 
 ## README badge {#readme-badge}
 
