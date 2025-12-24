@@ -49,7 +49,8 @@ tuist registry login
 ::: info
 <!-- -->
 La autenticación requiere una cuenta
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist y un proyecto</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist y un
+proyecto</LocalizedLink>.
 <!-- -->
 :::
 
@@ -57,13 +58,18 @@ La autenticación requiere una cuenta
 
 Para resolver las dependencias desde el registro en lugar de desde el control de
 código fuente, siga leyendo en función de la configuración de su proyecto:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Proyecto de Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Proyecto generado con la integración del paquete Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Proyecto generado con la integración de paquetes basada en XcodeProj</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Paquete de Swift</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Proyecto de
+  Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Proyecto
+  generado con la integración del paquete Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Proyecto
+  generado con la integración de paquetes basada en XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Paquete de
+  Swift</LocalizedLink>
 
 Para configurar el registro en la IC, siga esta guía:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Integración continua</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">Integración
+continua</LocalizedLink>.
 
 ### Identificadores del registro de paquetes {#package-registry-identifiers}
 
