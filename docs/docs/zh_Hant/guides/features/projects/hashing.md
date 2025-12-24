@@ -5,81 +5,57 @@
   "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
 }
 ---
-# Hashing {#hashing}
+# 雜湊{#hashing}
 
-Features like
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or
-selective test execution require a way to determine whether a target has
-changed. Tuist calculates a hash for each target in the dependency graph to
-determine if a target has changed. The hash is calculated based on the following
-attributes:
+<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>或選擇性測試執行等功能需要一種方法來判斷目標是否已變更。Tuist
+會為依賴圖表中的每個目標計算雜湊值，以判斷目標是否已變更。哈希值是根據下列屬性計算出來的：
 
-- The target's attributes (e.g., name, platform, product, etc.)
-- The target's files
-- The hash of the target's dependencies
+- 目標的屬性（例如名稱、平台、產品等）
+- 目標的檔案
+- 目標的相依性雜湊值
 
-### Cache attributes {#cache-attributes}
+### 快取屬性{#cache-attributes}
 
-Additionally, when calculating the hash for
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also
-hash the following attributes.
+此外，在計算 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink>
+的散列值時，我們也會對下列屬性進行散列。
 
-#### Swift version {#swift-version}
+#### Swift 版本{#swift-version}
 
-We hash the Swift version obtained from running the command `/usr/bin/xcrun
-swift --version` to prevent compilation errors due to Swift version mismatches
-between the targets and the binaries.
+我們散列執行指令`/usr/bin/xcrun swift --version` 所獲得的 Swift 版本，以防止因目標與二進檔之間的 Swift
+版本不匹配而導致編譯錯誤。
 
 ::: info MODULE STABILITY
 <!-- -->
-Previous versions of binary caching relied on the
-`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
+先前版本的二進位緩存依賴`BUILD_LIBRARY_FOR_DISTRIBUTION` 建立設定來啟用 [module
 stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-and enable using binaries with any compiler version. However, it caused
-compilation issues in projects with targets that don't support module stability.
-Generated binaries are bound to the Swift version used to compile them, and the
-Swift version must match the one used to compile the project.
+並使用任何編譯器版本的二進位檔。然而，這會在不支援模組穩定性的目標專案中造成編譯問題。產生的二進位檔會與用來編譯的 Swift 版本綁定，而 Swift
+版本必須與用來編譯專案的版本相符。
 <!-- -->
 :::
 
-#### Configuration {#configuration}
+#### 組態{#configuration}
 
-The idea behind the flag `-configuration` was to ensure debug binaries were not
-used in release builds and viceversa. However, we are still missing a mechanism
-to remove the other configurations from the projects to prevent them from being
-used.
+`-configuration` 這個旗號背後的想法是要確保 debug binaries 不會被用在 release builds
+中，反之亦然。然而，我們仍然缺少一個機制來移除專案中的其他配置，以防止它們被使用。
 
-## Debugging {#debugging}
+## 除錯{#debugging}
 
-If you notice non-deterministic behaviors when using the caching across
-environments or invocations, it might be related to differences across the
-environments or a bug in the hashing logic. We recommend following these steps
-to debug the issue:
+如果您在跨環境或調用使用快取時發現非決定性的行為，這可能與跨環境的差異或散列邏輯中的錯誤有關。我們建議按照以下步驟來調試問題：
 
-1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
-   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   or <LocalizedLink href="/guides/features/selective-testing">selective
-   testing</LocalizedLink>), copy the hashes, rename the project directory, and
-   run the command again. The hashes should match.
-2. If the hashes don't match, it's likely that the generated project depends on
-   the environment. Run `tuist graph --format json` in both cases and compare
-   the graphs. Alternatively, generate the projects and compare their
-   `project.pbxproj` files with a diff tool such as
-   [Diffchecker](https://www.diffchecker.com).
-3. If the hashes are the same but differ across environments (for example, CI
-   and local), make sure the same [configuration](#configuration) and [Swift
-   version](#swift-version) are used everywhere. The Swift version is tied to
-   the Xcode version, so confirm the Xcode versions match.
+1. 執行`tuist hash cache` 或`tuist hash selective-testing` (哈希值為
+   <LocalizedLink href="/guides/features/cache"> 二进制快取</LocalizedLink>或
+   <LocalizedLink href="/guides/features/selective-testing">
+   選擇性測試</LocalizedLink>)，複製哈希值，重新命名專案目錄，再執行一次指令。哈希值應該相符。
+2. 如果哈希值不匹配，很可能是生成的專案取決於環境。在兩種情況下執行`tuist graph --format json` 並比較圖形。或者，生成專案，並使用
+   [Diffchecker](https://www.diffchecker.com) 等差異工具比較它們的`project.pbxproj` 檔案。
+3. 如果哈希值相同，但在不同的環境（例如 CI 與本機）下有所不同，請確定各處都使用相同的 [configuration](#configuration) 與
+   [Swift 版本](#swift-version)。Swift 版本與 Xcode 版本相關，因此請確認 Xcode 版本相符。
 
-If the hashes are still non-deterministic, let us know and we can help with the
-debugging.
+如果哈希值仍然是非確定的，請告訴我們，我們可以協助除錯。
 
 
 ::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
-Improving our debugging experience is in our roadmap. The print-hashes command,
-which lacks the context to understand the differences, will be replaced by a
-more user-friendly command that uses a tree-like structure to show the
-differences between the hashes.
+改善我們的除錯經驗在我們的路線圖中。print-hashes 指令缺乏瞭解差異的上下文，將被更容易使用的指令取代，該指令使用樹狀結構來顯示哈希值之間的差異。
 <!-- -->
 :::

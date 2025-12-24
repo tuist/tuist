@@ -7,79 +7,78 @@
 ---
 # Hashing {#hashing}
 
-Features like
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or
-selective test execution require a way to determine whether a target has
-changed. Tuist calculates a hash for each target in the dependency graph to
-determine if a target has changed. The hash is calculated based on the following
-attributes:
+1}caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
+değişip değişmediğini belirlemenin bir yolunu gerektirir. Tuist, bir hedefin
+değişip değişmediğini belirlemek için bağımlılık grafiğindeki her hedef için bir
+hash hesaplar. Hash, aşağıdaki özniteliklere göre hesaplanır:
 
-- The target's attributes (e.g., name, platform, product, etc.)
-- The target's files
-- The hash of the target's dependencies
+- Hedefin özellikleri (ör. isim, platform, ürün, vb.)
+- Hedefin dosyaları
+- Hedefin bağımlılıklarının hash'i
 
-### Cache attributes {#cache-attributes}
+### Önbellek öznitelikleri {#cache-attributes}
 
-Additionally, when calculating the hash for
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also
-hash the following attributes.
+Ek olarak, <LocalizedLink href="/guides/features/cache">caching</LocalizedLink>
+için hash hesaplarken aşağıdaki öznitelikleri de hashleriz.
 
-#### Swift version {#swift-version}
+#### Hızlı versiyon {#swift-version}
 
-We hash the Swift version obtained from running the command `/usr/bin/xcrun
-swift --version` to prevent compilation errors due to Swift version mismatches
-between the targets and the binaries.
+Hedefler ve ikili dosyalar arasındaki Swift sürüm uyuşmazlıklarından kaynaklanan
+derleme hatalarını önlemek için `/usr/bin/xcrun swift --version` komutunu
+çalıştırarak elde edilen Swift sürümünü hash ediyoruz.
 
 ::: info MODULE STABILITY
 <!-- -->
-Previous versions of binary caching relied on the
-`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
-stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-and enable using binaries with any compiler version. However, it caused
-compilation issues in projects with targets that don't support module stability.
-Generated binaries are bound to the Swift version used to compile them, and the
-Swift version must match the one used to compile the project.
+İkili önbelleğe almanın önceki sürümleri, [modül
+kararlılığını](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+etkinleştirmek ve herhangi bir derleyici sürümüyle ikili dosyaları kullanmayı
+sağlamak için `BUILD_LIBRARY_FOR_DISTRIBUTION` derleme ayarına dayanıyordu.
+Ancak, modül kararlılığını desteklemeyen hedeflere sahip projelerde derleme
+sorunlarına neden oldu. Oluşturulan ikili dosyalar, onları derlemek için
+kullanılan Swift sürümüne bağlıdır ve Swift sürümü, projeyi derlemek için
+kullanılan sürümle eşleşmelidir.
 <!-- -->
 :::
 
-#### Configuration {#configuration}
+#### Konfigürasyon {#configuration}
 
-The idea behind the flag `-configuration` was to ensure debug binaries were not
-used in release builds and viceversa. However, we are still missing a mechanism
-to remove the other configurations from the projects to prevent them from being
-used.
+`-configuration` bayrağının arkasındaki fikir, hata ayıklama ikili dosyalarının
+sürüm derlemelerinde kullanılmamasını ve bunun tersini sağlamaktı. Ancak,
+kullanılmalarını önlemek için diğer yapılandırmaları projelerden kaldırmak için
+hala bir mekanizma eksik.
 
-## Debugging {#debugging}
+## Hata Ayıklama {#debugging}
 
-If you notice non-deterministic behaviors when using the caching across
-environments or invocations, it might be related to differences across the
-environments or a bug in the hashing logic. We recommend following these steps
-to debug the issue:
+Ortamlar veya çağrılar arasında önbelleğe almayı kullanırken deterministik
+olmayan davranışlar fark ederseniz, bu durum ortamlar arasındaki farklılıklarla
+veya karma mantığındaki bir hatayla ilgili olabilir. Sorunu ayıklamak için
+aşağıdaki adımları izlemenizi öneririz:
 
-1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
-   <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   or <LocalizedLink href="/guides/features/selective-testing">selective
-   testing</LocalizedLink>), copy the hashes, rename the project directory, and
-   run the command again. The hashes should match.
-2. If the hashes don't match, it's likely that the generated project depends on
-   the environment. Run `tuist graph --format json` in both cases and compare
-   the graphs. Alternatively, generate the projects and compare their
-   `project.pbxproj` files with a diff tool such as
-   [Diffchecker](https://www.diffchecker.com).
-3. If the hashes are the same but differ across environments (for example, CI
-   and local), make sure the same [configuration](#configuration) and [Swift
-   version](#swift-version) are used everywhere. The Swift version is tied to
-   the Xcode version, so confirm the Xcode versions match.
+1. `tuist hash cache` veya `tuist hash selective-testing`
+   (<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
+   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli
+   test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
+   proje dizinini yeniden adlandırın ve komutu tekrar çalıştırın. Hash'ler
+   eşleşmelidir.
+2. Hash'ler eşleşmiyorsa, oluşturulmuş projele'nin ortama bağlı olması
+   muhtemeldir. Her iki durumda da `tuist graph --format json` çalıştırın ve
+   grafikleri karşılaştırın. Alternatif olarak, projeleri oluşturun ve
+   `project.pbxproj` dosyalarını [Diffchecker](https://www.diffchecker.com) gibi
+   bir fark aracı ile karşılaştırın.
+3. Karmalar aynıysa ancak ortamlar arasında farklılık gösteriyorsa (örneğin, CI
+   ve yerel), her yerde aynı [yapılandırma](#configuration) ve [Swift
+   sürümü](#swift-version) kullanıldığından emin olun. Swift sürümü Xcode
+   sürümüne bağlıdır, bu nedenle Xcode sürümlerinin eşleştiğini doğrulayın.
 
-If the hashes are still non-deterministic, let us know and we can help with the
-debugging.
+Hash'ler hala deterministik değilse, bize bildirin ve hata ayıklama konusunda
+yardımcı olabiliriz.
 
 
 ::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
-Improving our debugging experience is in our roadmap. The print-hashes command,
-which lacks the context to understand the differences, will be replaced by a
-more user-friendly command that uses a tree-like structure to show the
-differences between the hashes.
+Hata ayıklama deneyimimizi iyileştirmek yol haritamızda yer alıyor. Farkları
+anlamak için bağlamdan yoksun olan print-hashes komutu, hash'ler arasındaki
+farkları göstermek için ağaç benzeri bir yapı kullanan daha kullanıcı dostu bir
+komutla değiştirilecektir.
 <!-- -->
 :::
