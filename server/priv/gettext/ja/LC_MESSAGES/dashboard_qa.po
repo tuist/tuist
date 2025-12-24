@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ja/>\n"
 "Language: ja\n"
@@ -170,9 +171,9 @@ msgstr "バンドル識別子"
 #: lib/tuist_web/live/qa_live.html.heex:61
 #: lib/tuist_web/live/qa_settings_live.html.heex:157
 #: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "キャンセル"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -274,9 +275,9 @@ msgstr "期待される成果を含める"
 
 #: lib/tuist_web/live/qa_live.html.heex:263
 #: lib/tuist_web/live/qa_run_live.html.heex:331
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Issues"
-msgstr ""
+msgstr "Issues"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:182
 #, elixir-autogen, elixir-format, fuzzy
@@ -448,9 +449,9 @@ msgstr "テストのための明確な指示"
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/live/ops_qa_logs_live.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -562,9 +563,9 @@ msgstr "でスタートした。"
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
 #: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "ステータス"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:608
 #, elixir-autogen, elixir-format, fuzzy
@@ -690,9 +691,9 @@ msgid "Apply"
 msgstr "応募する"
 
 #: lib/tuist_web/live/qa_live.html.heex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "カスタム"
 
 #: lib/tuist_web/live/qa_live.html.heex:49
 #, elixir-autogen, elixir-format, fuzzy
