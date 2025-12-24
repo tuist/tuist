@@ -41,7 +41,7 @@ modułowym, w którym źródła i zasoby są często przenoszone:
 Tuist rozwiązuje powyższe problemy poprzez **syntezę ujednoliconego interfejsu
 dostępu do pakietów i zasobów**, który abstrahuje od szczegółów implementacji.
 
-::: warning ZALECANE
+::: ostrzeżenie ZALECANE
 <!-- -->
 Chociaż dostęp do zasobów za pośrednictwem interfejsu zsyntetyzowanego przez
 Tuist nie jest obowiązkowy, zalecamy go, ponieważ ułatwia on rozumowanie kodu i
@@ -89,7 +89,7 @@ do pakietu:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning OGRANICZENIE Z TARGETAMI WEWNĘTRZNYMI
+::: ostrzeżenie OGRANICZENIE Z TARGETAMI WEWNĘTRZNYMI
 <!-- -->
 Obecnie Tuist nie generuje akcesorów pakietów zasobów dla wewnętrznych celów,
 które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledzone w
