@@ -5,11 +5,11 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 持续集成（CI） {#continuous-integration-ci}
+# 持续集成 (CI){#continuous-integration-ci}
 
 要在 CI 上使用注册表，需要在工作流程中运行`tuist registry login` ，确保已登录注册表。
 
-信息 ONLY XCODE INTEGRATION
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 只有在使用 Xcode 集成软件包时，才需要创建新的预解锁钥匙串。
 <!-- -->
@@ -58,7 +58,7 @@ jobs:
       - # Your build steps
 ```
 
-### 跨环境递增分辨率 {#incremental-resolution-across-environments}
+### 跨环境递增分辨率{#incremental-resolution-across-environments}
 
 使用我们的注册表，清洁/冷解析的速度会稍快一些，如果在 CI
 构建过程中持续保持已解析的依赖关系，效果会更好。请注意，由于有了注册表，您需要存储和还原的目录大小比没有注册表时要小得多，所需的时间也大大减少。要在使用默认的
