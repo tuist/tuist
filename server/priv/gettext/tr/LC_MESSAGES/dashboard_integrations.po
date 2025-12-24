@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:45+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/tr/>\n"
 "Language: tr\n"
@@ -30,9 +30,9 @@ msgid "Add new project connection"
 msgstr "Yeni proje bağlantısı ekleme"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "İptal"
 
 #: lib/tuist_web/live/integrations_live.html.heex:65
 #, elixir-autogen, elixir-format, fuzzy
@@ -81,9 +81,9 @@ msgstr "GitHub Uygulamasını Yükleme"
 
 #: lib/tuist_web/live/integrations_live.ex:30
 #: lib/tuist_web/live/integrations_live.html.heex:2
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Integrations"
-msgstr ""
+msgstr "Entegrasyonlar"
 
 #: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format, fuzzy
