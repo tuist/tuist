@@ -7,7 +7,8 @@
 ---
 # 迁移 Xcode 项目 {#migrate-an-xcode-project}
 
-除非您使用 Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> 创建一个新项目</LocalizedLink>，在这种情况下，您将自动获得所有配置，否则您必须使用 Tuist 的基元来定义您的 Xcode
+除非您使用 Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project">
+创建一个新项目</LocalizedLink>，在这种情况下，您将自动获得所有配置，否则您必须使用 Tuist 的基元来定义您的 Xcode
 项目。这个过程有多繁琐，取决于您的项目有多复杂。
 
 您可能知道，随着时间的推移，Xcode
@@ -84,7 +85,7 @@ let package = Package(
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## 将项目构建设置提取到`.xcconfig` 文件中 {#extract-the-project-build-settings-into-xcconfig-files}
@@ -224,13 +225,14 @@ let project = Project(
 
 ### 验证目标迁移 {#validate-the-target-migration}
 
-运行`tuist build` 和`tuist test` 以确保项目构建和测试通过。此外，您还可以使用
-[xcdiff](https://github.com/bloomberg/xcdiff) 将生成的 Xcode 项目与现有项目进行比较，以确保更改正确无误。
+运行`tuist generate` ，然后运行`xcodebuild build` 以确保项目构建完成，并运行`tuist test`
+以确保测试通过。此外，您还可以使用 [xcdiff](https://github.com/bloomberg/xcdiff) 将生成的 Xcode
+项目与现有项目进行比较，以确保更改正确无误。
 
 ### 重复 {#repeat}
 
-重复上述步骤，直到所有目标都迁移完毕。完成后，我们建议更新您的 CI 和 CD 管道，使用`tuist build` 和`tuist test`
-命令来构建和测试项目，以受益于 Tuist 提供的速度和可靠性。
+重复上述步骤，直到所有目标都迁移完毕。完成后，我们建议更新您的 CI 和 CD 管道，使用`tuist generate`
+来构建和测试项目，然后使用`xcodebuild build` 和`tuist test` 。
 
 ## 故障排除 {#troubleshooting}
 
