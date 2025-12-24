@@ -6,54 +6,51 @@
 }
 ---
 
-# Module cache {#module-cache}
+# ذاكرة التخزين المؤقت للوحدة النمطية {#وحدة-ذاكرة التخزين المؤقت}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- أ <LocalizedLink href="/guides/features/projects"> مشروع تم
+  إنشاؤه</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
-Tuist Module cache provides a powerful way to optimize your build times by
-caching your modules as binaries (`.xcframework`s) and sharing them across
-different environments. This capability allows you to leverage previously
-generated binaries, reducing the need for repeated compilation and speeding up
-the development process.
+توفر ذاكرة التخزين المؤقت لوحدات Tuist Module Storage طريقة قوية لتحسين أوقات
+الإنشاء الخاصة بك عن طريق تخزين وحداتك النمطية كثنائيات (`.xcframework`s)
+ومشاركتها عبر بيئات مختلفة. تسمح لك هذه الإمكانية بالاستفادة من الثنائيات التي
+تم إنشاؤها مسبقًا، مما يقلل من الحاجة إلى التجميع المتكرر وتسريع عملية التطوير.
 
-## Warming {#warming}
+## الاحترار {#warming}
 
-Tuist efficiently
-<LocalizedLink href="/guides/features/projects/hashing">utilizes
-hashes</LocalizedLink> for each target in the dependency graph to detect
-changes. Utilizing this data, it builds and assigns unique identifiers to
-binaries derived from these targets. At the time of graph generation, Tuist then
-seamlessly substitutes the original targets with their corresponding binary
-versions.
+يستغل تويست بكفاءة <LocalizedLink href="/guides/features/projects/hashing">
+يستخدم تجزئة </LocalizedLink> لكل هدف في الرسم البياني للتبعية لاكتشاف
+التغييرات. وباستخدام هذه البيانات، يقوم بإنشاء وتعيين معرّفات فريدة للثنائيات
+المشتقة من هذه الأهداف. في وقت إنشاء الرسم البياني، يستبدل تويست الأهداف الأصلية
+بسلاسة بالنسخ الثنائية المقابلة لها.
 
-This operation, known as *"warming,"* produces binaries for local use or for
-sharing with teammates and CI environments via Tuist. The process of warming the
-cache is straightforward and can be initiated with a simple command:
+تنتج هذه العملية، المعروفة باسم *"التسخين"،* ثنائيات للاستخدام المحلي أو
+للمشاركة مع زملاء الفريق وبيئات CI عبر Tuist. عملية تسخين ذاكرة التخزين المؤقت
+مباشرة ويمكن أن تبدأ بأمر بسيط:
 
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+يعيد الأمر استخدام الثنائيات لتسريع العملية.
 
-## Usage {#usage}
+## الاستخدام {#استخدام}
 
-By default, when Tuist commands necessitate project generation, they
-automatically substitute dependencies with their binary equivalents from the
-cache, if available. Additionally, if you specify a list of targets to focus on,
-Tuist will also replace any dependent targets with their cached binaries,
-provided they are available. For those who prefer a different approach, there is
-an option to opt out of this behavior entirely by using a specific flag:
+بشكل افتراضي، عندما تستلزم أوامر Tuist إنشاء مشروع، فإنها تستبدل التبعيات
+تلقائيًا بمكافئاتها الثنائية من ذاكرة التخزين المؤقت، إذا كانت متوفرة. بالإضافة
+إلى ذلك، إذا قمت بتحديد قائمة بالأهداف المراد التركيز عليها، فسيقوم تويست أيضًا
+باستبدال أي أهداف تابعة بثنائياتها المخزنة مؤقتًا، شريطة أن تكون متوفرة. بالنسبة
+لأولئك الذين يفضلون نهجًا مختلفًا، هناك خيار لإلغاء الاشتراك في هذا السلوك
+تمامًا باستخدام علامة محددة:
 
-::: code-group
+:::: مجموعة الرموز
 ```bash [Project generation]
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
@@ -67,27 +64,25 @@ tuist test
 <!-- -->
 :::
 
-::: warning
+:::: تحذير
 <!-- -->
-Binary caching is a feature designed for development workflows such as running
-the app on a simulator or device, or running tests. It is not intended for
-release builds. When archiving the app, generate a project with the sources by
-using the `--no-binary-cache` flag.
+التخزين المؤقت الثنائي هو ميزة مصممة لسير عمل التطوير مثل تشغيل التطبيق على جهاز
+محاكاة أو جهاز، أو تشغيل الاختبارات. وهي غير مخصصة لإصدارات الإصدار. عند أرشفة
+التطبيق، قم بإنشاء مشروع مع المصادر باستخدام العلامة `--no-binary-cache`.
 <!-- -->
 :::
 
-## Cache profiles {#cache-profiles}
+## ملفات تعريف ذاكرة التخزين المؤقت {#cache-profiles}
 
-Tuist supports cache profiles to control how aggressively targets are replaced
-with cached binaries when generating projects.
+يدعم تويست ملفات تعريف ذاكرة التخزين المؤقت للتحكم في كيفية استبدال الأهداف بقوة
+بالثنائيات المخزنة مؤقتًا عند إنشاء المشاريع.
 
-- Built-ins:
-  - `only-external`: replace external dependencies only (system default)
-  - `all-possible`: replace as many targets as possible (including internal
-    targets)
-  - `none`: never replace with cached binaries
+- مدمجة:
+  - `خارجي فقط`: استبدال التبعيات الخارجية فقط (افتراضي للنظام)
+  - `كل ما يمكن`: استبدال أكبر عدد ممكن من الأهداف (بما في ذلك الأهداف الداخلية)
+  - `لا شيء`: لا تستبدل أبدًا بالثنائيات المخزنة مؤقتًا
 
-Select a profile with `--cache-profile` on `tuist generate`:
+حدد ملف تعريف باستخدام `- ملف تعريف ذاكرة التخزين المؤقت` على `توليد`:
 
 ```bash
 # Built-in profiles
@@ -106,88 +101,86 @@ tuist generate MyModule AnotherTarget
 tuist generate --no-binary-cache  # equivalent to --cache-profile none
 ```
 
-Precedence when resolving the effective behavior (highest to lowest):
+الأسبقية عند حل السلوك الفعال (من الأعلى إلى الأدنى):
 
-1. `--no-binary-cache` → profile `none`
-2. Target focus (passing targets to `generate`) → profile `all-possible`
-3. `--cache-profile <value>`
-4. Config default (if set)
-5. System default (`only-external`)
+1. `--لا يوجد ذاكرة تخزين مؤقت ثنائية` → الملف الشخصي `لا شيء`
+2. التركيز على الهدف (تمرير الأهداف إلى `توليد`) → الملف الشخصي `كل شيء ممكن`
+3. `--ملف تعريف ذاكرة التخزين المؤقت &lt;القيمة&gt;`
+4. التكوين الافتراضي (إذا تم تعيينه)
+5. النظام الافتراضي (`فقط-خارجي`)
 
-## Supported products {#supported-products}
+## المنتجات المدعومة {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+المنتجات المستهدفة التالية فقط هي التي يمكن تخزينها مؤقتًا بواسطة Tuist:
 
-- Frameworks (static and dynamic) that don't depend on
-  [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
+- أطر العمل (الثابتة والديناميكية) التي لا تعتمد على [XCTest]
+  (https://developer.apple.com/documentation/xctest)
+- الحزم
+- وحدات ماكرو سويفت
 
-We are working on supporting libraries and targets that depend on XCTest.
+نحن نعمل على دعم المكتبات والأهداف التي تعتمد على XCTest.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->
-When a target is non-cacheable it makes the upstream targets non-cacheable too.
-For example, if you have the dependency graph `A > B`, where A depends on B, if
-B is non-cacheable, A will also be non-cacheable.
+عندما يكون الهدف غير قابل للتخزين المؤقت، فإنه يجعل الأهداف الأولية غير قابلة
+للتخزين المؤقت أيضًا. على سبيل المثال، إذا كان لديك الرسم البياني التبعي `A &gt;
+B` ، حيث يعتمد A على B، إذا كان B غير قابل للتخزين المؤقت، فإن A سيكون غير قابل
+للتخزين المؤقت أيضًا.
 <!-- -->
 :::
 
-## Efficiency {#efficiency}
+## الكفاءة {#efficiency}
 
-The level of efficiency that can be achieved with binary caching depends
-strongly on the graph structure. To achieve the best results, we recommend the
-following:
+يعتمد مستوى الكفاءة التي يمكن تحقيقها باستخدام التخزين المؤقت الثنائي بشكل كبير
+على بنية الرسم البياني. لتحقيق أفضل النتائج، نوصي بما يلي:
 
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation
-   ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of
-   change is lower.
+1. تجنب الرسوم البيانية التبعية المتداخلة جداً. كلما كان الرسم البياني ضحلًا،
+   كان ذلك أفضل.
+2. عرّف التبعيات بأهداف البروتوكول/الواجهة بدلاً من أهداف التنفيذ، وتطبيقات حقن
+   التبعية من الأهداف العليا.
+3. قم بتقسيم الأهداف التي يتم تعديلها بشكل متكرر إلى أهداف أصغر يكون احتمال
+   تغييرها أقل.
 
-The above suggestions are part of the
-<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular
-Architecture</LocalizedLink>, which we propose as a way to structure your
-projects to maximize the benefits not only of binary caching but also of Xcode's
-capabilities.
+الاقتراحات المذكورة أعلاه هي جزء من
+<LocalizedLink href="/guides/features/projects/tma-architecture"> البنية
+المعيارية</LocalizedLink>، والتي نقترحها كطريقة لهيكلة مشاريعك لتحقيق أقصى قدر
+من الفوائد ليس فقط من التخزين المؤقت الثنائي ولكن أيضًا من قدرات Xcode.
 
-## Recommended setup {#recommended-setup}
+## الإعداد الموصى به {#recommended-setup}
 
-We recommend having a CI job that **runs in every commit in the main branch** to
-warm the cache. This will ensure the cache always contains binaries for the
-changes in `main` so local and CI branch build incrementally upon them.
+نوصي بوجود مهمة CI التي **تعمل في كل التزام في الفرع الرئيسي** لتدفئة ذاكرة
+التخزين المؤقت. سيضمن ذلك احتواء ذاكرة التخزين المؤقت دائمًا على ثنائيات
+للتغييرات في `الرئيسي` بحيث يتم بناء الفرع المحلي وفرع CI بشكل تدريجي عليها.
 
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
-The `tuist cache` command also makes use of the binary cache to speed up the
-warming.
+ويستفيد الأمر `tuist cache` أيضًا من ذاكرة التخزين المؤقت الثنائية لتسريع عملية
+التسخين.
 <!-- -->
 :::
 
-The following are some examples of common workflows:
+فيما يلي بعض الأمثلة على عمليات سير العمل الشائعة:
 
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
+### مطور يبدأ العمل على ميزة جديدة {#a-developer-starts-to-work-on-a-new-feature}
 
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project
-   with them.
+1. ينشئون فرعًا جديدًا من `الرئيسي`.
+2. يتم تشغيلها `تويست توليد`.
+3. يقوم تويست بسحب أحدث الثنائيات من `الرئيسي` ويُنشئ المشروع بها.
 
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
+### مطور يدفع بالتغييرات إلى الأعلى {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `xcodebuild build` or `tuist test` to build or test
-   the project.
-2. The workflow will pull the most recent binaries from `main` and generate the
-   project with them.
-3. It will then build or test the project incrementally.
+1. سيقوم خط أنابيب CI بتشغيل `xcodebuild build` أو `tuist test` لبناء أو اختبار
+   المشروع.
+2. سيقوم سير العمل بسحب أحدث الثنائيات من `الرئيسي` وإنشاء المشروع بها.
+3. ثم يقوم بعد ذلك ببناء المشروع أو اختباره بشكل تدريجي.
 
-## Configuration {#configuration}
+## التكوين {#التكوين}
 
-### Cache concurrency limit {#cache-concurrency-limit}
+### حد التزامن في ذاكرة التخزين المؤقت {#cache-concurrency-limit}
 
-By default, Tuist downloads and uploads cache artifacts without any concurrency
-limit, maximizing throughput. You can control this behavior using the
-`TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
+بشكل افتراضي، يقوم تويست بتنزيل وتحميل القطع الأثرية من ذاكرة التخزين المؤقت دون
+أي حد للالتزامن، مما يزيد من الإنتاجية. يمكنك التحكم في هذا السلوك باستخدام
+متغير البيئة `TUIST_CACHE_CONCACHE_CONCURRENCY_LIMIT`:
 
 ```bash
 # Set a specific concurrency limit
@@ -199,31 +192,31 @@ export TUIST_CACHE_CONCURRENCY_LIMIT=none
 tuist generate
 ```
 
-This can be useful in environments with limited network bandwidth or to reduce
-system load during cache operations.
+يمكن أن يكون هذا مفيداً في البيئات ذات النطاق الترددي المحدود للشبكة أو لتقليل
+حمل النظام أثناء عمليات التخزين المؤقت.
 
-## Troubleshooting {#troubleshooting}
+## استكشاف الأخطاء وإصلاحها {#استكشاف الأخطاء وإصلاحها}
 
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
+### لا يستخدم الثنائيات لأهدافي {#it-doesnt-use-binaries-for-my-targets}
 
-Ensure that the
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are
-deterministic</LocalizedLink> across environments and runs. This might happen if
-the project has references to the environment, for example through absolute
-paths. You can use the `diff` command to compare the projects generated by two
-consecutive invocations of `tuist generate` or across environments or runs.
+تأكد من أن تكون
+<LocalizedLink href="/guides/features/projects/hashing#debugging"> التجزئة
+حتمية</LocalizedLink> عبر البيئات وعمليات التشغيل. قد يحدث هذا إذا كان المشروع
+يحتوي على مراجع للبيئة، على سبيل المثال من خلال مسارات مطلقة. يمكنك استخدام
+الأمر `diff` لمقارنة المشاريع التي تم إنشاؤها بواسطة استدعاءين متتاليين للأمر
+`tuist توليد` أو عبر البيئات أو عمليات التشغيل.
 
-Also make sure that the target doesn't depend either directly or indirectly on a
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">non-cacheable
-target</LocalizedLink>.
+تأكد أيضًا من أن الهدف لا يعتمد بشكل مباشر أو غير مباشر على هدف
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">
+غير قابل للتخزين المؤقت</LocalizedLink>.
 
-### Missing symbols {#missing-symbols}
+### الرموز المفقودة {#missing-symbols}
 
-When using sources, Xcode's build system, through Derived Data, can resolve
-dependencies that are not declared explicitly. However, when you rely on the
-binary cache, dependencies must be declared explicitly; otherwise you'll likely
-see compilation errors when symbols can't be found. To debug this, we recommend
-using the
+عند استخدام المصادر، يمكن لنظام بناء Xcode، من خلال البيانات المشتقة، حل
+التبعيات التي لم يتم الإعلان عنها صراحةً. ومع ذلك، عند الاعتماد على ذاكرة
+التخزين المؤقت الثنائي، يجب الإعلان عن التبعيات بشكل صريح؛ وإلا سترى على الأرجح
+أخطاء في التحويل البرمجي عندما يتعذر العثور على الرموز. لتصحيح هذا الأمر، نوصي
+باستخدام الأمر
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> command and setting it up in CI to
-prevent regressions in implicit linking.
+فحص الواردات الضمنية`</LocalizedLink> وإعداده في CI لمنع حدوث انحدارات في الربط
+الضمني.
