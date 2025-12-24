@@ -5,32 +5,33 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# Directorios {#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
+Tuist organiza sus archivos a través de varios directorios en tu sistema,
+siguiendo la [XDG Base Directory
 Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Esto proporciona una forma limpia y estándar de gestionar los archivos de
+configuración, caché y estado.
 
-## Supported environment variables {#supported-environment-variables}
+## Variables de entorno compatibles {#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+Tuist admite tanto variables XDG estándar como variantes prefijadas específicas
+de Tuist. Las variantes específicas de Tuist (prefijadas con `TUIST_`) tienen
+preferencia, lo que te permite configurar Tuist por separado de otras
+aplicaciones.
 
-### Configuration directory {#configuration-directory}
+### Directorio de configuración {#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
+**Variables de entorno:**
+- `TUIST_XDG_CONFIG_HOME` (tiene prioridad)
 - `XDG_CONFIG_HOME`
 
-**Default:** `~/.config/tuist`
+**Por defecto:** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**Se utiliza para:**
+- Credenciales del servidor (`credentials/{host}.json`)
 
-**Example:**
+**Por ejemplo:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +42,27 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### Directorio caché {#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**Variables de entorno:**
+- `TUIST_XDG_CACHE_HOME` (tiene prioridad)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**Por defecto:** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**Se utiliza para:**
+- **Plugins**: Caché de plugins descargados y compilados
+- **ProjectDescriptionHelpers**: Ayudantes de descripción de proyectos
+  compilados
+- **Manifiestos**: Archivos de manifiesto en caché
+- **Proyectos**: Caché del proyecto de automatización generado
+- **EditProjects**: Caché para el comando de edición
+- **Ejecuta**: Prueba y construye datos analíticos de ejecución
+- **Binarios**: Binarios de artefactos de construcción (no compartibles entre
+  entornos)
+- **Pruebas selectivas**: Caché de pruebas selectivas
 
-**Example:**
+**Por ejemplo:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +73,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### Directorio estatal {#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**Variables de entorno:**
+- `TUIST_XDG_STATE_HOME` (tiene prioridad)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**Por defecto:** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**Se utiliza para:**
+- **Registros**: Archivos de registro (`logs/{uuid}.log`)
+- **Bloqueos**: Archivos de bloqueo de autenticación (`{handle}.sock`)
 
-**Example:**
+**Por ejemplo:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +96,27 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## Orden de precedencia {#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+Al determinar qué directorio utilizar, Tuist comprueba las variables de entorno
+en el siguiente orden:
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **Variable específica de Tuist** (por ejemplo, `TUIST_XDG_CONFIG_HOME`)
+2. **Variable XDG estándar** (por ejemplo, `XDG_CONFIG_HOME`)
+3. **Ubicación por defecto** (por ejemplo, `~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+Esto te permite:
+- Utiliza variables XDG estándar para organizar todas tus aplicaciones de forma
+  coherente
+- Sustituye con variables específicas de Tuist cuando necesites diferentes
+  ubicaciones para Tuist
+- Confiar en valores por defecto sensibles sin ninguna configuración
 
-## Common use cases {#common-use-cases}
+## Casos de uso común {#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### Aislar Tuist por proyecto {#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+Tal vez quieras aislar la caché y el estado de Tuist por proyecto:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +125,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### Entornos CI/CD {#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+En entornos CI, es posible que desee utilizar directorios temporales:
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +149,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### Depuración con directorios aislados {#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+Al depurar problemas, es posible que desee hacer borrón y cuenta nueva:
 
 ```bash
 # Create temporary directories for debugging
