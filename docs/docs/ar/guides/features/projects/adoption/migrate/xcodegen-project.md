@@ -5,7 +5,7 @@
   "description": "Learn how to migrate your projects from XcodeGen to Tuist."
 }
 ---
-# ترحيل مشروع XcodeGen {#migrate-an-xcodegen-project}
+# ترحيل مشروع XcodeGen {#migrate-an-xcodeGen-project}
 
 [XcodeGen] (https://github.com/yonaskolb/XcodeGen) هي أداة لإنشاء المشاريع
 تستخدم YAML كـ [تنسيق تكوين]
@@ -18,7 +18,7 @@
 تولد مشاريع Xcode، وليس مدير مشروع. إذا كنت بحاجة إلى أداة تساعدك على ما هو أبعد
 من توليد مشاريع Xcode، فقد ترغب في التفكير في Tuist.
 
-::: tip SWIFT OVER YAML
+:::: إكرامية SWIFT OVER YAML
 <!-- -->
 تفضل العديد من المؤسسات تويست كأداة لتوليد المشاريع أيضاً لأنها تستخدم سويفت
 كتنسيق تكوين. سويفت هي لغة برمجة مألوفة لدى المطورين، وتوفر لهم الراحة في
@@ -29,12 +29,12 @@
 فيما يلي بعض الاعتبارات والإرشادات لمساعدتك في ترحيل مشاريعك من XcodeGen إلى
 Tuist.
 
-## توليد المشاريع {#project-generation}
+## توليد المشاريع {#-توليد-المشاريع}
 
 يوفر كل من تويست و XcodeGen الأمر `توليد` الذي يحول إعلان مشروعك إلى مشاريع
 ومساحات عمل Xcode.
 
-::: code-group
+:::: مجموعة الرموز
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -58,7 +58,7 @@ tuist generate
 مع أهداف تشير إلى أهداف من مشاريع أخرى. في هذه الحالات، سينشئ تويست مساحة عمل
 Xcode تتضمن جميع المشاريع.
 
-::: code-group
+:::: مجموعة الرموز
 
 ```bash [XcodeGen directory structure]
 /
@@ -74,7 +74,7 @@ Xcode تتضمن جميع المشاريع.
 <!-- -->
 :::
 
-::: تلميح لغة XCODE'S LANGUAGE
+:::: تلميح لغة XCODE'S LANGUAGE
 <!-- -->
 يتبنى كل من XcodeGen و Tuist لغة Xcode ومفاهيمه. ومع ذلك، يوفر لك تكوين Tuist
 القائم على Swift راحة استخدام ميزات الإكمال التلقائي والتحقق من النوع والتحقق من
@@ -82,16 +82,17 @@ Xcode تتضمن جميع المشاريع.
 <!-- -->
 :::
 
-## قوالب المواصفات {#spec-templates}
+## قوالب المواصفات {#قوالب المواصفات}
 
 أحد عيوب YAML كلغة لتكوين المشروع هو أنه لا يدعم إمكانية إعادة الاستخدام عبر
 ملفات YAML خارج الصندوق. هذه حاجة شائعة عند وصف المشاريع، وهو ما كان على
 XcodeGen حله من خلال حل خاص بهم يسمى *"القوالب"*. مع تويست، فإن إمكانية إعادة
 الاستخدام مدمجة في اللغة نفسها، سويفت، ومن خلال وحدة سويفت المسماة
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع </LocalizedLink>، والتي تسمح بإعادة استخدام الشيفرة عبر جميع ملفات البيان الخاصة
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع
+</LocalizedLink>، والتي تسمح بإعادة استخدام الشيفرة عبر جميع ملفات البيان الخاصة
 بك.
 
-::: code-group
+:::: مجموعة الرموز
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 
