@@ -100,7 +100,8 @@ varios proyectos en un espacio de trabajo depende de ti.
 En el proyecto Tuist nos apoyamos en mono-proyectos porque el tiempo de
 generación en frío es más rápido (menos archivos de manifiesto para compilar) y
 aprovechamos
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> como unidad de encapsulación. Sin embargo, es posible
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> como unidad de encapsulación. Sin embargo, es posible
 que desee utilizar los proyectos de Xcode como una unidad de encapsulación para
 representar diferentes dominios de su aplicación, que se alinea más
 estrechamente con la estructura de proyecto recomendada por Xcode.
@@ -108,7 +109,8 @@ estrechamente con la estructura de proyecto recomendada por Xcode.
 ## Tuist.swift {#tuistswift}
 
 Tuist proporciona
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensibles valores por defecto</LocalizedLink> para simplificar la configuración del
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensibles
+valores por defecto</LocalizedLink> para simplificar la configuración del
 proyecto. Sin embargo, puedes personalizar la configuración definiendo un
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 en la raíz del proyecto, que es utilizado por Tuist para determinar la raíz del
