@@ -5,140 +5,148 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# The Modular Architecture (TMA) {#the-modular-architecture-tma}
+# Modüler Mimari (TMA) {#the-modular-architecture-tma}
 
-TMA is an architectural approach to structure Apple OS applications to enable
-scalability, optimize build and test cycles, and ensure good practices in your
-team. Its core idea is to build your apps by building independent features that
-are interconnected using clear and concise APIs.
+TMA, ölçeklenebilirliği sağlamak, derleme ve test döngülerini optimize etmek ve
+ekibinizde iyi uygulamalar sağlamak için Apple OS uygulamalarını yapılandırmaya
+yönelik mimari bir yaklaşımdır. Temel fikri, uygulamalarınızı açık ve özlü
+API'ler kullanarak birbirine bağlı bağımsız özellikler oluşturarak inşa
+etmektir.
 
-These guidelines introduce the principles of the architecture, helping you
-identify and organize your application features in different layers. It also
-introduces tips, tools, and advice if you decide to use this architecture.
+Bu kılavuz, mimarinin ilkelerini tanıtarak uygulama özelliklerinizi farklı
+katmanlarda tanımlamanıza ve düzenlemenize yardımcı olur. Ayrıca, bu mimariyi
+kullanmaya karar vermeniz halinde size ipuçları, araçlar ve tavsiyeler de sunar.
 
 ::: info µFEATURES
 <!-- -->
-This architecture was previously known as µFeatures. We've renamed it to The
-Modular Architecture (TMA) to better reflect its purpose and the principles
-behind it.
+Bu mimari daha önce µFeatures olarak biliniyordu. Amacını ve arkasındaki
+ilkeleri daha iyi yansıtması için adını The Modular Architecture (TMA) olarak
+değiştirdik.
 <!-- -->
 :::
 
-## Core principle {#core-principle}
+## Temel ilke {#core-principle}
 
-Developers should be able to **build, test, and try** their features fast,
-independently of the main app, and while ensuring Xcode features like UI
-previews, code completion, and debugging work reliably.
+Geliştiriciler, UI önizlemeleri, kod tamamlama ve hata ayıklama gibi Xcode
+özelliklerinin güvenilir bir şekilde çalışmasını sağlarken, ana uygulamadan
+bağımsız olarak **özelliklerini hızlı bir şekilde oluşturabilmeli, test
+edebilmeli ve** deneyebilmelidir.
 
-## What is a module {#what-is-a-module}
+## Modül nedir {#what-is-a-module}
 
-A module represents an application feature and is a combination of the following
-five targets (where target referts to an Xcode target):
+Bir modül bir uygulama özelliğini temsil eder ve aşağıdaki beş hedefin
+birleşimidir (burada hedef bir Xcode hedefini ifade eder):
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++,
-  JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and
-  models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example
-  app. It also provides mocks for module classes and protocols that can be used
-  by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the
-  feature under certain conditions (different languages, screen sizes,
-  settings).
+- **Kaynak:** Özellik kaynak kodunu (Swift, Objective-C, C++, JavaScript...) ve
+  kaynaklarını (görüntüler, yazı tipleri, storyboard'lar, xibs) içerir.
+- **Arayüz:** Özelliğin genel arayüzünü ve modellerini içeren tamamlayıcı bir
+  hedeftir.
+- **Testler:** Özellik birim ve entegrasyon testlerini içerir.
+- **Test:** Testlerde ve örnek uygulamada kullanılabilecek test verileri sağlar.
+  Ayrıca, daha sonra göreceğimiz gibi diğer özellikler tarafından
+  kullanılabilecek modül sınıfları ve protokolleri için mock'lar sağlar.
+- **Örnek:** Geliştiricilerin özelliği belirli koşullar altında (farklı diller,
+  ekran boyutları, ayarlar) denemek için kullanabilecekleri örnek bir uygulama
+  içerir.
 
-We recommend following a naming convention for targets, something that you can
-enforce in your project thanks to Tuist's DSL.
+Tuist'in DSL'si sayesinde projenizde uygulayabileceğiniz hedefler için bir
+adlandırma kuralını izlemenizi öneririz.
 
-| Target             | Dependencies                | Content                     |
-| ------------------ | --------------------------- | --------------------------- |
-| `Feature`          | `FeatureInterface`          | Source code and resources   |
-| `FeatureInterface` | -                           | Public interface and models |
-| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
-| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
-| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
+| Hedef              | Bağımlılıklar               | İçerik                        |
+| ------------------ | --------------------------- | ----------------------------- |
+| `Özellik`          | `FeatureInterface`          | Kaynak kodu ve kaynaklar      |
+| `FeatureInterface` | -                           | Genel arayüz ve modeller      |
+| `ÖzellikTestleri`  | `Özellik`, `ÖzellikTesti`   | Birim ve entegrasyon testleri |
+| `ÖzellikTesti`     | `FeatureInterface`          | Test verileri ve mock'lar     |
+| `ÖzellikÖrnek`     | `FeatureTesting`, `Feature` | Örnek uygulama                |
 
 ::: tip UI Previews
 <!-- -->
-`Feature` can use `FeatureTesting` as a Development Asset to allow for UI
-previews
+`Özellik`, UI önizlemelerine izin vermek için `FeatureTesting` adresini
+Geliştirme Varlığı olarak kullanabilir
 <!-- -->
 :::
 
 ::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
-Alternatively, you can use compiler directives to include test data and mocks in
-the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
-simplify the graph, but you'll end up compiling code that you won't need for
-running the app.
+Alternatif olarak, `Debug` için derleme yaparken test verilerini ve mock'ları
+`Feature` veya `FeatureInterface` hedeflerine dahil etmek için derleyici
+yönergelerini kullanabilirsiniz. Grafiği basitleştirirsiniz, ancak uygulamayı
+çalıştırmak için ihtiyaç duymayacağınız kodu derlemiş olursunuz.
 <!-- -->
 :::
 
-## Why a module {#why-a-module}
+## Neden bir modül {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### Açık ve öz API'ler {#clear-and-concise-apis}
 
-When all the app source code lives in the same target it is very easy to build
-implicit dependencies in code and end up with the so well-known spaghetti code.
-Everything is strongly coupled, the state is sometimes unpredictable, and
-introducing new changes become a nightmare. When we define features in
-independent targets we need to design public APIs as part of our feature
-implementation. We need to decide what should be public, how our feature should
-be consumed, what should remain private. We have more control over how we want
-our feature clients to use the feature and we can enforce good practices by
-designing safe APIs.
+Tüm uygulama kaynak kodu aynı hedefte bulunduğunda, kodda örtük bağımlılıklar
+oluşturmak ve çok iyi bilinen spagetti koduyla sonuçlanmak çok kolaydır. Her şey
+güçlü bir şekilde birbirine bağlıdır, durum bazen öngörülemez ve yeni
+değişiklikler yapmak bir kabusa dönüşür. Özellikleri bağımsız hedeflerde
+tanımladığımızda, özellik uygulamamızın bir parçası olarak genel API'ler
+tasarlamamız gerekir. Neyin herkese açık olması gerektiğine, özelliğimizin nasıl
+tüketilmesi gerektiğine, neyin özel kalması gerektiğine karar vermemiz gerekir.
+Özellik istemcilerimizin özelliği nasıl kullanmasını istediğimiz üzerinde daha
+fazla kontrole sahibiz ve güvenli API'ler tasarlayarak iyi uygulamaları
+zorlayabiliriz.
 
-### Small modules {#small-modules}
+### Küçük modüller {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working
-in small modules allows you to have more focus and test and try the feature in
-isolation. Moreover, development cycles are much faster since we have a more
-selective compilation, compiling only the components that are necessary to get
-our feature working. The compilation of the whole app is only necessary at the
-very end of our work, when we need to integrate the feature into the app.
+[Böl ve fethet](https://en.wikipedia.org/wiki/Divide_and_conquer). Küçük
+modüller halinde çalışmak, daha fazla odaklanmanıza ve özelliği izole bir
+şekilde test edip denemenize olanak tanır. Ayrıca, daha seçici bir derleme
+yaptığımız için geliştirme döngüleri çok daha hızlıdır, yalnızca özelliğimizi
+çalıştırmak için gerekli olan bileşenleri derleriz. Tüm uygulamanın derlenmesi
+yalnızca çalışmamızın en sonunda, özelliği uygulamaya entegre etmemiz
+gerektiğinde gereklidir.
 
-### Reusability {#reusability}
+### Yeniden Kullanılabilirlik {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using
-frameworks or libraries. By building modules reusing them is pretty
-straightforward. We can build an iMessage extension, a Today Extension, or a
-watchOS application by just combining existing modules and adding _(when
-necessary)_ platform-specific UI layers.
+Uygulamalar ve uzantılar gibi diğer ürünler arasında kodun yeniden kullanılması,
+çerçeveler veya kütüphaneler kullanılarak teşvik edilir. Modüller oluşturarak
+bunları yeniden kullanmak oldukça basittir. Sadece mevcut modülleri
+birleştirerek ve _(gerektiğinde)_ platforma özgü kullanıcı arayüzü katmanları
+ekleyerek bir iMessage uzantısı, bir Bugün Uzantısı veya bir watchOS uygulaması
+oluşturabiliriz.
 
-## Dependencies {#dependencies}
+## Bağımlılıklar {#dependencies}
 
-When a module depends on another module, it declares a dependency against its
-interface target. The benefit of this is two-fold. It prevents the
-implementation of a module to be coupled to the implementation of another
-module, and it speeds up clean builds because they only have to compile the
-implementation of our feature, and the interfaces of direct and transitive
-dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS
-Build Times by using Interface
-Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
+Bir modül başka bir modüle bağımlı olduğunda, arayüz hedefine karşı bir
+bağımlılık bildirir. Bunun faydası iki yönlüdür. Bir modülün uygulamasının başka
+bir modülün uygulamasına bağlanmasını önler ve temiz derlemeleri hızlandırır
+çünkü yalnızca özelliğimizin uygulamasını ve doğrudan ve geçişli bağımlılıkların
+arayüzlerini derlemeleri gerekir. Bu yaklaşım SwiftRock'ın [Arayüz Modülleri
+Kullanarak iOS Derleme Sürelerini
+Azaltma](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)
+fikrinden esinlenmiştir.
 
-Depending on interfaces requires apps to build the graph of implementations at
-runtime, and dependency-inject it into the modules that need it. Although TMA is
-non-opinionated about how to do this, we recommend using dependency-injection
-solutions or patterns or solutions that don't add built-time indirections or use
-platform APIs that were not designed for this purpose.
+Arayüzlere bağlı olmak, uygulamaların çalışma zamanında uygulama grafiğini
+oluşturmasını ve buna ihtiyaç duyan modüllere bağımlılık enjekte etmesini
+gerektirir. TMA bunun nasıl yapılacağı konusunda görüş bildirmese de, bağımlılık
+enjekte etme çözümlerinin veya kalıplarının ya da inşa zamanı dolaylamaları
+eklemeyen veya bu amaç için tasarlanmamış platform API'lerini kullanmayan
+çözümlerin kullanılmasını öneriyoruz.
 
-## Product types {#product-types}
+## Ürün tipleri {#product-types}
 
-When building a module, you can choose between **libraries and frameworks**, and
-**static and dynamic linking** for the targets. Without Tuist, making this
-decision is a bit more complex because you need to configure the dependency
-graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+Bir modül oluştururken, hedefler için **kütüphaneler ve çerçeveler** ile
+**statik ve dinamik bağlama** arasında seçim yapabilirsiniz. Tuist olmadan, bu
+kararı vermek biraz daha karmaşıktır çünkü bağımlılık grafiğini manuel olarak
+yapılandırmanız gerekir. Ancak Tuist Projects sayesinde bu artık bir sorun
+olmaktan çıkmıştır.
 
-We recommend using dynamic libraries or frameworks during development using
+Geliştirme sırasında, paket erişim mantığını hedefin kütüphane veya çerçeve
+yapısından ayırmak için
 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> to decouple the bundle-accessing logic from the
-library or framework nature of the target. This is key for fast compilation
-times and to ensure [SwiftUI
-Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-work reliably. And static libraries or frameworks for the release builds to
-ensure the app boots fast. You can leverage
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic
-configuration</LocalizedLink> to change the product type at generation-time:
+accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
+kullanmanızı öneririz. Bu, hızlı derleme süreleri ve [SwiftUI
+Önizlemelerinin](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
+güvenilir bir şekilde çalışmasını sağlamak için çok önemlidir. Ve uygulamanın
+hızlı önyükleme yapmasını sağlamak için sürüm derlemeleri için statik
+kütüphaneler veya çerçeveler. Ürün türünü oluşturma zamanında değiştirmek için
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik
+yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -161,46 +169,47 @@ func productType() -> Product {
 
 ::: warning MERGEABLE LIBRARIES
 <!-- -->
-Apple attempted to alleviate the cumbersomeness of switching between static and
-dynamic libraries by introducing [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-However, that introduces build-time non-determinism that makes your build
-non-reproducible and harder to optimize so we don't recommend using it.
+Apple, statik ve dinamik kütüphaneler arasında geçiş yapmanın zahmetini
+[birleştirilebilir
+kütüphaneler](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
+sunarak hafifletmeye çalışmıştır. Ancak bu, derlemenizi tekrar üretilemez hale
+getiren ve optimize etmeyi zorlaştıran derleme zamanı belirsizliklerini
+beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
 <!-- -->
 :::
 
-## Code {#code}
+## Kod {#code}
 
-TMA is non-opinionated about the code architecture and patterns for your
-modules. However, we'd like to share some tips based on our experience:
+TMA, modülleriniz için kod mimarisi ve kalıpları hakkında görüş bildirmez.
+Ancak, deneyimlerimize dayanarak bazı ipuçlarını paylaşmak istiyoruz:
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end
-  up being non-productive and cause some Xcode features like previews to work
-  unreliably. We recommend using the compiler to enforce good practices and
-  catch errors early, but not to the point that it makes the code harder to read
-  and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make
-  the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come
-  up with ellaborated abstraction layers might end up being counterproductive.
-  The platform and the language are powerful enough to build great apps without
-  the need for additional abstraction layers. Use good programming and design
-  patterns as a reference to build your features.
+- **Derleyiciden yararlanmak harikadır.** Derleyiciden fazla yararlanmak
+  verimsiz olabilir ve önizleme gibi bazı Xcode özelliklerinin güvenilmez
+  şekilde çalışmasına neden olabilir. Derleyiciyi iyi uygulamaları zorunlu
+  kılmak ve hataları erken yakalamak için kullanmanızı öneririz, ancak kodun
+  okunmasını ve bakımını zorlaştıracak kadar değil.
+- **Swift Makrolarını idareli kullanın.** Çok güçlü olabilirler ancak aynı
+  zamanda kodun okunmasını ve bakımını zorlaştırabilirler.
+- **Platformu ve dili benimseyin, onları soyutlamayın.** Ayrıntılı soyutlama
+  katmanları bulmaya çalışmak ters etki yaratabilir. Platform ve dil, ek
+  soyutlama katmanlarına ihtiyaç duymadan harika uygulamalar oluşturmak için
+  yeterince güçlüdür. Özelliklerinizi oluşturmak için referans olarak iyi
+  programlama ve tasarım modellerini kullanın.
 
-## Resources {#resources}
+## Kaynaklar {#resources}
 
 - [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented
-  Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
+- [Çerçeve Odaklı Programlama]
+  (https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
 - [A Journey into frameworks and
   Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [Leveraging frameworks to speed up our development on iOS - Part
+- [iOS'ta geliştirmemizi hızlandırmak için çerçevelerden yararlanma - Bölüm
   1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Library Oriented
-  Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
+- [Kütüphane Odaklı Programlama]
+  (https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
 - [Building Modern
   Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [The Unofficial Guide to xcconfig
-  files](https://pewpewthespells.com/blog/xcconfig_guide.html)
-- [Static and Dynamic
-  Libraries](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
+- [xcconfig dosyaları için Resmi Olmayan
+  Kılavuz](https://pewpewthespells.com/blog/xcconfig_guide.html)
+- [Statik ve Dinamik
+  Kütüphaneler](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
