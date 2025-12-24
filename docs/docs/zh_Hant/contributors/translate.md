@@ -5,59 +5,49 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Translate {#translate}
+# 翻譯{#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is
-accessible to as many people as possible. If you speak a language that Tuist
-doesn't support, you can help us by translating the various surfaces of Tuist.
+語言可能是理解的障礙。我們希望確保盡量多的人都能使用 Tuist。如果您使用的語言是 Tuist 不支援的，您可以幫助我們翻譯 Tuist 的各種表面。
 
-Since maintaining translations is a continuous effort, we add languages as we
-see contributors willing to help us maintain them. The following languages are
-currently supported:
+由於維護翻譯是一項持續性的工作，因此我們會在看到有貢獻者願意協助我們維護時，才會增加語言。目前支援下列語言：
 
-- English
-- Korean
-- Japanese
-- Russian
-- Chinese
-- Spanish
-- Portuguese
+- 英語
+- 韓語
+- 日本語
+- 俄語
+- 中文
+- 西班牙語
+- 葡萄牙語
 
 ::: tip REQUEST A NEW LANGUAGE
 <!-- -->
-If you believe Tuist would benefit from supporting a new language, please create
-a new [topic in the community forum](https://community.tuist.io/c/general/4) to
-discuss it with the community.
+如果您認為 Tuist 可以從支援新語言中獲益，請在社群論壇中建立一個新的
+[主題](https://community.tuist.io/c/general/4)，與社群進行討論。
 <!-- -->
 :::
 
-## How to translate {#how-to-translate}
+## 如何翻譯{#how-to-translate}
 
-We have an instance of [Weblate](https://weblate.org/en-gb/) running at
-[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
-project](https://translate.tuist.dev/engage/tuist/), create an account, and
-start translating.
+我們在 [translate.tuist.dev](https://translate.tuist.dev) 有一個
+[Weblate](https://weblate.org/en-gb/) 的實例在執行。您可以前往
+[專案](https://translate.tuist.dev/engage/tuist/)，建立帳號並開始翻譯。
 
-Translations are synchronized back to the source repository using GitHub pull
-requests which maintainers will review and merge.
+翻譯會使用 GitHub 的拉取請求同步回原始碼倉庫，維護人員會審查並合併。
 
 ::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 <!-- -->
-Weblate segments the files to bind source and target languages. If you modify
-the source language, you'll break the binding, and the reconciliation might
-yield unexpected results.
+Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源語言，就會破壞綁定，而且調和可能會產生意想不到的結果。
 <!-- -->
 :::
 
-## Guidelines {#guidelines}
+## 指引{#guidelines}
 
-The following are the guidelines we follow when translating.
+以下是我們在翻譯時遵循的準則。
 
-### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+### 自訂容器和 GitHub 警示{#custom-containers-and-github-alerts}
 
-When translating [custom
-containers](https://vitepress.dev/guide/markdown#custom-containers) only
-translate the title and the content **but not the type of alert**.
+翻譯 [custom containers](https://vitepress.dev/guide/markdown#custom-containers)
+時，只翻譯標題和內容**，但不翻譯警示類型** 。
 
 ```markdown
 <!-- -->
@@ -68,16 +58,15 @@ translate the title and the content **but not the type of alert**.
 :::
 ```
 
-### Heading titles {#heading-titles}
+### 標題標題{#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example,
-when translating the following heading:
+翻譯標題時，只翻譯標題而不翻譯 ID。例如，翻譯以下標題時：
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+應該翻譯為（注意 id 沒有翻譯）：
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}
