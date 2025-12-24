@@ -34,7 +34,7 @@ Tuist Insights jest na wczesnym etapie rozwoju.
 <!-- -->
 :::
 
-## Kompilacje {#builds}
+## Budynki {#builds}
 
 Chociaż prawdopodobnie masz pewne dane dotyczące wydajności przepływów pracy CI,
 możesz nie mieć takiego samego wglądu w lokalne środowisko programistyczne.
@@ -81,7 +81,7 @@ aktywować `tuist` w środowisku post-action:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-:: końcówka MISE & PROJECT PATHS
+::: tip MISE & PROJECT PATHS
 <!-- -->
 Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
 dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
@@ -127,7 +127,7 @@ aktywować `tuist` w środowisku post-action:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-:: końcówka MISE & PROJECT PATHS
+::: tip MISE & PROJECT PATHS
 <!-- -->
 Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
 dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
