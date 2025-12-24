@@ -7,7 +7,8 @@
 ---
 # ترحيل مشروع Xcode {#migrate-an-xcode-project}
 
-ما لم تقم <LocalizedLink href="/guides/features/projects/adoption/new-project"> بإنشاء مشروع جديد باستخدام تويست </LocalizedLink>، وفي هذه الحالة ستحصل على كل
+ما لم تقم <LocalizedLink href="/guides/features/projects/adoption/new-project">
+بإنشاء مشروع جديد باستخدام تويست </LocalizedLink>، وفي هذه الحالة ستحصل على كل
 شيء مهيأ تلقائيًا، سيكون عليك تحديد مشاريع Xcode الخاصة بك باستخدام أساسيات
 تويست. يعتمد مدى ملل هذه العملية على مدى تعقيد مشاريعك.
 
@@ -24,11 +25,11 @@
 بهدف تسهيل هذا العمل، نقدم لك بعض الإرشادات بناءً على الملاحظات التي تلقيناها من
 المستخدمين.
 
-## إنشاء سقالة مشروع {#create-project-scaffold}
+## إنشاء سقالة مشروع {#إنشاء سقالة مشروع-مشروع-سقالة}
 
 أولاً، قم بإنشاء سقالة لمشروعك باستخدام ملفات Tuist التالية:
 
-::: code-group
+:::: مجموعة الرموز
 
 ```js [Tuist.swift]
 import ProjectDescription
@@ -78,7 +79,7 @@ let package = Package(
 البيان حيث ستحدد تبعياتك. ملف `Tuist.swift.swift` هو الملف الذي يمكنك من خلاله
 تحديد إعدادات Tuist على نطاق المشروع لمشروعك.
 
-::: تلميح اسم المشروع مع -TUIST SUFFIX
+:::: تلميح اسم المشروع مع -TUIST SUFFIX
 <!-- -->
 لمنع التعارض مع مشروع Xcode الحالي، نوصي بإضافة لاحقة `-Tuist` إلى اسم المشروع.
 يمكنك إسقاطها بمجرد ترحيل مشروعك بالكامل إلى Tuist.
@@ -93,10 +94,10 @@ let package = Package(
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## استخرج إعدادات بناء المشروع إلى ملفات `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}
+## استخرج إعدادات بناء المشروع إلى ملفات `.xcconfig` {#extract-the-project-build-settings-into-into-cconfig-files}
 
 استخرج إعدادات الإنشاء من المشروع إلى ملف `.xcconfig` لجعل المشروع أكثر مرونة
 وأسهل في الترحيل. يمكنك استخدام الأمر التالي لاستخراج إعدادات الإنشاء من المشروع
@@ -133,7 +134,7 @@ let project = Project(
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## استخراج تبعيات الحزمة {#extract-package-dependencies}
+## استخراج تبعيات الحزمة {#استخراج تبعيات الحزمة}
 
 استخرج جميع تبعيات مشروعك في ملف `Tuist/Package.swift.swift`:
 
@@ -163,7 +164,7 @@ let package = Package(
 )
 ```
 
-::: tip أنواع المنتجات
+:::: إكرامية أنواع المنتجات
 <!-- -->
 يمكنك تجاوز نوع المنتج لحزمة معينة عن طريق إضافته إلى قاموس `productTypes` في
 `PackageSettings` structure. يفترض تويست افتراضيًا أن جميع الحزم هي أطر عمل
@@ -172,7 +173,7 @@ let package = Package(
 :::
 
 
-## تحديد ترتيب الترحيل {#determine-the-migration-order}
+## تحديد ترتيب الترحيل {#تحديد-ترتيب-الترحيل}
 
 نوصي بترحيل الأهداف من الأكثر اعتمادًا إلى الأقل اعتمادًا. يمكنك استخدام الأمر
 التالي لسرد أهداف مشروع ما، مرتبة حسب عدد التبعيات:
@@ -184,12 +185,12 @@ tuist migration list-targets -p Project.xcodeproj
 ابدأ بترحيل الأهداف من أعلى القائمة، لأنها الأكثر اعتمادًا عليها.
 
 
-## ترحيل الأهداف {#migrate-targets}
+## ترحيل الأهداف {# ترحيل-الأهداف}
 
 ترحيل الأهداف واحدًا تلو الآخر. نوصي بإجراء طلب سحب لكل هدف لضمان مراجعة
 التغييرات واختبارها قبل دمجها.
 
-### استخرج إعدادات البناء الهدف إلى ملفات `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}
+### استخرج إعدادات البناء الهدف إلى ملفات `.xcconfig` {#extract-the-target-build-settings-into-into-cconfig-files}
 
 كما فعلت مع إعدادات بناء المشروع، استخرج إعدادات بناء الهدف في ملف `.xcconfig`
 لجعل الهدف أكثر مرونة وأسهل في الترحيل. يمكنك استخدام الأمر التالي لاستخراج
@@ -199,7 +200,7 @@ tuist migration list-targets -p Project.xcodeproj
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### قم بتعريف الهدف في ملف `Project.swift.` {#define-the-target-in-the-projectswift-file}
+### قم بتعريف الهدف في ملف `Project.swift.` {#تعريف الهدف في ملف مشروع سويفت }
 
 حدد الهدف في `Project.targets`:
 
@@ -233,29 +234,29 @@ let project = Project(
 )
 ```
 
-::: info اختبار الأهداف الاختبارية
+:::: معلومات اختبار الأهداف الاختبارية
 <!-- -->
 إذا كان للهدف هدف اختبار مرتبط، فيجب عليك تعريفه في ملف `Project.swift.` أيضًا
 بتكرار نفس الخطوات.
 <!-- -->
 :::
 
-### التحقق من صحة الترحيل المستهدف {#validate-the-target-migration}
+### التحقق من صحة الترحيل المستهدف {#التحقق من صحة الترحيل المستهدف}
 
-قم بتشغيل `tuist build` و `tuist test` للتأكد من أن المشروع قد تم إنشاؤه
-واختباراته قد نجحت. بالإضافة إلى ذلك، يمكنك استخدام [xcdiff]
-(https://github.com/bloomberg/xcdiff) لمقارنة مشروع Xcode الذي تم إنشاؤه مع
-المشروع الحالي للتأكد من صحة التغييرات.
+قم بتشغيل `tuist gener` متبوعًا بـ `xcodebuild build` للتأكد من بناء المشروع، و
+`tuist test` للتأكد من اجتياز الاختبارات. بالإضافة إلى ذلك، يمكنك استخدام
+[xcdiff] (https://github.com/bloomberg/xcdiff) لمقارنة مشروع Xcode الذي تم
+إنشاؤه مع المشروع الحالي للتأكد من صحة التغييرات.
 
-### كرر {#repeat}
+### كرر {#كرر}
 
 كرر ذلك حتى يتم ترحيل جميع الأهداف بالكامل. بمجرد الانتهاء من ذلك، نوصي بتحديث
-خطوط أنابيب CI و CD الخاصة بك لبناء واختبار المشروع باستخدام الأوامر `tuist
-build` و `tuist test` للاستفادة من السرعة والموثوقية التي يوفرها Tuist.
+خطوط أنابيب CI و CD الخاصة بك لبناء واختبار المشروع باستخدام `tuist generate`
+متبوعًا بـ `xcodebuild build` و `tuist test`.
 
-## استكشاف الأخطاء وإصلاحها {#troubleshooting}
+## استكشاف الأخطاء وإصلاحها {#استكشاف الأخطاء وإصلاحها}
 
-### أخطاء التجميع بسبب الملفات المفقودة. {#compilation-errors-due-to-missing-files}
+### أخطاء التجميع بسبب الملفات المفقودة. {#أخطاء التجميع بسبب الملفات المفقودة}
 
 إذا لم تكن جميع الملفات المرتبطة بأهداف مشروع Xcode الخاص بك متضمنة في دليل نظام
 الملفات الذي يمثل الهدف، فقد ينتهي بك الأمر بمشروع لا يتم تجميعه. تأكد من تطابق
