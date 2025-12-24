@@ -73,7 +73,7 @@
                     "text": "貢獻者"
                 },
                 "changelog": {
-                    "text": ""
+                    "text": "更新日誌"
                 }
             }
         }
@@ -120,7 +120,7 @@
             "text": "貢獻者",
             "items": {
                 "get-started": {
-                    "text": ""
+                    "text": "立即開始"
                 },
                 "issue-reporting": {
                     "text": "問題報告"
@@ -192,7 +192,7 @@
             "text": "指南",
             "items": {
                 "tuist": {
-                    "text": "",
+                    "text": "Tuist",
                     "items": {
                         "about": {
                             "text": "關於 Tuist"
@@ -206,18 +206,18 @@
                             "text": "安裝 Tuist"
                         },
                         "get-started": {
-                            "text": ""
+                            "text": "立即開始"
                         }
                     }
                 },
                 "features": {
-                    "text": ""
+                    "text": "功能"
                 },
                 "examples": {
                     "text": "範例",
                     "items": {
                         "generated-projects": {
-                            "text": ""
+                            "text": "專案生成"
                         }
                     }
                 },
@@ -225,7 +225,7 @@
                     "text": "開發",
                     "items": {
                         "generated-projects": {
-                            "text": "",
+                            "text": "專案生成",
                             "items": {
                                 "adoption": {
                                     "text": "領養",
@@ -308,7 +308,7 @@
                             }
                         },
                         "cache": {
-                            "text": "",
+                            "text": "快取",
                             "items": {
                                 "xcode-cache": {
                                     "text": "Xcode 快取"
@@ -319,10 +319,10 @@
                             }
                         },
                         "registry": {
-                            "text": "",
+                            "text": "套件庫",
                             "items": {
                                 "registry": {
-                                    "text": ""
+                                    "text": "套件庫"
                                 },
                                 "xcode-project": {
                                     "text": "Xcode 專案"
@@ -356,10 +356,10 @@
                             }
                         },
                         "insights": {
-                            "text": ""
+                            "text": "建置分析"
                         },
                         "bundle-size": {
-                            "text": ""
+                            "text": "套件分析"
                         },
                         "qa": {
                             "text": "QA"
