@@ -5,32 +5,28 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# ディレクトリ{#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Tuistは、[XDG Base Directory
+Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)に従って、システム上の複数のディレクトリにわたってファイルを整理します。これにより、設定ファイル、キャッシュファイル、ステートファイルを管理するためのクリーンで標準的な方法が提供されます。
 
-## Supported environment variables {#supported-environment-variables}
+## サポートされている環境変数{#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+Tuist は標準的な XDG 変数と、Tuist 固有の接頭辞付き変数の両方をサポートしています。Tuist 固有の変種 (`TUIST_`
+のプレフィックス付き) が優先されるため、Tuist を他のアプリケーションとは別に設定することができます。
 
-### Configuration directory {#configuration-directory}
+### 設定ディレクトリ{#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
-- `XDG_CONFIG_HOME`
+**環境変数：**
+- `TUIST_XDG_CONFIG_HOME` (優先)
+- `xdg_config_home`
 
-**Default:** `~/.config/tuist`
+**デフォルト：** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**に使用される：**
+- サーバー認証情報 (`credentials/{host}.json`)
 
-**Example:**
+**例**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +37,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### キャッシュ・ディレクトリ{#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**環境変数：**
+- `TUIST_XDG_CACHE_HOME` (優先)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**デフォルト：** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**に使用される：**
+- **プラグイン** ：ダウンロードしてコンパイルしたプラグインキャッシュ
+- **ProjectDescriptionHelpers** ：コンパイルされたプロジェクト説明ヘルパー
+- **マニフェスト** ：マニフェストファイルのキャッシュ
+- **プロジェクト** ：生成されたオートメーション・プロジェクトのキャッシュ
+- **EditProjects** ：編集コマンドのキャッシュ
+- **Runs**: 分析データのテストと構築
+- **バイナリ** ：ビルド・アーティファクト・バイナリ（環境間で共有不可）
+- **SelectiveTests** ：選択テスト・キャッシュ
 
-**Example:**
+**例**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +66,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### 州ディレクトリ{#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**環境変数：**
+- `TUIST_XDG_STATE_HOME` (優先)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**デフォルト：** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**に使用される：**
+- **ログ** ：ログファイル (`logs/{uuid}.log`)
+- **ロック** ：認証ロックファイル (`{handle}.sock`)
 
-**Example:**
+**例**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +89,24 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## 優先順位{#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+どのディレクトリを使うかを決めるとき、Tuistは次の順序で環境変数をチェックする：
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **Tuist固有の変数** (例:`TUIST_XDG_CONFIG_HOME`)
+2. **XDG 標準変数** (例:`XDG_CONFIG_HOME`)
+3. **デフォルトの場所** (例:`~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+これにより、次のことが可能になる：
+- 標準の XDG 変数を使用して、すべてのアプリケーションを一貫して整理します。
+- Tuistに異なる場所が必要な場合、Tuist固有の変数でオーバーライドする。
+- 設定なしで賢明なデフォルトに頼る
 
-## Common use cases {#common-use-cases}
+## 一般的な使用例{#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### プロジェクトごとにTuistを分離{#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+Tuistのキャッシュと状態をプロジェクトごとに分離したいかもしれない：
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +115,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### CI/CD環境{#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+CI環境では、テンポラリ・ディレクトリを使いたいかもしれない：
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +139,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### 隔離されたディレクトリでのデバッグ{#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+問題をデバッグするときには、まっさらな状態にしておきたいものだ：
 
 ```bash
 # Create temporary directories for debugging
