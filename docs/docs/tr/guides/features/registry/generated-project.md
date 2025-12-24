@@ -5,12 +5,12 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# Generated project with the Xcode package integration {#generated-project-with-xcode-based-integration}
+# Xcode paket entegrasyonu ile oluşturulmuş projele {#generated-project-with-xcode-based-integration}
 
-If you are using the
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode's
-default integration</LocalizedLink> of packages with Tuist Projects, you need to
-use the registry identifier instead of a URL when adding a package:
+Tuist Projects ile
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode'un
+varsayılan paket entegrasyonunu</LocalizedLink> kullanıyorsanız, bir paket
+eklerken URL yerine kayıt tanımlayıcısını kullanmanız gerekir:
 ```swift
 import ProjectDescription
 
