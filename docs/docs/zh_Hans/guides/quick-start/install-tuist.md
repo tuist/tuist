@@ -13,7 +13,7 @@ Tuist，**，但我们建议您使用以下安装方法之一，以确保安装�
 
 ### <a href="https://github.com/jdx/mise">Mise</a>{#recommended-mise}
 
-::: info
+信息
 <!-- -->
 如果你是一个团队或组织，需要确保不同环境下工具版本的确定性，那么 Mise 是[Homebrew](https://brew.sh)的推荐替代方案。
 <!-- -->
@@ -37,7 +37,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
+### <a href="https://brew.sh">自制啤酒{1｝{#推荐-自酿啤酒｝
 
 您可以使用 [自制程序](https://brew.sh)和
 [我们的公式](https://github.com/tuist/homebrew-tuist)安装 Tuist：
