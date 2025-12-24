@@ -5,46 +5,38 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# 記錄{#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI 會在內部記錄訊息，以協助您診斷問題。
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## 使用日誌診斷問題{#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+如果命令調用沒有產生預期的結果，您可以透過檢查日誌來診斷問題。CLI 會將日誌轉發至
+[OSLog](https://developer.apple.com/documentation/os/oslog) 和檔案系統。
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a
-Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+每次執行時，它都會在`$XDG_STATE_HOME/tuist/logs/{uuid}.log` 建立一個記錄檔，其中`$XDG_STATE_HOME`
+的值為`~/.local/state` ，如果沒有設定環境變數的話。您也可以使用`$TUIST_XDG_STATE_HOME` 來設定 Tuist
+特有的狀態目錄，它優先於`$XDG_STATE_HOME` 。
 
 ::: tip
 <!-- -->
-Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories
-documentation</LocalizedLink>.
+瞭解更多關於 Tuist 目錄組織的資訊，以及如何在 <LocalizedLink href="/cli/directories">Directories
+文件</LocalizedLink>中設定自訂目錄。
 <!-- -->
 :::
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly.
-If it doesn't, you can find the logs in the path mentioned above (i.e., the most
-recent log file).
+預設情況下，當執行意外退出時，CLI 會輸出記錄路徑。如果沒有，您可以在上述路徑中找到記錄 (即最近的記錄檔)。
 
 ::: warning
 <!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+敏感資訊不會被刪除，因此分享日誌時要謹慎。
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### 持續整合{#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+在 CI 中，環境是一次性的，您可能想要設定 CI 管道來匯出 Tuist 日誌。匯出工件是 CI 服務的共通能力，配置取決於您使用的服務。例如，在
+GitHub Actions 中，您可以使用`actions/upload-artifact` 動作，將日誌上傳為工件：
 
 ```yaml
 name: Node CI
@@ -71,17 +63,14 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### 快取 daemon 除錯{#cache-daemon-debugging}
 
-For debugging cache-related issues, Tuist logs cache daemon operations using
-`os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in
-real-time using:
+為了除錯快取相關的問題，Tuist 使用`os_log` 與子系統`dev.tuist.cache` 記錄快取 daemon
+的作業。您可以使用以下方式即時串流這些記錄：
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
-These logs are also visible in Console.app by filtering for the
-`dev.tuist.cache` subsystem. This provides detailed information about cache
-operations, which can help diagnose cache upload, download, and communication
-issues.
+透過過濾`dev.tuist.cache` 子系統，在 Console.app
+中也可以看到這些記錄。這可提供快取操作的詳細資訊，有助於診斷快取上傳、下載和通訊問題。
