@@ -5,7 +5,7 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# 템플릿 {#템플릿}
+# 템플릿 {#templates}
 
 아키텍처가 확립된 프로젝트에서 개발자는 프로젝트와 일관된 새 컴포넌트나 기능을 부트스트랩하고 싶을 수 있습니다. ` 튜이스트 스캐폴드`
 템플릿에서 파일을 생성할 수 있습니다. 직접 템플릿을 정의하거나 튜이스트에서 제공하는 템플릿을 사용할 수 있습니다. 다음은 스캐폴딩이 유용할 수
@@ -14,7 +14,7 @@
 - 주어진 아키텍처를 따르는 새 기능을 만듭니다: `tuist scaffold viper --name MyFeature`.
 - 새 프로젝트 만들기: `튜스트 스캐폴드 기능 프로젝트 --이름 홈`
 
-::: 정보 의견 없음
+::: info NON-OPINIONATED
 <!-- -->
 Tuist는 템플릿의 콘텐츠와 템플릿의 용도에 대해 의견을 제시하지 않습니다. 템플릿은 특정 디렉토리에만 있어야 합니다.
 <!-- -->
@@ -57,7 +57,7 @@ let template = Template(
 )
 ```
 
-## 템플릿 사용 {#사용하기-템플릿}
+## 템플릿 사용 {#using-a-template}
 
 템플릿을 정의한 후에는 `scaffold` 명령어에서 템플릿을 사용할 수 있습니다:
 
@@ -81,7 +81,7 @@ tuist scaffold name_of_template --name Name --platform macos
 
 전체 폴더를 지정된 경로에 복사할 수 있는 `.디렉토리` 를 사용할 수도 있습니다.
 
-::: 팁 프로젝트 설명 도우미
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명
 도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
