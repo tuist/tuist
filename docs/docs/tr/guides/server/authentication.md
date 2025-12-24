@@ -135,7 +135,7 @@ tüm bireysel kapsamları içerecek şekilde genişler.
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci`         | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
 
-### Sürekli Entegrasyon {#continuous-integration}
+### Sürekli Entegrasyon (CI) {#continuous-integration-ci}
 
 OIDC'yi desteklemeyen CI ortamlarında, CI iş akışlarınızın kimliğini doğrulamak
 için `ci` kapsam grubuyla bir hesap belirteci oluşturabilirsiniz:
