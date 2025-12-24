@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ar/>\n"
 "Language: ar\n"
@@ -175,9 +175,9 @@ msgstr "معرّف الحزمة"
 #: lib/tuist_web/live/qa_live.html.heex:61
 #: lib/tuist_web/live/qa_settings_live.html.heex:157
 #: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "إلغاء"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -209,9 +209,9 @@ msgstr "أوراق الاعتماد"
 #: lib/tuist_web/live/qa_settings_live.html.heex:140
 #: lib/tuist_web/live/qa_settings_live.html.heex:179
 #: lib/tuist_web/live/qa_settings_live.html.heex:222
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Description"
-msgstr ""
+msgstr "الوصف"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:108
 #, elixir-autogen, elixir-format, fuzzy
@@ -569,9 +569,9 @@ msgstr "بدأت في"
 
 #: lib/tuist_web/live/ops_qa_live.html.heex:144
 #: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "الحالة"
 
 #: lib/tuist_web/live/qa_run_live.html.heex:608
 #, elixir-autogen, elixir-format, fuzzy
