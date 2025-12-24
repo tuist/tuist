@@ -12,7 +12,7 @@ software. Nos integramos con GitHub para ofrecer información de Tuist
 directamente en tus pull requests y ahorrarte algunas configuraciones, como la
 sincronización de tu rama por defecto.
 
-## Configuración {#setup}
+## Configurar {#setup}
 
 Tendrás que instalar la aplicación Tuist GitHub en la pestaña `Integrations` de
 tu organización: {[Una imagen que muestra la pestaña de
@@ -24,7 +24,7 @@ proyecto Tuist:
 ![Una imagen que muestra la adición de la conexión del
 proyecto](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## Comentarios de solicitudes pull/merge {#pull-merge-request-comments}
+## Comentarios a las solicitudes de extracción/fusión {#pull-merge-request-comments}
 
 La aplicación de GitHub publica un informe de ejecución de Tuist, que incluye un
 resumen del PR, incluidos enlaces a las últimas
@@ -35,7 +35,7 @@ o
 ![Una imagen que muestra el comentario del pull
 request](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUISITOS
+::: info REQUIREMENTS
 <!-- -->
 El comentario sólo se publica cuando sus ejecuciones de CI están
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">autenticadas</LocalizedLink>.
