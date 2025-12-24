@@ -33,7 +33,7 @@ Domyślnie CLI wyświetla ścieżkę dziennika, gdy wykonanie kończy się
 nieoczekiwanie. Jeśli tak się nie stanie, dzienniki można znaleźć w ścieżce
 wspomnianej powyżej (tj. w najnowszym pliku dziennika).
 
-::: warning
+::: ostrzeżenie
 <!-- -->
 Wrażliwe informacje nie są redagowane, więc należy zachować ostrożność podczas
 udostępniania dzienników.
