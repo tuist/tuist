@@ -37,7 +37,7 @@ Upewnij się, że domyślny keychain został utworzony i odblokowany _przed
 uruchomieniem_ `tuist registry login`.
 
 Dodatkowo należy upewnić się, że ustawiona jest zmienna środowiskowa
-`TUIST_CONFIG_TOKEN`. Można ją utworzyć, postępując zgodnie z dokumentacją
+`TUIST_TOKEN`. Można ją utworzyć postępując zgodnie z dokumentacją
 <LocalizedLink href="/guides/server/authentication#as-a-project">tutaj</LocalizedLink>.
 
 Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:
@@ -59,7 +59,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
