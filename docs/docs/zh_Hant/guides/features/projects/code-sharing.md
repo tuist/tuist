@@ -5,44 +5,31 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# Code sharing {#code-sharing}
+# 代碼分享{#code-sharing}
 
-One of the inconveniences of Xcode when we use it with large projects is that it
-doesn't allow reusing elements of the projects other than the build settings
-through `.xcconfig` files. Being able to reuse project definitions is useful for
-the following reasons:
+當我們在大型專案中使用 Xcode 時，其中一個不便之處就是它不允許透過`.xcconfig`
+檔重複使用專案中除建立設定以外的元素。能夠重複使用專案定義非常有用，原因如下：
 
-- It eases the **maintenance** because changes can be applied in one place and
-  all the projects get the changes automatically.
-- It makes it possible to define **conventions** that new projects can conform
-  to.
-- Projects are more **consistent** and therefore the likelihood of broken builds
-  due inconsistencies is significantly less.
-- Adding a new projects becomes an easy task because we can reuse the existing
-  logic.
+- 它可以簡化**維護** ，因為變更可以在一個地方套用，而且所有專案都會自動取得變更。
+- 它可以定義**慣例** ，讓新專案符合這些慣例。
+- 專案的一致性更高**** ，因此因不一致而造成建置破損的可能性大幅降低。
+- 新增專案變得很容易，因為我們可以重複使用現有的邏輯。
 
-Reusing code across manifest files is possible in Tuist thanks to the concept of
-**project description helpers**.
+透過**專案描述輔助工具** 的概念，Tuist 可以在不同的清單檔案中重複使用程式碼。
 
 ::: tip A TUIST UNIQUE ASSET
 <!-- -->
-Many organizations like Tuist because they see in project description helpers a
-platform for platform teams to codify their own conventions and come up with
-their own language for describing their projects. For example, YAML-based
-project generators have to come up with their own YAML-based propietary
-templating solution, or force organizations onto building their tools upon.
+許多組織喜歡 Tuist，因為他們在專案描述輔助工具中看到了一個平台，讓平台團隊可以編纂他們自己的慣例，並提出他們自己的專案描述語言。例如，基於 YAML
+的專案產生器必須提出他們自己的基於 YAML 的專利模板解決方案，或強迫組織建立他們的工具。
 <!-- -->
 :::
 
-## Project description helpers {#project-description-helpers}
+## 專案描述協助{#project-description-helpers}
 
-Project description helpers are Swift files that get compiled into a module,
-`ProjectDescriptionHelpers`, that manifest files can import. The module is
-compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers`
-directory.
+專案描述輔助程式是 Swift 檔案，會被編譯成一個模組，`ProjectDescriptionHelpers`
+，而艙單檔案可以匯入這個模組。該模組是透過收集`Tuist/ProjectDescriptionHelpers` 目錄中的所有檔案來編譯。
 
-You can import them into your manifest file by adding an import statement at the
-top of the file:
+您可以在檔案頂端加入匯入語句，將它們匯入您的艙單檔案：
 
 ```swift
 // Project.swift
@@ -50,15 +37,14 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` are available in the following manifests:
+`ProjectDescriptionHelpers` 可在下列艙單中找到：
 - `Project.swift`
-- `Package.swift` (only behind the `#TUIST` compiler flag)
-- `Workspace.swift`
+- `Package.swift` (僅在`#TUIST` 編譯器旗號之後)
+- `工作區.swift`
 
-## Example {#example}
+## 範例{#example}
 
-The snippets below contain an example of how we extend the `Project` model to
-add static constructors and how we use them from a `Project.swift` file:
+以下片段包含一個範例，說明我們如何擴充`Project` 模型，以加入靜態構造程式，以及如何從`Project.swift` 檔案使用這些構造程式：
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -106,7 +92,6 @@ let project = Project.featureFramework(name: "MyFeature")
 
 ::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
-Note how through the function we are defining conventions about the name of the
-targets, the bundle identifier, and the folders structure.
+請注意我們如何透過函式定義目標名稱、bundle 識別符和資料夾結構的慣例。
 <!-- -->
 :::
