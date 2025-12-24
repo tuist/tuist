@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/ko/>\n"
 "Language: ko\n"
@@ -196,9 +195,9 @@ msgid "Members"
 msgstr "회원"
 
 #: lib/tuist_web/components/app_layout_components.ex:99
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "모듈 캐시"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:115
 #, elixir-autogen, elixir-format, fuzzy
@@ -395,9 +394,9 @@ msgstr "요청이 너무 많습니다."
 
 #: lib/tuist_web/components/app_layout_components.ex:219
 #: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Icon"
-msgstr ""
+msgstr "Tuist 아이콘"
 
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format, fuzzy
