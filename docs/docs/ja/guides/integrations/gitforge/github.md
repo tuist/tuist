@@ -5,7 +5,7 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# GitHubの統合{#github}
+# GitHubの統合{#github}。
 
 Gitリポジトリは、世の中の大半のソフトウェアプロジェクトの中心的存在です。私たちはGitHubと統合し、プルリクエストでTuistの洞察を提供したり、デフォルトブランチの同期などの設定を省くことができます。
 
