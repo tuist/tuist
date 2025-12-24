@@ -5,89 +5,69 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# QA {#qa}
+# QA{#qa}
 
 ::: warning EARLY PREVIEW
 <!-- -->
-Tuist QA is currently in early preview. Sign up at
-[tuist.dev/qa](https://tuist.dev/qa) to get access.
+Tuist QA 目前處於早期預覽階段。請至 [tuist.dev/qa](https://tuist.dev/qa) 註冊以取得存取權限。
 <!-- -->
 :::
 
-Quality mobile app development relies on comprehensive testing, but traditional
-approaches have limitations. Unit tests are fast and cost-effective, yet they
-miss real-world user scenarios. Acceptance testing and manual QA can capture
-these gaps, but they're resource-intensive and don't scale well.
+優質的行動應用程式開發有賴於全面的測試，但傳統的方法有其限制。單元測試既快速又符合成本效益，但卻會遺漏實際的使用者情境。驗收測試和手動 QA
+可以捕捉這些缺口，但它們需要大量資源，而且規模不大。
 
-Tuist's QA agent solves this challenge by simulating authentic user behavior. It
-autonomously explores your app, recognizes interface elements, executes
-realistic interactions, and flags potential issues. This approach helps you
-identify bugs and usability problems early in development while avoiding the
-overhead and maintenance burden of conventional acceptance and QA testing.
+Tuist 的 QA
+代理可透過模擬真實使用者行為來解決這項挑戰。它能自主探索您的應用程式、識別介面元素、執行真實的互動，並標示潛在的問題。此方法可協助您在開發初期找出錯誤和可用性問題，同時避免傳統驗收和
+QA 測試的開銷和維護負擔。
 
-## Prerequisities {#prerequisites}
+## 先決條件{#prerequisites}
 
-To start using Tuist QA, you need to:
-- Set up uploading
-  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> from
-  your PR CI workflow, which the agent can then use for testing
-- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink>
-  with GitHub, so you can trigger the agent directly from your PR
+要開始使用 Tuist QA，您需要
+- 設定從您的 PR CI 工作流程上傳
+  <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink>，然後代理就可以使用它來進行測試
+- <LocalizedLink href="/guides/integrations/gitforge/github">與 GitHub
+  整合</LocalizedLink>，讓您可以直接從 PR 觸發代理程式
 
-## Usage {#usage}
+## 使用方式{#usage}
 
-Tuist QA is currently triggered directly from a PR. Once you have a preview
-associated with your PR, you can trigger the QA agent by commenting `/qa test I
-want to test feature A` on the PR:
+Tuist QA 目前是直接從 PR 觸發。一旦您有了與 PR 相關聯的預覽，您就可以在 PR 上註解`/qa test I want to test
+feature A` 來觸發 QA 代理：
 
-![QA trigger comment](/images/guides/features/qa/qa-trigger-comment.png)
+![QA觸發評論](/images/guides/features/qa/qa-trigger-comment.png)。
 
-The comment includes a link to the live session where you can see in realtime
-the QA agent's progress and any issues it finds. Once the agent completes its
-run, it will post a summary of the results back to the PR:
+註解包含一個即時會話連結，您可以即時看到 QA 代理的進度和發現的任何問題。代理程式完成執行後，會將結果摘要貼回 PR：
 
-![QA test summary](/images/guides/features/qa/qa-test-summary.png)
+![QA 測試摘要](/images/guides/features/qa/qa-test-summary.png)。
 
-As part of the report in the dashboard, which the PR comment links to, you will
-get a list of issues and a timeline, so you can inspect how the issue exactly
-happened:
+作為儀表板中報告的一部分，也就是 PR 評論所連結的部分，您將獲得問題清單和時間軸，因此您可以檢視問題到底是如何發生的：
 
-![QA timeline](/images/guides/features/qa/qa-timeline.png)
+![QA 時間線](/images/guides/features/qa/qa-timeline.png)!
 
-You can see all QA runs that we do for our
+您可以在我們的公開儀表板中看到我們為
 <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
-app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+應用程式</LocalizedLink>所執行的所有 QA 測試： https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
-The QA agent runs autonomously and cannot be interrupted with additional prompts
-once started. We provide detailed logs throughout the execution to help you
-understand how the agent interacted with your app. These logs are valuable for
-iterating on your app context and testing prompts to better guide the agent's
-behavior. If you have feedback about how the agent performs with your app,
-please let us know through [GitHub
-Issues](https://github.com/tuist/tuist/issues), our [Slack
-community](https://slack.tuist.dev) or our [community
-forum](https://community.tuist.dev).
+QA
+代理可自主運行，一旦啟動，就不會被其他提示中斷。我們會在整個執行過程中提供詳細的記錄，以協助您瞭解代理如何與您的應用程式互動。這些記錄對於迭代您的應用程式上下文和測試提示以更好地引導代理程式的行為非常有價值。如果您對於代理程式如何執行您的應用程式有任何意見，請透過
+[GitHub Issues](https://github.com/tuist/tuist/issues)、[Slack
+社群](https://slack.tuist.dev) 或 [社群論壇](https://community.tuist.dev)告知我們。
 <!-- -->
 :::
 
-### App context {#app-context}
+### 應用程式情境{#app-context}
 
-The agent might need more context about your app to be able to navigate it well.
-We have three types of app context:
-- App description
-- Credentials
-- Launch argument groups
+代理可能需要更多有關應用程式的情境，才能很好地瀏覽應用程式。我們有三種應用程式上下文：
+- 應用程式說明
+- 證書
+- 啟動爭論群組
 
-All of them can be configured in the dashboard settings of your project
-(`Settings` > `QA`).
+所有這些都可以在專案的儀表板設定中設定 (`Settings` >`QA`)。
 
-#### App description {#app-description}
+#### 應用程式說明{#app-description}
 
-App description is for providing extra context about what your app does and how
-it works. This is a long-form text field that is passed as part of the prompt
-when kicking off the agent. An example could be:
+App description 用於提供額外的內容，說明您的應用程式的功能和運作方式。這是一個長格式的文字欄位，會在啟動代理程式時作為提示的一部分傳送。範例如下
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -95,24 +75,17 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### Credentials {#credentials}
+#### 證書{#credentials}
 
-In case the agent needs to sign in to the app to test some features, you can
-provide credentials for the agent to use. The agent will fill in these
-credentials if it recognizes that it needs to sign in.
+如果代理需要登入應用程式以測試某些功能，您可以提供憑證供代理使用。如果代理發現需要登入，就會填入這些憑證。
 
-#### Launch argument groups {#launch-argument-groups}
+#### 啟動爭論群組{#launch-argument-groups}
 
-Launch argument groups are selected based on your testing prompt before running
-the agent. For example, if you don't want the agent to repeatedly sign in,
-wasting your tokens and runner minutes, you can specify your credentials here
-instead. If the agent recognizes that it should start the session signed in, it
-will use the credentials launch argument group when launching the app.
+根據您在執行代理程式前的測試提示，選擇啟動參數群組。例如，如果您不希望代理程式反覆登入，浪費您的代號和執行時間，您可以在此指定憑證。如果代理認知到它應該以登入方式啟動會話，它會在啟動應用程式時使用憑證啟動參數群組。
 
-![Launch argument groups](/images/guides/features/qa/launch-argument-groups.png)
+[啟動參數群組](/images/guides/features/qa/launch-argument-groups.png)。
 
-These launch arguments are your standard Xcode launch arguments. Here's an
-example for how to use them to automatically sign in:
+這些啟動參數是標準的 Xcode 啟動參數。以下是如何使用它們來自動登入的範例：
 
 ```swift
 import ArgumentParser
