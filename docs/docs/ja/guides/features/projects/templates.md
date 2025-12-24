@@ -20,9 +20,10 @@ Tuistはテンプレートの内容や使用目的については一切関知し
 <!-- -->
 :::
 
-## テンプレートの定義 {#defining-a-template}
+## テンプレートの定義 {#defining-a-template}。
 
-テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
+テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
 という、テンプレートを表すディレクトリを作成します。テンプレートには、`name_of_template.swift`
 という、テンプレートを説明するマニフェスト・ファイルが必要です。したがって、`framework`
 というテンプレートを作成する場合、`Tuist/Templates` に新しいディレクトリ`framework` を作成し、`framework.swift`
@@ -57,7 +58,7 @@ let template = Template(
 )
 ```
 
-## テンプレートを使う{#using-a-template}
+## テンプレートを使う{#using-a-template}。
 
 テンプレートを定義したら、`scaffold` コマンドから使用することができます：
 
@@ -65,7 +66,7 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: 情報
+::: info
 <!-- -->
 プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
 <!-- -->
