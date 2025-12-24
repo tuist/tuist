@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ru/>\n"
 "Language: ru\n"
@@ -161,9 +162,9 @@ msgid "Branch:"
 msgstr "Филиал:"
 
 #: lib/tuist_web/live/bundle_live.ex:52
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle"
-msgstr ""
+msgstr "Бандлы"
 
 #: lib/tuist_web/live/bundle_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -187,9 +188,9 @@ msgstr "Бандл не найден."
 
 #: lib/tuist_web/live/bundles_live.ex:25
 #: lib/tuist_web/live/bundles_live.html.heex:281
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Bundles"
-msgstr ""
+msgstr "Бандлы"
 
 #: lib/tuist_web/live/module_cache_live.ex:254
 #: lib/tuist_web/live/module_cache_live.html.heex:31
@@ -199,9 +200,9 @@ msgstr "CI"
 
 #: lib/tuist_web/live/cache_runs_live.ex:20
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Runs"
-msgstr ""
+msgstr "Запуски кэша"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:136
 #: lib/tuist_web/live/xcode_cache_live.html.heex:146
@@ -385,9 +386,9 @@ msgid "Font"
 msgstr "Шрифт"
 
 #: lib/tuist_web/live/bundle_live.html.heex:209
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Fonts"
-msgstr ""
+msgstr "Шрифты"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:497
 #: lib/tuist_web/live/xcode_cache_live.html.heex:482
@@ -404,9 +405,9 @@ msgid "Hit rate"
 msgstr "Скорость попадания"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Hits"
-msgstr ""
+msgstr "Обращения"
 
 #: lib/tuist_web/live/bundle_live.ex:883
 #: lib/tuist_web/live/bundles_live.ex:379
@@ -477,9 +478,9 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:643
 #: lib/tuist_web/live/bundles_live.ex:901
 #: lib/tuist_web/live/bundles_live.html.heex:345
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr ""
+msgstr "Имя"
 
 #: lib/tuist_web/live/bundles_live.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
@@ -492,9 +493,9 @@ msgstr "Пока нет комплектов"
 #: lib/tuist_web/live/module_cache_live.html.heex:534
 #: lib/tuist_web/live/xcode_cache_live.html.heex:378
 #: lib/tuist_web/live/xcode_cache_live.html.heex:519
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr ""
+msgstr "Пока нет данных"
 
 #: lib/tuist_web/live/bundle_live.html.heex:576
 #, elixir-autogen, elixir-format, fuzzy
@@ -523,9 +524,9 @@ msgid "Other"
 msgstr "Другие"
 
 #: lib/tuist_web/live/bundle_live.html.heex:168
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr ""
+msgstr "Обзор"
 
 #: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
@@ -639,9 +640,9 @@ msgid "Space usage"
 msgstr "Использование пространства"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "Статус"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format, fuzzy
@@ -659,17 +660,17 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:577
 #: lib/tuist_web/live/bundle_live.html.heex:676
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr ""
+msgstr "Попробуйте изменить поисковый запрос"
 
 #: lib/tuist_web/live/bundle_live.html.heex:52
 #: lib/tuist_web/live/bundle_live.html.heex:530
 #: lib/tuist_web/live/bundles_live.ex:917
 #: lib/tuist_web/live/bundles_live.html.heex:351
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr ""
+msgstr "Тип"
 
 #: lib/tuist_web/live/bundles_live.html.heex:70
 #, elixir-autogen, elixir-format, fuzzy
@@ -681,9 +682,9 @@ msgstr "Тип:"
 #: lib/tuist_web/live/bundle_live.html.heex:158
 #: lib/tuist_web/live/bundle_live.html.heex:225
 #: lib/tuist_web/live/bundles_live.ex:382
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr ""
+msgstr "Неизвестный"
 
 #: lib/tuist_web/live/bundle_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
@@ -721,9 +722,9 @@ msgstr "по сравнению с предыдущей связкой"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:394
 #: lib/tuist_web/live/xcode_cache_live.html.heex:298
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p50"
-msgstr ""
+msgstr "p50"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -737,9 +738,9 @@ msgstr "процент попадания p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:381
 #: lib/tuist_web/live/xcode_cache_live.html.heex:285
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p90"
-msgstr ""
+msgstr "p90"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:65
 #, elixir-autogen, elixir-format, fuzzy
@@ -753,9 +754,9 @@ msgstr "меткость p90"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:368
 #: lib/tuist_web/live/xcode_cache_live.html.heex:272
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "p99"
-msgstr ""
+msgstr "p99"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:64
 #, elixir-autogen, elixir-format, fuzzy
@@ -798,16 +799,16 @@ msgstr "Применить"
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
 #: lib/tuist_web/live/xcode_cache_live.html.heex:41
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "Отменить"
 
 #: lib/tuist_web/live/bundles_live.html.heex:124
 #: lib/tuist_web/live/module_cache_live.html.heex:62
 #: lib/tuist_web/live/xcode_cache_live.html.heex:32
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Custom"
-msgstr ""
+msgstr "Индивидуальный"
 
 #: lib/tuist_web/live/bundles_live.html.heex:121
 #: lib/tuist_web/live/module_cache_live.html.heex:59
