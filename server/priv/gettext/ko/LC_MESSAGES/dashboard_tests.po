@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
 "Language: ko\n"
@@ -191,9 +191,9 @@ msgid "Caught error: %{message}"
 msgstr "오류 발생: %{메시지}"
 
 #: lib/tuist_web/live/test_run_live.html.heex:230
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "명령"
 
 #: lib/tuist_web/live/test_run_live.html.heex:250
 #, elixir-autogen, elixir-format, fuzzy
@@ -600,9 +600,9 @@ msgstr "검색..."
 
 #: lib/tuist_web/live/test_run_live.html.heex:1003
 #: lib/tuist_web/live/tests_live.html.heex:442
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective Testing"
-msgstr ""
+msgstr "선택적 테스트"
 
 #: lib/tuist_web/live/tests_live.html.heex:535
 #, elixir-autogen, elixir-format, fuzzy
