@@ -5,7 +5,7 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 添加依赖项 {#add-dependencies}
+# 添加依赖项{#add-dependencies}
 
 项目通常依赖第三方库来提供额外功能。为此，请运行以下命令，以获得最佳的项目编辑体验：
 
@@ -84,14 +84,14 @@ let project = Project(
 然后运行`tuist install` ，使用[Swift
 软件包管理器](https://www.swift.org/documentation/package-manager/)解析并提取依赖项。
 
-信息 SPM 作为依赖解决程序
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 Tuist 推荐的依赖关系处理方法仅使用 Swift 包管理器 (SPM) 来解决依赖关系。然后，Tuist 将它们转换为 Xcode
 项目和目标，以实现最大程度的可配置性和可控性。
 <!-- -->
 :::
 
-## 可视化项目 {#visualize-the-project}
+## 项目可视化{#visualize-the-project}
 
 您可以通过运行
 
@@ -103,7 +103,7 @@ tuist graph
 
 ![项目图](/images/guides/quick-start/graph.png)!
 
-## 使用依赖项 {#use-the-dependency}
+## 使用依赖关系{#use-the-dependency}
 
 运行`tuist generate` 在 Xcode 中打开项目，并对`ContentView.swift` 文件进行以下修改：
 
