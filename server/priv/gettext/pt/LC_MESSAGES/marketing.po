@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:48+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
-"Language: pt\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2025-12-24 16:02+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Portuguese <https://translate.tuist.dev/projects/tuist/marketing/pt/>\nLanguage: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n > 1;\nX-Generator: Weblate 5.15.1\n"
 
 ## This file is a PO Template file.
 ##
@@ -78,9 +66,9 @@ msgid "A newsletter from the Tuist team sharing product updates, our perspective
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:76
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "API Documentation"
-msgstr ""
+msgstr "API documentation"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:211
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:97
@@ -383,9 +371,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:163
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:175
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:395
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Developers"
-msgstr ""
+msgstr "Develop"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:597
 #, elixir-autogen, elixir-format
@@ -416,9 +404,9 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:70
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Documentation"
-msgstr ""
+msgstr "API documentation"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:161
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:88
@@ -496,9 +484,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:143
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:226
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:128
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Generated Projects"
-msgstr ""
+msgstr "Projetos gerados"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:48
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:255
@@ -1635,9 +1623,9 @@ msgid "A Tuist command execution that interacts with the server to pull module b
 msgstr ""
 
 #: lib/mix/tasks/marketing/gen/og_images.ex:54
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "About us"
-msgstr ""
+msgstr "About Tuist"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:367
 #, elixir-autogen, elixir-format
