@@ -5,109 +5,116 @@
   "description": "Get started contributing to Tuist by following this guide."
 }
 ---
-# Get started {#get-started}
+# Başlayın {#get-started}
 
-If you have experience building apps for Apple platforms, like iOS, adding code
-to Tuist shouldn’t be much different. There are two differences compared to
-developing apps that are worth mentioning:
+Eğer iOS gibi Apple platformları için uygulama geliştirme deneyiminiz varsa,
+Tuist'e kod eklemek çok da farklı olmayacaktır. Uygulama geliştirmeye kıyasla
+bahsetmeye değer iki fark vardır:
 
-- **The interactions with CLIs happen through the terminal.** The user executes
-  Tuist, which performs the desired task, and then returns successfully or with
-  a status code. During the execution, the user can be notified by sending
-  output information to the standard output and standard error. There are no
-  gestures, or graphical interactions, just the user intent.
+- **CLI'lar ile etkileşimler terminal üzerinden gerçekleşir.** Kullanıcı,
+  istenen görevi yerine getiren Tuist'i çalıştırır ve ardından başarılı bir
+  şekilde veya bir durum koduyla geri döner. Yürütme sırasında, standart çıktı
+  ve standart hataya çıktı bilgileri gönderilerek kullanıcı bilgilendirilebilir.
+  Herhangi bir hareket ya da grafiksel etkileşim yoktur, sadece kullanıcının
+  niyeti vardır.
 
-- **There’s no runloop that keeps the process alive waiting for input**, like it
-  happens in an iOS app when the app receives system or user events. CLIs run in
-  its process and finishes when the work is done. Asynchronous work can be done
-  using system APIs like
+- **Uygulama sistem veya kullanıcı olaylarını aldığında bir iOS uygulamasında
+  olduğu gibi** girişini bekleyerek süreci canlı tutan bir runloop yoktur.
+  CLI'lar kendi süreci içinde çalışır ve iş bittiğinde sona erer. Asenkron
+  çalışma
   [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue)
-  or [structured
-  concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency),
-  but need to make sure the process is running while the asynchronous work is
-  being executed. Otherwise, the process will terminate the asynchronous work.
+  veya [structured
+  concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency)
+  gibi sistem API'leri kullanılarak yapılabilir, ancak asenkron çalışma
+  yürütülürken sürecin çalıştığından emin olunması gerekir. Aksi takdirde, süreç
+  eşzamansız çalışmayı sonlandıracaktır.
 
-If you don’t have any experience with Swift, we recommend [Apple’s official
-book](https://docs.swift.org/swift-book/) to get familiar with the language and
-the most used elements from the Foundation’s API.
+Swift ile herhangi bir deneyiminiz yoksa, dile ve Vakfın API'sinden en çok
+kullanılan öğelere aşina olmak için [Apple'ın resmi
+kitabı](https://docs.swift.org/swift-book/) öneriyoruz.
 
-## Minimum requirements {#minimum-requirements}
+## Minimum gereksinimler {#minimum-requirements}
 
-To contribute to Tuist, minimum requirements are:
+Tuist'e katkıda bulunmak için asgari şartlar şunlardır:
 
 - macOS 14.0+
 - Xcode 16.3+
 
-## Set up the project locally {#set-up-the-project-locally}
+## Projeyi yerel olarak kurun {#set-up-the-project-locally}
 
-To start working on the project, we can follow the steps below:
+Proje üzerinde çalışmaya başlamak için aşağıdaki adımları takip edebiliriz:
 
-- Clone the repository by running: `git clone git@github.com:tuist/tuist.git`
-- [Install](https://mise.jdx.dev/getting-started.html) Mise to provision the
-  development environment.
-- Run `mise install` to install the system dependencies needed by Tuist
-- Run `tuist install` to install the external dependencies needed by Tuist
-- (Optional) Run `tuist auth login` to get access to the
-  <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
-- Run `tuist generate` to generate the Tuist Xcode project using Tuist itself
+- Şu adresi çalıştırarak depoyu klonlayın: `git clone
+  git@github.com:tuist/tuist.git`
+- [Yükle](https://mise.jdx.dev/getting-started.html) Geliştirme ortamını
+  sağlamak için Mise.
+- Tuist tarafından ihtiyaç duyulan sistem bağımlılıklarını yüklemek için `mise
+  install` adresini çalıştırın
+- Tuist tarafından ihtiyaç duyulan harici bağımlılıkları yüklemek için `tuist
+  install` adresini çalıştırın
+- (İsteğe bağlı) <LocalizedLink href="/guides/features/cache">Tuist Önbelleğine
+  erişmek için `tuist auth login` adresini çalıştırın</LocalizedLink>
+- Tuist'in kendisini kullanarak Tuist Xcode projesini oluşturmak için `tuist
+  generate` adresini çalıştırın
 
-**The generated project opens automatically**. If you need to open again without
-generating it, run `open Tuist.xcworkspace` (or use Finder).
+**Oluşturulmuş projele otomatik olarak açılır**. Oluşturmadan tekrar açmanız
+gerekirse, `çalıştırın Tuist.xcworkspace` açın (veya Finder'ı kullanın).
 
 ::: info XED .
 <!-- -->
-If you try to open the project using `xed .`, it will open the package, and not
-the project generated by Tuist. We recommend using the Tuist-generated project
-to dog-food the tool.
+Projeyi `xed .` adresini kullanarak açmaya çalışırsanız, Tuist tarafından
+oluşturulan projeyi değil, paketi açacaktır. Aracı beslemek için Tuist
+tarafından oluşturulan projeyi kullanmanızı öneririz.
 <!-- -->
 :::
 
-## Edit the project {#edit-the-project}
+## Projeyi düzenleyin {#edit-the-project}
 
-If you needed to edit the project, for example to add dependencies or adjust
-targets, you can use the
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
-command</LocalizedLink>. This is barely used, but it's good to know that it
-exists.
+Projeyi düzenlemeniz gerekirse, örneğin bağımlılıklar eklemek veya hedefleri
+ayarlamak için <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit` komutunu</LocalizedLink> kullanabilirsiniz. Bu çok az kullanılır, ancak
+var olduğunu bilmek iyidir.
 
 ## Run Tuist {#run-tuist}
 
-### From Xcode {#from-xcode}
+### Xcode'dan {#from-xcode}
 
-To run `tuist` from the generated Xcode project, edit the `tuist` scheme, and
-set the arguments that you'd like to pass to the command. For example, to run
-the `tuist generate` command, you can set the arguments to `generate --no-open`
-to prevent the project from opening after the generation.
+Oluşturulmuş Xcode projesinden `tuist` çalıştırmak için, `tuist` şemasını
+düzenleyin ve komuta iletmek istediğiniz argümanları ayarlayın. Örneğin, `tuist
+generate` komutunu çalıştırmak için, argümanları `generate --no-open` olarak
+ayarlayarak projenin oluşturulduktan sonra açılmasını önleyebilirsiniz.
 
-![An example of a scheme configuration to run the generate command with
-Tuist](/images/contributors/scheme-arguments.png)
+![Tuist ile generate komutunu çalıştırmak için bir şema yapılandırması
+örneği](/images/contributors/scheme-arguments.png)
 
-You'll also have to set the working directory to the root of the project being
-generated. You can do that either by using the `--path` argument, which all the
-commands accept, or configuring the working directory in the scheme as shown
-below:
+Ayrıca çalışma dizinini oluşturulmakta olan projenin kök dizinine ayarlamanız
+gerekecektir. Bunu ya tüm komutların kabul ettiği `--path` argümanını kullanarak
+ya da çalışma dizinini aşağıda gösterildiği gibi şemada yapılandırarak
+yapabilirsiniz:
 
 
-![An example of how to set the working directory to run
-Tuist](/images/contributors/scheme-working-directory.png)
+![Tuist'i çalıştırmak için çalışma dizininin nasıl ayarlanacağına dair bir
+örnek](/images/contributors/scheme-working-directory.png)
 
 ::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
-The `tuist` CLI depends on the `ProjectDescription` framework's presence in the
-built products directory. If `tuist` fails to run because it can't find the
-`ProjectDescription` framework, build the `Tuist-Workspace` scheme first.
+`tuist` CLI, `ProjectDescription` çerçevesinin yerleşik ürünler dizininde
+bulunmasına bağlıdır. ` tuist`, `ProjectDescription` çerçevesini bulamadığı için
+çalışmazsa, önce `Tuist-Workspace` şemasını oluşturun.
 <!-- -->
 :::
 
-### From the terminal {#from-the-terminal}
+### Terminalden {#from-the-terminal}
 
-You can run `tuist` using Tuist itself through its `run` command:
+Tuist'in kendisini kullanarak `run` komutu aracılığıyla `tuist`
+çalıştırabilirsiniz:
 
 ```bash
 tuist run tuist generate --path /path/to/project --no-open
 ```
 
-Alternatively, you can also run it through the Swift Package Manager directly:
+Alternatif olarak, doğrudan Swift paketi Yöneticisi aracılığıyla da
+çalıştırabilirsiniz:
 
 ```bash
 swift build --product ProjectDescription
