@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# رؤى الحزمة {#حجم الحزمة}
+# رؤى الحزمة {#bundle-size}
 
 :::: متطلبات التحذير
 <!-- -->
@@ -42,7 +42,7 @@ tuist inspect bundle App.app
 
 ![الحزمة المحللة] (/images/guides/features/bundle-size/analyzed-bundle.png)
 
-## التكامل المستمر {# التكامل المستمر}
+## التكامل المستمر {#continuous-integration}
 
 لتتبع حجم الحزمة بمرور الوقت، ستحتاج إلى تحليل الحزمة على CI. أولاً، ستحتاج إلى
 التأكد من أن CI الخاص بك هو
