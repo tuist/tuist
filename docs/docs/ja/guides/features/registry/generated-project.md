@@ -7,7 +7,7 @@
 ---
 # Xcode パッケージ統合 {#generated-project-with-xcode-based-integration} で生成されたプロジェクト。
 
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">XcodeのデフォルトのTuist
+1}XcodeのデフォルトのTuist
 Projectsとのパッケージの統合</LocalizedLink>を使用している場合、パッケージを追加する際にURLの代わりにレジストリ識別子を使用する必要があります：
 ```swift
 import ProjectDescription
