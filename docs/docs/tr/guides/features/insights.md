@@ -5,65 +5,67 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# İçgörüler {#insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-Working on large projects shouldn't feel like a chore. In fact, it should be as
-enjoyable as working on a project you started just two weeks ago. One of the
-reasons it is not is because as the project grows, the developer experience
-suffers. The build times increase and tests become slow and flaky. It's often
-easy to overlook these issues until it gets to a point where they become
-unbearable – however, at that point, it's difficult to address them. Tuist
-Insights provides you with the tools to monitor the health of your project and
-maintain a productive developer environment as your project scales.
+Büyük projeler üzerinde çalışmak bir angarya gibi hissettirmemelidir. Aslında,
+sadece iki hafta önce başladığınız bir proje üzerinde çalışmak kadar keyifli
+olmalıdır. Bunun böyle olmamasının nedenlerinden biri, proje büyüdükçe
+geliştirici deneyiminin zarar görmesidir. Derleme süreleri artar ve testler
+yavaş ve aksak hale gelir. Dayanılmaz hale gelene kadar bu sorunları göz ardı
+etmek genellikle kolaydır - ancak bu noktada, bunları ele almak zordur. Tuist
+Insights, projenizin sağlığını izlemeniz ve projeniz ölçeklenirken verimli bir
+geliştirici ortamını korumanız için size araçlar sağlar.
 
-In other words, Tuist Insights helps you to answer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
+Başka bir deyişle, Tuist Insights aşağıdaki gibi soruları yanıtlamanıza yardımcı
+olur:
+- Yapım süresi son bir hafta içinde önemli ölçüde arttı mı?
+- Testlerim yavaşladı mı? Hangileri yavaşladı?
 
 ::: info
 <!-- -->
-Tuist Insights are in early development.
+Tuist Insights erken geliştirme aşamasındadır.
 <!-- -->
 :::
 
-## Builds {#builds}
+## Yapılar {#builds}
 
-While you probably have some metrics for the performance of CI workflows, you
-might not have the same visibility into the local development environment.
-However, local build times are one of the most important factors that contribute
-to the developer experience.
+Muhtemelen CI iş akışlarının performansı için bazı metriklere sahip olsanız da,
+yerel geliştirme ortamı için aynı görünürlüğe sahip olmayabilirsiniz. Ancak
+yerel derleme süreleri, geliştirici deneyimine katkıda bulunan en önemli
+faktörlerden biridir.
 
-To start tracking local build times, you can leverage the `tuist inspect build`
-command by adding it to your scheme's post-action:
+Yerel derleme sürelerini izlemeye başlamak için `tuist inspect build` komutunu
+şemanızın eylem sonrasına ekleyerek kullanabilirsiniz:
 
-![Post-action for inspecting
-builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+![Yapıları incelemek için eylem sonrası]
+(/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
-We recommend setting the "Provide build settings from" to the executable or your
-main build target to enable Tuist to track the build configuration.
+Tuist'in derleme yapılandırmasını izlemesini sağlamak için "Derleme ayarlarını
+şuradan sağla" seçeneğini çalıştırılabilir dosyaya veya ana derleme hedefinize
+ayarlamanızı öneririz.
 <!-- -->
 :::
 
 ::: info
 <!-- -->
-If you are not using <LocalizedLink href="/guides/features/projects">generated
-projects</LocalizedLink>, the post-scheme action is not executed in case the
-build fails.
+<LocalizedLink href="/guides/features/projects">oluşturulmuş
+projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
+eylem yürütülmez.
 <!-- -->
 :::
 > 
-> An undocumented feature in Xcode allows you to execute it even in this case.
-> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> Xcode'daki belgelenmemiş bir özellik, bu durumda bile çalıştırmanıza izin
+> verir. İlgili `project.pbxproj` dosyasında şemanızın `BuildAction` içinde
+> `runPostActionsOnFailure` niteliğini `YES` olarak ayarlayın:
 > 
 > ```diff
 > <BuildAction
@@ -72,8 +74,8 @@ build fails.
 > +  runPostActionsOnFailure="YES">
 > ```
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası ortamda
+`tuist` adresini etkinleştirmesi gerekecektir:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -82,42 +84,44 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 
 ::: tip MISE & PROJECT PATHS
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
+ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
+kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
+çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
+unutmayın.
 <!-- -->
 :::
 
 
-Your local builds are now tracked as long as you are logged in to your Tuist
-account. You can now access your build times in the Tuist dashboard and see how
-they evolve over time:
+Yerel derlemeleriniz artık Tuist hesabınıza giriş yaptığınız sürece takip
+ediliyor. Artık derleme sürelerinize Tuist kontrol panelinden erişebilir ve
+zaman içinde nasıl geliştiklerini görebilirsiniz:
 
 
 ::: tip
 <!-- -->
-To quickly access the dashboard, run `tuist project show --web` from the CLI.
+Gösterge tablosuna hızlıca erişmek için CLI'dan `tuist project show --web`
+komutunu çalıştırın.
 <!-- -->
 :::
 
-![Dashboard with build
-insights](/images/guides/features/insights/builds-dashboard.png)
+![Yapı içgörüleri içeren gösterge
+tablosu](/images/guides/features/insights/builds-dashboard.png)
 
-## Tests {#tests}
+## Testler {#tests}
 
-In addition to tracking builds, you can also monitor your tests. Test insights
-help you identify slow tests or quickly understand failed CI runs.
+Derlemeleri takip etmenin yanı sıra testlerinizi de izleyebilirsiniz. Test
+içgörüleri, yavaş testleri belirlemenize veya başarısız CI çalıştırmalarını
+hızlı bir şekilde anlamanıza yardımcı olur.
 
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
+Testlerinizi izlemeye başlamak için `tuist inspect test` komutunu şemanızın test
+sonrası eylemine ekleyerek kullanabilirsiniz:
 
-![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+![Testlerin incelenmesi için eylem sonrası]
+(/images/guides/features/insights/inspect-test-scheme-post-action.png)
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası ortamda
+`tuist` adresini etkinleştirmesi gerekecektir:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -126,44 +130,43 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 
 ::: tip MISE & PROJECT PATHS
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
+ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
+kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
+çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
+unutmayın.
 <!-- -->
 :::
 
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
+Test çalışmalarınız artık Tuist hesabınıza giriş yaptığınız sürece takip
+ediliyor. Test içgörülerinize Tuist kontrol panelinden erişebilir ve zaman
+içinde nasıl geliştiklerini görebilirsiniz:
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![Test içgörüleri içeren gösterge
+tablosu](/images/guides/features/insights/tests-dashboard.png)
 
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
+Genel eğilimlerin yanı sıra, CI'daki hataları veya yavaş testleri ayıklarken
+olduğu gibi, her bir testin derinliklerine de dalabilirsiniz:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![Test detayı](/images/guides/features/insights/test-detail.png)
 
-## Generated projects {#generated-projects}
+## Oluşturulmuş projele {#generated-projects}
 
 ::: info
 <!-- -->
-Auto-generated schemes automatically include both `tuist inspect build` and
-`tuist inspect test` post-actions.
+Otomatik olarak oluşturulan şemalar otomatik olarak hem `tuist inspect build`
+hem de `tuist inspect test` son eylemlerini içerir.
 <!-- -->
 :::
 > 
-> If you are not interested in tracking insights in your auto-generated schemes,
-> disable them using the
+> Otomatik oluşturulan şemalarınızdaki içgörüleri izlemekle ilgilenmiyorsanız,
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> and
+> ve
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation options.
+> oluşturma seçeneklerini kullanarak bunları devre dışı bırakın.
 
-If you are using generated projects with custom schemes, you can set up
-post-actions for both build and test insights:
+Özel şemalarla oluşturulmuş projele kullanıyorsanız, hem derleme hem de test
+içgörüleri için son eylemler ayarlayabilirsiniz:
 
 ```swift
 let project = Project(
@@ -209,7 +212,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your scripts can be simplified to:
+Mise kullanmıyorsanız, komut dosyalarınız şu şekilde basitleştirilebilir:
 
 ```swift
 buildAction: .buildAction(
@@ -234,17 +237,19 @@ testAction: .testAction(
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## Sürekli entegrasyon {#continuous-integration}
 
-To track build and test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+CI'da derleme ve test içgörülerini izlemek için CI'nızın
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
+olduğundan emin olmanız gerekir.
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+Ek olarak, aşağıdakilerden birini yapmanız gerekecektir:
+- `xcodebuild` eylemlerini çağırırken
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> komutunu kullanın.
+- `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
-When `xcodebuild` builds or tests your project without `-resultBundlePath`, the
-required activity log and result bundle files are not generated. Both `tuist
-inspect build` and `tuist inspect test` post-actions require these files to
-analyze your builds and tests.
+`xcodebuild` projenizi `-resultBundlePath` olmadan derlediğinde veya test
+ettiğinde, gerekli etkinlik günlüğü ve sonuç demeti dosyaları oluşturulmaz. Hem
+`tuist inspect build` hem de `tuist inspect test` post-action'ları derleme ve
+testlerinizi analiz etmek için bu dosyaları gerektirir.
