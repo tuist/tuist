@@ -5,7 +5,7 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# الاختبار الانتقائي {#selective-testing}
+# الاختبار الانتقائي {#الاختبار الانتقائي}
 
 مع نمو مشروعك، تزداد كمية الاختبارات الخاصة بك. لوقت طويل، يستغرق تشغيل جميع
 الاختبارات على كل العلاقات العامة أو الدفع إلى `الرئيسي` عشرات الثواني. لكن هذا
@@ -24,10 +24,12 @@
 <LocalizedLink href="/guides/features/cache"> الثنائية</LocalizedLink>. للبدء في
 الاختبار الانتقائي، اتبع التعليمات بناءً على إعداد مشروعك:
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">إكس كودبيلد</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">المشروع المُنشأ</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">إكس
+  كودبيلد</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">المشروع
+  المُنشأ</LocalizedLink>
 
-::: warning وحدة نمطية مقابل مستوى الملف
+:::: تحذير وحدة نمطية مقابل مستوى الملف
 <!-- -->
 نظرًا لاستحالة اكتشاف التبعيات داخل التعليمات البرمجية بين الاختبارات والمصادر،
 فإن الحد الأقصى من دقة الاختبار الانتقائي يكون على مستوى الهدف. لذلك، نوصي
@@ -35,7 +37,7 @@
 <!-- -->
 :::
 
-::: warning تغطية الاختبار
+:::: تحذير تغطية الاختبار
 <!-- -->
 تفترض أدوات تغطية الاختبار أن مجموعة الاختبار بأكملها تعمل مرة واحدة، مما يجعلها
 غير متوافقة مع عمليات تشغيل الاختبار الانتقائية - وهذا يعني أن بيانات التغطية قد
@@ -49,11 +51,12 @@
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-::: warning التكامل مع منصة GIT مطلوب
+:::: تحذير التكامل مع منصة GIT مطلوب
 <!-- -->
 للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
+مع <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>منصة
+<LocalizedLink href="/guides/server/authentication">Git.
 <!-- -->
 :::
 
