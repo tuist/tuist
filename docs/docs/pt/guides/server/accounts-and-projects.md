@@ -32,7 +32,6 @@ Most operations to manage accounts and projects are done through the CLI. We are
 working on a web interface that will make it easier to manage accounts and
 projects.
 <!-- -->
-:::
 
 You can manage the organization through the subcommands under
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
@@ -46,7 +45,8 @@ tuist organization create {account-handle}
 Your projects, either Tuist's or raw Xcode's, need to be integrated with your
 account through a remote project. Continuing with the comparison with GitHub,
 it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+You can use the <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating
 the organization handle and the project handle. For example, if you have an
@@ -68,7 +68,6 @@ Note that there are some features like
 require you having a Tuist project. If you are using raw Xcode projects, you
 won't be able to use those features.
 <!-- -->
-:::
 
 Your project's URL is constructed by using the full handle. For example, Tuist's
 dashboard, which is public, is accessible at
