@@ -42,7 +42,7 @@ sekretami. Po uruchomieniu w obsługiwanym środowisku CI, CLI automatycznie
 wykryje dostawcę tokenów OIDC i wymieni token dostarczony przez CI na token
 dostępu Tuist.
 
-### Obsługiwani dostawcy CI {#supported-ci-providers}
+### Wspierani dostawcy usług CI {#supported-ci-providers}
 
 - Działania GitHub
 - CircleCI
@@ -69,7 +69,7 @@ Tokenom OIDC przyznawana jest grupa `ci` scope, która zapewnia dostęp do
 wszystkich projektów połączonych z repozytorium. Zobacz [Grupy
 zakresów](#scope-groups) by dowiedzieć się więcej o tym, co zawiera zakres `ci`.
 
-::: tip ŚWIADCZENIA UBEZPIECZENIOWE
+::: tip SECURITY BENEFITS
 <!-- -->
 Uwierzytelnianie OIDC jest bezpieczniejsze niż długotrwałe tokeny, ponieważ
 - Brak sekretów do rotacji lub zarządzania
@@ -85,7 +85,7 @@ potrzebna jest precyzyjna kontrola nad uprawnieniami, można użyć tokenów kon
 Tokeny kont umożliwiają dokładne określenie zakresów i projektów, do których
 token może uzyskać dostęp.
 
-### Tworzenie tokenu konta {#creating-an-account-token}.
+### Tworzenie tokenu konta {#creating-an-account-token}
 
 ```bash
 tuist account tokens create my-account \
@@ -136,7 +136,7 @@ rozszerza się ona, aby objąć wszystkie indywidualne zakresy, które zawiera.
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci`        | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
 
-### Ciągła integracja {#ciągła-integracja}
+### Ciągła integracja {#continuous-integration}
 
 W przypadku środowisk ciągłej integracji, które nie obsługują OIDC, można
 utworzyć token konta z grupą zakresu `ci` w celu uwierzytelnienia przepływów
@@ -151,7 +151,7 @@ operacji CI (pamięć podręczna, podglądy, pakiety, testy, kompilacje i
 uruchomienia). Wygenerowany token należy przechowywać jako sekret w środowisku
 CI i ustawić go jako zmienną środowiskową `TUIST_TOKEN`.
 
-### Zarządzanie tokenami kont {#managing-account-tokens}.
+### Zarządzanie tokenami konta {#managing-account-tokens}
 
 Aby wyświetlić listę wszystkich tokenów dla konta:
 
@@ -165,7 +165,7 @@ Aby odwołać token według nazwy:
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### Używanie tokenów konta {#using-account-tokens}.
+### Korzystanie z tokenów konta {#using-account-tokens}
 
 Tokeny konta powinny być zdefiniowane jako zmienna środowiskowa `TUIST_TOKEN`:
 
@@ -173,7 +173,7 @@ Tokeny konta powinny być zdefiniowane jako zmienna środowiskowa `TUIST_TOKEN`:
 export TUIST_TOKEN=your-account-token
 ```
 
-::: wskazówka KIEDY UŻYWAĆ TOKENÓW DO KONTA
+::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
 Korzystaj z tokenów konta, gdy tego potrzebujesz:
 - Uwierzytelnianie w środowiskach CI, które nie obsługują OIDC
