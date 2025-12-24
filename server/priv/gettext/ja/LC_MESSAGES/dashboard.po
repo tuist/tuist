@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
 "Language: ja\n"
@@ -81,9 +82,9 @@ msgid "Build Runs"
 msgstr "ビルド・ラン"
 
 #: lib/tuist_web/components/app_layout_components.ex:28
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr ""
+msgstr "ビルド"
 
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format, fuzzy
@@ -139,9 +140,9 @@ msgid "Generate Runs"
 msgstr "ランの生成"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "始める"
 
 #: lib/tuist_web/controllers/error_html.ex:143
 #, elixir-autogen, elixir-format, fuzzy
@@ -154,9 +155,9 @@ msgid "Grafana"
 msgstr "グラファナ"
 
 #: lib/tuist_web/components/layouts/account.html.heex:44
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Integrations"
-msgstr ""
+msgstr "Integrations"
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:26
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:29
@@ -259,9 +260,9 @@ msgid "Prev"
 msgstr "Prev"
 
 #: lib/tuist_web/components/app_layout_components.ex:157
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "プレビュー"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
@@ -270,9 +271,9 @@ msgstr "プロジェクト"
 
 #: lib/tuist_web/components/app_layout_components.ex:169
 #: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format, fuzzy
