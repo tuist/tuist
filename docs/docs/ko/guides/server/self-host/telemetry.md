@@ -26,8 +26,8 @@ PostHog 통합은 선택 사항이며 적절한 환경 변수를 설정하여 �
 
 | 환경 변수              | 설명                    | 필수  | 기본값 | 예                                                 |
 | ------------------ | --------------------- | --- | --- | ------------------------------------------------- |
-| `튜이스트_포스트호그_API_키` | PostHog 프로젝트 API 키    | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `튜이스트_포스트호그_URL`   | PostHog API 엔드포인트 URL | No  |     | `https://eu.i.posthog.com`                        |
+| `튜이스트_포스트호그_API_키` | PostHog 프로젝트 API 키    | 아니요 |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `튜이스트_포스트호그_URL`   | PostHog API 엔드포인트 URL | 아니요 |     | `https://eu.i.posthog.com`                        |
 
 정보 분석 지원 ::: 정보 분석 지원
 <!-- -->
@@ -84,7 +84,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
+| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ### `tuist_runs_duration_milliseconds` (히스토그램) {#tuist_runs_duration_milliseconds-histogram}
@@ -96,7 +96,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
+| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ## 캐시 메트릭 {#cache-metrics}
@@ -191,7 +191,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 원격 스토리지에서 모든 개체를 삭제하는 데 걸리는 기간(밀리초)입니다.
 
-#### 태그 {#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}
+#### 태그 {#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}{#튜이스트-저장소-삭제-모든-개체-기간-밀리초-태그}
 
 | 태그         | 설명                            |
 | ---------- | ----------------------------- |
@@ -230,11 +230,11 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `tuist_storage_get_object_as_string_duration_밀리초` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_milliseconds` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
 원격 저장소에서 객체를 문자열로 가져오는 데 걸리는 기간(밀리초)입니다.
 
-#### 태그 {#튜이스트 저장소-객체를 문자열로 가져오기-지속 시간-밀리초 태그}
+#### 태그 {#튜이스트-저장소-객체를 문자열로 가져오기-기간-밀리초-태그}
 
 | 태그           | 설명                      |
 | ------------ | ----------------------- |
@@ -263,7 +263,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 ### `tuist_storage_check_object_existence_count` (카운트) {#tuist_storage_check_object_existence_count-count}
 
-원격 스토리지에서 개체의 존재를 확인한 횟수입니다.
+원격 스토리지에서 개체의 존재가 확인된 횟수입니다.
 
 #### 태그 {#튜이스트-저장소-확인-객체-존재-수-태그}
 
@@ -304,11 +304,11 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | `part_number` | 업로드 중인 오브젝트의 부품 번호입니다.  |
 | `upload_id`   | 멀티파트 업로드의 업로드 ID입니다.    |
 
-### `tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL_카운트` (카운트) {#tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL-카운트}
+### `tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL_카운트` (카운트) {#tuist_storage_multipart_생성_업로드_파트_프레젠테이션_URL-COUNT}
 
 원격 스토리지의 개체에 대해 파트 업로드 지정 URL이 생성된 횟수입니다.
 
-#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-count-tags}
+#### 태그 {#튜이스트-스토리지-멀티파트-생성-업로드-파트-사전-서명된-URL-수-태그}
 
 | 태그            | 설명                      |
 | ------------- | ----------------------- |
@@ -394,7 +394,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 데이터베이스 쿼리에 할당할 준비가 된 데이터베이스 연결 수입니다.
 
 
-### `tuist_repo_pool_db_conection_conected` (카운터) {#tuist_repo_pool_db_conection_conected-counter}
+### `tuist_repo_pool_db_connection_connected` (카운터) {#tuist_repo_pool_db_connection_connected-counter}
 
 데이터베이스에 설정된 연결 수입니다.
 
@@ -471,7 +471,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 ### `tuist_http_receive_duration_nanoseconds_버킷` (배포) {#tuist_http_receive_duration_나노초_버킷-distribution}
 
-응답을 받는 데 소요된 시간의 분포입니다.
+응답 수신에 소요된 시간의 분포입니다.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
