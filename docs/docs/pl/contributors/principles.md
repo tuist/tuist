@@ -11,7 +11,7 @@ Ta strona opisuje zasady, które są filarami projektowania i rozwoju Tuist.
 Ewoluują one wraz z projektem i mają na celu zapewnienie zrównoważonego rozwoju,
 który jest dobrze dostosowany do założeń projektu.
 
-## Domyślne dla konwencji {#default-to-conventions}
+## Domyślne konwencje {#default-to-conventions}
 
 Jednym z powodów, dla których Tuist istnieje, jest to, że Xcode jest słaby pod
 względem konwencji, co prowadzi do złożonych projektów, które są trudne do
@@ -35,7 +35,7 @@ jak ma to miejsce w wielu projektach, musimy podejmować decyzje, które
 ostatecznie nie będą spójne z innymi decyzjami, a w konsekwencji pojawi się
 przypadkowa złożoność, którą trudno będzie zarządzać.
 
-## Manifesty są źródłem prawdy {#manifests-are-the-source-of-truth}.
+## Manifesty są źródłem prawdy {#manifests-are-the-source-of-truth}
 
 Posiadanie wielu warstw konfiguracji i umów między nimi skutkuje konfiguracją
 projektu, która jest trudna do zrozumienia i utrzymania. Pomyśl przez chwilę o
@@ -86,7 +86,7 @@ uproszczenia koncepcji za pomocą prostych i wyraźnych interfejsów API.
 <!-- -->
 :::
 
-## Zachowaj prostotę {#keep-it-simple}.
+## Zachowaj prostotę {#keep-it-simple}
 
 Jednym z głównych wyzwań podczas skalowania projektów Xcode jest fakt, że
 **Xcode naraża użytkowników na dużą złożoność.** Z tego powodu zespoły mają
@@ -107,7 +107,7 @@ elementy, które można wykorzystać. Czy kiedykolwiek otrzymałeś błąd *"nie
 znaleziono frameworka X"* i nie wiedziałeś, co zrobić? Wyobraź sobie, że
 otrzymujemy listę potencjalnych przyczyn błędu.
 
-## Zacznij od doświadczenia dewelopera {#start-from-the-developers-experience}.
+## Zacznij od doświadczenia dewelopera {#start-from-the-developers-experience}
 
 Jednym z powodów, dla których w Xcode brakuje innowacji, lub mówiąc inaczej, nie
 ma ich tyle, co w innych środowiskach programistycznych, jest to, że **często
@@ -138,7 +138,7 @@ rozwiązaniem jest integracja z Fastlane, ale ważne jest, abyśmy nie lekceważ
 innych równie ważnych rozwiązań, które możemy przedstawić przed dokonaniem
 kompromisów.
 
-## Błędy mogą i będą się zdarzać {#errors-can-and-will-happen}.
+## Błędy mogą i będą się zdarzać {#errors-can-and-will-happen}
 
 My, programiści, mamy nieodłączną pokusę, by lekceważyć fakt, że błędy mogą się
 zdarzyć. W rezultacie projektujemy i testujemy oprogramowanie, biorąc pod uwagę
