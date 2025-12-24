@@ -5,41 +5,41 @@
   "description": "Learn how to install Tuist on your infrastructure."
 }
 ---
-# Self-host installation {#self-host-installation}
+# Kendi kendine ana bilgisayar kurulumu {#self-host-installation}
 
-We offer a self-hosted version of the Tuist server for organizations that
-require more control over their infrastructure. This version allows you to host
-Tuist on your own infrastructure, ensuring that your data remains secure and
-private.
+Altyapıları üzerinde daha fazla kontrole ihtiyaç duyan kuruluşlar için Tuist
+sunucusunun kendi kendine barındırılan bir sürümünü sunuyoruz. Bu sürüm, Tuist'i
+kendi altyapınızda barındırmanıza olanak tanıyarak verilerinizin güvenli ve
+gizli kalmasını sağlar.
 
 ::: warning LICENSE REQUIRED
 <!-- -->
-Self-hosting Tuist requires a legally valid paid license. The on-premise version
-of Tuist is available only for organizations on the Enterprise plan. If you are
-interested in this version, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev).
+Tuist'in kendi kendine barındırılması yasal olarak geçerli ücretli bir lisans
+gerektirir. Tuist'in şirket içi sürümü yalnızca Kurumsal plandaki kuruluşlar
+için mevcuttur. Bu sürümle ilgileniyorsanız, lütfen
+[contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
 <!-- -->
 :::
 
-## Release cadence {#release-cadence}
+## Serbest bırakma temposu {#release-cadence}
 
-We release new versions of Tuist continuously as new releasable changes land on
-main. We follow [semantic versioning](https://semver.org/) to ensure predictable
-versioning and compatibility.
+Tuist'in yeni sürümlerini, yeni yayınlanabilir değişiklikler main'e ulaştıkça
+sürekli olarak yayınlıyoruz. Öngörülebilir sürümleme ve uyumluluk sağlamak için
+[semantic versioning](https://semver.org/) yöntemini izliyoruz.
 
-The major component is used to flag breaking changes in the Tuist server that
-will require coordination with the on-premise users. You should not expect us to
-use it, and in case we needed, rest assured we'll work with you in making the
-transition smooth.
+Ana bileşen, Tuist sunucusunda şirket içi kullanıcılarla koordinasyon
+gerektirecek kırılma değişikliklerini işaretlemek için kullanılır. Bunu
+kullanmamızı beklememelisiniz ve ihtiyaç duymamız halinde, geçişi sorunsuz hale
+getirmek için sizinle birlikte çalışacağımızdan emin olabilirsiniz.
 
-## Continuous deployment {#continuous-deployment}
+## Sürekli dağıtım {#continuous-deployment}
 
-We strongly recommend setting up a continuous deployment pipeline that
-automatically deploys the latest version of Tuist every day. This ensures you
-always have access to the latest features, improvements, and security updates.
+Tuist'in en son sürümünü her gün otomatik olarak dağıtan sürekli bir dağıtım
+işlem hattı kurmanızı şiddetle tavsiye ederiz. Bu sayede her zaman en son
+özelliklere, iyileştirmelere ve güvenlik güncellemelerine erişebilirsiniz.
 
-Here's an example GitHub Actions workflow that checks for and deploys new
-versions daily:
+İşte her gün yeni sürümleri kontrol eden ve dağıtan örnek bir GitHub Actions iş
+akışı:
 
 ```yaml
 name: Update Tuist Server
@@ -59,361 +59,372 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## Runtime requirements {#runtime-requirements}
+## Çalışma zamanı gereksinimleri {#runtime-requirements}
 
-This section outlines the requirements for hosting the Tuist server on your
-infrastructure.
+Bu bölümde, Tuist sunucusunu altyapınızda barındırmak için gerekenler
+özetlenmektedir.
 
-### Compatibility matrix {#compatibility-matrix}
+### Uyumluluk matrisi {#compatibility-matrix}
 
-Tuist server has been tested and is compatible with the following minimum
-versions:
+Tuist sunucusu test edilmiştir ve aşağıdaki minimum sürümlerle uyumludur:
 
-| Component   | Minimum Version | Notes                                      |
-| ----------- | --------------- | ------------------------------------------ |
-| PostgreSQL  | 15              | With TimescaleDB extension                 |
-| TimescaleDB | 2.16.1          | Required PostgreSQL extension (deprecated) |
-| ClickHouse  | 25              | Required for analytics                     |
+| Bileşen     | Minimum Sürüm | Notlar                                                   |
+| ----------- | ------------- | -------------------------------------------------------- |
+| PostgreSQL  | 15            | TimescaleDB uzantısı ile                                 |
+| TimescaleDB | 2.16.1        | Gerekli PostgreSQL uzantısı (kullanımdan kaldırılmıştır) |
+| ClickHouse  | 25            | Analitik için gerekli                                    |
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB is currently a required PostgreSQL extension for Tuist server, used
-for time-series data storage and querying. However, **TimescaleDB is
-deprecated** and will be dropped as a required dependency in the near future as
-we migrate all time-series functionality to ClickHouse. For now, ensure your
-PostgreSQL instance has TimescaleDB installed and enabled.
+TimescaleDB şu anda Tuist sunucusu için gerekli bir PostgreSQL uzantısıdır ve
+zaman serisi veri depolama ve sorgulama için kullanılmaktadır. Ancak,
+**TimescaleDB kullanımdan kaldırılmıştır** ve tüm zaman serisi işlevlerini
+ClickHouse'a taşıdığımız için yakın gelecekte gerekli bir bağımlılık olmaktan
+çıkarılacaktır. Şimdilik, PostgreSQL örneğinizde TimescaleDB'nin yüklü ve etkin
+olduğundan emin olun.
 <!-- -->
 :::
 
-### Running Docker-virtualized images {#running-dockervirtualized-images}
+### Docker sanallaştırılmış görüntüleri çalıştırma {#running-dockervirtualized-images}
 
-We distribute the server as a [Docker](https://www.docker.com/) image via
-[GitHub’s Container
-Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+Sunucuyu [GitHub's Container
+Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+aracılığıyla bir [Docker](https://www.docker.com/) görüntüsü olarak dağıtıyoruz.
 
-To run it, your infrastructure must support running Docker images. Note that
-most infrastructure providers support it because it’s become the standard
-container for distributing and running software in production environments.
+Çalıştırmak için altyapınızın Docker görüntülerini çalıştırmayı desteklemesi
+gerekir. Çoğu altyapı sağlayıcısının bunu desteklediğini unutmayın çünkü üretim
+ortamlarında yazılım dağıtmak ve çalıştırmak için standart kapsayıcı haline
+gelmiştir.
 
-### Postgres database {#postgres-database}
+### Postgres veritabanı {#postgres-database}
 
-In addition to running the Docker images, you'll need a [Postgres
-database](https://www.postgresql.org/) with the [TimescaleDB
-extension](https://www.timescale.com/) to store relational and time-series data.
-Most infrastructure providers include Postgres databases in their offering
-(e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google
+Docker görüntülerini çalıştırmanın yanı sıra, ilişkisel ve zaman serisi
+verilerini depolamak için [TimescaleDB uzantısı](https://www.timescale.com/)
+olan bir [Postgres veritabanına](https://www.postgresql.org/) ihtiyacınız
+olacaktır. Çoğu altyapı sağlayıcısı Postgres veritabanlarını tekliflerine dahil
+eder (örneğin, [AWS](https://aws.amazon.com/rds/postgresql/) ve [Google
 Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-**TimescaleDB Extension Required:** Tuist requires the TimescaleDB extension for
-efficient time-series data storage and querying. This extension is used for
-command events, analytics, and other time-based features. Ensure your PostgreSQL
-instance has TimescaleDB installed and enabled before running Tuist.
+**TimescaleDB Uzantısı Gerekli:** Tuist, verimli zaman serisi veri depolama ve
+sorgulama için TimescaleDB uzantısını gerektirir. Bu uzantı komut olayları,
+analizler ve diğer zamana dayalı özellikler için kullanılır. Tuist'i
+çalıştırmadan önce PostgreSQL örneğinizde TimescaleDB'nin yüklü ve etkin
+olduğundan emin olun.
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations
-before starting the service. If migrations fail due to a missing TimescaleDB
-extension, you'll need to install it in your database first.
+Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm şema
+geçişlerini otomatik olarak çalıştırır. Geçişler eksik bir TimescaleDB uzantısı
+nedeniyle başarısız olursa, önce bunu veritabanınıza yüklemeniz gerekir.
 <!-- -->
 :::
 
-### ClickHouse database {#clickhouse-database}
+### ClickHouse veritabanı {#clickhouse-database}
 
-Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large
-amounts of analytics data. ClickHouse is **required** for features like build
-insights and will be the primary time-series database as we phase out
-TimescaleDB. You can choose whether to self-host ClickHouse or use their hosted
-service.
+Tuist, büyük miktarda analitik veriyi depolamak ve sorgulamak için
+[ClickHouse](https://clickhouse.com/) kullanmaktadır. ClickHouse, build insights
+gibi özellikler için **gerekli** ve TimescaleDB'yi aşamalı olarak
+kaldırdığımızda birincil zaman serisi veritabanı olacak. ClickHouse'u kendiniz
+barındırmayı ya da barındırılan hizmeti kullanmayı seçebilirsiniz.
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending ClickHouse schema
-migrations before starting the service.
+Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm
+ClickHouse şema geçişlerini otomatik olarak çalıştırır.
 <!-- -->
 :::
 
-### Storage {#storage}
+### Depolama {#storage}
 
-You’ll also need a solution to store files (e.g. framework and library
-binaries). Currently we support any storage that's S3-compliant.
+Ayrıca dosyaları (örn. çerçeve ve kütüphane ikili dosyaları) depolamak için de
+bir çözüme ihtiyacınız olacaktır. Şu anda S3 uyumlu tüm depolama alanlarını
+destekliyoruz.
 
-## Configuration {#configuration}
+## Konfigürasyon {#configuration}
 
-The configuration of the service is done at runtime through environment
-variables. Given the sensitive nature of these variables, we advise encrypting
-and storing them in secure password management solutions. Rest assured, Tuist
-handles these variables with utmost care, ensuring they are never displayed in
-logs.
+Hizmetin yapılandırması çalışma zamanında ortam değişkenleri aracılığıyla
+yapılır. Bu değişkenlerin hassas yapısı göz önüne alındığında, şifrelenmelerini
+ve güvenli parola yönetimi çözümlerinde saklanmalarını tavsiye ederiz. İçiniz
+rahat olsun, Tuist bu değişkenleri son derece dikkatli bir şekilde ele alır ve
+asla günlüklerde görüntülenmemelerini sağlar.
 
 ::: info LAUNCH CHECKS
 <!-- -->
-The necessary variables are verified at startup. If any are missing, the launch
-will fail and the error message will detail the absent variables.
+Gerekli değişkenler başlangıçta doğrulanır. Herhangi biri eksikse, başlatma
+başarısız olur ve hata mesajı eksik değişkenleri detaylandırır.
 <!-- -->
 :::
 
-### License configuration {#license-configuration}
+### Lisans yapılandırması {#license-configuration}
 
-As an on-premise user, you'll receive a license key that you'll need to expose
-as an environment variable. This key is used to validate the license and ensure
-that the service is running within the terms of the agreement.
+Şirket içi bir kullanıcı olarak, bir ortam değişkeni olarak göstermeniz gereken
+bir lisans anahtarı alırsınız. Bu anahtar, lisansı doğrulamak ve hizmetin
+sözleşme şartları dahilinde çalıştığından emin olmak için kullanılır.
 
-| Environment variable               | Description                                                                                                                                                                                                                                 | Required | Default | Example                                   |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ----------------------------------------- |
-| `TUIST_LICENSE`                    | The license provided after signing the service level agreement                                                                                                                                                                              | Yes*     |         | `******`                                  |
-| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes*     |         | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
+| Ortam değişkeni                    | Açıklama                                                                                                                                                                                                                                           | Gerekli | Varsayılan | Örnekler                                  |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- | ----------------------------------------- |
+| `TUIST_LICENSE`                    | Hizmet seviyesi anlaşması imzalandıktan sonra sağlanan lisans                                                                                                                                                                                      | Evet*   |            | `******`                                  |
+| `TUIST_LICENSE_CERTIFICATE_BASE64` | **TUIST_LICENSE` için olağanüstü bir alternatif**. Sunucunun harici hizmetlerle iletişim kuramadığı hava boşluklu ortamlarda çevrimdışı lisans doğrulaması için Base64 kodlu genel sertifika. Yalnızca `TUIST_LICENSE` kullanılamadığında kullanın | Evet*   |            | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
 
-\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be
-provided, but not both. Use `TUIST_LICENSE` for standard deployments.
+\* Ya `TUIST_LICENSE` ya da `TUIST_LICENSE_CERTIFICATE_BASE64` sağlanmalıdır,
+ancak ikisi birden sağlanmamalıdır. Standart dağıtımlar için `TUIST_LICENSE`
+kullanın.
 
 ::: warning EXPIRATION DATE
 <!-- -->
-Licenses have an expiration date. Users will receive a warning while using Tuist
-commands that interact with the server if the license expires in less than 30
-days. If you are interested in renewing your license, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev).
+Lisansların bir son kullanma tarihi vardır. Kullanıcılar, sunucu ile etkileşime
+giren Tuist komutlarını kullanırken, lisansın süresinin 30 günden daha kısa bir
+süre içinde dolması durumunda bir uyarı alacaklardır. Lisansınızı yenilemekle
+ilgileniyorsanız, lütfen [contact@tuist.dev](mailto:contact@tuist.dev) adresine
+ulaşın.
 <!-- -->
 :::
 
-### Base environment configuration {#base-environment-configuration}
+### Temel ortam yapılandırması {#base-environment-configuration}
 
-| Environment variable                  | Description                                                                                                                                                                                                    | Required | Default                            | Example                                                                  |                                                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `TUIST_APP_URL`                       | The base URL to access the instance from the Internet                                                                                                                                                          | Yes      |                                    | https://tuist.dev                                                        |                                                                                                                                    |
-| `TUIST_SECRET_KEY_BASE`               | The key to use to encrypt information (e.g. sessions in a cookie)                                                                                                                                              | Yes      |                                    |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD`           | Pepper to generate hashed passwords                                                                                                                                                                            | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
-| `TUIST_SECRET_KEY_TOKENS`             | Secret key to generate random tokens                                                                                                                                                                           | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
-| `TUIST_SECRET_KEY_ENCRYPTION`         | 32-byte key for AES-GCM encryption of sensitive data                                                                                                                                                           | No       | `$TUIST_SECRET_KEY_BASE`           |                                                                          |                                                                                                                                    |
-| `TUIST_USE_IPV6`                      | When `1` it configures the app to use IPv6 addresses                                                                                                                                                           | No       | `0`                                | `1`                                                                      |                                                                                                                                    |
-| `TUIST_LOG_LEVEL`                     | The log level to use for the app                                                                                                                                                                               | No       | `info`                             | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
-| `TUIST_GITHUB_APP_NAME`               | The URL version of your GitHub app name                                                                                                                                                                        | No       |                                    | `my-app`                                                                 |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments                                                                                     | No       | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                          |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY`        | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No       | `-----BEGIN RSA...`                |                                                                          |                                                                                                                                    |
-| `TUIST_OPS_USER_HANDLES`              | A comma-separated list of user handles that have access to the operations URLs                                                                                                                                 | No       |                                    | `user1,user2`                                                            |                                                                                                                                    |
-| `TUIST_WEB`                           | Enable the web server endpoint                                                                                                                                                                                 | No       | `1`                                | `1` or `0`                                                               |                                                                                                                                    |
+| Ortam değişkeni                       | Açıklama                                                                                                                                                                                                                              | Gerekli | Varsayılan                         | Örnekler                                                                        |                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                       | Örneğe İnternet'ten erişmek için temel URL                                                                                                                                                                                            | Evet    |                                    | https://tuist.dev                                                               |                                                                                                                                    |
+| `TUIST_SECRET_KEY_BASE`               | Bilgileri şifrelemek için kullanılacak anahtar (örneğin, bir çerezdeki oturumlar)                                                                                                                                                     | Evet    |                                    |                                                                                 | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_PASSWORD`           | Hash edilmiş parolalar oluşturmak için Pepper                                                                                                                                                                                         | Hayır   | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_SECRET_KEY_TOKENS`             | Rastgele belirteçler oluşturmak için gizli anahtar                                                                                                                                                                                    | Hayır   | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_SECRET_KEY_ENCRYPTION`         | Hassas verilerin AES-GCM şifrelemesi için 32 baytlık anahtar                                                                                                                                                                          | Hayır   | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_USE_IPV6`                      | `1` olduğunda, uygulamayı IPv6 adreslerini kullanacak şekilde yapılandırır                                                                                                                                                            | Hayır   | `0`                                | `1`                                                                             |                                                                                                                                    |
+| `TUIST_LOG_LEVEL`                     | Uygulama için kullanılacak günlük düzeyi                                                                                                                                                                                              | Hayır   | `bilgi`                            | [Günlük seviyeleri](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
+| `TUIST_GITHUB_APP_NAME`               | GitHub uygulama adınızın URL sürümü                                                                                                                                                                                                   | Hayır   |                                    | `benim-uygulamam`                                                               |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | Otomatik PR yorumları göndermek gibi ekstra işlevlerin kilidini açmak için GitHub uygulaması için kullanılan base64 kodlu özel anahtar                                                                                                | Hayır   | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                                 |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY`        | Otomatik PR yorumları gönderme gibi ekstra işlevlerin kilidini açmak için GitHub uygulaması için kullanılan özel anahtar. **Özel karakterlerle ilgili sorunları önlemek için bunun yerine base64 kodlu sürümü kullanmanızı öneririz** | Hayır   | `-----BAŞLA RSA...`                |                                                                                 |                                                                                                                                    |
+| `TUIST_OPS_USER_HANDLES`              | İşlem URL'lerine erişimi olan kullanıcı tanıtıcılarının virgülle ayrılmış listesi                                                                                                                                                     | Hayır   |                                    | `kullanıcı1,kullanıcı2`                                                         |                                                                                                                                    |
+| `TUIST_WEB`                           | Web sunucusu uç noktasını etkinleştirin                                                                                                                                                                                               | Hayır   | `1`                                | `1` veya `0`                                                                    |                                                                                                                                    |
 
-### Database configuration {#database-configuration}
+### Veritabanı yapılandırması {#database-configuration}
 
-The following environment variables are used to configure the database
-connection:
+Veritabanı bağlantısını yapılandırmak için aşağıdaki ortam değişkenleri
+kullanılır:
 
-| Environment variable                 | Description                                                                                                                                                                                                                      | Required | Default   | Example                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                       | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                         | Yes      |           | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`               | The URL to access the ClickHouse database. Note that the URL should contain the authentication information                                                                                                                       | No       |           | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
-| `TUIST_USE_SSL_FOR_DATABASE`         | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                      | No       | `1`       | `1`                                                                    |
-| `TUIST_DATABASE_POOL_SIZE`           | The number of connections to keep open in the connection pool                                                                                                                                                                    | No       | `10`      | `10`                                                                   |
-| `TUIST_DATABASE_QUEUE_TARGET`        | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`     | `300`                                                                  |
-| `TUIST_DATABASE_QUEUE_INTERVAL`      | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`    | `1000`                                                                 |
-| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes                                                                                                                                                                  | No       | `5000`    | `5000`                                                                 |
-| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Maximum ClickHouse buffer size in bytes before forcing a flush                                                                                                                                                                   | No       | `1000000` | `1000000`                                                              |
-| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Number of ClickHouse buffer processes to run                                                                                                                                                                                     | No       | `5`       | `5`                                                                    |
+| Ortam değişkeni                      | Açıklama                                                                                                                                                                                                                                 | Gerekli | Varsayılan | Örnekler                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                       | Postgres veritabanına erişmek için URL. URL'nin kimlik doğrulama bilgilerini içermesi gerektiğini unutmayın                                                                                                                              | Evet    |            | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_CLICKHOUSE_URL`               | ClickHouse veritabanına erişmek için URL. URL'nin kimlik doğrulama bilgilerini içermesi gerektiğini unutmayın                                                                                                                            | Hayır   |            | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `TUIST_USE_SSL_FOR_DATABASE`         | Doğru olduğunda, veritabanına bağlanmak için [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) kullanır                                                                                                                      | Hayır   | `1`        | `1`                                                                    |
+| `TUIST_DATABASE_POOL_SIZE`           | Bağlantı havuzunda açık tutulacak bağlantı sayısı                                                                                                                                                                                        | Hayır   | `10`       | `10`                                                                   |
+| `TUIST_DATABASE_QUEUE_TARGET`        | Havuzdan çıkış yapılan tüm bağlantıların kuyruk aralığından daha uzun sürüp sürmediğini kontrol etme aralığı (milisaniye cinsinden) [(Daha fazla bilgi)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)   | Hayır   | `300`      | `300`                                                                  |
+| `TUIST_DATABASE_QUEUE_INTERVAL`      | Havuzun yeni bağlantıları bırakmaya başlayıp başlamayacağını belirlemek için kullandığı kuyruktaki eşik süresi (milisaniye cinsinden) [(Daha fazla bilgi)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | Hayır   | `1000`     | `1000`                                                                 |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | ClickHouse arabellek yıkamaları arasındaki milisaniye cinsinden zaman aralığı                                                                                                                                                            | Hayır   | `5000`     | `5000`                                                                 |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Yıkamaya zorlamadan önce bayt cinsinden maksimum ClickHouse tampon boyutu                                                                                                                                                                | Hayır   | `1000000`  | `1000000`                                                              |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Çalıştırılacak ClickHouse tampon işlemlerinin sayısı                                                                                                                                                                                     | Hayır   | `5`        | `5`                                                                    |
 
-### Authentication environment configuration {#authentication-environment-configuration}
+### Kimlik doğrulama ortamı yapılandırması {#authentication-environment-configuration}
 
-We facilitate authentication through [identity providers
-(IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure
-all necessary environment variables for the chosen provider are present in the
-server's environment. **Missing variables** will result in Tuist bypassing that
-provider.
+Kimlik doğrulamayı [kimlik sağlayıcıları
+(IdP)](https://en.wikipedia.org/wiki/Identity_provider) aracılığıyla
+kolaylaştırıyoruz. Bunu kullanmak için, seçilen sağlayıcı için gerekli tüm ortam
+değişkenlerinin sunucunun ortamında mevcut olduğundan emin olun. **Eksik
+değişkenler** Tuist'in söz konusu sağlayıcıyı atlamasına neden olacaktır.
 
 #### GitHub {#github}
 
-We recommend authenticating using a [GitHub
-App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
-but you can also use the [OAuth
-App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
-Make sure to include all essential environment variables specified by GitHub in
-the server environment. Absent variables will cause Tuist to overlook the GitHub
-authentication. To properly set up the GitHub app:
-- In the GitHub app's general settings:
-    - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-    - Create and copy a new `client secret` and set it as
-      `TUIST_GITHUB_APP_CLIENT_SECRET`
-    - Set the `Callback URL` as
-      `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also
-      be your server's IP address.
-- The following permissions are required:
-  - Repositories:
-    - Pull requests: Read and write
-  - Accounts:
-    - Email addresses: Read-only
+Bir [GitHub
+Uygulaması](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
+kullanarak kimlik doğrulaması yapmanızı öneririz, ancak [OAuth
+Uygulaması](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)
+da kullanabilirsiniz. GitHub tarafından belirtilen tüm temel ortam
+değişkenlerini sunucu ortamına eklediğinizden emin olun. Eksik değişkenler
+Tuist'in GitHub kimlik doğrulamasını gözden kaçırmasına neden olacaktır. GitHub
+uygulamasını düzgün bir şekilde kurmak için:
+- GitHub uygulamasının genel ayarlarında:
+    - `İstemci Kimliğini` kopyalayın ve `TUIST_GITHUB_APP_CLIENT_ID olarak
+      ayarlayın`
+    - Yeni bir `istemci sırrı` oluşturup kopyalayın ve
+      `TUIST_GITHUB_APP_CLIENT_SECRET olarak ayarlayın`
+    - `Geri Arama URL'sini` ` http://YOUR_APP_URL/users/auth/github/callback`
+      olarak ayarlayın. `YOUR_APP_URL` sunucunuzun IP adresi de olabilir.
+- Aşağıdaki izinler gereklidir:
+  - Depolar:
+    - Çekme istekleri: Okuma ve yazma
+  - Hesaplar:
+    - E-posta adresleri: Salt okunur
 
-In the `Permissions and events`'s `Account permissions` section, set the `Email
-addresses` permission to `Read-only`.
+`İzinler ve etkinlikler`'in `Hesap izinleri` bölümünde, `E-posta adresleri`
+iznini `Salt okunur` olarak ayarlayın.
 
-You'll then need to expose the following environment variables in the
-environment where the Tuist server runs:
+Daha sonra Tuist sunucusunun çalıştığı ortamda aşağıdaki ortam değişkenlerini
+göstermeniz gerekecektir:
 
-| Environment variable             | Description                             | Required | Default | Example                                    |
-| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| Ortam değişkeni                  | Açıklama                             | Gerekli | Varsayılan | Örnekler                                   |
+| -------------------------------- | ------------------------------------ | ------- | ---------- | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | GitHub uygulamasının istemci kimliği | Evet    |            | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | Uygulamanın istemci sırrı            | Evet    |            | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
-You can set up authentication with Google using [OAuth
-2](https://developers.google.com/identity/protocols/oauth2). For that, you'll
-need to create a new credential of type OAuth client ID. When creating the
-credentials, select "Web Application" as application type, name it `Tuist`, and
-set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url`
-is the URL your hosted-service is running at. Once you create the app, copy the
-client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID`
-and `GOOGLE_CLIENT_SECRET` respectively.
+OAuth 2](https://developers.google.com/identity/protocols/oauth2) kullanarak
+Google ile kimlik doğrulama ayarlayabilirsiniz. Bunun için, OAuth istemci
+kimliği türünde yeni bir kimlik bilgisi oluşturmanız gerekir. Kimlik bilgilerini
+oluştururken, uygulama türü olarak "Web Uygulaması "nı seçin, `Tuist` olarak
+adlandırın ve yönlendirme URI'sini `{base_url}/users/auth/google/callback`
+olarak ayarlayın; burada `base_url` barındırılan hizmetinizin çalıştığı URL'dir.
+Uygulamayı oluşturduktan sonra, istemci kimliğini ve gizliliğini kopyalayın ve
+bunları sırasıyla `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET` ortam
+değişkenleri olarak ayarlayın.
 
 ::: info CONSENT SCREEN SCOPES
 <!-- -->
-You might need to create a consent screen. When you do so, make sure to add the
-`userinfo.email` and `openid` scopes and mark the app as internal.
+Bir onay ekranı oluşturmanız gerekebilir. Bunu yaptığınızda, `userinfo.email` ve
+`openid` kapsamlarını eklediğinizden ve uygulamayı dahili olarak
+işaretlediğinizden emin olun.
 <!-- -->
 :::
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth
-2.0](https://oauth.net/2/) protocol. You'll have to [create an
-app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these
-instructions</LocalizedLink>.
+Okta ile kimlik doğrulamayı [OAuth 2.0](https://oauth.net/2/) protokolü
+aracılığıyla etkinleştirebilirsiniz. Okta'da
+<LocalizedLink href="/guides/integrations/sso#okta"> bu
+talimatları</LocalizedLink> izleyerek [bir uygulama
+oluşturmanız](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
+gerekir.
 
-You will need to set the following environment variables once you obtain the
-client id and secret during the set up of the Okta application:
+Okta uygulamasının kurulumu sırasında istemci kimliğini ve gizliliğini elde
+ettikten sonra aşağıdaki ortam değişkenlerini ayarlamanız gerekecektir:
 
-| Environment variable         | Description                                                                           | Required | Default | Example |
-| ---------------------------- | ------------------------------------------------------------------------------------- | -------- | ------- | ------- |
-| `TUIST_OKTA_1_CLIENT_ID`     | The client ID to authenticate against Okta. The number should be your organization ID | Yes      |         |         |
-| `TUIST_OKTA_1_CLIENT_SECRET` | The client secret to authenticate against Okta                                        | Yes      |         |         |
+| Ortam değişkeni              | Açıklama                                                                                   | Gerekli | Varsayılan | Örnekler |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | ------- | ---------- | -------- |
+| `TUIST_OKTA_1_CLIENT_ID`     | Okta'ya karşı kimlik doğrulaması için istemci kimliği. Numara kuruluş kimliğiniz olmalıdır | Evet    |            |          |
+| `TUIST_OKTA_1_CLIENT_SECRET` | Okta'ya karşı kimlik doğrulaması yapmak için istemci sırrı                                 | Evet    |            |          |
 
-The number `1` needs to be replaced with your organization ID. This will
-typically be 1, but check in your database.
+`1` numarasının kuruluş kimliğinizle değiştirilmesi gerekir. Bu genellikle 1
+olacaktır, ancak veritabanınızı kontrol edin.
 
-### Storage environment configuration {#storage-environment-configuration}
+### Depolama ortamı yapılandırması {#storage-environment-configuration}
 
-Tuist needs storage to house artifacts uploaded through the API. It's
-**essential to configure one of the supported storage solutions** for Tuist to
-operate effectively.
+Tuist, API aracılığıyla yüklenen eserleri barındırmak için depolama alanına
+ihtiyaç duyar. Tuist'in etkin bir şekilde çalışması için **desteklenen depolama
+çözümlerinden birini** yapılandırmak çok önemlidir.
 
-#### S3-compliant storages {#s3compliant-storages}
+#### S3 uyumlu depolar {#s3compliant-storages}
 
-You can use any S3-compliant storage provider to store artifacts. The following
-environment variables are required to authenticate and configure the integration
-with the storage provider:
+Artifaktları depolamak için herhangi bir S3 uyumlu depolama sağlayıcısı
+kullanabilirsiniz. Depolama sağlayıcısı ile entegrasyonu doğrulamak ve
+yapılandırmak için aşağıdaki ortam değişkenleri gereklidir:
 
-| Environment variable                                    | Description                                                                                                                                                          | Required | Default                     | Example                                                       |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------- | ------------------------------------------------------------- |
-| `TUIST_S3_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                                                                                       | Yes      |                             | `AKIAIOSFOD`                                                  |
-| `TUIST_S3_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                                                                                   | Yes      |                             | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
-| `TUIST_S3_REGION` or `AWS_REGION`                       | The region where the bucket is located                                                                                                                               | No       | `auto`                      | `us-west-2`                                                   |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                   | The endpoint of the storage provider                                                                                                                                 | Yes      |                             | `https://s3.us-west-2.amazonaws.com`                          |
-| `TUIST_S3_BUCKET_NAME`                                  | The name of the bucket where the artifacts will be stored                                                                                                            | Yes      |                             | `tuist-artifacts`                                             |
-| `TUIST_S3_CA_CERT_PEM`                                  | PEM-encoded CA certificate for verifying S3 HTTPS connections. Useful for air-gapped environments with self-signed certificates or internal Certificate Authorities. | No       | System CA bundle            | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
-| `TUIST_S3_CONNECT_TIMEOUT`                              | The timeout (in milliseconds) for establishing a connection to the storage provider                                                                                  | No       | `3000`                      | `3000`                                                        |
-| `TUIST_S3_RECEIVE_TIMEOUT`                              | The timeout (in milliseconds) for receiving data from the storage provider                                                                                           | No       | `5000`                      | `5000`                                                        |
-| `TUIST_S3_POOL_TIMEOUT`                                 | The timeout (in milliseconds) for the connection pool to the storage provider. Use `infinity` for no timeout                                                         | No       | `5000`                      | `5000`                                                        |
-| `TUIST_S3_POOL_MAX_IDLE_TIME`                           | The maximum idle time (in milliseconds) for connections in the pool. Use `infinity` to keep connections alive indefinitely                                           | No       | `infinity`                  | `60000`                                                       |
-| `TUIST_S3_POOL_SIZE`                                    | The maximum number of connections per pool                                                                                                                           | No       | `500`                       | `500`                                                         |
-| `TUIST_S3_POOL_COUNT`                                   | The number of connection pools to use                                                                                                                                | No       | Number of system schedulers | `4`                                                           |
-| `TUIST_S3_PROTOCOL`                                     | The protocol to use when connecting to the storage provider (`http1` or `http2`)                                                                                     | No       | `http1`                     | `http1`                                                       |
-| `TUIST_S3_VIRTUAL_HOST`                                 | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host)                                                                            | No       | `false`                     | `1`                                                           |
+| Ortam değişkeni                                           | Açıklama                                                                                                                                                                              | Gerekli | Varsayılan                       | Örnekler                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------- | ------------------------------------------------------------- |
+| `TUIST_S3_ACCESS_KEY_ID` veya `AWS_ACCESS_KEY_ID`         | Depolama sağlayıcısına karşı kimlik doğrulaması yapmak için erişim anahtarı kimliği                                                                                                   | Evet    |                                  | `AKIAIOSFOD`                                                  |
+| `TUIST_S3_SECRET_ACCESS_KEY` veya `AWS_SECRET_ACCESS_KEY` | Depolama sağlayıcısına karşı kimlik doğrulaması yapmak için gizli erişim anahtarı                                                                                                     | Evet    |                                  | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
+| `TUIST_S3_REGION` veya `AWS_REGION`                       | Kovanın bulunduğu bölge                                                                                                                                                               | Hayır   | `otomatik`                       | `abd-bati-2`                                                  |
+| `TUIST_S3_ENDPOINT` veya `AWS_ENDPOINT`                   | Depolama sağlayıcısının uç noktası                                                                                                                                                    | Evet    |                                  | `https://s3.us-west-2.amazonaws.com`                          |
+| `TUIST_S3_BUCKET_NAME`                                    | Eserlerin depolanacağı kovanın adı                                                                                                                                                    | Evet    |                                  | `tuist-artifacts`                                             |
+| `TUIST_S3_CA_CERT_PEM`                                    | S3 HTTPS bağlantılarını doğrulamak için PEM kodlu CA sertifikası. Kendinden imzalı sertifikalara veya dahili Sertifika Yetkililerine sahip hava boşluklu ortamlar için kullanışlıdır. | Hayır   | Sistem CA paketi                 | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
+| `TUIST_S3_CONNECT_TIMEOUT`                                | Depolama sağlayıcısıyla bağlantı kurmak için zaman aşımı (milisaniye cinsinden)                                                                                                       | Hayır   | `3000`                           | `3000`                                                        |
+| `TUIST_S3_RECEIVE_TIMEOUT`                                | Depolama sağlayıcısından veri almak için zaman aşımı (milisaniye cinsinden)                                                                                                           | Hayır   | `5000`                           | `5000`                                                        |
+| `TUIST_S3_POOL_TIMEOUT`                                   | Depolama sağlayıcısına bağlantı havuzu için zaman aşımı (milisaniye cinsinden). Zaman aşımı olmaması için `infinity` adresini kullanın                                                | Hayır   | `5000`                           | `5000`                                                        |
+| `TUIST_S3_POOL_MAX_IDLE_TIME`                             | Havuzdaki bağlantılar için maksimum boşta kalma süresi (milisaniye cinsinden). Bağlantıları süresiz olarak canlı tutmak için `infinity` adresini kullanın                             | Hayır   | `sonsuzluk`                      | `60000`                                                       |
+| `TUIST_S3_POOL_SIZE`                                      | Havuz başına maksimum bağlantı sayısı                                                                                                                                                 | Hayır   | `500`                            | `500`                                                         |
+| `TUIST_S3_POOL_COUNT`                                     | Kullanılacak bağlantı havuzu sayısı                                                                                                                                                   | Hayır   | Sistem zamanlayıcılarının sayısı | `4`                                                           |
+| `TUIST_S3_PROTOKOLÜ`                                      | Depolama sağlayıcısına bağlanırken kullanılacak protokol (`http1` veya `http2`)                                                                                                       | Hayır   | `http1`                          | `http1`                                                       |
+| `TUIST_S3_VIRTUAL_HOST`                                   | URL'nin bir alt alan adı (sanal ana bilgisayar) olarak kova adıyla oluşturulup oluşturulmayacağı                                                                                      | Hayır   | `Yanlış`                         | `1`                                                           |
 
 ::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
-If your storage provider is AWS and you'd like to authenticate using a web
-identity token, you can set the environment variable
-`TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
-Tuist will use that method using the conventional AWS environment variables.
+Depolama sağlayıcınız AWS ise ve bir web kimlik belirteci kullanarak kimlik
+doğrulaması yapmak istiyorsanız, `TUIST_S3_AUTHENTICATION_METHOD` ortam
+değişkenini `aws_web_identity_token_from_env_vars` olarak ayarlayabilirsiniz ve
+Tuist geleneksel AWS ortam değişkenlerini kullanarak bu yöntemi kullanacaktır.
 <!-- -->
 :::
 
-#### Google Cloud Storage {#google-cloud-storage}
-For Google Cloud Storage, follow [these
-docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to
-get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT`
-should be set to `https://storage.googleapis.com`. Other environment variables
-are the same as for any other S3-compliant storage.
+#### Google Bulut Depolama {#google-cloud-storage}
+Google Cloud Storage için, `AWS_ACCESS_KEY_ID` ve `AWS_SECRET_ACCESS_KEY`
+çiftini almak için [bu
+dokümanları](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)
+izleyin. ` AWS_ENDPOINT`, `https://storage.googleapis.com` olarak
+ayarlanmalıdır. Diğer ortam değişkenleri diğer S3 uyumlu depolama alanlarıyla
+aynıdır.
 
-### Email configuration {#email-configuration}
+### E-posta yapılandırması {#email-configuration}
 
-Tuist requires email functionality for user authentication and transactional
-notifications (e.g., password resets, account notifications). Currently, **only
-Mailgun is supported** as the email provider.
+Tuist, kullanıcı kimlik doğrulaması ve işlem bildirimleri (örn. şifre
+sıfırlamaları, hesap bildirimleri) için e-posta işlevselliği gerektirir. Şu
+anda, **e-posta sağlayıcısı olarak yalnızca Mailgun** desteklenmektedir.
 
-| Environment variable             | Description                                                                                                                                       | Required | Default                                                        | Example                   |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ------------------------- |
-| `TUIST_MAILGUN_API_KEY`          | The API key for authenticating with Mailgun                                                                                                       | Yes*     |                                                                | `key-1234567890abcdef`    |
-| `TUIST_MAILING_DOMAIN`           | The domain from which emails will be sent                                                                                                         | Yes*     |                                                                | `mg.tuist.io`             |
-| `TUIST_MAILING_FROM_ADDRESS`     | The email address that will appear in the "From" field                                                                                            | Yes*     |                                                                | `noreply@tuist.io`        |
-| `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies                                                                                                        | No       |                                                                | `support@tuist.dev`       |
-| `TUIST_SKIP_EMAIL_CONFIRMATION`  | Skip email confirmation for new user registrations. When enabled, users are automatically confirmed and can log in immediately after registration | No       | `true` if email not configured, `false` if email is configured | `true`, `false`, `1`, `0` |
+| Ortam değişkeni                  | Açıklama                                                                                                                                                    | Gerekli | Varsayılan                                                            | Örnekler                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------- | ------------------------- |
+| `TUIST_MAILGUN_API_KEY`          | Mailgun ile kimlik doğrulama için API anahtarı                                                                                                              | Evet*   |                                                                       | `key-1234567890abcdef`    |
+| `TUIST_MAILING_DOMAIN`           | E-postaların gönderileceği alan adı                                                                                                                         | Evet*   |                                                                       | `mg.tuist.io`             |
+| `TUIST_MAILING_FROM_ADDRESS`     | "Kimden" alanında görünecek e-posta adresi                                                                                                                  | Evet*   |                                                                       | `noreply@tuist.io`        |
+| `TUIST_MAILING_REPLY_TO_ADDRESS` | Kullanıcı yanıtları için isteğe bağlı yanıt adresi                                                                                                          | Hayır   |                                                                       | `support@tuist.dev`       |
+| `TUIST_SKIP_EMAIL_CONFIRMATION`  | Yeni kullanıcı kayıtları için e-posta onayını atlayın. Etkinleştirildiğinde, kullanıcılar otomatik olarak onaylanır ve kayıttan hemen sonra oturum açabilir | Hayır   | `true` e-posta yapılandırılmamışsa, `false` e-posta yapılandırılmışsa | `true`, `false`, `1`, `0` |
 
-\* Email configuration variables are required only if you want to send emails.
-If not configured, email confirmation is automatically skipped
+\* E-posta yapılandırma değişkenleri yalnızca e-posta göndermek istiyorsanız
+gereklidir. Yapılandırılmazsa, e-posta onayı otomatik olarak atlanır
 
 ::: info SMTP SUPPORT
 <!-- -->
-Generic SMTP support is not currently available. If you need SMTP support for
-your on-premise deployment, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
+Genel SMTP desteği şu anda mevcut değildir. Şirket içi dağıtımınız için SMTP
+desteğine ihtiyacınız varsa, gereksinimlerinizi görüşmek için lütfen
+[contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
 <!-- -->
 :::
 
 ::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
-For on-premise installations without internet access or email provider
-configuration, email confirmation is automatically skipped by default. Users can
-log in immediately after registration. If you have email configured but still
-want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require
-email confirmation when email is configured, set
-`TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+İnternet erişimi veya e-posta sağlayıcısı yapılandırması olmayan şirket içi
+kurulumlar için e-posta onayı varsayılan olarak otomatik olarak atlanır.
+Kullanıcılar kayıttan hemen sonra oturum açabilir. E-posta yapılandırmanız varsa
+ancak yine de onayı atlamak istiyorsanız `TUIST_SKIP_EMAIL_CONFIRMATION=true`
+ayarını yapın. E-posta yapılandırıldığında e-posta onayı gerektirmek için
+`TUIST_SKIP_EMAIL_CONFIRMATION=false` ayarını yapın.
 <!-- -->
 :::
 
-### Git platform configuration {#git-platform-configuration}
+### Git platform yapılandırması {#git-platform-configuration}
 
-Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git
-platforms</LocalizedLink> to provide extra features such as automatically
-posting comments in your pull requests.
+Tuist, <LocalizedLink href="/guides/server/authentication"> Git
+platformları</LocalizedLink> ile entegre olarak çekme isteklerinize otomatik
+olarak yorum gönderme gibi ekstra özellikler sağlayabilir.
 
 #### GitHub {#platform-github}
 
-You will need to [create a GitHub
-app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps).
-You can reuse the one you created for authentication, unless you created an
-OAuth GitHub app. In the `Permissions and events`'s `Repository permissions`
-section, you will need to additionally set the `Pull requests` permission to
-`Read and write`.
+Bir GitHub uygulaması]
+(https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
+oluşturmanız gerekecektir. Bir OAuth GitHub uygulaması oluşturmadığınız sürece,
+kimlik doğrulama için oluşturduğunuz uygulamayı yeniden kullanabilirsiniz. `
+İzinler ve etkinlikler`'in `Depo izinleri` bölümünde, ek olarak `Çekme
+istekleri` iznini `Okuma ve yazma` olarak ayarlamanız gerekecektir.
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
-you will need the following environment variables:
+`TUIST_GITHUB_APP_CLIENT_ID` ve `TUIST_GITHUB_APP_CLIENT_SECRET` adreslerine ek
+olarak aşağıdaki ortam değişkenlerine ihtiyacınız olacaktır:
 
-| Environment variable           | Description                               | Required | Default | Example                              |
-| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
+| Ortam değişkeni                | Açıklama                           | Gerekli | Varsayılan | Örnekler                             |
+| ------------------------------ | ---------------------------------- | ------- | ---------- | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | GitHub uygulamasının özel anahtarı | Evet    |            | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-## Testing Locally {#testing-locally}
+## Yerel Testler {#testing-locally}
 
-We provide a comprehensive Docker Compose configuration that includes all
-required dependencies for testing Tuist server on your local machine before
-deploying to your infrastructure:
+Altyapınıza dağıtmadan önce Tuist sunucusunu yerel makinenizde test etmek için
+gerekli tüm bağımlılıkları içeren kapsamlı bir Docker Compose yapılandırması
+sağlıyoruz:
 
-- PostgreSQL 15 with TimescaleDB 2.16 extension (deprecated)
-- ClickHouse 25 for analytics
-- ClickHouse Keeper for coordination
-- MinIO for S3-compatible storage
-- Redis for persistent KV storage across deploys (optional)
-- pgweb for database administration
+- TimescaleDB 2.16 uzantılı PostgreSQL 15 (kullanımdan kaldırılmıştır)
+- Analizler için ClickHouse 25
+- Koordinasyon için ClickHouse Keeper
+- S3 uyumlu depolama için MinIO
+- Dağıtımlar arasında kalıcı KV depolaması için Redis (isteğe bağlı)
+- veritabanı yönetimi için pgweb
 
 ::: danger LICENSE REQUIRED
 <!-- -->
-A valid `TUIST_LICENSE` environment variable is legally required to run the
-Tuist server, including local development instances. If you need a license,
-please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+Yerel geliştirme örnekleri de dahil olmak üzere Tuist sunucusunu çalıştırmak
+için geçerli bir `TUIST_LICENSE` ortam değişkeni yasal olarak gereklidir. Bir
+lisansa ihtiyacınız varsa, lütfen [contact@tuist.dev](mailto:contact@tuist.dev)
+adresine ulaşın.
 <!-- -->
 :::
 
-**Quick Start:**
+**Hızlı Başlangıç:**
 
-1. Download the configuration files:
+1. Yapılandırma dosyalarını indirin:
    ```bash
    curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
    curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
@@ -421,104 +432,105 @@ please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
    curl -O https://docs.tuist.io/server/self-host/.env.example
    ```
 
-2. Configure environment variables:
+2. Ortam değişkenlerini yapılandırın:
    ```bash
    cp .env.example .env
    # Edit .env and add your TUIST_LICENSE and authentication credentials
    ```
 
-3. Start all services:
+3. Tüm hizmetleri başlatın:
    ```bash
    docker compose up -d
    # or with podman:
    podman compose up -d
    ```
 
-4. Access the server at http://localhost:8080
+4. Sunucuya http://localhost:8080 adresinden erişin
 
-**Service Endpoints:**
-- Tuist Server: http://localhost:8080
-- MinIO Console: http://localhost:9003 (credentials: `tuist` /
+**Hizmet Uç Noktaları:**
+- Tuist Sunucusu: http://localhost:8080
+- MinIO Konsolu: http://localhost:9003 (kimlik bilgileri: `tuist` /
   `tuist_dev_password`)
 - MinIO API: http://localhost:9002
 - pgweb (PostgreSQL UI): http://localhost:8081
 - Prometheus Metrics: http://localhost:9091/metrics
 - ClickHouse HTTP: http://localhost:8124
 
-**Common Commands:**
+**Ortak Komutlar:**
 
-Check service status:
+Servis durumunu kontrol edin:
 ```bash
 docker compose ps
 # or: podman compose ps
 ```
 
-View logs:
+Günlükleri görüntüle:
 ```bash
 docker compose logs -f tuist
 ```
 
-Stop services:
+Hizmetleri durdurun:
 ```bash
 docker compose down
 ```
 
-Reset everything (deletes all data):
+Her şeyi sıfırlayın (tüm verileri siler):
 ```bash
 docker compose down -v
 ```
 
-**Configuration Files:**
-- [docker-compose.yml](/server/self-host/docker-compose.yml) - Complete Docker
-  Compose configuration
+**Yapılandırma Dosyaları:**
+- [docker-compose.yml](/server/self-host/docker-compose.yml) - Docker Compose
+  yapılandırmasını tamamlayın
 - [clickhouse-config.xml](/server/self-host/clickhouse-config.xml) - ClickHouse
-  configuration
+  yapılandırması
 - [clickhouse-keeper-config.xml](/server/self-host/clickhouse-keeper-config.xml)
-  - ClickHouse Keeper configuration
-- [.env.example](/server/self-host/.env.example) - Example environment variables
-  file
+  - ClickHouse Keeper yapılandırması
+- [.env.example](/server/self-host/.env.example) - Örnek ortam değişkenleri
+  dosyası
 
-## Deployment {#deployment}
+## Dağıtım {#deployment}
 
-The official Tuist Docker image is available at:
+Resmi Tuist Docker görüntüsü şu adreste mevcuttur:
 ```
 ghcr.io/tuist/tuist
 ```
 
-### Pulling the Docker image {#pulling-the-docker-image}
+### Docker görüntüsünü çekme {#pulling-the-docker-image}
 
-You can retrieve the image by executing the following command:
+Aşağıdaki komutu çalıştırarak görüntüyü alabilirsiniz:
 
 ```bash
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-Or pull a specific version:
+Ya da belirli bir sürümü çekin:
 ```bash
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### Deploying the Docker image {#deploying-the-docker-image}
+### Docker görüntüsünü dağıtma {#deploying-the-docker-image}
 
-The deployment process for the Docker image will differ based on your chosen
-cloud provider and your organization's continuous deployment approach. Since
-most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/),
-utilize Docker images as fundamental units, the examples in this section should
-align well with your existing setup.
+Docker görüntüsü için dağıtım süreci, seçtiğiniz bulut sağlayıcısına ve
+kuruluşunuzun sürekli dağıtım yaklaşımına göre farklılık gösterecektir.
+Kubernetes](https://kubernetes.io/) gibi çoğu bulut çözümü ve aracı Docker
+görüntülerini temel birimler olarak kullandığından, bu bölümdeki örnekler mevcut
+kurulumunuzla uyumlu olmalıdır.
 
 ::: warning
 <!-- -->
-If your deployment pipeline needs to validate that the server is up and running,
-you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
-the response.
+Dağıtım işlem hattınızın sunucunun çalışır durumda olduğunu doğrulaması
+gerekiyorsa, `/ready` adresine bir `GET` HTTP isteği gönderebilir ve yanıtta bir
+`200` durum kodu belirtebilirsiniz.
 <!-- -->
 :::
 
-#### Fly {#fly}
+#### Uçmak {#fly}
 
-To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml`
-configuration file. Consider generating it dynamically within your Continuous
-Deployment (CD) pipeline. Below is a reference example for your use:
+Uygulamayı [Fly](https://fly.io/) üzerinde dağıtmak için bir `fly.toml`
+yapılandırma dosyasına ihtiyacınız olacaktır. Bu dosyayı Sürekli Dağıtım (CD)
+işlem hattınız içinde dinamik olarak oluşturmayı düşünün. Aşağıda kullanımınız
+için bir referans örneği bulunmaktadır:
 
 ```toml
 app = "tuist"
@@ -572,94 +584,96 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Then you can run `fly launch --local-only --no-deploy` to launch the app. On
-subsequent deploys, instead of running `fly launch --local-only`, you will need
-to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker
-images, which is why we need to use the `--local-only` flag.
+Ardından uygulamayı başlatmak için `fly launch --local-only --no-deploy`
+komutunu çalıştırabilirsiniz. Sonraki dağıtımlarda `fly launch --local-only`
+çalıştırmak yerine `fly deploy --local-only` çalıştırmanız gerekecektir. Fly.io
+özel Docker görüntülerini çekmeye izin vermez, bu yüzden `--local-only`
+bayrağını kullanmamız gerekir.
 
 
-## Prometheus metrics {#prometheus-metrics}
+## Prometheus ölçümleri {#prometheus-metrics}
 
-Tuist exposes Prometheus metrics at `/metrics` to help you monitor your
-self-hosted instance. These metrics include:
+Tuist, kendi barındırdığınız örneğinizi izlemenize yardımcı olmak için
+Prometheus metriklerini `/metrics` adresinde sunar. Bu metrikler şunları içerir:
 
-### Finch HTTP client metrics {#finch-metrics}
+### Finch HTTP istemci ölçümleri {#finch-metrics}
 
-Tuist uses [Finch](https://github.com/sneako/finch) as its HTTP client and
-exposes detailed metrics about HTTP requests:
+Tuist, HTTP istemcisi olarak [Finch](https://github.com/sneako/finch) kullanır
+ve HTTP istekleri hakkında ayrıntılı ölçümler sunar:
 
-#### Request metrics
-- `tuist_prom_ex_finch_request_count_total` - Total number of Finch requests
-  (counter)
-  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
-- `tuist_prom_ex_finch_request_duration_milliseconds` - Duration of HTTP
-  requests (histogram)
-  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
-  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
-- `tuist_prom_ex_finch_request_exception_count_total` - Total number of Finch
-  request exceptions (counter)
-  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
+#### Talep ölçümleri
+- `tuist_prom_ex_finch_request_count_total` - Finch isteklerinin toplam sayısı
+  (sayaç)
+  - Etiketler: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - HTTP isteklerinin süresi
+  (histogram)
+  - Etiketler: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Kovalar: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Finch istek
+  istisnalarının toplam sayısı (sayaç)
+  - Etiketler: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`,
+    `reason`
 
-#### Connection pool queue metrics
-- `tuist_prom_ex_finch_queue_duration_milliseconds` - Time spent waiting in the
-  connection pool queue (histogram)
-  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
-- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Time the connection spent
-  idle before being used (histogram)
-  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
-- `tuist_prom_ex_finch_queue_exception_count_total` - Total number of Finch
-  queue exceptions (counter)
-  - Labels: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+#### Bağlantı havuzu kuyruk ölçümleri
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Bağlantı havuzu kuyruğunda
+  beklemek için harcanan süre (histogram)
+  - Etiketler: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Kovalar: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Bağlantının kullanılmadan
+  önce boşta geçirdiği süre (histogram)
+  - Etiketler: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Kovalar: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Finch kuyruğu
+  istisnalarının toplam sayısı (sayaç)
+  - Etiketler: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
 
-#### Connection metrics
-- `tuist_prom_ex_finch_connect_duration_milliseconds` - Time spent establishing
-  a connection (histogram)
-  - Labels: `finch_name`, `scheme`, `host`, `port`, `error`
-  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
-- `tuist_prom_ex_finch_connect_count_total` - Total number of connection
-  attempts (counter)
-  - Labels: `finch_name`, `scheme`, `host`, `port`
+#### Bağlantı ölçümleri
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Bağlantı kurmak için
+  harcanan süre (histogram)
+  - Etiketler: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Kovalar: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Toplam bağlantı denemesi sayısı
+  (sayaç)
+  - Etiketler: `finch_name`, `scheme`, `host`, `port`
 
-#### Send metrics
-- `tuist_prom_ex_finch_send_duration_milliseconds` - Time spent sending the
-  request (histogram)
-  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
-  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
-- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Time the connection spent
-  idle before sending (histogram)
-  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
-  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+#### Ölçümleri gönder
+- `tuist_prom_ex_finch_send_duration_milliseconds` - İstek gönderilirken
+  harcanan süre (histogram)
+  - Etiketler: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Kovalar: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Bağlantının göndermeden
+  önce boşta geçirdiği süre (histogram)
+  - Etiketler: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Kovalar: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
 
-All histogram metrics provide `_bucket`, `_sum`, and `_count` variants for
-detailed analysis.
+Tüm histogram ölçümleri, ayrıntılı analiz için `_bucket`, `_sum` ve `_count`
+varyantlarını sağlar.
 
-### Other metrics
+### Diğer metrikler
 
-In addition to Finch metrics, Tuist exposes metrics for:
-- BEAM virtual machine performance
-- Custom business logic metrics (storage, accounts, projects, etc.)
-- Database performance (when using Tuist-hosted infrastructure)
+Finch metriklerine ek olarak, Tuist aşağıdakiler için metrikler sunar:
+- BEAM sanal makine performansı
+- Özel iş mantığı ölçümleri (depolama, hesaplar, projeler, vb.)
+- Veritabanı performansı (Tuist tarafından barındırılan altyapı kullanıldığında)
 
-## Operations {#operations}
+## Operasyonlar {#operations}
 
-Tuist provides a set of utilities under `/ops/` that you can use to manage your
-instance.
+Tuist, `/ops/` altında örneğinizi yönetmek için kullanabileceğiniz bir dizi
+yardımcı program sağlar.
 
 ::: warning Authorization
 <!-- -->
-Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
-variable can access the `/ops/` endpoints.
+Yalnızca `TUIST_OPS_USER_HANDLES` ortam değişkeninde tanıtıcıları listelenen
+kişiler `/ops/` uç noktalarına erişebilir.
 <!-- -->
 :::
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the
-  application. This is useful for debugging and understanding what went wrong
-  and we might ask you to share this information with us if you're facing
-  issues.
-- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides
-  insights into the application's performance and health (e.g. memory
-  consumption, processes running, number of requests). This dashboard can be
-  quite useful to understand if the hardware you're using is enough to handle
-  the load.
+- **Hatalar (`/ops/errors`):** Uygulamada meydana gelen beklenmedik hataları
+  görüntüleyebilirsiniz. Bu, hata ayıklama ve neyin yanlış gittiğini anlamak
+  için kullanışlıdır ve sorunlarla karşılaşıyorsanız bu bilgileri bizimle
+  paylaşmanızı isteyebiliriz.
+- **Gösterge Tablosu (`/ops/dashboard`):** Uygulamanın performansı ve sağlığı
+  (örneğin bellek tüketimi, çalışan işlemler, istek sayısı) hakkında bilgi
+  sağlayan bir gösterge tablosu görüntüleyebilirsiniz. Bu gösterge tablosu,
+  kullandığınız donanımın yükü kaldırmaya yeterli olup olmadığını anlamak için
+  oldukça yararlı olabilir.
