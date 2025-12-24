@@ -27,7 +27,7 @@ Tuist QA를 사용하려면 다음을 수행해야 합니다:
 - PR CI 워크플로우에서
   <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> 업로드를
   설정하면 상담원이 테스트에 사용할 수 있습니다.
-- <LocalizedLink href="/guides/integrations/gitforge/github">1}을 GitHub와 통합하여
+- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub와 통합</LocalizedLink>하여
   PR에서 직접 에이전트를 트리거할 수 있습니다.
 
 ## 사용량 {#사용량}

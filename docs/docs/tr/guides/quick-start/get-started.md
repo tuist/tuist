@@ -22,14 +22,7 @@ tuist init
 <!-- -->
 :::
 
-Komut, <LocalizedLink href="/guides/features/projects">oluşturulmuş projele
-oluşturma veya mevcut bir Xcode projesini ya da çalışma alanını entegre etme
-adımlarında size yol gösterecektir. Kurulumunuzu uzak sunucuya bağlamanıza
-yardımcı olarak <LocalizedLink href="/guides/features/selective-testing">seçmeli
-test</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">önizleme</LocalizedLink> ve
-<LocalizedLink href="/guides/features/registry">kayıt</LocalizedLink> gibi
-özelliklere erişmenizi sağlar.
+Komut, <LocalizedLink href="/guides/features/projects">oluşturulmuş proje</LocalizedLink> oluşturma veya mevcut bir Xcode projesini ya da çalışma alanını entegre etme adımlarında size yol gösterecektir. Kurulumunuzu uzak sunucuya bağlamanıza yardımcı olarak <LocalizedLink href="/guides/features/selective-testing">seçmeli test</LocalizedLink>, <LocalizedLink href="/guides/features/previews">önizleme</LocalizedLink> ve <LocalizedLink href="/guides/features/registry">kayıt</LocalizedLink> gibi özelliklere erişmenizi sağlar.
 
 ::: info MIGRATE AN EXISTING PROJECT
 <!-- -->

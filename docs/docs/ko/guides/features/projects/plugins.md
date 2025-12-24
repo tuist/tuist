@@ -52,7 +52,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### 리소스 접근자 템플릿 플러그인 {#resource-accessor-templates-plugin}
 
-1}합성된 리소스 접근자</LocalizedLink>를 공유해야 하는 경우 이 유형의 플러그인을 사용할 수 있습니다. 플러그인은 플러그인 이름을
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">합성된 리소스 접근자</LocalizedLink>를 공유해야 하는 경우 이 유형의 플러그인을 사용할 수 있습니다. 플러그인은 플러그인 이름을
 선언하는 `Plugin.swift` 매니페스트 파일과 리소스 접근자 템플릿 파일이 포함된 `ResourceSynthesizers` 디렉터리가
 포함된 디렉터리로 표현됩니다.
 

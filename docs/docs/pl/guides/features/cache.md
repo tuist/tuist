@@ -46,7 +46,7 @@ module pamięci podręcznej →</LocalizedLink>
 
 ## Pamięć podręczna Xcode {#xcode-cache}
 
-::: ostrzeżenie STAN CACHE W XCODE
+::: warning XCODE CACHE STATE
 <!-- -->
 Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
 przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od
@@ -59,8 +59,7 @@ miarę jak możliwości systemu kompilacji będą się poprawiać.
 Apple pracuje nad nowym rozwiązaniem buforowania na poziomie kompilacji,
 podobnym do innych systemów kompilacji, takich jak Bazel i Buck. Nowa funkcja
 buforowania jest dostępna od Xcode 26, a Tuist płynnie się z nią integruje -
-niezależnie od tego, czy korzystasz z funkcji generowania projektów
-<LocalizedLink href="/guides/features/projects">, czy nie.
+niezależnie od tego, czy korzystasz z funkcji <LocalizedLink href="/guides/features/projects">generowania projektów</LocalizedLink>, czy nie.
 
 <LocalizedLink href="/guides/features/cache/xcode-cache">Dowiedz się więcej o
 pamięci podręcznej Xcode →</LocalizedLink>

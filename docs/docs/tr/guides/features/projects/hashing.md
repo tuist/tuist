@@ -7,7 +7,7 @@
 ---
 # Hashing {#hashing}
 
-1}caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
+<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
 değişip değişmediğini belirlemenin bir yolunu gerektirir. Tuist, bir hedefin
 değişip değişmediğini belirlemek için bağımlılık grafiğindeki her hedef için bir
 hash hesaplar. Hash, aşağıdaki özniteliklere göre hesaplanır:

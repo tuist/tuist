@@ -321,15 +321,11 @@ func productType() -> Product {
 }
 ```
 
-请注意，由于成本问题</LocalizedLink>，Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">并不会通过隐式配置默认为便捷型。这意味着，我们需要您设置链接类型，以及有时需要的其他构建设置（如[`-ObjC`
-linker
-flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)），以确保生成的二进制文件正确无误。因此，我们的立场是为您提供资源，通常是以文档的形式，让您做出正确的决定。
+请注意，由于成本问题，Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">并不会通过隐式配置默认为便捷型</LocalizedLink>。这意味着，我们需要您设置链接类型，以及有时需要的其他构建设置（如[`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)），以确保生成的二进制文件正确无误。因此，我们的立场是为您提供资源，通常是以文档的形式，让您做出正确的决定。
 
-提示 示例：可组合建筑
+::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
-许多项目都集成了[可组合架构](https://github.com/pointfreeco/swift-composable-architecture)这个
-Swift 软件包。更多详情，请参阅 [本节](#the-composable-architecture)。
+许多项目都集成了[可组合架构](https://github.com/pointfreeco/swift-composable-architecture)这个 Swift 软件包。更多详情，请参阅 [本节](#the-composable-architecture)。
 <!-- -->
 :::
 

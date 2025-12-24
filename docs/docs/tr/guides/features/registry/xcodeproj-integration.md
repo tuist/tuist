@@ -7,7 +7,7 @@
 ---
 # XcodeProj tabanlı paket entegrasyonu ile oluşturulmuş projele {#generated-project-with-xcodeproj-based-integration}
 
-1}XcodeProj tabanlı entegrasyonu</LocalizedLink> kullanırken, mevcutsa
+<LocalizedLink href="/guides/features/projects/dependencies#xcodeproj-based-integration">XcodeProj tabanlı entegrasyonu</LocalizedLink> kullanırken, mevcutsa
 bağımlılıkları kayıt defterinden çözmek için ``--replace-scm-with-registry``
 bayrağını kullanabilirsiniz. Bunu `Tuist.swift` dosyanızdaki `installOptions`
 bölümüne ekleyin:

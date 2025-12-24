@@ -81,7 +81,6 @@ name 屬性的小寫值。
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 專案描述輔助程式
-</LocalizedLink> 來跨模板重複使用程式碼。
+模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing">專案描述輔助程式</LocalizedLink> 來跨模板重複使用程式碼。
 <!-- -->
 :::

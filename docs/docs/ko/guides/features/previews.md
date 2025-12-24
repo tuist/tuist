@@ -7,9 +7,9 @@
 ---
 # 미리 보기 {#previews}
 
-경고 요구 사항 ::: 경고 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -109,7 +109,7 @@ tuist share App --track nightly
 
 이제 미리보기 페이지에서 '실행'을 클릭하면 현재 선택한 기기에서 macOS 앱이 자동으로 실행됩니다.
 
-경고 요구 사항 ::: 경고 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
 Xcode가 로컬에 설치되어 있어야 하며 macOS 14 이상을 사용 중이어야 합니다.
 <!-- -->

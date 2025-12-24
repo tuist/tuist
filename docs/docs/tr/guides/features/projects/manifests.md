@@ -31,7 +31,7 @@ sürebileceğini fark edeceksiniz. Sonraki çalıştırmalar daha hızlı olacak
 
 ## Proje.swift {#projectswift}
 
-1}`Project.swift`</LocalizedLink> manifestosu bir Xcode projesi bildirir. Proje,
+<LocalizedLink href="/references/project-description/project">`Project.swift`</LocalizedLink> manifestosu bir Xcode projesi bildirir. Proje,
 manifesto dosyasının bulunduğu dizinde `name` özelliğinde belirtilen adla
 oluşturulur.
 

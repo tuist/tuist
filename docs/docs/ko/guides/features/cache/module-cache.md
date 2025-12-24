@@ -8,10 +8,10 @@
 
 # 모듈 캐시 {#module-cache}
 
-경고 요구 사항 ::: 경고 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
-- 1} 생성된 프로젝트</LocalizedLink>
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -20,8 +20,8 @@
 
 ## 온난화 {#warming}
 
-Tuist는 종속성 그래프에서 각 대상에 대해 해시</LocalizedLink>를 효율적으로
-<LocalizedLink href="/guides/features/projects/hashing">활용하여 변경 사항을 감지합니다. 이
+Tuist는 종속성 그래프에서 각 대상에 대해 <LocalizedLink href="/guides/features/projects/hashing">해시를 효율적으로
+활용</LocalizedLink>하여 변경 사항을 감지합니다. 이
 데이터를 활용하여 이러한 타깃에서 파생된 바이너리에 고유 식별자를 생성하고 할당합니다. 그런 다음 그래프를 생성할 때 Tuist는 원본 대상을
 해당 바이너리 버전으로 원활하게 대체합니다.
 

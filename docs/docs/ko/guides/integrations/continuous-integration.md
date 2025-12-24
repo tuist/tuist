@@ -165,7 +165,7 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
+<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
 설정합니다.
 <!-- -->
 :::
@@ -347,6 +347,6 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
 <!-- -->
 :::

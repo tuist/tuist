@@ -104,7 +104,7 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 특성에서 분리하는 것이 좋습니다. 이는 컴파일 시간을 단축하고 [SwiftUI
 미리보기](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가
 안정적으로 작동하도록 하기 위한 핵심 요소입니다. 또한 릴리스 빌드를 위한 정적 라이브러리 또는 프레임워크는 앱이 빠르게 부팅되도록 합니다.
-4}동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

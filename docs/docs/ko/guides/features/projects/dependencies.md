@@ -333,8 +333,7 @@ pod install
 
 다행히도 Tuist는 정적과 동적 간의 변경과 관련된 복잡성을 개념적으로 압축하여 연결 유형 전반에 걸쳐 표준인
 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들
-접근자</LocalizedLink>를 합성합니다. 환경 변수</LocalizedLink>를 통한
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">동적 구성과
+접근자</LocalizedLink>를 합성합니다. <LocalizedLink href="/guides/features/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과
 결합하면 호출 시 연결 유형을 전달하고 매니페스트의 값을 사용하여 타겟의 제품 유형을 설정할 수 있습니다.
 
 ```swift

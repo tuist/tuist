@@ -212,7 +212,7 @@ OAuth
 
 #### Okta {#okta}
 
-OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。3}以下の手順に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります</LocalizedLink>。
+[OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。<LocalizedLink href="/guides/integrations/sso#okta">以下の手順</LocalizedLink>に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります。
 
 Oktaアプリケーションのセットアップ時にクライアントIDとシークレットを取得したら、以下の環境変数を設定する必要があります：
 

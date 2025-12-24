@@ -271,7 +271,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
-### `tuist_storage_생성_다운로드_사전_서명된_URL_지속시간_밀리초` (히스토그램) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (히스토그램) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
 원격 저장소에 있는 개체에 대해 미리 지정된 다운로드 URL을 생성하는 데 걸리는 기간(밀리초)입니다.
 
@@ -282,7 +282,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
 
-### `튜이스트_스토리지_생성_다운로드_프레젠테이션_URL_COUNT` (개수) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_download_presigned_url_count` (카운트) {#tuist_storage_generate_download_presigned_url_count-count}
 
 원격 저장소에 있는 개체에 대해 다운로드 미리 지정된 URL이 생성된 횟수입니다.
 
@@ -304,7 +304,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | `part_number` | 업로드 중인 오브젝트의 부품 번호입니다.  |
 | `upload_id`   | 멀티파트 업로드의 업로드 ID입니다.    |
 
-### `튜이스트_스토리지_멀티파트_생성_업로드_파트_프레젠테이션_URL-수` (카운트) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (카운트) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
 원격 스토리지의 개체에 대해 파트 업로드 지정 URL이 생성된 횟수입니다.
 
@@ -414,7 +414,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 발신 요청 기간의 합계(연결에 할당되기 위해 대기한 시간 포함)입니다.
 
-### `튜이스트_http_요청_기간_나노초_버킷` (배포) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+### `tuist_http_request_duration_nanosecond_bucket` (배포) {#tuist_http_request_duration_nanosecond_bucket-distribution}
 발신 요청의 기간 분포(연결에 할당되기 위해 대기한 시간 포함).
 
 ### `tuist_http_queue_count` (카운터) {#tuist_http_queue_count-counter}
@@ -429,11 +429,11 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 연결이 검색되기를 기다리며 유휴 상태인 시간입니다.
 
-### `tuist_http_queue_duration_nanoseconds_버킷` (배포) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_queue_duration_nanoseconds_bucket` (배포) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
 풀에서 연결을 검색하는 데 걸리는 시간입니다.
 
-### `tuist_http_queue_idle_time_나노초_버킷` (배포) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+### `tuist_http_queue_idle_time_nanoseconds_bucket` (배포) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
 연결이 검색되기를 기다리며 유휴 상태인 시간입니다.
 
@@ -441,11 +441,11 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 설정된 연결 수입니다.
 
-### `튜이스트_http_연결_지속시간_나노초_합계` (합계) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
 호스트에 대한 연결을 설정하는 데 걸리는 시간입니다.
 
-### `튜이스트_http_연결_지속시간_나노초_버킷` (배포) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connection_duration_nanoseconds_bucket` (배포) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
 호스트에 대한 연결을 설정하는 데 걸리는 시간의 분포입니다.
 
@@ -457,7 +457,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 풀에서 연결에 할당된 후 요청이 완료되는 데 걸리는 시간입니다.
 
-### `튜이스트_http_send_duration_나노초_버킷` (배포) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
+### `tuist_http_send_duration_nanoseconds_bucket` (배포) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
 풀에서 연결에 할당된 후 요청이 완료되는 데 걸리는 시간의 분포입니다.
 
@@ -469,7 +469,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 응답을 받는 데 소요된 시간입니다.
 
-### `튜이스트_http_수신_기간_나노초_버킷` (배포) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+### `tuist_http_receive_duration_nanoseconds_bucket` (배포) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
 응답 수신에 소요된 시간의 분포입니다.
 

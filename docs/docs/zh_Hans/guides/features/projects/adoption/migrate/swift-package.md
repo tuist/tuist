@@ -20,9 +20,9 @@ Swift 包管理器和原生 Xcode 项目的性能：
 
 **苹果是否会让 Swift Package Manager 成为内置的大规模项目管理器，目前还不确定。**
 不过，我们没有看到任何迹象表明这种情况正在发生。事实上，我们看到的恰恰相反。他们正在做出受 Xcode
-启发的决定，比如通过隐式配置来实现便利性，而隐式配置<LocalizedLink href="/guides/features/projects/cost-of-convenience">可能是大规模复杂性的根源。我们认为，苹果应该遵循第一原则，重新审视一些作为依赖关系管理器而非项目管理器的决策，例如使用编译语言作为定义项目的接口。
+启发的决定，比如通过隐式配置来实现便利性，而隐式配置<LocalizedLink href="/guides/features/projects/cost-of-convenience">可能是大规模复杂性的根源</LocalizedLink>。我们认为，苹果应该遵循第一原则，重新审视一些作为依赖关系管理器而非项目管理器的决策，例如使用编译语言作为定义项目的接口。
 
-::: tip SPM AS JUST A DEPENDENCY MANAGER
+::: tip SPM IS A DEPENDENCY MANAGER
 <!-- -->
 Tuist 将 Swift
 软件包管理器视为依赖关系管理器，它是一个很棒的管理器。我们用它来解决依赖关系并构建它们。我们不用它来定义项目，因为它不是为此而设计的。

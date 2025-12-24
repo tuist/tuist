@@ -47,7 +47,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### リソース・アクセッサ・テンプレート・プラグイン{#resource-accessor-templates-plugin}
 
-1}合成されたリソース・アクセッサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成されたリソース・アクセッサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
 マニフェスト ファイルと、リソース アクセッサ テンプレート ファイルを含む`ResourceSynthesizers`
 ディレクトリを含むディレクトリで表されます。
 

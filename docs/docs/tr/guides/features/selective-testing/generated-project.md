@@ -9,7 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- 1} tarafından oluşturulan bir projele</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">Tuist tarafından oluşturulan bir proje</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
   projesi</LocalizedLink>
 <!-- -->
