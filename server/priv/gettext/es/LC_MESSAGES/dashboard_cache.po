@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/es/>\n"
 "Language: es\n"
@@ -282,9 +282,9 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.ex:35
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/module_cache_live.html.heex:494
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "Comandos"
 
 #: lib/tuist_web/live/bundle_live.html.heex:155
 #: lib/tuist_web/live/bundles_live.html.heex:384
@@ -468,9 +468,9 @@ msgid "Module Breakdown"
 msgstr "Desglose de módulos"
 
 #: lib/tuist_web/live/module_cache_live.ex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "Módulo caché"
 
 #: lib/tuist_web/live/bundle_live.html.heex:60
 #: lib/tuist_web/live/bundle_live.html.heex:617
