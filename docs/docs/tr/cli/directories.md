@@ -5,32 +5,32 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# Directories {#directories}
+# Dizinler {#directories}
 
-Tuist organizes its files across several directories on your system, following
-the [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-This provides a clean, standard way to manage configuration, cache, and state
-files.
+Tuist, [XDG Temel Dizin
+Spesifikasyonu](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)'nu
+izleyerek dosyalarını sisteminizdeki çeşitli dizinler arasında düzenler. Bu,
+yapılandırma, önbellek ve durum dosyalarını yönetmek için temiz ve standart bir
+yol sağlar.
 
-## Supported environment variables {#supported-environment-variables}
+## Desteklenen ortam değişkenleri {#supported-environment-variables}
 
-Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
-The Tuist-specific variants (prefixed with `TUIST_`) take precedence, allowing
-you to configure Tuist separately from other applications.
+Tuist hem standart XDG değişkenlerini hem de Tuist'e özgü ön ekli değişkenleri
+destekler. Tuist'e özgü değişkenler ( `TUIST_` ile ön eklenmiş) önceliklidir ve
+Tuist'i diğer uygulamalardan ayrı olarak yapılandırmanıza olanak tanır.
 
-### Configuration directory {#configuration-directory}
+### Yapılandırma dizini {#configuration-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CONFIG_HOME` (takes precedence)
+**Ortam değişkenleri:**
+- `TUIST_XDG_CONFIG_HOME` (önceliklidir)
 - `XDG_CONFIG_HOME`
 
-**Default:** `~/.config/tuist`
+**Varsayılan:** `~/.config/tuist`
 
-**Used for:**
-- Server credentials (`credentials/{host}.json`)
+**Şunun için kullanılır:**
+- Sunucu kimlik bilgileri (`credentials/{host}.json`)
 
-**Example:**
+**Örnek:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -41,25 +41,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Cache directory {#cache-directory}
+### Önbellek dizini {#cache-directory}
 
-**Environment variables:**
-- `TUIST_XDG_CACHE_HOME` (takes precedence)
+**Ortam değişkenleri:**
+- `TUIST_XDG_CACHE_HOME` (önceliklidir)
 - `XDG_CACHE_HOME`
 
-**Default:** `~/.cache/tuist`
+**Varsayılan:** `~/.cache/tuist`
 
-**Used for:**
-- **Plugins**: Downloaded and compiled plugin cache
-- **ProjectDescriptionHelpers**: Compiled project description helpers
-- **Manifests**: Cached manifest files
-- **Projects**: Generated automation project cache
-- **EditProjects**: Cache for edit command
-- **Runs**: Test and build run analytics data
-- **Binaries**: Build artifact binaries (not shareable across environments)
-- **SelectiveTests**: Selective testing cache
+**Şunun için kullanılır:**
+- **Eklentiler**: İndirilen ve derlenen eklenti önbelleği
+- **ProjectDescriptionHelpers**: Derlenmiş proje açıklama yardımcıları
+- **Manifestolar**: Önbelleğe alınmış manifesto dosyaları
+- **Projeler**: Oluşturulan otomasyon proje önbelleği
+- **EditProjects**: Düzenleme komutu için önbellek
+- **Runs**: Run analitik verilerini test edin ve oluşturun
+- **İkililer**: Yapı ikili dosyaları (ortamlar arasında paylaşılamaz)
+- **SelectiveTests**: Seçmeli test önbelleği
 
-**Example:**
+**Örnek:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -70,19 +70,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### State directory {#state-directory}
+### Eyalet rehberi {#state-directory}
 
-**Environment variables:**
-- `TUIST_XDG_STATE_HOME` (takes precedence)
+**Ortam değişkenleri:**
+- `TUIST_XDG_STATE_HOME` (önceliklidir)
 - `XDG_STATE_HOME`
 
-**Default:** `~/.local/state/tuist`
+**Varsayılan:** `~/.local/state/tuist`
 
-**Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
-- **Locks**: Authentication lock files (`{handle}.sock`)
+**Şunun için kullanılır:**
+- **Günlükler**: Günlük dosyaları (`logs/{uuid}.log`)
+- **Kilitler**: Kimlik doğrulama kilit dosyaları (`{handle}.sock`)
 
-**Example:**
+**Örnek:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -93,26 +93,27 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## Precedence order {#precedence-order}
+## Öncelik sırası {#precedence-order}
 
-When determining which directory to use, Tuist checks environment variables in
-the following order:
+Hangi dizinin kullanılacağını belirlerken, Tuist aşağıdaki sırayla ortam
+değişkenlerini kontrol eder:
 
-1. **Tuist-specific variable** (e.g., `TUIST_XDG_CONFIG_HOME`)
-2. **Standard XDG variable** (e.g., `XDG_CONFIG_HOME`)
-3. **Default location** (e.g., `~/.config/tuist`)
+1. **Tuist'e özgü değişken** (örneğin, `TUIST_XDG_CONFIG_HOME`)
+2. **Standart XDG değişkeni** (örneğin, `XDG_CONFIG_HOME`)
+3. **Varsayılan konum** (örneğin, `~/.config/tuist`)
 
-This allows you to:
-- Use standard XDG variables to organize all your applications consistently
-- Override with Tuist-specific variables when you need different locations for
-  Tuist
-- Rely on sensible defaults without any configuration
+Bu size şunları sağlar:
+- Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG
+  değişkenlerini kullanın
+- Tuist için farklı konumlara ihtiyacınız olduğunda Tuist'e özgü değişkenlerle
+  geçersiz kılın
+- Herhangi bir yapılandırma olmadan mantıklı varsayılanlara güvenin
 
-## Common use cases {#common-use-cases}
+## Yaygın kullanım durumları {#common-use-cases}
 
-### Isolating Tuist per project {#isolating-tuist-per-project}
+### Tuist'in proje başına izole edilmesi {#isolating-tuist-per-project}
 
-You might want to isolate Tuist's cache and state per project:
+Tuist'in önbelleğini ve durumunu proje başına izole etmek isteyebilirsiniz:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -121,9 +122,9 @@ export TUIST_XDG_STATE_HOME="$PWD/.tuist/state"
 export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 ```
 
-### CI/CD environments {#ci-cd-environments}
+### CI/CD ortamları {#ci-cd-environments}
 
-In CI environments, you might want to use temporary directories:
+CI ortamlarında geçici dizinler kullanmak isteyebilirsiniz:
 
 ```yaml
 # GitHub Actions example
@@ -145,9 +146,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Debugging with isolated directories {#debugging-with-isolated-directories}
+### Yalıtılmış dizinlerle hata ayıklama {#debugging-with-isolated-directories}
 
-When debugging issues, you might want a clean slate:
+Hata ayıklarken temiz bir sayfa açmak isteyebilirsiniz:
 
 ```bash
 # Create temporary directories for debugging
