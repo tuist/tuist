@@ -10,7 +10,7 @@
 إذا كان لديك تويست **مثبتًا عالميًا** (على سبيل المثال، عبر Homebrew)، يمكنك
 تثبيت إكمال الصدفة لباش و Zsh للإكمال التلقائي للأوامر والخيارات.
 
-:::: تحذير ما هو التثبيت العالمي
+::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
 التثبيت العام هو تثبيت متاح في متغير البيئة `$PATH` الخاص بالصدفة الخاصة بك. هذا
 يعني أنه يمكنك تشغيل `tuist` من أي دليل في جهازك الطرفي. هذه هي طريقة التثبيت
@@ -18,7 +18,7 @@
 <!-- -->
 :::
 
-#### Zsh {#zsh}
+#### زش {#zsh}
 
 إذا كان لديك [oh-my-zsh] (https://ohmyz.sh/) مثبتًا لديك، فلديك بالفعل دليل
 لنصوص الإكمال النصية التي يتم تحميلها تلقائيًا - `.oh-my-zsh/completions`. انسخ
@@ -44,7 +44,7 @@ compinit
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### باش {#باش}
+#### باش {#bash}
 
 إذا كان لديك [bash-completion] (https://github.com/scop/bash-completion) مثبتًا
 لديك، يمكنك فقط نسخ نص الإكمال الجديد إلى الملف
@@ -62,7 +62,7 @@ tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 source ~/.bash_completions/example.bash
 ```
 
-#### سمك {# سمك}
+#### السمك {#fish}
 
 إذا كنت تستخدم [صدفة السمك] (https://fishshell.com)، يمكنك نسخ نص الإكمال الجديد
 إلى `~/.config/fish/completions/tuist.fish`:
