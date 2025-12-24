@@ -5,38 +5,38 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# Dynamic configuration {#dynamic-configuration}
+# Dinamik yapılandırma {#dynamic-configuration}
 
-There are certain scenarios where you might need to dynamically configure your
-project at generation time. For example, you might want to change the name of
-the app, the bundle identifier, or the deployment target based on the
-environment where the project is being generated. Tuist supports that via
-environment variables, which can be accessed from the manifest files.
+Projenizi oluşturma sırasında dinamik olarak yapılandırmanız gerekebilecek bazı
+senaryolar vardır. Örneğin, projenin oluşturulduğu ortama bağlı olarak
+uygulamanın adını, paket tanımlayıcısını veya dağıtım hedefini değiştirmek
+isteyebilirsiniz. Tuist, manifesto dosyalarından erişilebilen ortam değişkenleri
+aracılığıyla bunu destekler.
 
-## Configuration through environment variables {#configuration-through-environment-variables}
+## Ortam değişkenleri aracılığıyla yapılandırma {#configuration-through-environment-variables}
 
-Tuist allows passing configuration through environment variables that can be
-accessed from the manifest files. For example:
+Tuist, manifesto dosyalarından erişilebilen ortam değişkenleri aracılığıyla
+yapılandırmanın aktarılmasına izin verir. Örneğin:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-If you want to pass multiple environment variables just separate them with a
-space. For example:
+Birden fazla ortam değişkeni aktarmak istiyorsanız, bunları bir boşlukla
+ayırmanız yeterlidir. Örneğin:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
+## Ortam değişkenlerini manifestolardan okuma {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the
-<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>
-type. Any variables following the convention `TUIST_XXX` defined in the
-environment or passed to Tuist when running commands will be accessible using
-the `Environment` type. The following example shows how we access the
-`TUIST_APP_NAME` variable:
+Değişkenlere
+<LocalizedLink href="/references/project-description/enums/environment">`Ortam`</LocalizedLink>
+tipi kullanılarak erişilebilir. Ortamda tanımlanan veya komutları çalıştırırken
+Tuist'e aktarılan `TUIST_XXX` kuralını izleyen tüm değişkenlere `Ortam` türü
+kullanılarak erişilebilir. Aşağıdaki örnek `TUIST_APP_NAME` değişkenine nasıl
+eriştiğimizi göstermektedir:
 
 ```swift
 func appName() -> String {
@@ -48,17 +48,18 @@ func appName() -> String {
 }
 ```
 
-Accessing variables returns an instance of type `Environment.Value?` which can
-take any of the following values:
+Değişkenlere erişim, aşağıdaki değerlerden herhangi birini alabilen
+`Environment.Value?` türünde bir örnek döndürür:
 
-| Case              | Description                                 |
-| ----------------- | ------------------------------------------- |
-| `.string(String)` | Used when the variable represents a string. |
+| Dava              | Açıklama                                         |
+| ----------------- | ------------------------------------------------ |
+| `.string(String)` | Değişken bir dizeyi temsil ettiğinde kullanılır. |
 
-You can also retrieve the string or boolean `Environment` variable using either
-of the helper methods defined below, these methods require a default value to be
-passed to ensure the user gets consistent results each time. This avoids the
-need to define the function appName() defined above.
+Ayrıca aşağıda tanımlanan yardımcı yöntemlerden birini kullanarak string veya
+boolean `Environment` değişkenini de alabilirsiniz, bu yöntemler kullanıcının
+her seferinde tutarlı sonuçlar almasını sağlamak için varsayılan bir değerin
+geçirilmesini gerektirir. Bu, yukarıda tanımlanan appName() fonksiyonunu
+tanımlama ihtiyacını ortadan kaldırır.
 
 ::: code-group
 
