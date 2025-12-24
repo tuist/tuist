@@ -6,52 +6,52 @@
 }
 ---
 
-# Module cache {#module-cache}
+# Кэш модулей {#module-cache}
 
-::: warning REQUIREMENTS
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Проект, созданный
+  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
-Tuist Module cache provides a powerful way to optimize your build times by
-caching your modules as binaries (`.xcframework`s) and sharing them across
-different environments. This capability allows you to leverage previously
-generated binaries, reducing the need for repeated compilation and speeding up
-the development process.
+Кэш модулей Tuist предоставляет мощный способ оптимизации времени сборки за счет
+кэширования модулей в виде двоичных файлов (`.xcframework`s) и их совместного
+использования в различных средах. Эта возможность позволяет использовать ранее
+сгенерированные двоичные файлы, сокращая необходимость в повторной компиляции и
+ускоряя процесс разработки.
 
-## Warming {#warming}
+## Согревающий {#warming}
 
-Tuist efficiently
-<LocalizedLink href="/guides/features/projects/hashing">utilizes
-hashes</LocalizedLink> for each target in the dependency graph to detect
-changes. Utilizing this data, it builds and assigns unique identifiers to
-binaries derived from these targets. At the time of graph generation, Tuist then
-seamlessly substitutes the original targets with their corresponding binary
-versions.
+Tuist эффективно
+<LocalizedLink href="/guides/features/projects/hashing">использует
+хэши</LocalizedLink> для каждой цели в графе зависимостей, чтобы обнаружить
+изменения. Используя эти данные, он создает и присваивает уникальные
+идентификаторы двоичным файлам, полученным из этих целей. Во время генерации
+графа Tuist плавно заменяет исходные цели их соответствующими двоичными
+версиями.
 
-This operation, known as *"warming,"* produces binaries for local use or for
-sharing with teammates and CI environments via Tuist. The process of warming the
-cache is straightforward and can be initiated with a simple command:
+Эта операция, известная как *"прогрев",* создает двоичные файлы для локального
+использования или для обмена с товарищами по команде и CI-средой через Tuist.
+Процесс разогрева кэша прост и может быть инициирован простой командой:
 
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+Команда повторно использует двоичные файлы, чтобы ускорить процесс.
 
-## Usage {#usage}
+## Использование {#usage}
 
-By default, when Tuist commands necessitate project generation, they
-automatically substitute dependencies with their binary equivalents from the
-cache, if available. Additionally, if you specify a list of targets to focus on,
-Tuist will also replace any dependent targets with their cached binaries,
-provided they are available. For those who prefer a different approach, there is
-an option to opt out of this behavior entirely by using a specific flag:
+По умолчанию, когда команды Tuist требуют создания проекта, они автоматически
+заменяют зависимости их двоичными эквивалентами из кэша, если они доступны.
+Кроме того, если вы укажете список целей, на которых нужно сосредоточиться,
+Tuist также заменит все зависимые цели их двоичными файлами из кэша, если они
+доступны. Для тех, кто предпочитает другой подход, есть возможность полностью
+отказаться от такого поведения, используя специальный флаг:
 
 ::: code-group
 ```bash [Project generation]
@@ -67,27 +67,27 @@ tuist test
 <!-- -->
 :::
 
-::: warning
+::: ПРЕДУПРЕЖДЕНИЕ
 <!-- -->
-Binary caching is a feature designed for development workflows such as running
-the app on a simulator or device, or running tests. It is not intended for
-release builds. When archiving the app, generate a project with the sources by
-using the `--no-binary-cache` flag.
+Двоичное кэширование - это функция, предназначенная для рабочих процессов
+разработки, таких как запуск приложения на симуляторе или устройстве, а также
+проведение тестов. Она не предназначена для сборки релизов. При архивации
+приложения создайте проект с исходными текстами, используя флаг
+`--no-binary-cache`.
 <!-- -->
 :::
 
-## Cache profiles {#cache-profiles}
+## Профили кэша {#cache-profiles}
 
-Tuist supports cache profiles to control how aggressively targets are replaced
-with cached binaries when generating projects.
+Tuist поддерживает профили кэша для управления тем, насколько активно цели
+заменяются кэшированными двоичными файлами при генерации проектов.
 
-- Built-ins:
-  - `only-external`: replace external dependencies only (system default)
-  - `all-possible`: replace as many targets as possible (including internal
-    targets)
-  - `none`: never replace with cached binaries
+- Встроенные шкафы:
+  - `only-external`: заменять только внешние зависимости (по умолчанию).
+  - `Все возможные`: заменить как можно больше целей (включая внутренние цели)
+  - `none`: никогда не заменять кэшированными двоичными файлами
 
-Select a profile with `--cache-profile` on `tuist generate`:
+Выберите профиль с помощью `--cache-profile` на `tuist generate`:
 
 ```bash
 # Built-in profiles
@@ -106,88 +106,89 @@ tuist generate MyModule AnotherTarget
 tuist generate --no-binary-cache  # equivalent to --cache-profile none
 ```
 
-Precedence when resolving the effective behavior (highest to lowest):
+Приоритет при разрешении эффективного поведения (от высшего к низшему):
 
-1. `--no-binary-cache` → profile `none`
-2. Target focus (passing targets to `generate`) → profile `all-possible`
-3. `--cache-profile <value>`
-4. Config default (if set)
-5. System default (`only-external`)
+1. `--no-binary-cache` → профиль `none`
+2. Фокус на цели (передача целей на `для генерации`) → профиль `всевозможные`
+3. `--cache-profile &lt;значение&gt;`
+4. Конфигурация по умолчанию (если установлена)
+5. Система по умолчанию (только`- внешний`)
 
-## Supported products {#supported-products}
+## Поддерживаемые продукты {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+Tuist может кэшировать только следующие целевые продукты:
 
-- Frameworks (static and dynamic) that don't depend on
+- Фреймворки (статические и динамические), которые не зависят от
   [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
+- Бандлы
+- Макросы Swift
 
-We are working on supporting libraries and targets that depend on XCTest.
+Мы работаем над поддержкой библиотек и целей, которые зависят от XCTest.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->
-When a target is non-cacheable it makes the upstream targets non-cacheable too.
-For example, if you have the dependency graph `A > B`, where A depends on B, if
-B is non-cacheable, A will also be non-cacheable.
+Если цель является некэшируемой, это делает некэшируемыми и вышележащие цели.
+Например, если у вас есть граф зависимостей `A &gt; B`, где A зависит от B, если
+B не кэшируется, A также будет не кэшироваться.
 <!-- -->
 :::
 
-## Efficiency {#efficiency}
+## Эффективность {#efficiency}
 
-The level of efficiency that can be achieved with binary caching depends
-strongly on the graph structure. To achieve the best results, we recommend the
-following:
+Уровень эффективности, которого можно достичь с помощью бинарного кэширования,
+сильно зависит от структуры графа. Для достижения наилучших результатов мы
+рекомендуем следующее:
 
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation
-   ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of
-   change is lower.
+1. Избегайте очень вложенных графов зависимостей. Чем мельче граф, тем лучше.
+2. Определяйте зависимости с помощью целей протокола/интерфейса, а не
+   реализации, и внедряйте зависимости от самых верхних целей.
+3. Разделите часто изменяемые цели на более мелкие, вероятность изменения
+   которых ниже.
 
-The above suggestions are part of the
-<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular
-Architecture</LocalizedLink>, which we propose as a way to structure your
-projects to maximize the benefits not only of binary caching but also of Xcode's
-capabilities.
+Приведенные выше предложения являются частью
+<LocalizedLink href="/guides/features/projects/tma-architecture">Модульной
+архитектуры</LocalizedLink>, которую мы предлагаем в качестве способа
+структурировать ваши проекты, чтобы максимально использовать не только
+преимущества двоичного кэширования, но и возможности Xcode.
 
-## Recommended setup {#recommended-setup}
+## Рекомендуемая настройка {#recommended-setup}
 
-We recommend having a CI job that **runs in every commit in the main branch** to
-warm the cache. This will ensure the cache always contains binaries for the
-changes in `main` so local and CI branch build incrementally upon them.
+Мы рекомендуем иметь задание CI, которое **запускается при каждом коммите в
+основной ветке** для прогрева кэша. Это обеспечит постоянное наличие в кэше
+двоичных файлов для изменений в `основной ветки`, чтобы локальная и CI ветки
+собирались на их основе инкрементально.
 
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
-The `tuist cache` command also makes use of the binary cache to speed up the
-warming.
+Команда `tuist cache` также использует двоичный кэш для ускорения прогрева.
 <!-- -->
 :::
 
-The following are some examples of common workflows:
+Ниже приведены примеры распространенных рабочих процессов:
 
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
+### Разработчик начинает работать над новой функцией {#a-developer-starts-to-work-on-a-new-feature}
 
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project
-   with them.
+1. Они создают новую ветку от `главной`.
+2. Они запускают `туист генерирует`.
+3. Tuist извлекает самые последние двоичные файлы из `main` и генерирует с их
+   помощью проект.
 
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
+### Разработчик продвигает изменения вверх по течению {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `xcodebuild build` or `tuist test` to build or test
-   the project.
-2. The workflow will pull the most recent binaries from `main` and generate the
-   project with them.
-3. It will then build or test the project incrementally.
+1. Конвейер CI запустит `xcodebuild build` или `tuist test` для сборки или
+   тестирования проекта.
+2. Рабочий процесс будет извлекать самые последние двоичные файлы из `main` и
+   генерировать проект с их помощью.
+3. Затем он будет собирать или тестировать проект постепенно.
 
-## Configuration {#configuration}
+## Конфигурация {#configuration}
 
-### Cache concurrency limit {#cache-concurrency-limit}
+### Ограничение параллельности кэша {#cache-concurrency-limit}
 
-By default, Tuist downloads and uploads cache artifacts without any concurrency
-limit, maximizing throughput. You can control this behavior using the
-`TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
+По умолчанию Tuist загружает и выгружает артефакты кэша без ограничения
+параллелизма, что позволяет максимально увеличить пропускную способность. Вы
+можете управлять этим поведением с помощью переменной окружения
+`TUIST_CACHE_CONCURRENCY_LIMIT`:
 
 ```bash
 # Set a specific concurrency limit
@@ -199,31 +200,32 @@ export TUIST_CACHE_CONCURRENCY_LIMIT=none
 tuist generate
 ```
 
-This can be useful in environments with limited network bandwidth or to reduce
-system load during cache operations.
+Это может быть полезно в средах с ограниченной пропускной способностью сети или
+для снижения нагрузки на систему во время операций с кэшем.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
+### Он не использует двоичные файлы для моих целей {#it-doesnt-use-binaries-for-my-targets}
 
-Ensure that the
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are
-deterministic</LocalizedLink> across environments and runs. This might happen if
-the project has references to the environment, for example through absolute
-paths. You can use the `diff` command to compare the projects generated by two
-consecutive invocations of `tuist generate` or across environments or runs.
+Убедитесь, что
+<LocalizedLink href="/guides/features/projects/hashing#debugging">хэши
+детерминированы</LocalizedLink> между окружениями и запусками. Это может
+произойти, если в проекте есть ссылки на окружение, например, через абсолютные
+пути. Вы можете использовать команду `diff` для сравнения проектов, созданных
+двумя последовательными вызовами `tuist generate`, а также между окружениями или
+запусками.
 
-Also make sure that the target doesn't depend either directly or indirectly on a
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">non-cacheable
-target</LocalizedLink>.
+Также убедитесь, что цель не зависит прямо или косвенно от
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">некэшируемой
+цели</LocalizedLink>.
 
-### Missing symbols {#missing-symbols}
+### Отсутствующие символы {#missing-symbols}
 
-When using sources, Xcode's build system, through Derived Data, can resolve
-dependencies that are not declared explicitly. However, when you rely on the
-binary cache, dependencies must be declared explicitly; otherwise you'll likely
-see compilation errors when symbols can't be found. To debug this, we recommend
-using the
+При использовании исходных текстов система сборки Xcode с помощью Derived Data
+может разрешить зависимости, которые не объявлены явно. Однако, если вы
+полагаетесь на бинарный кэш, зависимости должны быть объявлены явно; в противном
+случае вы будете видеть ошибки компиляции, когда символы не могут быть найдены.
+Чтобы отладить это, мы рекомендуем использовать команду
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> command and setting it up in CI to
-prevent regressions in implicit linking.
+inspect implicit-imports`</LocalizedLink> и настроить ее в CI для предотвращения
+регрессий в неявном связывании.
