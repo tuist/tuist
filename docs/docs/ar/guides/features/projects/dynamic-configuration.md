@@ -5,14 +5,14 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# التكوين الديناميكي {#dynamic-configuration}
+# التكوين الديناميكي {#التكوين الديناميكي}
 
 هناك سيناريوهات معينة قد تحتاج فيها إلى تكوين مشروعك ديناميكيًا في وقت الإنشاء.
 على سبيل المثال، قد ترغب في تغيير اسم التطبيق أو معرّف الحزمة أو هدف النشر بناءً
 على البيئة التي يتم فيها إنشاء المشروع. يدعم تويست ذلك عبر متغيرات البيئة، والتي
 يمكن الوصول إليها من ملفات البيان.
 
-## التكوين من خلال متغيرات البيئة {#configuration-through-environment-variables}
+## التكوين من خلال متغيرات البيئة {# التكوين من خلال متغيرات البيئة}
 
 يسمح تويست بتمرير التكوين من خلال متغيرات البيئة التي يمكن الوصول إليها من ملفات
 البيان. على سبيل المثال:
@@ -27,7 +27,7 @@ TUIST_APP_NAME=MyApp tuist generate
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## قراءة متغيرات البيئة من القوائم {#reading-the-environment-variables-from-manifests}
+## قراءة متغيرات البيئة من القوائم {#قراءة متغيرات البيئة من القوائم}
 
 يمكن الوصول إلى المتغيرات باستخدام النوع
 <LocalizedLink href="/references/project-description/enums/environment">`البيئة`</LocalizedLink>.
@@ -57,7 +57,7 @@ func appName() -> String {
 حصول المستخدم على نتائج متسقة في كل مرة. هذا يجنبك الحاجة إلى تعريف الدالة
 appName() المحددة أعلاه.
 
-::: code-group
+:::: مجموعة الرموز
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")
