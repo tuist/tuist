@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ru/>\n"
 "Language: ru\n"
@@ -748,9 +748,9 @@ msgstr "Попробуйте изменить поисковый запрос"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:52
 #: lib/tuist_web/live/create_organization_live.ex:26
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr ""
+msgstr "Логотип Туист"
 
 #: lib/tuist_web/live/account_settings_live.ex:158
 #, elixir-autogen, elixir-format, fuzzy
@@ -763,9 +763,9 @@ msgid "Unknown"
 msgstr "Неизвестный"
 
 #: lib/tuist/billing.ex:70
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Unlimited projects"
-msgstr ""
+msgstr "Неограниченные проекты"
 
 #: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format, fuzzy
