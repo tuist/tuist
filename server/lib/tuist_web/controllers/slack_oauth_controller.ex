@@ -15,8 +15,7 @@ defmodule TuistWeb.SlackOAuthController do
     with {:ok, code} <- extract_code(params),
          {:ok, account_id} <- extract_account_id(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id, preload: [:slack_installation]),
-         redirect_uri = slack_redirect_uri(),
-         {:ok, token_data} <- SlackClient.exchange_code_for_token(code, redirect_uri),
+         {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
          {:ok, _installation} <- create_or_update_installation(account, token_data) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
@@ -84,7 +83,6 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp slack_redirect_uri do
-    base_url = Environment.slack_redirect_base_url() || TuistWeb.Endpoint.url()
-    base_url <> "/integrations/slack/callback"
+    Environment.app_url(path: "/integrations/slack/callback")
   end
 end

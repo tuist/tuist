@@ -413,10 +413,6 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
-  def slack_redirect_base_url(secrets \\ secrets()) do
-    get([:slack, :redirect_base_url], secrets)
-  end
-
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
