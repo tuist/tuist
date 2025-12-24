@@ -19,7 +19,8 @@
 ### GitHub 操作 {#github-actions}
 
 在[GitHub
-操作](https://docs.github.com/en/actions)中，您可以使用<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
+操作](https://docs.github.com/en/actions)中，您可以使用<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+身份验证</LocalizedLink>进行安全的无秘身份验证：
 
 代码组
 ```yaml [OIDC (Mise)]
@@ -115,7 +116,8 @@ jobs:
 
 信息 OIDC 设置
 <!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。要使用 OIDC，需要`permissions: id-token:
+在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github">
+将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。要使用 OIDC，需要`permissions: id-token:
 write` 。或者，你也可以使用带有`TUIST_TOKEN` secret 的
 <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
 <!-- -->
@@ -162,14 +164,16 @@ tuist generate
 信息认证
 <!-- -->
 通过在 Xcode Cloud 工作流设置中设置`TUIST_TOKEN` 环境变量，使用
-<LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>。
+<LocalizedLink href="/guides/server/authentication#project-tokens">
+项目令牌</LocalizedLink>。
 <!-- -->
 :::
 
 ### CircleCI {#circleci}
 
 在 [CircleCI](https://circleci.com) 上，您可以使用
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+身份验证</LocalizedLink>进行安全的无秘身份验证：
 
 代码组
 ```yaml [OIDC (Mise)]
@@ -222,7 +226,8 @@ jobs:
 
 信息认证
 <!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。CircleCI OIDC 令牌包含已连接的 GitHub 仓库，Tuist
+在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github">
+将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。CircleCI OIDC 令牌包含已连接的 GitHub 仓库，Tuist
 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
 <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
 <!-- -->
@@ -231,7 +236,8 @@ jobs:
 ### 比特锐斯 {#bitrise}
 
 在 [Bitrise](https://bitrise.io) 上，您可以使用
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+身份验证</LocalizedLink>进行安全的无秘身份验证：
 
 代码组
 ```yaml [OIDC (Mise)]
@@ -286,7 +292,8 @@ workflows:
 
 信息认证
 <!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。Bitrise OIDC 令牌包含已连接的 GitHub 仓库，Tuist
+在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github">
+将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。Bitrise OIDC 令牌包含已连接的 GitHub 仓库，Tuist
 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
 <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
 <!-- -->
@@ -335,6 +342,7 @@ workflows:
 
 信息认证
 <!-- -->
-创建 <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>，并将其添加为秘密环境变量，命名为`TUIST_TOKEN` 。
+创建 <LocalizedLink href="/guides/server/authentication#project-tokens">
+项目令牌</LocalizedLink>，并将其添加为秘密环境变量，命名为`TUIST_TOKEN` 。
 <!-- -->
 :::
