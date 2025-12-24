@@ -48,7 +48,8 @@ tuist registry login
 ::: info
 <!-- -->
 Для аутентификации требуется учетная запись
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist и проект</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist и
+проект</LocalizedLink>.
 <!-- -->
 :::
 
@@ -56,13 +57,18 @@ tuist registry login
 
 Чтобы разрешить зависимости из реестра, а не из контроля исходных текстов,
 продолжайте читать в зависимости от настроек вашего проекта:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Проект Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Сгенерированный проект с интеграцией пакета Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Сгенерированный проект с интеграцией пакетов на основе XcodeProj</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Пакет Swift</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Проект
+  Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Сгенерированный
+  проект с интеграцией пакета Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Сгенерированный
+  проект с интеграцией пакетов на основе XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Пакет
+  Swift</LocalizedLink>
 
 Чтобы настроить реестр в CI, следуйте этому руководству:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Непрерывная интеграция</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">Непрерывная
+интеграция</LocalizedLink>.
 
 ### Идентификаторы реестра пакетов {#package-registry-identifiers}
 
