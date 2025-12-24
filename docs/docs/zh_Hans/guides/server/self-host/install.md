@@ -302,8 +302,7 @@ Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码�
 
 ### Git 平台配置{#git-platform-configuration}
 
-Tuist 可以<LocalizedLink href="/guides/server/authentication">与 Git
-平台</LocalizedLink>集成，提供额外功能，例如自动在拉取请求中发布注释。
+Tuist 可以<LocalizedLink href="/guides/server/authentication">与 Git 平台</LocalizedLink>集成，提供额外功能，例如自动在拉取请求中发布注释。
 
 #### GitHub{#platform-github}
 

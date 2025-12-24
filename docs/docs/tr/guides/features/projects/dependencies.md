@@ -100,8 +100,7 @@ kullanarak Swift paketi'ni projenize entegre etmenize olanak tanıyan XcodeProj
 tabanlı bir entegrasyon sunuyor. Bu sayede, entegrasyon üzerinde daha fazla
 kontrol sahibi olmanızı sağlamakla kalmıyor, aynı zamanda
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> ve
-<LocalizedLink href="/guides/features/test/selective-testing">selective test
-runs</LocalizedLink> gibi iş akışlarıyla uyumlu hale getirebiliyoruz.
+<LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink> gibi iş akışlarıyla uyumlu hale getirebiliyoruz.
 
 XcodeProj'un entegrasyonu, yeni Swift paketi özelliklerini desteklemek veya daha
 fazla paket yapılandırmasını işlemek için daha fazla zaman alabilir. Bununla
@@ -319,7 +318,7 @@ let project = Project(
 
 ### Kartaca {#carthage}
 
-Carthage](https://github.com/carthage/carthage) `frameworks` veya `xcframeworks`
+[Carthage](https://github.com/carthage/carthage) `frameworks` veya `xcframeworks`
 çıktılarını verdiğinden, `Carthage/Build` dizinindeki bağımlılıkların çıktısını
 almak için `carthage update` çalıştırabilir ve ardından hedefinizdeki
 bağımlılığı bildirmek için `.framework` veya `.xcframework` target bağımlılık
@@ -389,15 +388,7 @@ grafiğine yeni dinamik değişkenler ekleyerek yeni belirsizlik kaynakları
 yaratıyor ve Swift Önizlemeleri gibi derleme grafiğine dayanan bazı özelliklerin
 güvenilmez hale gelmesine neden olabiliyor.
 
-Neyse ki Tuist, statik ve dinamik arasında geçiş yapmakla ilişkili karmaşıklığı
-kavramsal olarak sıkıştırır ve bağlama türleri arasında standart olan
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> sentezler. Ortam değişkenleri</LocalizedLink>
-aracılığıyla
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">dinamik
-yapılandırmalarla birlikte, çağırma sırasında bağlama türünü iletebilir ve
-hedeflerinizin ürün türünü ayarlamak için manifestlerinizdeki değeri
-kullanabilirsiniz.
+Neyse ki Tuist, statik ve dinamik arasında geçiş yapmakla ilişkili karmaşıklığı kavramsal olarak sıkıştırır ve bağlama türleri arasında standart olan <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> sentezler. <LocalizedLink href="/guides/features/projects/dynamic-configuration">Ortam değişkenleri aracılığıyla dinamik yapılandırmalarla</LocalizedLink> birlikte, çağırma sırasında bağlama türünü iletebilir ve hedeflerinizin ürün türünü ayarlamak için manifestlerinizdeki değeri kullanabilirsiniz.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -410,14 +401,7 @@ func productType() -> Product {
 }
 ```
 
-Tuist'in <LocalizedLink href="/guides/features/projects/cost-of-convenience">
-maliyetleri nedeniyle örtük yapılandırma yoluyla varsayılan olarak kolaylık
-sağlamadığını unutmayın</LocalizedLink>. Bunun anlamı, ortaya çıkan ikili
-dosyaların doğru olmasını sağlamak için bağlama türünü ve [`-ObjC` bağlayıcı
-bayrağı](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
-gibi bazen gerekli olan ek derleme ayarlarını yapmanıza güvendiğimizdir. Bu
-nedenle, doğru kararları verebilmeniz için size genellikle dokümantasyon
-şeklinde kaynaklar sağlıyoruz.
+Tuist'in <LocalizedLink href="/guides/features/projects/cost-of-convenience">maliyetleri nedeniyle örtük yapılandırma yoluyla varsayılan olarak kolaylık sağlamadığını</LocalizedLink> unutmayın. Bunun anlamı, ortaya çıkan ikili dosyaların doğru olmasını sağlamak için bağlama türünü ve [`-ObjC` bağlayıcı bayrağı](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) gibi bazen gerekli olan ek derleme ayarlarını yapmanıza güvendiğimizdir. Bu nedenle, doğru kararları verebilmeniz için size genellikle dokümantasyon şeklinde kaynaklar sağlıyoruz.
 
 ::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
@@ -534,8 +518,7 @@ let package = Package(
 
 ### Birleştirilebilir Mimari {#the-composable-architecture}
 
-Burada](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
-ve [sorun giderme bölümünde](#troubleshooting) açıklandığı gibi, paketleri
+[Burada](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) ve [sorun giderme bölümünde](#troubleshooting) açıklandığı gibi, paketleri
 Tuist'in varsayılan bağlama türü olan statik olarak bağlarken `OTHER_LDFLAGS`
 derleme ayarını `$(inherited) -ObjC` olarak ayarlamanız gerekir. Alternatif
 olarak, paketin dinamik olması için ürün türünü geçersiz kılabilirsiniz. Statik
@@ -617,11 +600,9 @@ let packageSettings = PackageSettings(
 Dinamik bir çerçeve veya kütüphane `import StaticSwiftModule` aracılığıyla
 statik olanlara bağımlı olduğunda, semboller dinamik çerçeve veya kütüphanenin
 `.swiftmodule` içine dahil edilir ve potansiyel olarak
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">derlemenin
-başarısız olmasına neden olur</LocalizedLink>. Bunu önlemek için, statik
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">derlemenin başarısız olmasına neden olur</LocalizedLink>. Bunu önlemek için, statik
 bağımlılığı
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink> kullanarak içe aktarmanız gerekir:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink> kullanarak içe aktarmanız gerekir:
 
 ```swift
 internal import StaticModule

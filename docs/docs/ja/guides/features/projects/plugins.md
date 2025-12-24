@@ -101,7 +101,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 タスクは`$PATH`-公開された実行可能ファイルであり、命名規則`tuist-<task-name>` に従っていれば`tuist`
 コマンドを通して呼び出すことができる。以前のバージョンでは、Tuistは`build`,`run`,`test` and`archive` tasks
 represented by executables in Swift Packagesのために、`tuist plugin`
-の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。</task-name>
+の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。
 
 タスクの分散にTuistを使用していた場合は、次のように構築することをお勧めします。
 - Tuistリリースごとに配布される`ProjectAutomation.xcframework` を使い続けることで、`let graph = try

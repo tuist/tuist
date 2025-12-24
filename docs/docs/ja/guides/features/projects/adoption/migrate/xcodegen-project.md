@@ -70,9 +70,7 @@ XcodeGenとTuistの両方がXcodeの言語とコンセプトを受け入れて�
 
 プロジェクト設定のための言語としてのYAMLの欠点の1つは、YAMLファイル間での再利用性をサポートしていないことです。これはプロジェクトを記述するときの共通のニーズであり、XcodeGen
 は*"templates"*
-という独自のソリューションで解決しなければなりませんでした。Tuistの再利用性は言語そのものであるSwiftに組み込まれており、<LocalizedLink href="/guides/features/projects/code-sharing">project
-description
-helpers</LocalizedLink>というSwiftモジュールを通して、すべてのマニフェストファイルにわたってコードを再利用することができます。
+という独自のソリューションで解決しなければなりませんでした。Tuistの再利用性は言語そのものであるSwiftに組み込まれており、<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>というSwiftモジュールを通して、すべてのマニフェストファイルにわたってコードを再利用することができます。
 
 コードグループ
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]

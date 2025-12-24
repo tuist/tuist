@@ -33,8 +33,7 @@ Tuist QA'yı kullanmaya başlamak için yapmanız gerekenler:
 - Temsilcinin daha sonra test için kullanabileceği PR CI iş akışınızdan
   <LocalizedLink href="/guides/features/previews">İncelemeler</LocalizedLink>
   yüklemeyi ayarlayın
-- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub ile entegre
-  edin</LocalizedLink>, böylece aracıyı doğrudan PR'nizden tetikleyebilirsiniz
+- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub ile entegre edin</LocalizedLink>, böylece aracıyı doğrudan PR'nizden tetikleyebilirsiniz
 
 ## Kullanım {#usage}
 
@@ -56,7 +55,7 @@ tam olarak nasıl gerçekleştiğini inceleyebilirsiniz:
 
 ![QA zaman çizelgesi](/images/guides/features/qa/qa-timeline.png)
 
-1}iOS uygulamamız</LocalizedLink> için yaptığımız tüm QA çalışmalarını genel
+iOS uygulamamız için yaptığımız tüm QA çalışmalarını genel
 panomuzda görebilirsiniz: https://tuist.dev/tuist/tuist/qa
 
 ::: info

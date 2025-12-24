@@ -69,13 +69,11 @@ let tuist = Tuist()
 ```
 
 `Tuist.swift` 包含项目配置，其路径可作为确定项目根目录的参考。您可以查看
-<LocalizedLink href="/guides/features/projects/directory-structure"> 目录结构
-</LocalizedLink> 文档，了解 Tuist 项目结构的更多信息。
+<LocalizedLink href="/guides/features/projects/directory-structure"> 目录结构 </LocalizedLink> 文档，了解 Tuist 项目结构的更多信息。
 
 ## 编辑项目{#editing-the-project}
 
-您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink> 在 Xcode 中编辑项目。该命令将生成一个 Xcode 项目，您可以打开并开始工作。
+您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> 在 Xcode 中编辑项目。该命令将生成一个 Xcode 项目，您可以打开并开始工作。
 
 ```bash
 tuist edit

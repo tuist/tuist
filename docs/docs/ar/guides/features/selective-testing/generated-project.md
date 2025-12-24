@@ -7,21 +7,14 @@
 ---
 # المشروع المُنشأ {#generated-project}
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
-- أ <LocalizedLink href="/guides/features/projects"> مشروع تم
-  إنشاؤه</LocalizedLink>
-- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
-  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">مشروع تم إنشاؤه</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
 <!-- -->
 :::
 
-لتشغيل الاختبارات بشكل انتقائي مع مشروعك الذي تم إنشاؤه، استخدم الأمر `tuist
-test`. يقوم الأمر <LocalizedLink href="/guides/features/projects/hashing">
-بتجزئة </LocalizedLink> مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها
-<LocalizedLink href="/guides/features/cache#cache-warming"> لتسخين ذاكرة التخزين
-المؤقت </LocalizedLink>، وعند النجاح، فإنه يستمر في التجزئة لتحديد ما تغير في
-عمليات التشغيل المستقبلية.
+لتشغيل الاختبارات بشكل انتقائي مع مشروعك الذي تم إنشاؤه، استخدم الأمر `tuist test`. يقوم الأمر <LocalizedLink href="/guides/features/projects/hashing">بتجزئة</LocalizedLink> مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها <LocalizedLink href="/guides/features/cache#cache-warming">لتسخين ذاكرة التخزين المؤقت</LocalizedLink>، وعند النجاح، فإنه يستمر في التجزئة لتحديد ما تغير في عمليات التشغيل المستقبلية.
 
 في عمليات التشغيل المستقبلية `اختبار تويست` يستخدم التجزئة بشفافية لتصفية
 الاختبارات لتشغيل الاختبارات التي تغيرت فقط منذ آخر عملية تشغيل اختبار ناجحة.

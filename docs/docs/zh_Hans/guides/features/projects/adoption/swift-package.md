@@ -20,8 +20,7 @@ Tuist 支持使用`Package.swift` 作为您项目的 DSL，它能将您的软件
 ::: info ROOT DIRECTORY
 <!-- -->
 Tuist 命令需要一个特定的
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">
-目录结构</LocalizedLink>，其根目录由`Tuist` 或`.git` 目录标识。
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects"> 目录结构</LocalizedLink>，其根目录由`Tuist` 或`.git` 目录标识。
 <!-- -->
 :::
 

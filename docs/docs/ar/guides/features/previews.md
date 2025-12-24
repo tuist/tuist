@@ -7,10 +7,9 @@
 ---
 # المعاينات {#previews}
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
-- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
-  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -30,7 +29,7 @@
 <!-- -->
 :::
 
-:::: مجموعة الرموز
+:::: code-group
 ```bash [Tuist Project]
 tuist generate App
 xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
@@ -44,7 +43,7 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 <!-- -->
-:::
+::::
 
 سينشئ الأمر رابطًا يمكنك مشاركته مع أي شخص لتشغيل التطبيق - إما على جهاز محاكاة
 أو جهاز فعلي. كل ما عليهم فعله هو تشغيل الأمر أدناه:
@@ -70,9 +69,7 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من
-رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك
-تعيين `CFBundleVersion` إلى المتغير {1${{{ github.run_number}}}</code>.
+تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك تعيين `CFBundleVersion` إلى المتغير <code v-pre>${{ github.run_number }}</code>.
 
 سيفشل تحميل معاينة بنفس الإصدار الثنائي (البناء) ونفس `CFBundleVersion`.
 <!-- -->
@@ -124,7 +121,7 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 عندما تنقر الآن على "تشغيل" في صفحة المعاينة، سيقوم تطبيق macOS بتشغيله تلقائيًا
 على الجهاز المحدد حاليًا.
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
 يجب أن يكون لديك Xcode مثبتًا محليًا وأن يكون مثبتًا على نظام macOS 14 أو أحدث.
 <!-- -->
@@ -146,12 +143,9 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-:::: تحذير التكامل مع منصة GIT مطلوب
+::: warning GIT PLATFORM INTEGRATION REQUIRED
 <!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-مع <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>منصة
-<LocalizedLink href="/guides/server/authentication">Git.
+للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج <LocalizedLink href="/guides/server/accounts-and-projects">مشروعك Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
 <!-- -->
 :::
 
@@ -179,7 +173,7 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 الفرع الرئيسي `` الرئيسي ستُعلم فقط بالمعاينات الأحدث التي تم إنشاؤها أيضًا من
 `الرئيسي`.
 
-### التركيب {#sdk-installation}
+### التركيب {#installation}
 
 أضف Tuist SDK كجزء تابع لحزمة سويفت:
 
@@ -187,7 +181,7 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### مراقبة التحديثات {#sdk-monitor-updates}
+### مراقبة التحديثات {#monitor-updates}
 
 استخدم `monitorPreviewUpdates` للتحقق بشكل دوري من إصدارات المعاينة الجديدة:
 
@@ -210,7 +204,7 @@ struct MyApp: App {
 }
 ```
 
-### التحقق من تحديث واحد {#sdk-single-check}
+### التحقق من تحديث واحد {#single-check}
 
 للتحقق من التحديث اليدوي:
 
@@ -225,7 +219,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### إيقاف مراقبة التحديثات {#sdk-stop-monitoring}
+### إيقاف مراقبة التحديثات {#stop-monitoring}
 
 `يُرجِع موقع MonitorPreviewUpdates` مهمة `مهمة` يمكن إلغاؤها:
 
@@ -238,7 +232,7 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-:::: المعلومات
+::: info
 <!-- -->
 يتم تعطيل التحقق من التحديث تلقائياً على أجهزة المحاكاة وإصدارات App Store.
 <!-- -->

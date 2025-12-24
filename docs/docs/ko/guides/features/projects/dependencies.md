@@ -79,8 +79,7 @@ Xcode의 기본 통합은 가장 편리하지만 중대형 프로젝트에 필�
 XcodeProj의 타깃을 사용하여 프로젝트에 Swift 패키지를 통합할 수 있는 XcodeProj 기반 통합을 제공합니다. 덕분에 통합을 더
 잘 제어할 수 있을 뿐만 아니라
 <LocalizedLink href="/guides/features/cache">캐싱</LocalizedLink> 및
-<LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트
-실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
+<LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift 패키지 기능을 지원하거나 더 많은 패키지 구성을 처리하는 데 더 많은 시간이 걸릴 가능성이
 높습니다. 그러나 Swift 패키지와 XcodeProj 대상 간의 매핑 로직은 오픈 소스이며 커뮤니티에서 기여할 수 있습니다. 이는 비공개
@@ -332,8 +331,7 @@ pod install
 소스를 추가하고 컴파일 그래프에 의존하는 Swift 미리 보기와 같은 일부 기능을 불안정하게 만들 수 있습니다.
 
 다행히도 Tuist는 정적과 동적 간의 변경과 관련된 복잡성을 개념적으로 압축하여 연결 유형 전반에 걸쳐 표준인
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들
-접근자</LocalizedLink>를 합성합니다. <LocalizedLink href="/guides/features/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 합성합니다. <LocalizedLink href="/guides/features/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과
 결합하면 호출 시 연결 유형을 전달하고 매니페스트의 값을 사용하여 타겟의 제품 유형을 설정할 수 있습니다.
 
 ```swift
@@ -347,8 +345,7 @@ func productType() -> Product {
 }
 ```
 
-튜이스트 <LocalizedLink href="/guides/features/projects/cost-of-convenience">은
-비용</LocalizedLink> 때문에 암시적 설정을 통한 편의성을 기본값으로 제공하지 않는다는 점에 유의하세요. 즉, 결과 바이너리가
+튜이스트 <LocalizedLink href="/guides/features/projects/cost-of-convenience">은 비용</LocalizedLink> 때문에 암시적 설정을 통한 편의성을 기본값으로 제공하지 않는다는 점에 유의하세요. 즉, 결과 바이너리가
 올바른지 확인하기 위해 사용자가 링크 유형과 [`-ObjC` 링커
 플래그](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)와
 같이 때때로 필요한 추가 빌드 설정을 설정하는 데 의존한다는 의미입니다. 따라서 올바른 결정을 내리는 데 도움이 되는 리소스를 문서 형태로
@@ -525,10 +522,8 @@ let packageSettings = PackageSettings(
 
 동적 프레임워크 또는 라이브러리가 `import StaticSwiftModule` 을 통해 정적 프레임워크 또는 라이브러리에 의존하는 경우,
 해당 심볼이 동적 프레임워크 또는 라이브러리의 `.swiftmodule` 에 포함되어
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">컴파일이
-실패</LocalizedLink>할 수 있습니다. 이를 방지하려면
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink>를 사용하여 정적 종속성을 임포트해야 합니다:
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">컴파일이 실패</LocalizedLink>할 수 있습니다. 이를 방지하려면
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>를 사용하여 정적 종속성을 임포트해야 합니다:
 
 ```swift
 internal import StaticModule

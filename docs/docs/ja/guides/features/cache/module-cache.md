@@ -8,10 +8,10 @@
 
 # モジュール・キャッシュ {#module-cache}
 
-警告 要件
+::: warning 要件
 <!-- -->
-- 1}生成プロジェクト</LocalizedLink>
-- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">生成プロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
@@ -117,9 +117,7 @@ XCTestに依存するライブラリやターゲットのサポートに取り�
 2. 実装の代わりにプロトコル/インターフェースのターゲットで依存関係を定義し、一番上のターゲットから実装を依存関係インジェクトする。
 3. 頻繁に変更されるターゲットを、変更の可能性が低い小さなターゲットに分割する。
 
-上記の提案は、<LocalizedLink href="/guides/features/projects/tma-architecture">The
-Modular
-Architecture</LocalizedLink>の一部であり、バイナリー・キャッシングだけでなく、Xcodeの機能の利点を最大化するためにプロジェクトを構成する方法として提案します。
+上記の提案は、<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular Architecture</LocalizedLink>の一部であり、バイナリー・キャッシングだけでなく、Xcodeの機能の利点を最大化するためにプロジェクトを構成する方法として提案します。
 
 ## 推奨セットアップ{#recommended-setup}
 
@@ -170,7 +168,7 @@ tuist generate
 
 ### 私のターゲットにはバイナリーを使わない{#it-doesnt-use-binaries-for-my-targets}
 
-1}ハッシュが環境とランにまたがって決定性</LocalizedLink>であることを確認する。これは、プロジェクトが絶対パスなどで環境を参照している場合に発生する可能性があります。`diff`
+<LocalizedLink href="/guides/features/projects/hashing#debugging">ハッシュが環境とランにまたがって決定性</LocalizedLink>であることを確認する。これは、プロジェクトが絶対パスなどで環境を参照している場合に発生する可能性があります。`diff`
 コマンドを使用すると、`tuist generate`
 の2つの連続した呼び出しによって生成されたプロジェクトを比較したり、環境や実行にまたがって比較することができます。
 
@@ -179,5 +177,4 @@ tuist generate
 ### 記号の欠落{#missing-symbols}
 
 ソースを使用する場合、Xcode のビルドシステムは、Derived Data
-を通じて、明示的に宣言されていない依存関係を解決することができます。しかし、バイナリキャッシュに依存する場合、依存関係は明示的に宣言されなければなりません。そうしないと、シンボルが見つからないときにコンパイルエラーが発生する可能性が高い。これをデバッグするには、暗黙リンクのリグレッションを防ぐために、<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink>コマンドを使い、CIで設定することを推奨する。
+を通じて、明示的に宣言されていない依存関係を解決することができます。しかし、バイナリキャッシュに依存する場合、依存関係は明示的に宣言されなければなりません。そうしないと、シンボルが見つからないときにコンパイルエラーが発生する可能性が高い。これをデバッグするには、暗黙リンクのリグレッションを防ぐために、<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink>コマンドを使い、CIで設定することを推奨する。

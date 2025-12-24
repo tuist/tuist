@@ -9,8 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
-  projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -78,10 +77,8 @@ grafiği](/images/guides/features/bundle-size/bundle-size-graph.png)
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git
-platformuyla</LocalizedLink> entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 

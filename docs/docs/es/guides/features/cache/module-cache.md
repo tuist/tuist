@@ -12,8 +12,7 @@
 <!-- -->
 - Un proyecto generado por
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
-  proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -25,8 +24,7 @@ repetir la compilación y acelerando el proceso de desarrollo.
 
 ## Calentamiento {#warming}
 
-Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza
-eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
+Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
 dependencia para detectar cambios. Utilizando estos datos, construye y asigna
 identificadores únicos a los binarios derivados de estos objetivos. En el
 momento de generar el grafo, Tuist sustituye sin problemas los objetivos
@@ -152,8 +150,7 @@ recomendamos lo siguiente:
    probabilidad de cambio sea menor.
 
 Las sugerencias anteriores forman parte de
-<LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura
-modular</LocalizedLink>, que proponemos como una forma de estructurar sus
+<LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura modular</LocalizedLink>, que proponemos como una forma de estructurar sus
 proyectos para maximizar los beneficios no sólo de la caché binaria, sino
 también de las capacidades de Xcode.
 
@@ -214,16 +211,14 @@ reducir la carga del sistema durante las operaciones de caché.
 ### No utiliza binarios para mis objetivos {#it-doesnt-use-binaries-for-my-targets}
 
 Asegúrese de que los
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son
-deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
+<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
 si el proyecto tiene referencias al entorno, por ejemplo a través de rutas
 absolutas. Puede utilizar el comando `diff` para comparar los proyectos
 generados por dos invocaciones consecutivas de `tuist generate` o a través de
 entornos o ejecuciones.
 
 Asegúrese también de que el objetivo no depende directa o indirectamente de un
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo
-no almacenable en caché</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo no almacenable en caché</LocalizedLink>.
 
 ### Símbolos que faltan {#missing-symbols}
 
@@ -233,6 +228,5 @@ explícitamente. Sin embargo, cuando se confía en la caché binaria, las
 dependencias deben declararse explícitamente; de lo contrario, es probable que
 aparezcan errores de compilación cuando no se encuentren los símbolos. Para
 depurar esto, recomendamos usar el comando
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> y configurarlo en CI para prevenir
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> y configurarlo en CI para prevenir
 regresiones en el enlazado implícito.

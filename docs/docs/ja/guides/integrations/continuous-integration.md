@@ -116,8 +116,7 @@ jobs:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
 を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
-<LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> を使うこともできます。
+<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
 <!-- -->
 :::
 
@@ -223,8 +222,7 @@ jobs:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
 OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> を使用することもできます。
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 
@@ -287,8 +285,7 @@ workflows:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
 OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project
-token</LocalizedLink> を使用することもできます。
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 

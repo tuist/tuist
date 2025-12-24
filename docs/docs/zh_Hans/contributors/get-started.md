@@ -37,8 +37,7 @@ Swift 语言和基金会 API 中最常用的元素。
 - [安装](https://mise.jdx.dev/getting-started.html)。Mise 以提供开发环境。
 - 运行`mise install` 安装 Tuist 所需的系统依赖项
 - 运行`tuist install` 安装 Tuist 所需的外部依赖项
-- (可选）运行`tuist auth login` 访问 <LocalizedLink href="/guides/features/cache">Tuist
-  缓存</LocalizedLink>
+- (可选）运行`tuist auth login` 访问 <LocalizedLink href="/guides/features/cache">Tuist 缓存</LocalizedLink>
 - 运行`tuist generate` 使用 Tuist 本身生成 Tuist Xcode 项目
 
 **生成的项目会自动打开** 。如果需要在未生成的情况下再次打开，请运行`打开 Tuist.xcworkspace` （或使用 Finder）。
@@ -52,8 +51,7 @@ Swift 语言和基金会 API 中最常用的元素。
 ## 编辑项目{#edit-the-project}
 
 如果需要编辑项目，例如添加依赖关系或调整目标，可以使用
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
-命令</LocalizedLink>。这个命令很少用到，但知道它的存在还是很有好处的。
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit` 命令</LocalizedLink>。这个命令很少用到，但知道它的存在还是很有好处的。
 
 ## 运行图易斯特{#run-tuist}
 

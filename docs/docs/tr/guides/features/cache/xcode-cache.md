@@ -15,8 +15,7 @@ destek sağlar.
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
-  projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
 - Xcode 26.0 veya üstü
 <!-- -->
 :::
@@ -109,8 +108,7 @@ CI ortamınızda önbelleğe almayı etkinleştirmek için yerel ortamlarda oldu
 aynı komutu çalıştırmanız gerekir: `tuist setup cache`.
 
 Ayrıca, `TUIST_TOKEN` ortam değişkeninin ayarlandığından emin olmanız gerekir.
-Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project">
-belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>. `
+Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project"> belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>. `
 TUIST_TOKEN` ortam değişkeni _derleme adımınız için_ mevcut olmalıdır, ancak
 bunu tüm CI iş akışı için ayarlamanızı öneririz.
 

@@ -5,7 +5,7 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# ذاكرة التخزين المؤقت {#ذاكرة التخزين المؤقت}
+# ذاكرة التخزين المؤقت {#cache}
 
 يوفر نظام البناء الخاص ب Xcode [إنشاءات تدريجية]
 (https://en.wikipedia.org/wiki/Incremental_build_model)، مما يعزز الكفاءة على
@@ -20,18 +20,12 @@
 مما يعزز الإنتاجية في نهاية المطاف.
 
 نحن نقدم نوعين من التخزين المؤقت:
-- <LocalizedLink href="/guides/features/cache/module-cache">ذاكرة التخزين المؤقت
-  للوحدة</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">ذاكرة التخزين المؤقت
-  لـ Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">ذاكرة التخزين المؤقت للوحدة</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">ذاكرة التخزين المؤقت لـ Xcode</LocalizedLink>
 
-## ذاكرة التخزين المؤقت للوحدة النمطية {#وحدة-ذاكرة التخزين المؤقت}
+## ذاكرة التخزين المؤقت للوحدة النمطية {#module-cache}
 
-بالنسبة للمشاريع التي تستخدم قدرات توليد المشاريع
-<LocalizedLink href="/guides/features/projects"> الخاصة بـ
-<LocalizedLink href="/guides/features/projects"> مشروع تويست </LocalizedLink>،
-نوفر نظام تخزين مؤقت قوي، يقوم بتخزين الوحدات الفردية كثنائيات ومشاركتها عبر
-فريقك وبيئات التخزين المؤقت.
+بالنسبة للمشاريع التي تستخدم قدرات <LocalizedLink href="/guides/features/projects">توليد المشاريع</LocalizedLink> الخاصة بـ Tuist، نوفر نظام تخزين مؤقت قوي، يقوم بتخزين الوحدات الفردية كثنائيات ومشاركتها عبر فريقك وبيئات التخزين المؤقت.
 
 في حين يمكنك أيضًا استخدام ذاكرة التخزين المؤقت الجديدة في Xcode، إلا أن هذه
 الميزة مُحسَّنة حاليًا للبنيات المحلية ومن المحتمل أن يكون معدل الوصول إلى ذاكرة
@@ -39,12 +33,11 @@
 يعتمد قرار حل التخزين المؤقت الذي يجب استخدامه على احتياجاتك وتفضيلاتك الخاصة.
 يمكنك أيضًا الجمع بين كلا حلي التخزين المؤقت لتحقيق أفضل النتائج.
 
-<LocalizedLink href="/guides/features/cache/module-cache">تعرف على المزيد حول
-ذاكرة التخزين المؤقت للوحدة →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">تعرف على المزيد حول ذاكرة التخزين المؤقت للوحدة →</LocalizedLink>
 
 ## ذاكرة تخزين Xcode المؤقتة {#xcode-cache}
 
-:::: تحذير حالة الكاش في XCODE
+::: warning STATE OF CACHE IN XCODE
 <!-- -->
 تم تحسين التخزين المؤقت لـ Xcode حاليًا للبناء الإضافي المحلي، كما أن مجموعة
 كاملة من مهام البناء ليست مستقلة عن المسار بعد. لا يزال بإمكانك تجربة الفوائد من
@@ -55,9 +48,6 @@
 
 تعمل Apple على حل جديد للتخزين المؤقت على مستوى الإنشاء، على غرار أنظمة الإنشاء
 الأخرى مثل Bazel وBack. تتوفر إمكانية التخزين المؤقت الجديدة منذ Xcode 26،
-ويتكامل Tuist الآن بسلاسة معها - بغض النظر عما إذا كنت تستخدم إمكانيات توليد
-المشاريع <LocalizedLink href="/guides/features/projects"> الخاصة بـ Tuist
-</LocalizedLink> أم لا.
+ويتكامل Tuist الآن بسلاسة معها - بغض النظر عما إذا كنت تستخدم إمكانيات توليد المشاريع <LocalizedLink href="/guides/features/projects">الخاصة بـ Tuist</LocalizedLink> أم لا.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">تعرف على المزيد حول
-ذاكرة التخزين المؤقت ل Xcode →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">تعرف على المزيد حول ذاكرة التخزين المؤقت ل Xcode →</LocalizedLink>

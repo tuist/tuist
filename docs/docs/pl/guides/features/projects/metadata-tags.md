@@ -140,8 +140,7 @@ zrozumienie celu każdego tagu i uniknięcie konfliktów nazewnictwa.
 ## Używanie tagów z pomocnikami opisu projektu {#using-tags-with-helpers}
 
 Możesz wykorzystać
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink>, aby ustandaryzować sposób stosowania tagów w całym
+<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, aby ustandaryzować sposób stosowania tagów w całym
 projekcie:
 
 ```swift
@@ -238,10 +237,8 @@ tuist generate tag:feature:payment
 
 ## Powiązane funkcje {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie
-  kodu</LocalizedLink> - Używaj narzędzi pomocniczych opisu projektu, aby
+- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie kodu</LocalizedLink> - Używaj narzędzi pomocniczych opisu projektu, aby
   ustandaryzować użycie tagów
 - <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Połącz
   znaczniki z buforowaniem w celu uzyskania optymalnej wydajności kompilacji.
-- <LocalizedLink href="/guides/features/selective-testing">Testowanie
-  selektywne</LocalizedLink> - Uruchamianie testów tylko dla zmienionych celów
+- <LocalizedLink href="/guides/features/selective-testing">Testowanie selektywne</LocalizedLink> - Uruchamianie testów tylko dla zmienionych celów

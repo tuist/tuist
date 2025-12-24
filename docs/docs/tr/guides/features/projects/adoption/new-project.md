@@ -12,8 +12,7 @@ kullanmaktır. Bu komut, projenizi kurarken size rehberlik eden etkileşimli bir
 CLI başlatır. Sorulduğunda, "oluşturulmuş projele" oluşturma seçeneğini
 seçtiğinizden emin olun.
 
-Daha sonra <LocalizedLink href="/guides/features/projects/editing"> projeyi
-düzenleyebilir</LocalizedLink> `tuist edit` çalıştırabilirsiniz ve Xcode projeyi
+Daha sonra <LocalizedLink href="/guides/features/projects/editing"> projeyi düzenleyebilir</LocalizedLink> `tuist edit` çalıştırabilirsiniz ve Xcode projeyi
 düzenleyebileceğiniz bir proje açacaktır. Oluşturulan dosyalardan biri,
 projenizin tanımını içeren `Project.swift` dosyasıdır. Swift paketi Yöneticisine
 aşinaysanız, bunu `Package.swift` gibi düşünün, ancak Xcode projelerinin

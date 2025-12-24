@@ -137,15 +137,13 @@ Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targ
 
 Мы рекомендуем использовать динамические библиотеки или фреймворки во время
 разработки с помощью
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">аксессоров
-пучков</LocalizedLink>, чтобы отделить логику доступа к пучкам от природы
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">аксессоров пучков</LocalizedLink>, чтобы отделить логику доступа к пучкам от природы
 библиотеки или фреймворка целевого объекта. Это важно для ускорения компиляции и
 обеспечения надежной работы [SwiftUI
 Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode).
 А статические библиотеки или фреймворки для релизных сборок обеспечат быструю
 загрузку приложения. Вы можете использовать
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">динамическую
-конфигурацию</LocalizedLink> для изменения типа продукта во время генерации:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">динамическую конфигурацию</LocalizedLink> для изменения типа продукта во время генерации:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

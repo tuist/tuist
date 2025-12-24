@@ -9,8 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
-  projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -157,10 +156,8 @@ erişmeyi ve çalıştırmayı kolaylaştırıyor.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">uzak
-projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git
-platformu</LocalizedLink> ile entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">uzak projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git platformu</LocalizedLink> ile entegre edin.
 <!-- -->
 :::
 
@@ -172,8 +169,7 @@ uygulamasında seçtiğiniz bir cihazda otomatik olarak çalıştıracak yapıya
 bağlantı içeriyor olsaydı ne olurdu?*
 
 Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandıktan
-sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share
-MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
+sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
 bir Önizleme bağlantısı yayınlayacaktır: ![Tuist Önizleme bağlantısı içeren
 GitHub uygulama yorumu](/images/guides/features/github-app-with-preview.png)
 

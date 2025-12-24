@@ -141,8 +141,7 @@ amacını anlamayı kolaylaştırır ve adlandırma çakışmalarını önler.
 ## Etiketleri proje açıklama yardımcıları ile kullanma {#using-tags-with-helpers}
 
 Projenizde etiketlerin nasıl uygulanacağını standartlaştırmak için
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
-yardımcılarından</LocalizedLink> yararlanabilirsiniz:
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarından</LocalizedLink> yararlanabilirsiniz:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -211,8 +210,7 @@ Etiketler kod tabanınızı düzenlemek için esnek bir yol sağlar:
 
 ### Önbellekleme ile entegrasyon
 
-Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in
-önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
+Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
 
 ```bash
 # Cache all targets
@@ -237,10 +235,8 @@ tuist generate tag:feature:payment
 
 ## İlgili özellikler {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Kod
-  paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
+- <LocalizedLink href="/guides/features/projects/code-sharing">Kod paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
   açıklama yardımcılarını kullanın
 - <LocalizedLink href="/guides/features/cache">Önbellek</LocalizedLink> -
   Optimum derleme performansı için etiketleri önbelleğe alma ile birleştirin
-- <LocalizedLink href="/guides/features/selective-testing">Seçmeli
-  test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın
+- <LocalizedLink href="/guides/features/selective-testing">Seçmeli test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın

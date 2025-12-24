@@ -27,8 +27,7 @@ Wymagane jest jedynie, aby znajdowały się one w określonym katalogu.
 ## Definiowanie szablonu {#defining-a-template}
 
 Aby zdefiniować szablony, można uruchomić
-<LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink>, a następnie utworzyć katalog o nazwie `name_of_template`
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>, a następnie utworzyć katalog o nazwie `name_of_template`
 w `Tuist/Templates`, który reprezentuje szablon. Szablony wymagają pliku
 manifestu, `name_of_template.swift` który opisuje szablon. Jeśli więc tworzysz
 szablon o nazwie `framework`, powinieneś utworzyć nowy katalog `framework` w
@@ -96,7 +95,6 @@ do podanej ścieżki.
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Szablony obsługują użycie
-<LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu
-projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
+<LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
 <!-- -->
 :::

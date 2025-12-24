@@ -40,14 +40,12 @@ OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 �
 ### OIDC 인증 설정 {#setting-up-oidc-authentication}
 
 1. **저장소를 Tuist에 연결**:
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합
-   가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합 가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
 
 2. **튜이스트 인증 로그인`** 을 실행합니다: CI 워크플로우에서 인증이 필요한 명령 전에 `tuist auth login` 을
    실행하세요. CLI는 자동으로 CI 환경을 감지하고 OIDC를 사용하여 인증합니다.
 
-공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속
-연동 가이드</LocalizedLink>를 참조하세요.
+공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속 연동 가이드</LocalizedLink>를 참조하세요.
 
 ### OIDC 토큰 범위 {#oidc-token-scopes}
 

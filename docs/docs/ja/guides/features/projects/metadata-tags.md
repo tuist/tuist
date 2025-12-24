@@ -123,7 +123,7 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 ## プロジェクト記述ヘルパーでタグを使う{#using-tags-with-helpers}
 
-1}プロジェクト記述ヘルパー</LocalizedLink>を活用することで、プロジェクト全体でタグの適用方法を標準化することができます：
+プロジェクト記述ヘルパーを活用することで、プロジェクト全体でタグの適用方法を標準化することができます：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -207,9 +207,6 @@ tuist generate tag:feature:payment
 
 ## 関連機能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">コードの共有{1｝-
-  プロジェクト記述ヘルパーを使ってタグの使い方を標準化する
-- <LocalizedLink href="/guides/features/cache">キャッシュ{1｝-
-  最適なビルドパフォーマンスのためにタグとキャッシュを組み合わせる
-- <LocalizedLink href="/guides/features/selective-testing">選択的テスト{1｝-
-  変更されたターゲットに対してのみテストを実行する
+- <LocalizedLink href="/guides/features/projects/code-sharing">コードの共有</LocalizedLink> - プロジェクト記述ヘルパーを使用してタグの使用を標準化する
+- <LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink> - タグとキャッシングを組み合わせて最適なビルドパフォーマンスを実現する
+- <LocalizedLink href="/guides/features/selective-testing">選択的テスト</LocalizedLink> - 変更されたターゲットのみのテストを実行する

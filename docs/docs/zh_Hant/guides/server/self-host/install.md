@@ -304,8 +304,7 @@ Tuist 需要電子郵件功能來進行使用者驗證和交易通知 (例如密
 
 ### Git 平台設定{#git-platform-configuration}
 
-Tuist 可以 <LocalizedLink href="/guides/server/authentication"> 整合 Git
-平台</LocalizedLink>，提供額外的功能，例如自動在您的 pull request 中發佈註解。
+Tuist 可以 <LocalizedLink href="/guides/server/authentication"> 整合 Git 平台</LocalizedLink>，提供額外的功能，例如自動在您的 pull request 中發佈註解。
 
 #### GitHub{#platform-github}
 

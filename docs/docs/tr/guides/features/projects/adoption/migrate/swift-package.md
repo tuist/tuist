@@ -30,8 +30,7 @@ kadar sürebilir. 15 saniye!
 getirip getirmeyeceği belirsiz.** Ancak, bunun gerçekleştiğine dair herhangi bir
 işaret görmüyoruz. Aslında tam tersini görüyoruz. Örtük yapılandırmalar yoluyla
 kolaylık sağlamak gibi Xcode'dan esinlenen kararlar alıyorlar ki bu da
-<LocalizedLink href="/guides/features/projects/cost-of-convenience"> bildiğiniz
-gibi </LocalizedLink> ölçekte komplikasyonların kaynağıdır. Apple'ın ilk
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> bildiğiniz gibi </LocalizedLink> ölçekte komplikasyonların kaynağıdır. Apple'ın ilk
 ilkelere dönmesi ve bir bağımlılık yöneticisi olarak mantıklı olan ancak bir
 proje yöneticisi olarak mantıklı olmayan, örneğin projeleri tanımlamak için bir
 arayüz olarak derlenmiş bir dilin kullanılması gibi bazı kararları yeniden
@@ -94,14 +93,12 @@ let tuist = Tuist()
 `Tuist.swift` projenizin yapılandırmasını içerir ve yolu projenizin kökünü
 belirlemek için bir referans görevi görür. Tuist projelerinin yapısı hakkında
 daha fazla bilgi edinmek için
-<LocalizedLink href="/guides/features/projects/directory-structure">directory
-structure</LocalizedLink> belgesine göz atabilirsiniz.
+<LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink> belgesine göz atabilirsiniz.
 
 ## Projenin düzenlenmesi {#editing-the-project}
 
 Xcode'da projeyi düzenlemek için
-<LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink> komutunu kullanabilirsiniz. Komut, açıp üzerinde çalışmaya
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> komutunu kullanabilirsiniz. Komut, açıp üzerinde çalışmaya
 başlayabileceğiniz bir Xcode projesi oluşturacaktır.
 
 ```bash

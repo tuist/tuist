@@ -35,8 +35,7 @@ xcodebuild test -scheme App` 。該命令會對您的專案進行切細處理，
 | `tuist xcodebuild test` invocation | 執行`CoreTests`,`FeatureATests`, 和`FeatureBTests 中的測試` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新切細值會被持久化。 |
 
 若要在 CI 上使用`tuist xcodebuild test` ，請遵循
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-integration guide</LocalizedLink> 中的指示。
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink> 中的指示。
 
 查看以下視訊，瞭解選擇性測試的實際運作：
 

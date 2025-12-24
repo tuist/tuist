@@ -27,8 +27,7 @@
 с настройками вашего проекта:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Сгенерированный
-  проект</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Сгенерированный проект</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->

@@ -9,8 +9,7 @@
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -56,8 +55,7 @@ główny cel kompilacji, aby umożliwić Tuist śledzenie konfiguracji kompilacj
 
 :: info
 <!-- -->
-Jeśli nie używasz <LocalizedLink href="/guides/features/projects">
-wygenerowanych projektów</LocalizedLink>, akcja po schemacie nie zostanie
+Jeśli nie używasz <LocalizedLink href="/guides/features/projects"> wygenerowanych projektów</LocalizedLink>, akcja po schemacie nie zostanie
 wykonana w przypadku niepowodzenia kompilacji.
 <!-- -->
 :::
@@ -242,8 +240,7 @@ Aby śledzić wgląd w kompilacje i testy w CI, należy upewnić się, że CI je
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>.
 
 Dodatkowo będziesz musiał
-- Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
+- Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
 - Dodaj `-resultBundlePath` do wywołania `xcodebuild`.
 
 Gdy `xcodebuild` buduje lub testuje projekt bez `-resultBundlePath`, wymagane

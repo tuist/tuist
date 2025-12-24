@@ -7,8 +7,7 @@
 ---
 # Xcode 프로젝트 마이그레이션 {#migrate-an-xcode-project}
 
-<LocalizedLink href="/guides/features/projects/adoption/new-project">Tuist를 사용해
-새로운 프로젝트 생성</LocalizedLink>을 하지 않는다면 Tuist의 기본 구성 요소를 사용해 Xcode 프로젝트를 직접 정의해야
+<LocalizedLink href="/guides/features/projects/adoption/new-project">Tuist를 사용해 새로운 프로젝트 생성</LocalizedLink>을 하지 않는다면 Tuist의 기본 구성 요소를 사용해 Xcode 프로젝트를 직접 정의해야
 합니다. 이 과정이 얼마나 번거로운지는 프로젝트의 복잡도에 따라 달라집니다.
 
 이미 알고 있듯이, Xcode 프로젝트는 시간이 지남에 따라 더 복잡하고 어려워질 수 있습니다: 디렉토리 구조와 일치하지 않는 그룹, 여러 타겟

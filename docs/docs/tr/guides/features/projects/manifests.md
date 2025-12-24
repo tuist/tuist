@@ -96,8 +96,7 @@ kullanma kararı size kalmıştır.
 
 Tuist projesinde, soğuk üretim süresi daha hızlı olduğu için (derlenecek daha az
 manifesto dosyası) ve bir kapsülleme birimi olarak
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
-yardımcılarından</LocalizedLink> yararlandığımız için mono-projelere
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarından</LocalizedLink> yararlandığımız için mono-projelere
 dayanıyoruz. Bununla birlikte, uygulamanızın farklı alanlarını temsil etmek için
 Xcode projelerini bir kapsülleme birimi olarak kullanmak isteyebilirsiniz, bu da
 Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
@@ -105,8 +104,7 @@ Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
 ## Tuist.swift {#tuistswift}
 
 Tuist, proje yapılandırmasını basitleştirmek için
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun
-varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
 projenin kökünü belirlemek için kullanılan bir
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 tanımlayarak yapılandırmayı özelleştirebilirsiniz.

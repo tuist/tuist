@@ -7,8 +7,7 @@
 ---
 # Bir Xcode projesini taşıma {#migrate-an-xcode-project}
 
-Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project">
-kullanarak yeni bir proje oluşturmadığınız sürece</LocalizedLink>, bu durumda
+Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> kullanarak yeni bir proje oluşturmadığınız sürece</LocalizedLink>, bu durumda
 her şey otomatik olarak yapılandırılır, Xcode projelerinizi Tuist'in ilkellerini
 kullanarak tanımlamanız gerekir. Bu sürecin ne kadar sıkıcı olduğu,
 projelerinizin ne kadar karmaşık olduğuna bağlıdır.

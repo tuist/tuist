@@ -180,5 +180,4 @@ tuist generate
 
 使用源代码时，Xcode 的构建系统可以通过衍生数据（Derived
 Data）解决未明确声明的依赖关系。但是，当您依赖二进制缓存时，必须明确声明依赖关系；否则，当找不到符号时，您很可能会看到编译错误。要调试这种情况，我们建议使用
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> 命令，并在 CI 中进行设置，以防止隐式链接中的回归。
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> 命令，并在 CI 中进行设置，以防止隐式链接中的回归。

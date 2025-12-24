@@ -93,8 +93,7 @@ let tuist = Tuist(
 若要在 CI 環境中啟用快取，您需要執行與本機環境相同的指令：`tuist setup cache` 。
 
 此外，您需要確保`TUIST_TOKEN` 環境變數已設定。您可以按照說明文件
-<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡
-</LocalizedLink> 建立一個。`TUIST_TOKEN` 環境變數_必須在您的建置步驟中出現_ ，但我們建議您在整個 CI
+<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡 </LocalizedLink> 建立一個。`TUIST_TOKEN` 環境變數_必須在您的建置步驟中出現_ ，但我們建議您在整個 CI
 工作流程中都設定該變數。
 
 GitHub Actions 的示例工作流程如下：

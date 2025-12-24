@@ -5,7 +5,7 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 인사이트 {#인사이트}
+# 인사이트 {#insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -28,7 +28,7 @@
 <!-- -->
 :::
 
-## 빌드 {#빌드}
+## 빌드 {#builds}
 
 CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만 로컬 개발 환경에 대한 가시성은 동일하지 않을 수 있습니다. 하지만 로컬 빌드
 시간은 개발자 경험에 영향을 미치는 가장 중요한 요소 중 하나입니다.
@@ -88,7 +88,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 
 ![빌드 인사이트가 있는 대시보드](/images/guides/features/insights/builds-dashboard.png)
 
-## 테스트 {#테스트}
+## 테스트 {#tests}
 
 빌드를 추적하는 것 외에도 테스트를 모니터링할 수도 있습니다. 테스트 인사이트를 통해 느린 테스트를 식별하거나 실패한 CI 실행을 빠르게 이해할
 수 있습니다.
@@ -215,8 +215,7 @@ CI에 대한 빌드 및 테스트 인사이트를 추적하려면 CI가
 
 또한 다음 중 하나를 수행해야 합니다:
 - `xcodebuild` 동작을 호출할 때
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> 명령을 사용합니다.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> 명령을 사용합니다.
 - `xcodebuild` 호출에 `-resultBundlePath` 을 추가합니다.
 
 `xcodebuild` 가 `-resultBundlePath` 없이 프로젝트를 빌드하거나 테스트하면 필요한 활동 로그 및 결과 번들 파일이

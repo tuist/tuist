@@ -34,12 +34,10 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 موجودة أيضًا في مدير حزم Swift.
 
 ::: info THE ROLE OF TUIST
-<!-- -->
 يمكن أن نلخص دور تويست كأداة تمنع المشاريع المحددة ضمنيًا وتستفيد من الصراحة
 لتوفير تجربة أفضل للمطورين (مثل عمليات التحقق من الصحة والتحسينات). أدوات مثل
 [Bazel] (https://bazel.build) تأخذها إلى أبعد من ذلك من خلال نقلها إلى مستوى
 نظام البناء.
-<!-- -->
 :::
 
 هذه مشكلة بالكاد نوقشت في المجتمع، لكنها مشكلة كبيرة. أثناء عملنا على تويست،
@@ -69,12 +67,7 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 بياني غير محدد بشكل جيد.
 
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
-<!-- -->
-يوفر تويست أمرًا
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">أمرًا
-</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI
-من أن جميع التبعيات صريحة في CI.
-<!-- -->
+يوفر تويست أمرًا <LocalizedLink href="/guides/features/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
 :::
 
 ### البحث عن التبعيات الضمنية في المخططات {#find-implicit-dependencies-in-schemes}
@@ -93,11 +86,9 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 (https://en.wikipedia.org/wiki/Singleton_pattern)، ولكن قد تفشل بعد ذلك في
 التحويل البرمجي على CI لأن الحالة مختلفة.
 
-:::: إكرامية
-<!-- -->
+::: tip
 نوصي بتعطيل ذلك في مخططات مشروعك، واستخدام مثل Tuist الذي يسهل إدارة الرسم
 البياني للتبعية.
-<!-- -->
 :::
 
 ### معاينات SwiftUI والمكتبات/الأطر الثابتة {#swiftui-previews-and-static-librariesframeworks}

@@ -22,8 +22,7 @@ Tuist는 템플릿의 콘텐츠와 템플릿의 용도에 대해 의견을 제�
 
 ## 템플릿 정의하기 {#defining-a-template}
 
-템플릿을 정의하려면 <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink>를 실행한 다음 `Tuist/Templates` 아래에 템플릿을 나타내는 `name_of_template`
+템플릿을 정의하려면 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>를 실행한 다음 `Tuist/Templates` 아래에 템플릿을 나타내는 `name_of_template`
 라는 디렉터리를 생성하면 됩니다. 템플릿에는 템플릿을 설명하는 매니페스트 파일( `name_of_template.swift` )이 필요합니다.
 따라서 `framework` 라는 템플릿을 만드는 경우 `Tuist/Templates` 에 `framework` 라는 새 디렉터리를 만들고
 `framework.swift` 라는 매니페스트 파일을 만들어야 합니다:
@@ -83,7 +82,6 @@ tuist scaffold name_of_template --name Name --platform macos
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명
-도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
+템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
 <!-- -->
 :::

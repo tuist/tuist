@@ -15,8 +15,7 @@ Tuist обеспечивает поддержку кэша компиляции 
 
 ::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
-  проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 - Xcode 26.0 или более поздняя версия
 <!-- -->
 :::

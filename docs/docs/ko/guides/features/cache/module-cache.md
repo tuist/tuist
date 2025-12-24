@@ -20,8 +20,7 @@
 
 ## 온난화 {#warming}
 
-Tuist는 종속성 그래프에서 각 대상에 대해 <LocalizedLink href="/guides/features/projects/hashing">해시를 효율적으로
-활용</LocalizedLink>하여 변경 사항을 감지합니다. 이
+Tuist는 종속성 그래프에서 각 대상에 대해 <LocalizedLink href="/guides/features/projects/hashing">해시를 효율적으로 활용</LocalizedLink>하여 변경 사항을 감지합니다. 이
 데이터를 활용하여 이러한 타깃에서 파생된 바이너리에 고유 식별자를 생성하고 할당합니다. 그런 다음 그래프를 생성할 때 Tuist는 원본 대상을
 해당 바이너리 버전으로 원활하게 대체합니다.
 
@@ -35,7 +34,7 @@ tuist cache
 
 이 명령은 바이너리를 재사용하여 프로세스 속도를 높입니다.
 
-## 사용량 {#사용량}
+## 사용량 {#usage}
 
 기본적으로 Tuist 명령은 프로젝트 생성이 필요한 경우 종속 요소를 캐시에서 사용할 수 있는 경우 해당 바이너리로 자동 대체합니다. 또한
 집중할 대상 목록을 지정하는 경우, 사용 가능한 경우 종속 대상도 캐시된 바이너리로 대체합니다. 다른 접근 방식을 선호하는 경우 특정 플래그를
@@ -124,8 +123,7 @@ XCTest에 의존하는 라이브러리 및 대상을 지원하기 위해 노력�
 2. 구현 대상 대신 프로토콜/인터페이스 대상으로 종속성을 정의하고, 최상위 대상에서 구현을 종속성 주입하세요.
 3. 자주 수정하는 타깃은 변경 가능성이 낮은 작은 타깃으로 분할하세요.
 
-위의 제안은 <LocalizedLink href="/guides/features/projects/tma-architecture">모듈식
-아키텍처</LocalizedLink>의 일부로, 바이너리 캐싱뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있도록 프로젝트를 구성하는
+위의 제안은 <LocalizedLink href="/guides/features/projects/tma-architecture">모듈식 아키텍처</LocalizedLink>의 일부로, 바이너리 캐싱뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있도록 프로젝트를 구성하는
 방법으로 제안합니다.
 
 ## 권장 설정 {#recommended-setup}
@@ -176,19 +174,16 @@ tuist generate
 
 ### 내 타겟에 바이너리를 사용하지 않습니다. {#it-doesnt-use-binaries-for-my-targets}
 
-환경과 실행에 걸쳐 <LocalizedLink href="/guides/features/projects/hashing#debugging">해시가
-결정론적</LocalizedLink>인지 확인합니다. 프로젝트에 절대 경로 등을 통해 환경에 대한 참조가 있는 경우 이런 문제가 발생할 수
+환경과 실행에 걸쳐 <LocalizedLink href="/guides/features/projects/hashing#debugging">해시가 결정론적</LocalizedLink>인지 확인합니다. 프로젝트에 절대 경로 등을 통해 환경에 대한 참조가 있는 경우 이런 문제가 발생할 수
 있습니다. ` diff` 명령을 사용하여 `tuist generate` 또는 환경 또는 실행 간에 연속적으로 두 번 호출하여 생성된 프로젝트를
 비교할 수 있습니다.
 
 또한 대상이
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">캐시할
-수 없는 대상</LocalizedLink>에 직접 또는 간접적으로 의존하지 않는지 확인하세요.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">캐시할 수 없는 대상</LocalizedLink>에 직접 또는 간접적으로 의존하지 않는지 확인하세요.
 
 ### 누락된 기호 {#missing-symbols}
 
 소스를 사용할 때 Xcode의 빌드 시스템은 파생된 데이터를 통해 명시적으로 선언되지 않은 종속성을 해결할 수 있습니다. 그러나 바이너리 캐시에
 의존하는 경우 종속성을 명시적으로 선언해야 하며, 그렇지 않으면 심볼을 찾을 수 없을 때 컴파일 오류가 발생할 수 있습니다. 이를 디버깅하려면
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> 명령을 사용하고 CI에서 설정하여 암시적 연결의 회귀를 방지하는 것이
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> 명령을 사용하고 CI에서 설정하여 암시적 연결의 회귀를 방지하는 것이
 좋습니다.

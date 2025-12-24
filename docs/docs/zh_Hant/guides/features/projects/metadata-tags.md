@@ -123,8 +123,7 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 ## 使用專案描述輔助標籤{#using-tags-with-helpers}
 
-您可以利用 <LocalizedLink href="/guides/features/projects/code-sharing">
-專案描述輔助工具</LocalizedLink>，將標籤在專案中的應用方式標準化：
+您可以利用 <LocalizedLink href="/guides/features/projects/code-sharing"> 專案描述輔助工具</LocalizedLink>，將標籤在專案中的應用方式標準化：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -188,8 +187,7 @@ let project = Project(
 
 ### 與快取整合
 
-Metadata 標籤可與 <LocalizedLink href="/guides/features/cache">Tuist
-的快取功能</LocalizedLink>無縫配合：
+Metadata 標籤可與 <LocalizedLink href="/guides/features/cache">Tuist 的快取功能</LocalizedLink>無縫配合：
 
 ```bash
 # Cache all targets
@@ -207,10 +205,8 @@ tuist generate tag:feature:payment
 4. **使用輔助工具** - 利用專案描述輔助工具來標準化標籤應用
 5. **定期檢閱** - 隨著專案的演進，檢閱並更新您的標籤策略
 
-## 相關功能{#related-features}
+## 相關功能 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">程式碼分享{1｝-
-  使用專案描述輔助工具來標準化標籤用法
-- <LocalizedLink href="/guides/features/cache">快取{1｝- 將標籤與快取結合，以獲得最佳的建立效能
-- <LocalizedLink href="/guides/features/selective-testing">選擇性測試{1｝-
-  僅針對變更的目標執行測試
+- <LocalizedLink href="/guides/features/projects/code-sharing">程式碼分享</LocalizedLink> - 使用專案描述輔助工具標準化標籤使用
+- <LocalizedLink href="/guides/features/cache">快取</LocalizedLink> - 結合標籤與快取以獲得最佳建置效能
+- <LocalizedLink href="/guides/features/selective-testing">選擇性測試</LocalizedLink> - 僅針對已變更的目標執行測試

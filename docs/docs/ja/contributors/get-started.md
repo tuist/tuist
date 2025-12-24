@@ -35,8 +35,7 @@ Tuistに貢献するための最低条件は以下の通り：
 - `mise install` を実行し、Tuistが必要とするシステム依存関係をインストールする。
 - `tuist install` を実行し、Tuistが必要とする外部依存関係をインストールする。
 - (オプション)`tuist auth login` を実行して
-  <LocalizedLink href="/guides/features/cache">Tuist Cache
-  にアクセスする。</LocalizedLink>
+  <LocalizedLink href="/guides/features/cache">Tuist Cache にアクセスする。</LocalizedLink>
 - `tuist generate` を実行し、Tuist自身を使用してTuist Xcodeプロジェクトを生成する。
 
 **生成されたプロジェクトは自動的に開きます** 。生成せずに再度開く必要がある場合は、`open Tuist.xcworkspace`
@@ -51,8 +50,7 @@ Tuistに貢献するための最低条件は以下の通り：
 
 ## プロジェクトの編集{#edit-the-project}
 
-依存関係の追加やターゲットの調整など、プロジェクトの編集が必要な場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist
-edit` command</LocalizedLink>を使うことができる。これはほとんど使われませんが、存在を知っておくのは良いことです。
+依存関係の追加やターゲットの調整など、プロジェクトの編集が必要な場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist edit` command</LocalizedLink>を使うことができる。これはほとんど使われませんが、存在を知っておくのは良いことです。
 
 ## ラン・トゥイスト{#run-tuist}
 

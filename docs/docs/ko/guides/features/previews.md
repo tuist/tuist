@@ -133,9 +133,7 @@ macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스�
 ::: warning Git과 통합 필요
 <!-- -->
 자동 풀/병합 요청 코멘트를 받으려면
-<LocalizedLink href="/guides/server/accounts-and-projects">원격
-프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git
-플랫폼</LocalizedLink>과 통합하세요.
+<LocalizedLink href="/guides/server/accounts-and-projects">원격 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
 <!-- -->
 :::
 

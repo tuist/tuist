@@ -16,11 +16,9 @@
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-:::: تحذير
-<!-- -->
+::: warning
 يجب أن تتم مصادقتك مع Google باستخدام بريد إلكتروني مرتبط بالمؤسسة التي تقوم
 بإعداد نطاقها.
-<!-- -->
 :::
 
 ## أوكتا {#okta}
@@ -58,11 +56,9 @@ tuist organization update sso my-organization --provider google --organization-i
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-:::: تحذير
-<!-- -->
+::: warning
 يحتاج المستخدمون إلى تسجيل الدخول في البداية عبر لوحة تحكم Okta الخاصة بهم لأن
 Tuist لا يدعم حاليًا التوفير التلقائي وإلغاء التوفير التلقائي للمستخدمين من
 مؤسسة Okta الخاصة بك. بمجرد تسجيل دخولهم عبر لوحة تحكم Okta الخاصة بهم، ستتم
 إضافتهم تلقائيًا إلى مؤسسة تويست الخاصة بك.
-<!-- -->
 :::

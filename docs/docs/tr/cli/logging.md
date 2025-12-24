@@ -26,8 +26,7 @@ adresinden önceliklidir.
 ::: tip
 <!-- -->
 Tuist'in dizin organizasyonu ve özel dizinlerin nasıl yapılandırılacağı hakkında
-daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories
-belgesinde</LocalizedLink> bulabilirsiniz.
+daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories belgesinde</LocalizedLink> bulabilirsiniz.
 <!-- -->
 :::
 

@@ -49,8 +49,7 @@ kullanılacağına ilişkin belgelere göz atmanızı öneririz.
 Tuist'i macOS için popüler bir paket yöneticisi olan Homebrew kullanarak da
 yükleyebileceğinizi unutmayın. Tuist'in Homebrew kullanılarak nasıl kurulacağına
 ilişkin talimatları
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum
-kılavuzunda</LocalizedLink> bulabilirsiniz.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum kılavuzunda</LocalizedLink> bulabilirsiniz.
 <!-- -->
 :::
 
@@ -99,8 +98,7 @@ karar verdik. Eğer `Dependencies.swift` dosyasını kullanıyorsanız, içeriğ
 taşımanız ve entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanmanız
 gerekir. Swift paketi bağımlılıklarının nasıl entegre edileceği hakkında daha
 fazla bilgiyi
-<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">buradan
-okuyabilirsiniz</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">buradan okuyabilirsiniz</LocalizedLink>
 
 ### `tuist önbelleği sıcak` olarak `tuist önbelleği olarak yeniden adlandırıldı` {#renamed-tuist-cache-warm-to-tuist-cache}
 

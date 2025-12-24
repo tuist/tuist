@@ -22,13 +22,11 @@ satisfactoria basada en nuestro algoritmo
 Las pruebas selectivas funcionan con `xcodebuild`, que soporta cualquier
 proyecto Xcode, o si generas tus proyectos con Tuist, puedes usar en su lugar el
 comando `tuist test` que proporciona algunas comodidades extra como la
-integración con la <LocalizedLink href="/guides/features/cache">cache
-binaria</LocalizedLink>. Para empezar con las pruebas selectivas, siga las
+integración con la <LocalizedLink href="/guides/features/cache">cache binaria</LocalizedLink>. Para empezar con las pruebas selectivas, siga las
 instrucciones basadas en la configuración de su proyecto:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->

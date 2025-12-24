@@ -20,8 +20,7 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 따르세요:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -45,9 +44,7 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 ::: warning Git과 통합 필요
 <!-- -->
 자동 풀/병합 요청 코멘트를 받으려면
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
-프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git
-플랫폼</LocalizedLink>과 통합하세요.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
 <!-- -->
 :::
 

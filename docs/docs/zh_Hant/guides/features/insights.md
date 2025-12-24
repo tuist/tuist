@@ -42,8 +42,7 @@ Tuist Insights 正處於早期開發階段。
 
 ::: info
 <!-- -->
-如果您沒有使用 <LocalizedLink href="/guides/features/projects">
-產生的專案</LocalizedLink>，在建立失敗的情況下，post-scheme 動作不會被執行。
+如果您沒有使用 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>，在建立失敗的情況下，post-scheme 動作不會被執行。
 <!-- -->
 :::
 > 
@@ -205,8 +204,7 @@ testAction: .testAction(
 
 此外，您還需要：
 - 調用`xcodebuild` 動作時，請使用
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> 指令。
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> 指令。
 - 將`-resultBundlePath` 加入您的`xcodebuild` 調用。
 
 當`xcodebuild` 在沒有`-resultBundlePath` 的情況下建立或測試您的專案時，不會產生所需的活動記錄和結果束檔案。`tuist

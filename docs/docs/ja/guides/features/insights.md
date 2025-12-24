@@ -43,7 +43,7 @@ Tuistがビルド設定を追跡できるように、"Provide build settings fro
 
 ::: info
 <!-- -->
-1}生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
+<LocalizedLink href="/guides/features/projects">生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
 <!-- -->
 :::
 > 
@@ -200,8 +200,7 @@ CIでビルドとテストのインサイトを追跡するには、CIが<Locali
 
 さらに、以下のいずれかが必要となる：
 - `xcodebuild`
-  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> コマンドを使用する。
+  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> コマンドを使用する。
 - `xcodebuild` の呼び出しに`-resultBundlePath` を追加する。
 
 `xcodebuild` が、`-resultBundlePath`

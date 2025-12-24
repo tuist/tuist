@@ -9,8 +9,7 @@
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -41,8 +40,7 @@ Na przykład, zakładając następujący graf zależności:
 | `tuist xcodebuild test` wywołanie | Uruchamia testy w `CoreTests`, `FeatureATests` i `FeatureBTests`  | Nowe skróty `FeatureATests` `FeatureBTests` i `CoreTests` są przechowywane |
 
 Aby użyć `tuist xcodebuild test` w CI, postępuj zgodnie z instrukcjami w
-<LocalizedLink href="/guides/integrations/continuous-integration">Przewodniku
-ciągłej integracji</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Przewodniku ciągłej integracji</LocalizedLink>.
 
 Obejrzyj poniższy film, aby zobaczyć testy selektywne w akcji:
 

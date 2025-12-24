@@ -47,8 +47,7 @@ tuist registry login
 ::: info
 <!-- -->
 Kimlik doğrulama için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı
-ve</LocalizedLink> projesi gerekir.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve</LocalizedLink> projesi gerekir.
 <!-- -->
 :::
 
@@ -56,18 +55,13 @@ ve</LocalizedLink> projesi gerekir.
 
 Bağımlılıkları kaynak denetimi yerine kayıt defterinden çözmek için proje
 kurulumunuza göre okumaya devam edin:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
-  projesi</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Xcode paket
-  entegrasyonu ile oluşturulmuş projele</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj
-  tabanlı paket entegrasyonu ile oluşturulmuş projele</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift
-  paketi</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode projesi</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Xcode paket entegrasyonu ile oluşturulmuş projele</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj tabanlı paket entegrasyonu ile oluşturulmuş projele</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift paketi</LocalizedLink>
 
 CI'da kayıt defterini ayarlamak için bu kılavuzu izleyin:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Sürekli
-tümleştirme</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">Sürekli tümleştirme</LocalizedLink>.
 
 ### Paket kayıt tanımlayıcıları {#package-registry-identifiers}
 

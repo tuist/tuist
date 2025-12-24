@@ -12,10 +12,9 @@
 
 ## الإعداد {#setup}
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
-- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
-  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
 - Xcode 26.0 أو أحدث
 <!-- -->
 :::
@@ -40,9 +39,7 @@ tuist setup cache
 (https://github.com/swiftlang/swift-build) Swift لمشاركة القطع الأثرية للتجميع.
 يجب تشغيل هذا الأمر مرة واحدة في كل من البيئات المحلية وبيئة التخزين المؤقت.
 
-لإعداد ذاكرة التخزين المؤقت على CI، تأكد من أنك
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">مصادق
-</LocalizedLink>.
+لإعداد ذاكرة التخزين المؤقت على CI، تأكد من أنك <LocalizedLink href="/guides/integrations/continuous-integration#authentication">مصادق</LocalizedLink>.
 
 ### تهيئة إعدادات إنشاء Xcode {#configure-xcode-build-settings}
 
@@ -104,11 +101,7 @@ let tuist = Tuist(
 لتمكين التخزين المؤقت في بيئة CI الخاصة بك، تحتاج إلى تشغيل نفس الأمر كما هو
 الحال في البيئات المحلية: `tuist إعداد ذاكرة التخزين المؤقت`.
 
-بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_TOKEN`. يمكنك
-إنشاء واحد باتباع الوثائق
-<LocalizedLink href="/guides/server/authentication#as-a-project"> هنا
-</LocalizedLink>. يجب أن يكون متغير البيئة `TUIST_TOKEN` متغير البيئة __ موجودًا
-لخطوة الإنشاء الخاصة بك، لكننا نوصي بتعيينه لسير عمل CI بأكمله.
+بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_TOKEN`. يمكنك إنشاء واحد باتباع الوثائق <LocalizedLink href="/guides/server/authentication#as-a-project">هنا</LocalizedLink>. يجب أن يكون متغير البيئة `TUIST_TOKEN` موجودًا لخطوة الإنشاء الخاصة بك، لكننا نوصي بتعيينه لسير عمل CI بأكمله.
 
 مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
 ```yaml

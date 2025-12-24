@@ -45,8 +45,7 @@
 - [تثبيت] (https://mise.jdx.dev/getting-started.html) Mise لتوفير بيئة التطوير.
 - قم بتشغيل `mise install` لتثبيت تبعيات النظام التي يحتاجها تويست
 - قم بتشغيل `tuist install` لتثبيت التبعيات الخارجية التي يحتاجها Tuist
-- (اختياري) قم بتشغيل `tuist auth تسجيل الدخول` للوصول إلى ذاكرة التخزين المؤقت
-  <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
+- (اختياري) قم بتشغيل `tuist auth تسجيل الدخول` للوصول إلى ذاكرة التخزين المؤقت <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
 - تشغيل `توليد تويست` لإنشاء مشروع تويست إكس كود باستخدام تويست نفسه
 
 **يفتح المشروع الذي تم إنشاؤه تلقائيًا**. إذا كنت بحاجة إلى فتحه مرة أخرى دون
@@ -62,10 +61,7 @@
 
 ## تحرير المشروع {#edit-the-project}
 
-إذا كنت بحاجة إلى تحرير المشروع، على سبيل المثال لإضافة تبعيات أو تعديل أهداف،
-يمكنك استخدام الأمر
-<LocalizedLink href="/guides/features/projects/editing">`tuist تحرير` الأمر
-</LocalizedLink>. بالكاد يُستخدم هذا الأمر، لكن من الجيد أن تعرف أنه موجود.
+إذا كنت بحاجة إلى تحرير المشروع، على سبيل المثال لإضافة تبعيات أو تعديل أهداف، يمكنك استخدام الأمر <LocalizedLink href="/guides/features/projects/editing">`tuist تحرير` الأمر</LocalizedLink>. بالكاد يُستخدم هذا الأمر، لكن من الجيد أن تعرف أنه موجود.
 
 ## تشغيل تويست {#run-tuist}
 

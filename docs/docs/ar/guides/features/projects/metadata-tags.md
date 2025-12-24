@@ -135,9 +135,7 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 ## استخدام العلامات مع مساعدي وصف المشروع {#using-tags-with-helpers}
 
-يمكنك الاستفادة من
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف
-المشروع</LocalizedLink> لتوحيد كيفية تطبيق العلامات عبر مشروعك:
+يمكنك الاستفادة من <LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع</LocalizedLink> لتوحيد كيفية تطبيق العلامات عبر مشروعك:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -202,9 +200,7 @@ let project = Project(
 
 ### التكامل مع التخزين المؤقت
 
-تعمل علامات البيانات الوصفية بسلاسة مع
-<LocalizedLink href="/guides/features/cache"> ميزات التخزين المؤقت في
-<LocalizedLink href="/guides/features/cache">Tuist</LocalizedLink>:
+تعمل علامات البيانات الوصفية بسلاسة مع <LocalizedLink href="/guides/features/cache">ميزات التخزين المؤقت في Tuist</LocalizedLink>:
 
 ```bash
 # Cache all targets
@@ -227,10 +223,6 @@ tuist generate tag:feature:payment
 
 ## الميزات ذات الصلة {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">مشاركة
-  الرمز</LocalizedLink> - استخدام مساعدي وصف المشروع لتوحيد استخدام العلامات
-- <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
-  المؤقت</LocalizedLink> - ادمج العلامات مع التخزين المؤقت للحصول على أداء بناء
-  مثالي
-- <LocalizedLink href="/guides/features/selective-testing">اختبار
-  انتقائي</LocalizedLink> - إجراء اختبارات للأهداف المتغيرة فقط
+- <LocalizedLink href="/guides/features/projects/code-sharing">مشاركة الرمز</LocalizedLink> - استخدام مساعدي وصف المشروع لتوحيد استخدام العلامات
+- <LocalizedLink href="/guides/features/cache">ذاكرة التخزين المؤقت</LocalizedLink> - ادمج العلامات مع التخزين المؤقت للحصول على أداء بناء مثالي
+- <LocalizedLink href="/guides/features/selective-testing">اختبار انتقائي</LocalizedLink> - إجراء اختبارات للأهداف المتغيرة فقط

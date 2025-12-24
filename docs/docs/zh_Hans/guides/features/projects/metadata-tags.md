@@ -187,8 +187,7 @@ let project = Project(
 
 ### 与缓存集成
 
-元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist
-的缓存功能</LocalizedLink>完美配合：
+元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist 的缓存功能</LocalizedLink>完美配合：
 
 ```bash
 # Cache all targets
@@ -206,10 +205,8 @@ tuist generate tag:feature:payment
 4. **使用帮助程序** - 利用项目描述帮助程序使标签应用标准化
 5. **定期审查** - 随着项目的发展，审查并更新您的标记策略
 
-## 相关功能{#related-features}
+## 相关功能 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享{1｝-
-  使用项目描述助手来规范标记的使用
-- <LocalizedLink href="/guides/features/cache">缓存{1｝- 将标记与缓存相结合，优化构建性能
-- <LocalizedLink href="/guides/features/selective-testing">选择性测试{1｝-
-  仅对已更改的目标运行测试
+- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享</LocalizedLink> - 使用项目描述助手标准化标签的使用
+- <LocalizedLink href="/guides/features/cache">缓存</LocalizedLink> - 结合标签与缓存实现最佳构建性能
+- <LocalizedLink href="/guides/features/selective-testing">选择性测试</LocalizedLink> - 仅为已更改的目标运行测试

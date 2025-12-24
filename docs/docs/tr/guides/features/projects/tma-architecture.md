@@ -138,15 +138,13 @@ olmaktan çıkmıştır.
 
 Geliştirme sırasında, paket erişim mantığını hedefin kütüphane veya çerçeve
 yapısından ayırmak için
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
-accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
 kullanmanızı öneririz. Bu, hızlı derleme süreleri ve [SwiftUI
 Önizlemelerinin](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 güvenilir bir şekilde çalışmasını sağlamak için çok önemlidir. Ve uygulamanın
 hızlı önyükleme yapmasını sağlamak için sürüm derlemeleri için statik
 kütüphaneler veya çerçeveler. Ürün türünü oluşturma zamanında değiştirmek için
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik
-yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

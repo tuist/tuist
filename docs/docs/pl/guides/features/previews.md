@@ -9,8 +9,7 @@
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -158,8 +157,7 @@ podglądów i ich uruchamianie.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
-<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny
-projekt</LocalizedLink> z platformą
+<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny projekt</LocalizedLink> z platformą
 <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
@@ -172,8 +170,7 @@ link do kompilacji, która automatycznie uruchamiałaby aplikację na urządzeni
 wybranym w aplikacji Tuist macOS?*
 
 Po połączeniu projektu Tuist z platformą Git, taką jak
-[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
+[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
 link do podglądu bezpośrednio w żądaniach ściągnięcia: ![Komentarz do aplikacji
 GitHub z linkiem do podglądu
 Tuist](/images/guides/features/github-app-with-preview.png)

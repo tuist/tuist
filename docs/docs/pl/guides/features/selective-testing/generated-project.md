@@ -11,8 +11,7 @@
 <!-- -->
 - Projekt wygenerowany przez
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -20,8 +19,7 @@ Aby selektywnie uruchamiać testy w wygenerowanym projekcie, należy użyć
 polecenia `tuist test`. Polecenie
 <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
 projektu Xcode w taki sam sposób, jak w przypadku
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, a po powodzeniu utrwala hashe, aby określić, co zmieniło
+<LocalizedLink href="/guides/features/cache#cache-warming">warming the cache</LocalizedLink>, a po powodzeniu utrwala hashe, aby określić, co zmieniło
 się w przyszłych uruchomieniach.
 
 W przyszłych uruchomieniach `tuist test` w przejrzysty sposób wykorzystuje

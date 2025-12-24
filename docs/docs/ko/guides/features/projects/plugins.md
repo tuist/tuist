@@ -9,13 +9,11 @@
 
 플러그인은 여러 프로젝트에서 Tuist 아티팩트를 공유하고 재사용할 수 있는 도구입니다. 지원되는 아티팩트는 다음과 같습니다:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">여러 프로젝트에 걸친 프로젝트
-  설명 도우미</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/code-sharing">여러 프로젝트에 걸친 프로젝트 설명 도우미</LocalizedLink>.
 - <LocalizedLink href="/guides/features/projects/templates">템플릿</LocalizedLink>을
   여러 프로젝트에 걸쳐 사용합니다.
 - 여러 프로젝트에 걸친 작업.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">여러 프로젝트에 걸친
-  리소스 접근자</LocalizedLink> 템플릿
+- <LocalizedLink href="/guides/features/projects/synthesized-files">여러 프로젝트에 걸친 리소스 접근자</LocalizedLink> 템플릿
 
 플러그인은 Tuist의 기능을 간단하게 확장할 수 있도록 설계되었습니다. 따라서 고려해야 할 **몇 가지 제한 사항이 있습니다(**):
 

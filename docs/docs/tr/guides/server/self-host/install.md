@@ -280,8 +280,7 @@ işaretlediğinizden emin olun.
 
 Okta ile kimlik doğrulamayı [OAuth 2.0](https://oauth.net/2/) protokolü
 aracılığıyla etkinleştirebilirsiniz. Okta'da
-<LocalizedLink href="/guides/integrations/sso#okta"> bu
-talimatları</LocalizedLink> izleyerek [bir uygulama
+<LocalizedLink href="/guides/integrations/sso#okta"> bu talimatları</LocalizedLink> izleyerek [bir uygulama
 oluşturmanız](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
 gerekir.
 
@@ -380,8 +379,7 @@ ayarını yapın. E-posta yapılandırıldığında e-posta onayı gerektirmek i
 
 ### Git platform yapılandırması {#git-platform-configuration}
 
-Tuist, <LocalizedLink href="/guides/server/authentication"> Git
-platformları</LocalizedLink> ile entegre olarak çekme isteklerinize otomatik
+Tuist, <LocalizedLink href="/guides/server/authentication"> Git platformları</LocalizedLink> ile entegre olarak çekme isteklerinize otomatik
 olarak yorum gönderme gibi ekstra özellikler sağlayabilir.
 
 #### GitHub {#platform-github}

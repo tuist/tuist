@@ -140,10 +140,7 @@ del propósito de cada etiqueta y evita conflictos de nomenclatura.
 
 ## Utilización de etiquetas con los asistentes de descripción de proyectos {#using-tags-with-helpers}
 
-Puede utilizar
-<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de
-descripción de proyectos</LocalizedLink> para estandarizar cómo se aplican las
-etiquetas en todo el proyecto:
+Puede utilizar <LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para estandarizar cómo se aplican las etiquetas en todo el proyecto:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -213,9 +210,7 @@ Las etiquetas permiten organizar el código de forma flexible:
 
 ### Integración con la caché
 
-Las etiquetas de metadatos funcionan a la perfección con las funciones de
-almacenamiento en caché</LocalizedLink> de
-<LocalizedLink href="/guides/features/cache">Tuist:
+Las etiquetas de metadatos funcionan a la perfección con las funciones de <LocalizedLink href="/guides/features/cache">almacenamiento en caché de Tuist</LocalizedLink>:
 
 ```bash
 # Cache all targets
@@ -240,12 +235,6 @@ tuist generate tag:feature:payment
 
 ## Funciones relacionadas {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Compartir
-  código</LocalizedLink> - Utilizar ayudantes de descripción de proyectos para
-  estandarizar el uso de etiquetas
-- <LocalizedLink href="/guides/features/cache">Caché</LocalizedLink> - Combine
-  las etiquetas con la caché para obtener un rendimiento óptimo de la
-  compilación
-- <LocalizedLink href="/guides/features/selective-testing">Pruebas
-  selectivas</LocalizedLink> - Ejecutar pruebas sólo para los objetivos
-  modificados
+- <LocalizedLink href="/guides/features/projects/code-sharing">Compartir código</LocalizedLink> - Utilizar ayudantes de descripción de proyectos para estandarizar el uso de etiquetas
+- <LocalizedLink href="/guides/features/cache">Caché</LocalizedLink> - Combine las etiquetas con la caché para obtener un rendimiento óptimo de la compilación
+- <LocalizedLink href="/guides/features/selective-testing">Pruebas selectivas</LocalizedLink> - Ejecutar pruebas sólo para los objetivos modificados

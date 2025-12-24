@@ -52,8 +52,7 @@ Proje üzerinde çalışmaya başlamak için aşağıdaki adımları takip edebi
   install` adresini çalıştırın
 - Tuist tarafından ihtiyaç duyulan harici bağımlılıkları yüklemek için `tuist
   install` adresini çalıştırın
-- (İsteğe bağlı) <LocalizedLink href="/guides/features/cache">Tuist Önbelleğine
-  erişmek için `tuist auth login` adresini çalıştırın</LocalizedLink>
+- (İsteğe bağlı) <LocalizedLink href="/guides/features/cache">Tuist Önbelleğine erişmek için `tuist auth login` adresini çalıştırın</LocalizedLink>
 - Tuist'in kendisini kullanarak Tuist Xcode projesini oluşturmak için `tuist
   generate` adresini çalıştırın
 
@@ -71,8 +70,7 @@ tarafından oluşturulan projeyi kullanmanızı öneririz.
 ## Projeyi düzenleyin {#edit-the-project}
 
 Projeyi düzenlemeniz gerekirse, örneğin bağımlılıklar eklemek veya hedefleri
-ayarlamak için <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit` komutunu</LocalizedLink> kullanabilirsiniz. Bu çok az kullanılır, ancak
+ayarlamak için <LocalizedLink href="/guides/features/projects/editing">`tuist edit` komutunu</LocalizedLink> kullanabilirsiniz. Bu çok az kullanılır, ancak
 var olduğunu bilmek iyidir.
 
 ## Run Tuist {#run-tuist}

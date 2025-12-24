@@ -284,8 +284,7 @@ GitHub:
 Вы можете включить аутентификацию с помощью Okta по протоколу [OAuth
 2.0](https://oauth.net/2/). Вам нужно будет [создать
 приложение](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-на Okta, следуя <LocalizedLink href="/guides/integrations/sso#okta">этим
-инструкциям</LocalizedLink>.
+на Okta, следуя <LocalizedLink href="/guides/integrations/sso#okta">этим инструкциям</LocalizedLink>.
 
 После получения идентификатора и секрета клиента в процессе настройки приложения
 Okta вам нужно будет установить следующие переменные окружения:
@@ -385,8 +384,7 @@ SMTP для вашего локального развертывания, свя
 
 ### Настройка платформы Git {#git-platform-configuration}
 
-Tuist может <LocalizedLink href="/guides/server/authentication">интегрироваться
-с Git-платформами</LocalizedLink>, чтобы предоставить дополнительные
+Tuist может <LocalizedLink href="/guides/server/authentication">интегрироваться с Git-платформами</LocalizedLink>, чтобы предоставить дополнительные
 возможности, такие как автоматическая публикация комментариев в ваших запросах
 на вытягивание.
 

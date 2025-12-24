@@ -480,8 +480,7 @@ let packageSettings = PackageSettings(
 
 当动态框架或库通过`import StaticSwiftModule` 来依赖静态框架或库时，动态框架或库的`.swiftmodule`
 中就会包含这些符号，从而可能<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">导致编译失败</LocalizedLink>。为了避免这种情况，您必须使用
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
-import`</LocalizedLink> 来导入静态依赖关系：
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink> 来导入静态依赖关系：
 
 ```swift
 internal import StaticModule

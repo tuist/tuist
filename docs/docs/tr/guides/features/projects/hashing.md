@@ -56,8 +56,7 @@ aşağıdaki adımları izlemenizi öneririz:
 
 1. `tuist hash cache` veya `tuist hash selective-testing`
    (<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli
-   test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
+   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
    proje dizinini yeniden adlandırın ve komutu tekrar çalıştırın. Hash'ler
    eşleşmelidir.
 2. Hash'ler eşleşmiyorsa, oluşturulmuş projele'nin ortama bağlı olması

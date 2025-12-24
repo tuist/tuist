@@ -11,9 +11,7 @@
 (https://en.wikipedia.org/wiki/Continuous_integration) الخاصة بك، ستحتاج إلى
 تثبيته في بيئة CI الخاصة بك.
 
-تكون المصادقة اختيارية ولكنها مطلوبة إذا كنت تريد استخدام ميزات من جانب الخادم
-مثل <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
-المؤقت</LocalizedLink>.
+تكون المصادقة اختيارية ولكنها مطلوبة إذا كنت تريد استخدام ميزات من جانب الخادم مثل <LocalizedLink href="/guides/features/cache">ذاكرة التخزين المؤقت</LocalizedLink>.
 
 تقدم الأقسام التالية أمثلة على كيفية القيام بذلك على منصات CI المختلفة.
 
@@ -25,7 +23,7 @@
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
 للمصادقة الآمنة وغير السرية:
 
-:::: مجموعة الرموز
+:::: code-group
 ```yaml [OIDC (Mise)]
 name: Build Application
 on:
@@ -114,25 +112,16 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist setup cache
 ```
-<!-- -->
-:::
+
+::::
 
 ::: info OIDC SETUP
-<!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف:
-الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز
-المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
-<!-- -->
+قبل استخدام مصادقة OIDC، تحتاج إلى <LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف: الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام <LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
 :::
 
-:::: إكرامية
-<!-- -->
+::: tip
 نوصي باستخدام `mise استخدام --pin` في مشاريع تويست الخاصة بك لتثبيت إصدار تويست
 عبر البيئات. سينشئ الأمر ملف `.tool-versions` يحتوي على إصدار تويست.
-<!-- -->
 :::
 
 ### سحابة Xcode السحابية {#xcode-cloud}

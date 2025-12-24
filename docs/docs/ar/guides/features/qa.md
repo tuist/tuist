@@ -29,13 +29,10 @@
 ## المتطلبات الأساسية {#prerequisites}
 
 لبدء استخدام ضمان الجودة من تويست، تحتاج إلى
-- قم بإعداد تحميل <LocalizedLink href="/guides/features/previews">مراجعات
-  </LocalizedLink> من سير عمل العلاقات العامة CI، والتي يمكن للوكيل استخدامها
-  بعد ذلك للاختبار
-- <LocalizedLink href="/guides/integrations/gitforge/github">دمج</LocalizedLink>
-  مع GitHub، حتى تتمكن من تشغيل الوكيل مباشرةً من علاقاتك العامة
+- قم بإعداد تحميل <LocalizedLink href="/guides/features/previews">مراجعات</LocalizedLink> من سير عمل العلاقات العامة CI، والتي يمكن للوكيل استخدامها بعد ذلك للاختبار
+- <LocalizedLink href="/guides/integrations/gitforge/github">دمج</LocalizedLink> مع GitHub، حتى تتمكن من تشغيل الوكيل مباشرةً من علاقاتك العامة
 
-## الاستخدام {#استخدام}
+## الاستخدام {#usage}
 
 يتم تشغيل ضمان الجودة في تويست حاليًا مباشرةً من العلاقات العامة. بمجرد أن يكون
 لديك معاينة مرتبطة بعلاقاتك العامة، يمكنك تشغيل عامل ضمان الجودة عن طريق التعليق
@@ -55,11 +52,9 @@
 
 ![جدول زمني لضمان الجودة] (/images/guides/features/qa/qa-timeline.png)
 
-يمكنك الاطلاع على جميع عمليات ضمان الجودة التي نقوم بها لتطبيق
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink>
-الخاص بنا في لوحة التحكم العامة لدينا: https://tuist.dev/tuist/tuist/qa
+يمكنك الاطلاع على جميع عمليات ضمان الجودة التي نقوم بها لتطبيق <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink> الخاص بنا في لوحة التحكم العامة لدينا: https://tuist.dev/tuist/tuist/qa
 
-:::: المعلومات
+::: info
 <!-- -->
 يعمل وكيل ضمان الجودة بشكل مستقل ولا يمكن مقاطعته بمطالبات إضافية بمجرد بدء
 التشغيل. نحن نقدم سجلات مفصلة طوال فترة التنفيذ لمساعدتك على فهم كيفية تفاعل

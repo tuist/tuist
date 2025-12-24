@@ -15,8 +15,7 @@ buforowania systemu kompilacji.
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 - Xcode 26.0 lub nowszy
 <!-- -->
 :::
@@ -107,8 +106,7 @@ w środowisku lokalnym: `tuist setup cache`.
 
 Dodatkowo należy upewnić się, że ustawiona jest zmienna środowiskowa
 `TUIST_TOKEN`. Można ją utworzyć, postępując zgodnie z dokumentacją
-<LocalizedLink href="/guides/server/authentication#as-a-project">
-tutaj</LocalizedLink>. Zmienna środowiskowa `TUIST_TOKEN` _ musi_ być obecna w
+<LocalizedLink href="/guides/server/authentication#as-a-project"> tutaj</LocalizedLink>. Zmienna środowiskowa `TUIST_TOKEN` _ musi_ być obecna w
 kroku kompilacji, ale zalecamy ustawienie jej dla całego przepływu pracy CI.
 
 Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:

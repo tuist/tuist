@@ -9,8 +9,7 @@
 
 ::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
-  проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -58,8 +57,7 @@ Tuist Insights находится на ранней стадии разрабо�
 ::: info
 <!-- -->
 Если вы не используете
-<LocalizedLink href="/guides/features/projects">генерируемые
-проекты</LocalizedLink>, действие post-scheme не выполняется в случае неудачи
+<LocalizedLink href="/guides/features/projects">генерируемые проекты</LocalizedLink>, действие post-scheme не выполняется в случае неудачи
 сборки.
 <!-- -->
 :::
@@ -247,8 +245,7 @@ testAction: .testAction(
 
 Кроме того, вам потребуется:
 - Используйте команду
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> при вызове действий `xcodebuild`.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> при вызове действий `xcodebuild`.
 - Добавьте `-resultBundlePath` к вызову `xcodebuild`.
 
 Когда `xcodebuild` собирает или тестирует ваш проект без `-resultBundlePath`,

@@ -8,8 +8,7 @@
 # Xcode paket entegrasyonu ile oluşturulmuş projele {#generated-project-with-xcode-based-integration}
 
 Tuist Projects ile
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode'un
-varsayılan paket entegrasyonunu</LocalizedLink> kullanıyorsanız, bir paket
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode'un varsayılan paket entegrasyonunu</LocalizedLink> kullanıyorsanız, bir paket
 eklerken URL yerine kayıt tanımlayıcısını kullanmanız gerekir:
 ```swift
 import ProjectDescription

@@ -52,8 +52,7 @@ Swift 語言和基金會 API 中最常用的元素。
 ## 編輯專案{#edit-the-project}
 
 如果需要編輯專案，例如新增相依性或調整目標，可以使用
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
-指令</LocalizedLink>。這個功能幾乎用不到，但知道它的存在是件好事。
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit` 指令</LocalizedLink>。這個功能幾乎用不到，但知道它的存在是件好事。
 
 ## 運行圖斯特{#run-tuist}
 

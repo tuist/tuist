@@ -7,10 +7,9 @@
 ---
 # مشروع Xcode {#xcode-project}
 
-:::: متطلبات التحذير
+::: warning REQUIREMENTS
 <!-- -->
-- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
-  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -38,9 +37,7 @@ test -scheme App`. يقوم الأمر بتجزئة مشروعك وعند الن
 | `تم تحديث الموقع الأساسي`       | يقوم المطور بتعديل الكود البرمجي للهدف                                    | كما في السابق                                                                       |
 | `tuist xcodebuild test` استدعاء | يقوم بتشغيل الاختبارات في `CoreTests` و `FeatureATests` و `FeatureBTests` | التجزئة الجديدة لـ `FeatureATests` `FeatureBTests` ، و `CoreTests` يتم استمرارها    |
 
-لاستخدام `tuist xcodebuild test` على CI الخاص بك، اتبع التعليمات الواردة في دليل
-<LocalizedLink href="/guides/integrations/continuous-integration">التكامل
-المستمر</LocalizedLink>.
+لاستخدام `tuist xcodebuild test` على CI الخاص بك، اتبع التعليمات الواردة في دليل <LocalizedLink href="/guides/integrations/continuous-integration">التكامل المستمر</LocalizedLink>.
 
 شاهد الفيديو التالي لمشاهدة الاختبار الانتقائي أثناء العمل:
 

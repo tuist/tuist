@@ -36,8 +36,7 @@ tuist setup cache
 会使用该服务共享编译工件。此命令需要在本地和 CI 环境中运行一次。
 
 要在 CI 上设置缓存，请确保您已通过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
-验证</LocalizedLink>。
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>。
 
 ### 配置 Xcode 构建设置{#configure-xcode-build-settings}
 

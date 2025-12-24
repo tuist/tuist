@@ -15,8 +15,7 @@
 :::
 
 생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령을 사용합니다. 이 명령은
-<LocalizedLink href="/guides/features/cache#cache-warming">캐시
-워밍업</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를
+<LocalizedLink href="/guides/features/cache#cache-warming">캐시 워밍업</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를
 <LocalizedLink href="/guides/features/projects/hashing">해시</LocalizedLink>하고,
 성공하면 향후 실행에서 변경된 내용을 확인하기 위해 해시를 유지합니다.
 

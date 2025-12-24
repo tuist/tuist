@@ -71,8 +71,7 @@ wygenerowanego przez Tuist w celu przetestowania narzędzia.
 
 Jeśli chcesz edytować projekt, na przykład w celu dodania zależności lub
 dostosowania celów, możesz użyć polecenia
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
-</LocalizedLink>. Jest ono rzadko używane, ale warto wiedzieć, że istnieje.
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit` </LocalizedLink>. Jest ono rzadko używane, ale warto wiedzieć, że istnieje.
 
 ## Run Tuist {#run-tuist}
 

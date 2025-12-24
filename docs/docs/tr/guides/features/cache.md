@@ -21,15 +21,12 @@ yaklaşım yalnızca geri bildirim döngülerini hızlandırmakla kalmaz, aynı 
 bağlam değiştirme ihtiyacını da en aza indirir ve sonuçta üretkenliği artırır.
 
 İki tür önbellekleme sunuyoruz:
-- <LocalizedLink href="/guides/features/cache/module-cache">Modül
-  önbelleği</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  önbelleği</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği</LocalizedLink>
 
 ## Modül önbelleği {#module-cache}
 
-Tuist'in <LocalizedLink href="/guides/features/projects">proje
-oluşturma</LocalizedLink> yeteneklerini kullanan projeler için, tek tek
+Tuist'in <LocalizedLink href="/guides/features/projects">proje oluşturma</LocalizedLink> yeteneklerini kullanan projeler için, tek tek
 modülleri ikili dosyalar olarak önbelleğe alan ve bunları ekibiniz ve CI
 ortamlarınız arasında paylaşan güçlü bir önbellekleme sistemi sağlıyoruz.
 
@@ -40,8 +37,7 @@ birlikte, hangi önbellekleme çözümünün kullanılacağına ilişkin karar, 
 ihtiyaçlarınıza ve tercihlerinize bağlıdır. En iyi sonuçları elde etmek için her
 iki önbellekleme çözümünü de birleştirebilirsiniz.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği
-hakkında daha fazla bilgi edinin →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği hakkında daha fazla bilgi edinin →</LocalizedLink>
 
 ## Xcode önbelleği {#xcode-cache}
 
@@ -62,5 +58,4 @@ düzeyinde yeni bir önbellekleme çözümü üzerinde çalışıyor. Yeni önbe
 yeteneklerini kullanıp kullanmadığınıza bakılmaksızın sorunsuz bir şekilde
 entegre oluyor.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği
-hakkında daha fazla bilgi edinin →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği hakkında daha fazla bilgi edinin →</LocalizedLink>

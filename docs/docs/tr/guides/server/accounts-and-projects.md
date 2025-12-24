@@ -34,8 +34,7 @@ Hesapları ve projeleri yönetmeyi kolaylaştıracak bir web arayüzü üzerinde
 <!-- -->
 :::
 
-Organizasyonu <LocalizedLink href="/cli/organization">`tuist
-organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
+Organizasyonu <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
 yönetebilirsiniz. Yeni bir organizasyon hesabı oluşturmak için çalıştırın:
 ```bash
 tuist organization create {account-handle}

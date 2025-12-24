@@ -12,8 +12,7 @@
 <!-- -->
 - Проект, созданный
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
-  проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -26,8 +25,7 @@
 ## Согревающий {#warming}
 
 Tuist эффективно
-<LocalizedLink href="/guides/features/projects/hashing">использует
-хэши</LocalizedLink> для каждой цели в графе зависимостей, чтобы обнаружить
+<LocalizedLink href="/guides/features/projects/hashing">использует хэши</LocalizedLink> для каждой цели в графе зависимостей, чтобы обнаружить
 изменения. Используя эти данные, он создает и присваивает уникальные
 идентификаторы двоичным файлам, полученным из этих целей. Во время генерации
 графа Tuist плавно заменяет исходные цели их соответствующими двоичными
@@ -146,8 +144,7 @@ B не кэшируется, A также будет не кэшироватьс
    которых ниже.
 
 Приведенные выше предложения являются частью
-<LocalizedLink href="/guides/features/projects/tma-architecture">Модульной
-архитектуры</LocalizedLink>, которую мы предлагаем в качестве способа
+<LocalizedLink href="/guides/features/projects/tma-architecture">Модульной архитектуры</LocalizedLink>, которую мы предлагаем в качестве способа
 структурировать ваши проекты, чтобы максимально использовать не только
 преимущества двоичного кэширования, но и возможности Xcode.
 
@@ -208,16 +205,14 @@ tuist generate
 ### Он не использует двоичные файлы для моих целей {#it-doesnt-use-binaries-for-my-targets}
 
 Убедитесь, что
-<LocalizedLink href="/guides/features/projects/hashing#debugging">хэши
-детерминированы</LocalizedLink> между окружениями и запусками. Это может
+<LocalizedLink href="/guides/features/projects/hashing#debugging">хэши детерминированы</LocalizedLink> между окружениями и запусками. Это может
 произойти, если в проекте есть ссылки на окружение, например, через абсолютные
 пути. Вы можете использовать команду `diff` для сравнения проектов, созданных
 двумя последовательными вызовами `tuist generate`, а также между окружениями или
 запусками.
 
 Также убедитесь, что цель не зависит прямо или косвенно от
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">некэшируемой
-цели</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">некэшируемой цели</LocalizedLink>.
 
 ### Отсутствующие символы {#missing-symbols}
 
@@ -226,6 +221,5 @@ tuist generate
 полагаетесь на бинарный кэш, зависимости должны быть объявлены явно; в противном
 случае вы будете видеть ошибки компиляции, когда символы не могут быть найдены.
 Чтобы отладить это, мы рекомендуем использовать команду
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> и настроить ее в CI для предотвращения
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> и настроить ее в CI для предотвращения
 регрессий в неявном связывании.

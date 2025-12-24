@@ -141,8 +141,7 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ## Использование тегов с помощниками для описания проектов {#using-tags-with-helpers}
 
 Вы можете использовать
-<LocalizedLink href="/guides/features/projects/code-sharing">помощники описания
-проекта</LocalizedLink>, чтобы стандартизировать применение тегов в вашем
+<LocalizedLink href="/guides/features/projects/code-sharing">помощники описания проекта</LocalizedLink>, чтобы стандартизировать применение тегов в вашем
 проекте:
 
 ```swift
@@ -238,10 +237,8 @@ tuist generate tag:feature:payment
 
 ## Сопутствующие функции {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Совместное
-  использование кода</LocalizedLink> - Используйте помощники для описания
+- <LocalizedLink href="/guides/features/projects/code-sharing">Совместное использование кода</LocalizedLink> - Используйте помощники для описания
   проектов, чтобы стандартизировать использование тегов
 - <LocalizedLink href="/guides/features/cache">Кэш</LocalizedLink> - Объедините
   теги с кэшированием для оптимальной производительности сборки
-- <LocalizedLink href="/guides/features/selective-testing">Выборочное
-  тестирование</LocalizedLink> - Выполняйте тесты только для измененных целей
+- <LocalizedLink href="/guides/features/selective-testing">Выборочное тестирование</LocalizedLink> - Выполняйте тесты только для измененных целей

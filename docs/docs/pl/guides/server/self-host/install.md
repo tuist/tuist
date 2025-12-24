@@ -281,8 +281,7 @@ Może być konieczne utworzenie ekranu zgody. W tym celu należy dodać zakresy
 Możesz włączyć uwierzytelnianie w Okta za pomocą protokołu [OAuth
 2.0](https://oauth.net/2/). Będziesz musiał [utworzyć
 aplikację](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta"> tymi
-instrukcjami</LocalizedLink>.
+w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta"> tymi instrukcjami</LocalizedLink>.
 
 Po uzyskaniu identyfikatora klienta i hasła tajnego podczas konfigurowania
 aplikacji Okta należy ustawić następujące zmienne środowiskowe:
@@ -382,8 +381,7 @@ e-mail jest skonfigurowany, ustaw `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 
 ### Konfiguracja platformy Git {#git-platform-configuration}
 
-Tuist może <LocalizedLink href="/guides/server/authentication"> integrować się z
-platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
+Tuist może <LocalizedLink href="/guides/server/authentication"> integrować się z platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
 automatyczne publikowanie komentarzy w pull requestach.
 
 #### GitHub {#platform-github}

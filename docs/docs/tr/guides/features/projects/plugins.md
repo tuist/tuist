@@ -10,13 +10,10 @@
 Eklentiler, Tuist eserlerini birden fazla proje arasında paylaşmak ve yeniden
 kullanmak için bir araçtır. Aşağıdaki eserler desteklenmektedir:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla
-  projede proje açıklama yardımcıları</LocalizedLink>.
-- <LocalizedLink href="/guides/features/projects/templates">Birden fazla
-  projedeki şablonlar</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla projede proje açıklama yardımcıları</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/templates">Birden fazla projedeki şablonlar</LocalizedLink>.
 - Birden fazla projedeki görevler.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla
-  projede kaynak erişimcisi</LocalizedLink> şablonu
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla projede kaynak erişimcisi</LocalizedLink> şablonu
 
 Eklentilerin Tuist'in işlevselliğini genişletmek için basit bir yol olarak
 tasarlandığını unutmayın. Bu nedenle **dikkate alınması gereken bazı
@@ -57,7 +54,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Kaynak erişimci şablonları eklentisi {#resource-accessor-templates-plugin}
 
-1}sentezlenmiş kaynak erişimcilerini</LocalizedLink> paylaşmanız gerekiyorsa bu
+sentezlenmiş kaynak erişimcilerini paylaşmanız gerekiyorsa bu
 tür bir eklenti kullanabilirsiniz. Eklenti, eklentinin adını bildiren bir
 `Plugin.swift` manifest dosyası ve kaynak erişimcisi şablon dosyalarını içeren
 bir `ResourceSynthesizers` dizini içeren bir dizin ile temsil edilir.

@@ -10,9 +10,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- 1} tarafından oluşturulan bir projele</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
-  projesi</LocalizedLink>
+-  tarafından oluşturulan bir projele
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -25,8 +24,7 @@ ve geliştirme sürecini hızlandırır.
 ## Isınma {#warming}
 
 Tuist, değişiklikleri tespit etmek için bağımlılık grafiğindeki her hedef için
-verimli bir şekilde <LocalizedLink href="/guides/features/projects/hashing">
-hash</LocalizedLink> kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
+verimli bir şekilde <LocalizedLink href="/guides/features/projects/hashing"> hash</LocalizedLink> kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
 ikililere benzersiz tanımlayıcılar oluşturur ve atar. Tuist, grafik oluşturma
 sırasında, orijinal hedefleri karşılık gelen ikili sürümleriyle sorunsuz bir
 şekilde değiştirir.
@@ -148,8 +146,7 @@ yapısına bağlıdır. En iyi sonuçları elde etmek için aşağıdakileri ön
 Yukarıdaki öneriler, yalnızca ikili önbelleğe almanın değil, aynı zamanda
 Xcode'un yeteneklerinin de faydalarını en üst düzeye çıkarmak için projelerinizi
 yapılandırmanın bir yolu olarak önerdiğimiz
-<LocalizedLink href="/guides/features/projects/tma-architecture"> Modüler
-Mimarinin</LocalizedLink> bir parçasıdır.
+<LocalizedLink href="/guides/features/projects/tma-architecture"> Modüler Mimarinin</LocalizedLink> bir parçasıdır.
 
 ## Önerilen kurulum {#recommended-setup}
 
@@ -207,15 +204,14 @@ sırasında sistem yükünü azaltmak için yararlı olabilir.
 
 ### Hedeflerim için ikili dosyalar kullanmıyor {#it-doesnt-use-binaries-for-my-targets}
 
-1}hash'lerin ortamlar ve çalıştırmalar arasında deterministik</LocalizedLink>
+hash'lerin ortamlar ve çalıştırmalar arasında deterministik
 olduğundan emin olun. Bu durum, örneğin mutlak yollar aracılığıyla projenin
 ortama referansları varsa ortaya çıkabilir. ` tuist generate` komutunun iki
 ardışık çağrısı tarafından veya ortamlar ya da çalıştırmalar arasında
 oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
 
 Ayrıca hedefin doğrudan ya da dolaylı olarak
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe
-alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
 
 ### Eksik semboller {#missing-symbols}
 
@@ -224,6 +220,5 @@ aracılığıyla, açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak
 önbelleğe güvendiğinizde, bağımlılıklar açıkça bildirilmelidir; aksi takdirde,
 semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bu hatayı
 ayıklamak için,
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> komutunu kullanmanızı ve örtük
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> komutunu kullanmanızı ve örtük
 bağlamadaki gerilemeleri önlemek için CI'da ayarlamanızı öneririz.

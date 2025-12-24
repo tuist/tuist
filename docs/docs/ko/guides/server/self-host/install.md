@@ -236,9 +236,7 @@ URL)으로 설정합니다. 앱을 생성한 후 클라이언트 ID와 비밀 �
 #### Okta {#okta}
 
 OAuth 2.0](https://oauth.net/2/) 프로토콜을 통해 Okta로 인증을 활성화할 수 있습니다. 다음
-지침<LocalizedLink href="/guides/integrations/sso#okta">에 따라 Okta에서 [앱을
-생성](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)해야
-합니다</LocalizedLink>.
+지침<LocalizedLink href="/guides/integrations/sso#okta">에 따라 Okta에서 [앱을 생성](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)해야 합니다</LocalizedLink>.
 
 Okta 애플리케이션을 설정하는 동안 클라이언트 ID와 비밀번호를 받으면 다음 환경 변수를 설정해야 합니다:
 
@@ -323,8 +321,7 @@ Tuist는 사용자 인증 및 거래 알림(예: 비밀번호 재설정, 계정 
 
 ### Git 플랫폼 구성 {#git-platform-configuration}
 
-Tuist는 <LocalizedLink href="/guides/server/authentication"> Git
-플랫폼</LocalizedLink>과 통합하여 풀 리퀘스트에 자동으로 댓글을 게시하는 등의 추가 기능을 제공할 수 있습니다.
+Tuist는 <LocalizedLink href="/guides/server/authentication"> Git 플랫폼</LocalizedLink>과 통합하여 풀 리퀘스트에 자동으로 댓글을 게시하는 등의 추가 기능을 제공할 수 있습니다.
 
 #### GitHub {#platform-github}
 

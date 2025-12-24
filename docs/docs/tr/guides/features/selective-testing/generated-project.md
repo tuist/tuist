@@ -10,16 +10,13 @@
 ::: warning REQUIREMENTS
 <!-- -->
 - <LocalizedLink href="/guides/features/projects">Tuist tarafından oluşturulan bir proje</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
-  projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
 <!-- -->
 :::
 
 Oluşturulmuş projele ile testleri seçerek çalıştırmak için `tuist test` komutunu
-kullanın. Bu komut <LocalizedLink href="/guides/features/projects/hashing">
-Xcode projenizi </LocalizedLink> önbelleği
-<LocalizedLink href="/guides/features/cache#cache-warming">
-ısıtmak</LocalizedLink> için yaptığı gibi hashler ve başarılı olduğunda,
+kullanın. Bu komut <LocalizedLink href="/guides/features/projects/hashing"> Xcode projenizi </LocalizedLink> önbelleği
+<LocalizedLink href="/guides/features/cache#cache-warming"> ısıtmak</LocalizedLink> için yaptığı gibi hashler ve başarılı olduğunda,
 gelecekteki çalıştırmalarda nelerin değiştiğini belirlemek için hashleri kalıcı
 hale getirir.
 

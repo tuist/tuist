@@ -12,8 +12,7 @@
 <!-- -->
 - Projekt wygenerowany przez
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -25,8 +24,7 @@ przyspieszając proces rozwoju.
 
 ## Ocieplenie {#warming}
 
-Tuist efektywnie <LocalizedLink href="/guides/features/projects/hashing">
-wykorzystuje skróty </LocalizedLink> dla każdego celu w grafie zależności w celu
+Tuist efektywnie <LocalizedLink href="/guides/features/projects/hashing"> wykorzystuje skróty </LocalizedLink> dla każdego celu w grafie zależności w celu
 wykrycia zmian. Wykorzystując te dane, tworzy i przypisuje unikalne
 identyfikatory do plików binarnych pochodzących z tych celów. W czasie
 generowania grafu Tuist płynnie zastępuje oryginalne cele ich odpowiednimi
@@ -151,8 +149,7 @@ następujące rozwiązania:
    zmiany jest niższe.
 
 Powyższe sugestie są częścią
-<LocalizedLink href="/guides/features/projects/tma-architecture"> Architektury
-Modułowej</LocalizedLink>, którą proponujemy jako sposób na ustrukturyzowanie
+<LocalizedLink href="/guides/features/projects/tma-architecture"> Architektury Modułowej</LocalizedLink>, którą proponujemy jako sposób na ustrukturyzowanie
 projektów w celu zmaksymalizowania korzyści nie tylko z buforowania binarnego,
 ale także z możliwości Xcode.
 
@@ -212,8 +209,7 @@ celu zmniejszenia obciążenia systemu podczas operacji pamięci podręcznej.
 ### Nie używa binariów dla moich celów {#it-doesnt-use-binaries-for-my-targets}
 
 Upewnij się, że skróty
-<LocalizedLink href="/guides/features/projects/hashing#debugging"> są
-deterministyczne</LocalizedLink> w różnych środowiskach i uruchomieniach. Może
+<LocalizedLink href="/guides/features/projects/hashing#debugging"> są deterministyczne</LocalizedLink> w różnych środowiskach i uruchomieniach. Może
 się tak zdarzyć, jeśli projekt zawiera odniesienia do środowiska, na przykład
 poprzez ścieżki bezwzględne. Można użyć polecenia `diff`, aby porównać projekty
 wygenerowane przez dwa kolejne wywołania `tuist generate` lub między
@@ -229,6 +225,5 @@ może rozwiązywać zależności, które nie zostały jawnie zadeklarowane. Jeś
 jednak polegasz na binarnej pamięci podręcznej, zależności muszą być jawnie
 zadeklarowane; w przeciwnym razie prawdopodobnie zobaczysz błędy kompilacji, gdy
 nie można znaleźć symboli. Aby to debugować, zalecamy użycie polecenia
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> i skonfigurowanie go w CI, aby
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> i skonfigurowanie go w CI, aby
 zapobiec regresjom w niejawnym łączeniu.
