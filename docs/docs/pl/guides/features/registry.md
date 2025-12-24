@@ -48,7 +48,8 @@ tuist registry login
 :: info
 <!-- -->
 Uwierzytelnianie wymaga konta
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist i projektu</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist i
+projektu</LocalizedLink>.
 <!-- -->
 :::
 
@@ -56,13 +57,18 @@ Uwierzytelnianie wymaga konta
 
 Aby rozwiązać zależności z rejestru zamiast z kontroli źródła, kontynuuj
 czytanie w oparciu o konfigurację projektu:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Projekt Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Wygenerowany projekt z integracją pakietu Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Wygenerowany projekt z integracją pakietów opartą na XcodeProj</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Paczka Swift</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Projekt
+  Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Wygenerowany
+  projekt z integracją pakietu Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Wygenerowany
+  projekt z integracją pakietów opartą na XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Paczka
+  Swift</LocalizedLink>
 
 Aby skonfigurować rejestr na CI, postępuj zgodnie z tym przewodnikiem:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Ciągła integracja</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">Ciągła
+integracja</LocalizedLink>.
 
 ### Identyfikatory rejestru pakietów {#package-registry-identifiers}
 
