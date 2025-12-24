@@ -23,11 +23,14 @@ tuist init
 :::
 
 Команда пошагово проведёт вас по шагам для
-<LocalizedLink href="/guides/features/projects">создания сгенерированного проекта</LocalizedLink> или интеграции существующего проекта или рабочей области
+<LocalizedLink href="/guides/features/projects">создания сгенерированного
+проекта</LocalizedLink> или интеграции существующего проекта или рабочей области
 Xcode. Это поможет вам подключить вашу среду к удаленному серверу, предоставляя
 доступ к таким функциям, как
-<LocalizedLink href="/guides/features/selective-testing">выборочное тестирование</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">предварительные просмотры</LocalizedLink>, и
+<LocalizedLink href="/guides/features/selective-testing">выборочное
+тестирование</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">предварительные
+просмотры</LocalizedLink>, и
 <LocalizedLink href="/guides/features/registry">реестр</LocalizedLink>.
 
 ::: info МИГРАЦИЯ СУЩЕСТВУЮЩЕГО ПРОЕКТА
@@ -36,6 +39,7 @@ Xcode. Это поможет вам подключить вашу среду к 
 улучшить процесс разработки и воспользоваться преимуществами нашего
 <LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>, ознакомьтесь
 с
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</LocalizedLink>.
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством
+по миграции</LocalizedLink>.
 <!-- -->
 :::
