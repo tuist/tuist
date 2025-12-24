@@ -81,13 +81,15 @@ Tuist는 의존성 그래프를 찾아서 의존하는 프로젝트들을 워크
 때문에, Git 충돌은 더 이상 이슈가 아닙니다. 그러므로 단일 또는 다중 프로젝트를 사용할 지는 여러분의 결정에 달렸습니다.
 
 Tuist 프로젝트에서 우리는 단일 프로젝트에 기댑니다, 짧은 생성 시간(적은 Manifest를 컴파일해서)이 더 빠르고 우리는
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>를 캡슐화 단위로 사용하기 때문 입니다. 하지만 여러분은 아마 Xcode의 권장 프로젝트 구조에 가깝게
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>를 캡슐화 단위로 사용하기 때문 입니다. 하지만 여러분은 아마 Xcode의 권장 프로젝트 구조에 가깝게
 앱의 여러 다른 도메인을 나타내기 위해 Xcode 프로젝트를 캡슐화 단위로 사용하길 원할지도 모릅니다.
 
 ## Tuist.swift {#tuistswift}
 
 Tuist는 프로젝트 환경 설정을 단순화 하기 위해
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">적절한 기본 값</LocalizedLink>를 제공합니다. 하지만
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">적절한
+기본 값</LocalizedLink>를 제공합니다. 하지만
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>를
 최상위에 정의해서 프로젝트가 최상위 프로젝트를 결정하는데 사용하도록 설정하실 수도 있습니다.
 
