@@ -9,7 +9,7 @@
 
 CI에서 레지스트리를 사용하려면 워크플로우의 일부로 `tuist 레지스트리 로그인` 을 실행하여 레지스트리에 로그인했는지 확인해야 합니다.
 
-::: 정보 전용 XCODE 통합
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 사전 잠금 해제된 새 키체인을 생성하는 것은 Xcode 통합 패키지를 사용하는 경우에만 필요합니다.
 <!-- -->
@@ -59,7 +59,7 @@ jobs:
       - # Your build steps
 ```
 
-### 환경 전반의 증분 해상도 {#incremental-resolution-across-environments}
+### 환경 전반에 걸친 점진적 해상도 향상 {#incremental-resolution-across-environments}
 
 레지스트리를 사용하면 클린/콜드 해결이 약간 더 빨라지며, 해결된 종속성을 CI 빌드 전체에 유지하면 훨씬 더 큰 개선을 경험할 수 있습니다.
 레지스트리 덕분에 저장 및 복원해야 하는 디렉터리의 크기가 레지스트리가 없을 때보다 훨씬 작아지므로 시간이 훨씬 적게 걸립니다. 기본 Xcode

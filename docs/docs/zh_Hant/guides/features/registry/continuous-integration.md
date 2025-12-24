@@ -5,23 +5,19 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# 持續整合 (CI){#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to
-the registry by running `tuist registry login` as part of your workflow.
+若要在 CI 上使用註冊表，您需要在工作流程中執行`tuist registry login` ，以確保已登入註冊表。
 
 ::: info ONLY XCODE INTEGRATION
 <!-- -->
-Creating a new pre-unlocked keychain is required only if you are using the Xcode
-integration of packages.
+只有當您使用 Xcode 整合套件時，才需要建立新的預先解鎖鑰匙鏈。
 <!-- -->
 :::
 
-Since the registry credentials are stored in a keychain, you need to ensure the
-keychain can be accessed in the CI environment. Note some CI providers or
-automation tools like [Fastlane](https://fastlane.tools/) already create a
-temporary keychain or provide a built-in way how to create one. However, you can
-also create one by creating a custom step with the following code:
+由於註冊表憑證儲存在鑰匙鏈中，因此您需要確保在 CI 環境中可以存取鑰匙鏈。請注意，有些 CI 提供者或自動化工具（例如
+[Fastlane](https://fastlane.tools/)）已經建立臨時的 keychain，或提供內建的方式來建立
+keychain。不過，您也可以使用下列程式碼建立自訂步驟，以建立臨時keychain：
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -32,15 +28,14 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` will then store the credentials in the default keychain.
-Ensure that your default keychain is created and unlocked _before_ `tuist
-registry login` is run.
+`tuist 註冊登入` 會將憑證儲存於預設的 keychain 中。在執行_ `tuist 註冊登入` 之前，請確保已建立預設的 keychain
+並解除鎖定_。
 
-Additionally, you need to ensure the `TUIST_TOKEN` environment variable is set.
-You can create one by following the documentation
-<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+此外，您需要確保`TUIST_TOKEN` 環境變數已設定。您可以按照說明文件
+<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡
+</LocalizedLink> 建立一個。
 
-An example workflow for GitHub Actions could then look like this:
+GitHub Actions 的示例工作流程如下：
 ```yaml
 name: Build
 
@@ -64,16 +59,12 @@ jobs:
       - # Your build steps
 ```
 
-### Incremental resolution across environments {#incremental-resolution-across-environments}
+### 跨環境的遞增解析度{#incremental-resolution-across-environments}
 
-Clean/cold resolutions are slightly faster with our registry, and you can
-experience even greater improvements if you persist the resolved dependencies
-across CI builds. Note that thanks to the registry, the size of the directory
-that you need to store and restore is much smaller than without the registry,
-taking significantly less time. To cache dependencies when using the default
-Xcode package integration, the best way is to specify a custom
-`clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`. This
-can be done by adding the following to your `Config.swift` file:
+使用我們的註冊表進行清潔/冷卻解析會稍微快一點，如果您在 CI
+建置中持續使用已解析的相依性，您可以體驗到更大的改進。請注意，由於註冊表的存在，您需要儲存與還原的目錄大小比沒有使用註冊表時小得多，所花費的時間也顯著減少。`使用預設的
+Xcode 套件整合時，若要快取相依性，最好的方法是在透過`xcodebuild
+解析相依性時，指定自訂的`clonedSourcePackagesDirPath` 。這可以透過在您的`Config.swift` 檔案中加入下列內容來完成：
 
 ```swift
 import ProjectDescription
@@ -85,17 +76,14 @@ let config = Config(
 )
 ```
 
-Additionally, you will need to find a path of the `Package.resolved`. You can
-grab the path by running `ls **/Package.resolved`. The path should look
-something like
-`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
+此外，您還需要找到`Package.resolved` 的路徑。您可以執行`ls **/Package.resolved`
+來取得路徑。路徑應該看起來像`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+。
 
-For Swift packages and the XcodeProj-based integration, we can use the default
-`.build` directory located either in the root of the project or in the `Tuist`
-directory. Make sure the path is correct when setting up your pipeline.
+對於 Swift 套件和基於 XcodeProj 的整合，我們可以使用位於專案根目錄或`Tuist` 目錄中的預設`.build`
+目錄。設定管道時，請確定路徑正確。
 
-Here's an example workflow for GitHub Actions for resolving and caching
-dependencies when using the default Xcode package integration:
+以下是使用預設 Xcode 套件整合時，GitHub Actions 解析和快取相依性的工作流程範例：
 ```yaml
 - name: Restore cache
   id: cache-restore
