@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# الواردات الضمنية {#الواردات الضمنية}
+# الواردات الضمنية {#implicit-imports}
 
 للتخفيف من تعقيد الحفاظ على الرسم البياني لمشروع Xcode مع مشروع Xcode الخام،
 صممت Apple نظام الإنشاء بطريقة تسمح بتعريف التبعيات ضمنياً. هذا يعني أنه يمكن
@@ -25,7 +25,7 @@ tuist inspect implicit-imports
 
 إذا اكتشف الأمر أي واردات ضمنية، فإنه يخرج برمز خروج غير الصفر.
 
-:::: إكرامية التحقق في CI
+::: tip VALIDATE IN CI
 <!-- -->
 نوصي بشدة بتشغيل هذا الأمر كجزء من أمر
 <LocalizedLink href="/guides/features/automate/continuous-integration">التكامل
@@ -33,7 +33,7 @@ tuist inspect implicit-imports
 <!-- -->
 :::
 
-:::: تحذير لم يتم اكتشاف جميع الحالات الدلالية
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
 نظرًا لأن Tuist يعتمد على تحليل الشيفرة الثابتة لاكتشاف التبعيات الضمنية، فقد لا
 يكتشف جميع الحالات. على سبيل المثال، لا يستطيع تويست فهم الواردات الشرطية من
