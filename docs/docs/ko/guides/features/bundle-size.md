@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# 번들 인사이트 {#번들 크기}
+# 번들 인사이트 {#bundle-size}
 
 경고 요구 사항 ::: 경고 요구 사항
 <!-- -->
@@ -64,7 +64,7 @@ jobs:
 
 ![번들 크기 그래프](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## 요청 댓글 풀/병합 {#풀머지-요청-댓글}
+## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
 ::: warning Git과 통합 필요
 <!-- -->
