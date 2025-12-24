@@ -5,38 +5,30 @@
   "description": "Learn how to create and use plugins in Tuist to extend its functionality."
 }
 ---
-# Plugins {#plugins}
+# 外掛程式{#plugins}
 
-Plugins are a tool to share and reuse Tuist artifacts across multiple projects.
-The following artifacts are supported:
+外掛是在多個專案中分享和重複使用 Tuist 工件的工具。支援下列工件：
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Project
-  description helpers</LocalizedLink> across multiple projects.
-- <LocalizedLink href="/guides/features/projects/templates">Templates</LocalizedLink>
-  across multiple projects.
-- Tasks across multiple projects.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource
-  accessor</LocalizedLink> template across multiple projects
+- <LocalizedLink href="/guides/features/projects/code-sharing">橫跨多個專案的專案描述輔助工具</LocalizedLink>。
+- <LocalizedLink href="/guides/features/projects/templates">跨多個專案的範本</LocalizedLink>。
+- 橫跨多個專案的任務。
+- <LocalizedLink href="/guides/features/projects/synthesized-files">跨專案的資源存取器</LocalizedLink>範本
 
-Note that plugins are designed to be a simple way to extend Tuist's
-functionality. Therefore there are **some limitations to consider**:
+請注意，外掛被設計成擴展 Tuist 功能的簡單方式。因此**有一些限制需要考慮** ：
 
-- A plugin cannot depend on another plugin.
-- A plugin cannot depend on third-party Swift packages
-- A plugin cannot use project description helpers from the project that uses the
-  plugin.
+- 外掛程式不能依賴於其他外掛程式。
+- 外掛無法依賴第三方 Swift 套件
+- 外掛無法使用使用外掛的專案中的專案描述輔助程式。
 
-If you need more flexibility, consider suggesting a feature for the tool or
-building your own solution upon Tuist's generation framework,
-[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
+如果您需要更多的彈性，請考慮建議工具的功能，或在 Tuist
+的產生框架上建立您自己的解決方案，[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-## Plugin types {#plugin-types}
+## 外掛程式類型{#plugin-types}
 
-### Project description helper plugin {#project-description-helper-plugin}
+### 專案描述輔助外掛程式{#project-description-helper-plugin}
 
-A project description helper plugin is represented by a directory containing a
-`Plugin.swift` manifest file that declares the plugin's name and a
-`ProjectDescriptionHelpers` directory containing the helper Swift files.
+專案描述輔助外掛程式由一個目錄表示，該目錄包含一個`Plugin.swift` 宣稱外掛程式名稱的 manifest
+檔案，以及一個`ProjectDescriptionHelpers` 目錄，該目錄包含輔助 Swift 檔案。
 
 ::: code-group
 ```bash [Plugin.swift]
@@ -54,14 +46,12 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### Resource accessor templates plugin {#resource-accessor-templates-plugin}
+### 資源存取器模板外掛程式{#resource-accessor-templates-plugin}
 
-If you need to share
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized
-resource accessors</LocalizedLink> you can use this type of plugin. The plugin
-is represented by a directory containing a `Plugin.swift` manifest file that
-declares the plugin's name and a `ResourceSynthesizers` directory containing the
-resource accessor template files.
+如果您需要共用
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
+合成的資源存取器</LocalizedLink>，您可以使用此類型的外掛。該外掛由一個包含`Plugin.swift` manifest
+檔案（宣告外掛名稱）和`ResourceSynthesizers` 目錄（包含資源存取器模板檔案）的目錄來表示。
 
 
 ::: code-group
@@ -83,72 +73,61 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-The name of the template is the [camel
-case](https://en.wikipedia.org/wiki/Camel_case) version of the resource type:
+範本的名稱是資源類型的 [camel case](https://en.wikipedia.org/wiki/Camel_case) 版本：
 
-| Resource type     | Template file name       |
-| ----------------- | ------------------------ |
-| Strings           | Strings.stencil          |
-| Assets            | Assets.stencil           |
-| Property Lists    | Plists.stencil           |
-| Fonts             | Fonts.stencil            |
-| Core Data         | CoreData.stencil         |
-| Interface Builder | InterfaceBuilder.stencil |
-| JSON              | JSON.stencil             |
-| YAML              | YAML.stencil             |
+| 資源類型   | 範本檔案名稱                   |
+| ------ | ------------------------ |
+| 弦線     | Strings.stencil          |
+| 資產     | Assets.stencil           |
+| 財產清單   | Plists.stencil           |
+| 字體     | 字體模板                     |
+| 核心資料   | CoreData.stencil         |
+| 介面建立程式 | InterfaceBuilder.stencil |
+| JSON   | JSON.stencil             |
+| YAML   | YAML.stencil             |
 
-When defining the resource synthesizers in the project, you can specify the
-plugin name to use the templates from the plugin:
+在專案中定義資源合成器時，可以指定外掛程式名稱，以使用外掛程式中的範本：
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
+### 任務外掛程式 <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-}
 
 ::: warning DEPRECATED
 <!-- -->
-Task plugins are deprecated. Check out [this blog
-post](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) if you are
-looking for an automation solution for your project.
+任務外掛已經過時。如果您正在為專案尋找自動化解決方案，請參閱
+[本篇部落格文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
 <!-- -->
 :::
 
-Tasks are `$PATH`-exposed executables that are invocable through the `tuist`
-command if they follow the naming convention `tuist-<task-name>`. In earlier
-versions, Tuist provided some weak conventions and tools under `tuist plugin` to
-`build`, `run`, `test` and `archive` tasks represented by executables in Swift
-Packages, but we have deprecated this feature since it increases the maintenance
-burden and complexity of the tool.
+任務是`$PATH`-exposed 的可執行檔，如果遵循命名慣例`tuist-<task-name>` ，則可透過`tuist`
+指令來啟用。在早期版本中，Tuist 在`tuist plugin` 下提供了一些弱化的慣例和工具，以`build`,`run`,`test`
+和`archive` 任務，這些任務由 Swift Packages
+中的可執行檔代表，但是我們已經棄用此功能，因為它增加了維護負擔和工具的複雜性。</task-name>
 
-If you were using Tuist for distributing tasks, we recommend building your
-- You can continue using the `ProjectAutomation.xcframework` distributed with
-  every Tuist release to have access to the project graph from your logic with
-  `let graph = try Tuist.graph()`. The command uses sytem process to run the
-  `tuist` command, and return the in-memory representation of the project graph.
-- To distribute tasks, we recommend including the a fat binary that supports the
-  `arm64` and `x86_64` in GitHub releases, and using
-  [Mise](https://mise.jdx.dev) as an installation tool. To instruct Mise on how
-  to install your tool, you'll need a plugin repository. You can use
-  [Tuist's](https://github.com/asdf-community/asdf-tuist) as a reference.
-- If you name your tool `tuist-{xxx}` and users can install it by running `mise
-  install`, they can run it either invoking it directly, or through `tuist xxx`.
+如果您使用 Tuist 來分發任務，我們建議您建立您的
+- 您可以繼續使用`ProjectAutomation.xcframework` 與每個 Tuist 發行版本一起發佈，從您的邏輯中存取專案圖形，`let
+  graph = try Tuist.graph()` 。該命令使用系統進程執行`tuist` 命令，並傳回專案圖形的記憶體表示。
+- 若要發佈任務，我們建議在 GitHub 發佈的版本中，包含支援`arm64` 和`x86_64` 的 fat binary，並使用
+  [Mise](https://mise.jdx.dev) 作為安裝工具。要指示 Mise 如何安裝您的工具，您需要一個外掛程式庫。您可以使用
+  [Tuist's](https://github.com/asdf-community/asdf-tuist) 作為參考。
+- 如果您將您的工具命名為`tuist-{xxx}` ，使用者可以執行`mise install` 來安裝它，他們可以直接呼叫它，或透過`tuist xxx`
+  來執行它。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-We plan to consolidate the models of `ProjectAutomation` and `XcodeGraph` into a
-single backward-compatible framework that exposes the entirity of the project
-graph to the user. Moreover, we'll extract the generation logic into a new
-layer, `XcodeGraph` that you can also use from your own CLI. Think of it as
-building your own Tuist.
+我們計劃將`ProjectAutomation` 和`XcodeGraph`
+的模型整合為一個單一的向後相容的框架，將專案圖形的完整性暴露給用戶。此外，我們將提取生成邏輯到一個新的層，`XcodeGraph` ，您也可以從您自己的 CLI
+中使用它。將其視為建立您自己的 Tuist。
 <!-- -->
 :::
 
-## Using plugins {#using-plugins}
+## 使用外掛程式{#using-plugins}
 
-To use a plugin, you'll have to add it to your project's
+若要使用外掛程式，您必須將其加入專案的
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-manifest file:
+manifest 檔案：
 
 ```swift
 import ProjectDescription
@@ -161,9 +140,7 @@ let tuist = Tuist(
 )
 ```
 
-If you want to reuse a plugin across projects that live in different
-repositories, you can push your plugin to a Git repository and reference it in
-the `Tuist.swift` file:
+如果您想在不同儲存庫的專案中重複使用外掛程式，您可以將外掛程式推送到 Git 儲存庫，並在`Tuist.swift` 檔案中引用它：
 
 ```swift
 import ProjectDescription
@@ -177,20 +154,17 @@ let tuist = Tuist(
 )
 ```
 
-After adding the plugins, `tuist install` will fetch the plugins in a global
-cache directory.
+新增外掛程式後，`tuist install` 會在全域快取目錄中取得外掛程式。
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-As you might have noted, we don't provide version resolution for plugins. We
-recommend using Git tags or SHAs to ensure reproducibility.
+您可能已經注意到，我們不提供外掛程式的版本解析。我們建議使用 Git 標籤或 SHA 以確保可重複性。
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-When using a project description helpers plugin, the name of the module that
-contains the helpers is the name of the plugin
+使用專案描述輔助外掛程式時，包含輔助程式的模組名稱即為外掛程式的名稱
 ```swift
 import ProjectDescription
 import MyTuistPlugin
