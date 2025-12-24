@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ko/>\n"
 "Language: ko\n"
@@ -280,9 +279,9 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.ex:35
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/module_cache_live.html.heex:494
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "명령"
 
 #: lib/tuist_web/live/bundle_live.html.heex:155
 #: lib/tuist_web/live/bundles_live.html.heex:384
@@ -466,9 +465,9 @@ msgid "Module Breakdown"
 msgstr "모듈 분석"
 
 #: lib/tuist_web/live/module_cache_live.ex:19
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "모듈 캐시"
 
 #: lib/tuist_web/live/bundle_live.html.heex:60
 #: lib/tuist_web/live/bundle_live.html.heex:617
