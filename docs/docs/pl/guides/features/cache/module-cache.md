@@ -6,52 +6,53 @@
 }
 ---
 
-# Module cache {#module-cache}
+# Pamięć podręczna modułów {#module-cache}
 
-::: warning REQUIREMENTS
+::: ostrzeżenie WYMAGANIA
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Projekt wygenerowany przez
+  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
-Tuist Module cache provides a powerful way to optimize your build times by
-caching your modules as binaries (`.xcframework`s) and sharing them across
-different environments. This capability allows you to leverage previously
-generated binaries, reducing the need for repeated compilation and speeding up
-the development process.
+Tuist Module cache zapewnia potężny sposób na optymalizację czasu kompilacji
+poprzez buforowanie modułów jako plików binarnych (`.xcframework`s) i
+udostępnianie ich w różnych środowiskach. Pozwala to na wykorzystanie wcześniej
+wygenerowanych plików binarnych, zmniejszając potrzebę wielokrotnej kompilacji i
+przyspieszając proces rozwoju.
 
-## Warming {#warming}
+## Ocieplenie {#warming}
 
-Tuist efficiently
-<LocalizedLink href="/guides/features/projects/hashing">utilizes
-hashes</LocalizedLink> for each target in the dependency graph to detect
-changes. Utilizing this data, it builds and assigns unique identifiers to
-binaries derived from these targets. At the time of graph generation, Tuist then
-seamlessly substitutes the original targets with their corresponding binary
-versions.
+Tuist efektywnie <LocalizedLink href="/guides/features/projects/hashing">
+wykorzystuje skróty </LocalizedLink> dla każdego celu w grafie zależności w celu
+wykrycia zmian. Wykorzystując te dane, tworzy i przypisuje unikalne
+identyfikatory do plików binarnych pochodzących z tych celów. W czasie
+generowania grafu Tuist płynnie zastępuje oryginalne cele ich odpowiednimi
+wersjami binarnymi.
 
-This operation, known as *"warming,"* produces binaries for local use or for
-sharing with teammates and CI environments via Tuist. The process of warming the
-cache is straightforward and can be initiated with a simple command:
+Ta operacja, znana jako "rozgrzewanie" *,* tworzy pliki binarne do użytku
+lokalnego lub do udostępniania członkom zespołu i środowiskom CI za
+pośrednictwem Tuist. Proces rozgrzewania pamięci podręcznej jest prosty i można
+go zainicjować za pomocą prostego polecenia:
 
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+Polecenie ponownie wykorzystuje pliki binarne, aby przyspieszyć proces.
 
-## Usage {#usage}
+## Użycie {#usage}
 
-By default, when Tuist commands necessitate project generation, they
-automatically substitute dependencies with their binary equivalents from the
-cache, if available. Additionally, if you specify a list of targets to focus on,
-Tuist will also replace any dependent targets with their cached binaries,
-provided they are available. For those who prefer a different approach, there is
-an option to opt out of this behavior entirely by using a specific flag:
+Domyślnie, gdy polecenia Tuist wymagają wygenerowania projektu, automatycznie
+zastępują zależności ich binarnymi odpowiednikami z pamięci podręcznej, jeśli są
+one dostępne. Dodatkowo, jeśli określisz listę celów, na których chcesz się
+skupić, Tuist zastąpi również wszelkie zależne cele ich buforowanymi plikami
+binarnymi, pod warunkiem, że są one dostępne. Dla tych, którzy preferują inne
+podejście, istnieje opcja całkowitej rezygnacji z tego zachowania poprzez użycie
+określonej flagi:
 
 ::: code-group
 ```bash [Project generation]
@@ -69,25 +70,26 @@ tuist test
 
 ::: warning
 <!-- -->
-Binary caching is a feature designed for development workflows such as running
-the app on a simulator or device, or running tests. It is not intended for
-release builds. When archiving the app, generate a project with the sources by
-using the `--no-binary-cache` flag.
+Buforowanie binarne to funkcja przeznaczona dla przepływów pracy deweloperskiej,
+takich jak uruchamianie aplikacji na symulatorze lub urządzeniu lub uruchamianie
+testów. Nie jest przeznaczona do kompilacji wersji. Podczas archiwizacji
+aplikacji należy wygenerować projekt ze źródłami przy użyciu flagi
+`--no-binary-cache`.
 <!-- -->
 :::
 
-## Cache profiles {#cache-profiles}
+## Profile pamięci podręcznej {#cache-profiles}
 
-Tuist supports cache profiles to control how aggressively targets are replaced
-with cached binaries when generating projects.
+Tuist obsługuje profile pamięci podręcznej, aby kontrolować, jak agresywnie cele
+są zastępowane buforowanymi plikami binarnymi podczas generowania projektów.
 
-- Built-ins:
-  - `only-external`: replace external dependencies only (system default)
-  - `all-possible`: replace as many targets as possible (including internal
-    targets)
-  - `none`: never replace with cached binaries
+- Wbudowane elementy:
+  - `only-external`: zastępuje tylko zewnętrzne zależności (domyślne ustawienie
+    systemowe).
+  - `all-possible`: zastąp jak najwięcej celów (w tym cele wewnętrzne).
+  - `brak`: nigdy nie zastępuje buforowanych plików binarnych
 
-Select a profile with `--cache-profile` on `tuist generate`:
+Wybierz profil za pomocą `--cache-profile` na `tuist generate`:
 
 ```bash
 # Built-in profiles
@@ -106,88 +108,91 @@ tuist generate MyModule AnotherTarget
 tuist generate --no-binary-cache  # equivalent to --cache-profile none
 ```
 
-Precedence when resolving the effective behavior (highest to lowest):
+Pierwszeństwo podczas rozwiązywania skutecznego zachowania (od najwyższego do
+najniższego):
 
-1. `--no-binary-cache` → profile `none`
-2. Target focus (passing targets to `generate`) → profile `all-possible`
-3. `--cache-profile <value>`
-4. Config default (if set)
-5. System default (`only-external`)
+1. `--no-binary-cache` → profil `none`
+2. Skupienie na celu (przekazywanie celów do `generuje`) → profil
+   `wszystko-możliwe`
+3. `--cache-profile `
+4. Konfiguracja domyślna (jeśli ustawiona)
+5. Domyślne ustawienia systemowe (`only-external`)
 
-## Supported products {#supported-products}
+## Obsługiwane produkty {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+Tylko następujące produkty docelowe mogą być buforowane przez Tuist:
 
-- Frameworks (static and dynamic) that don't depend on
-  [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
+- Frameworki (statyczne i dynamiczne), które nie zależą od
+  [XCTest](https://developer.apple.com/documentation/xctest).
+- Pakiety
+- Makra Swift
 
-We are working on supporting libraries and targets that depend on XCTest.
+Pracujemy nad obsługą bibliotek i celów, które zależą od XCTest.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->
-When a target is non-cacheable it makes the upstream targets non-cacheable too.
-For example, if you have the dependency graph `A > B`, where A depends on B, if
-B is non-cacheable, A will also be non-cacheable.
+Gdy cel nie jest buforowalny, powoduje to, że cele nadrzędne również nie są
+buforowalne. Na przykład, jeśli mamy graf zależności `A &gt; B`, gdzie A zależy
+od B, jeśli B jest niebuforowalne, A również będzie niebuforowalne.
 <!-- -->
 :::
 
-## Efficiency {#efficiency}
+## Wydajność {#efficiency}
 
-The level of efficiency that can be achieved with binary caching depends
-strongly on the graph structure. To achieve the best results, we recommend the
-following:
+Poziom wydajności, który można osiągnąć za pomocą buforowania binarnego, zależy
+w dużej mierze od struktury grafu. Aby osiągnąć najlepsze wyniki, zalecamy
+następujące rozwiązania:
 
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation
-   ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of
-   change is lower.
+1. Unikaj bardzo zagnieżdżonych grafów zależności. Im płytszy graf, tym lepiej.
+2. Zdefiniuj zależności z celami protokołów/interfejsów zamiast celów
+   implementacji oraz implementacje wstrzykiwania zależności z najwyższych
+   celów.
+3. Podziel często modyfikowane cele na mniejsze, których prawdopodobieństwo
+   zmiany jest niższe.
 
-The above suggestions are part of the
-<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular
-Architecture</LocalizedLink>, which we propose as a way to structure your
-projects to maximize the benefits not only of binary caching but also of Xcode's
-capabilities.
+Powyższe sugestie są częścią
+<LocalizedLink href="/guides/features/projects/tma-architecture"> Architektury
+Modułowej</LocalizedLink>, którą proponujemy jako sposób na ustrukturyzowanie
+projektów w celu zmaksymalizowania korzyści nie tylko z buforowania binarnego,
+ale także z możliwości Xcode.
 
-## Recommended setup {#recommended-setup}
+## Zalecana konfiguracja {#recommended-setup}
 
-We recommend having a CI job that **runs in every commit in the main branch** to
-warm the cache. This will ensure the cache always contains binaries for the
-changes in `main` so local and CI branch build incrementally upon them.
+Zalecamy posiadanie zadania CI, które **uruchamia się przy każdym zatwierdzeniu
+w głównej gałęzi**, aby ogrzać pamięć podręczną. Zapewni to, że pamięć podręczna
+zawsze będzie zawierać pliki binarne dla zmian w `głównej`, dzięki czemu gałąź
+lokalna i CI będą budować na nich przyrostowo.
 
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
-The `tuist cache` command also makes use of the binary cache to speed up the
-warming.
+Polecenie `tuist cache` również korzysta z binarnej pamięci podręcznej, aby
+przyspieszyć nagrzewanie.
 <!-- -->
 :::
 
-The following are some examples of common workflows:
+Poniżej przedstawiono kilka przykładów typowych przepływów pracy:
 
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
+### Deweloper rozpoczyna pracę nad nową funkcją {#a-developer-starts-to-work-on-a-new-feature}
 
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project
-   with them.
+1. Tworzą nową gałąź z `głównego`.
+2. Uruchamiają `tuist generują`.
+3. Tuist pobiera najnowsze pliki binarne z `main` i generuje z nich projekt.
 
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
+### Deweloper przesyła zmiany w górę strumienia {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `xcodebuild build` or `tuist test` to build or test
-   the project.
-2. The workflow will pull the most recent binaries from `main` and generate the
-   project with them.
-3. It will then build or test the project incrementally.
+1. Potok CI uruchomi `xcodebuild build` lub `tuist test` w celu zbudowania lub
+   przetestowania projektu.
+2. Przepływ pracy pobierze najnowsze pliki binarne z `main` i wygeneruje z nich
+   projekt.
+3. Następnie będzie budować lub testować projekt przyrostowo.
 
-## Configuration {#configuration}
+## Konfiguracja {#configuration}
 
-### Cache concurrency limit {#cache-concurrency-limit}
+### Limit współbieżności pamięci podręcznej {#cache-concurrency-limit}
 
-By default, Tuist downloads and uploads cache artifacts without any concurrency
-limit, maximizing throughput. You can control this behavior using the
-`TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
+Domyślnie Tuist pobiera i wysyła artefakty z pamięci podręcznej bez limitu
+współbieżności, maksymalizując przepustowość. Zachowanie to można kontrolować za
+pomocą zmiennej środowiskowej `TUIST_CACHE_CONCURRENCY_LIMIT`:
 
 ```bash
 # Set a specific concurrency limit
@@ -199,31 +204,31 @@ export TUIST_CACHE_CONCURRENCY_LIMIT=none
 tuist generate
 ```
 
-This can be useful in environments with limited network bandwidth or to reduce
-system load during cache operations.
+Może to być przydatne w środowiskach o ograniczonej przepustowości sieci lub w
+celu zmniejszenia obciążenia systemu podczas operacji pamięci podręcznej.
 
-## Troubleshooting {#troubleshooting}
+## Rozwiązywanie problemów {#troubleshooting}
 
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
+### Nie używa binariów dla moich celów {#it-doesnt-use-binaries-for-my-targets}
 
-Ensure that the
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are
-deterministic</LocalizedLink> across environments and runs. This might happen if
-the project has references to the environment, for example through absolute
-paths. You can use the `diff` command to compare the projects generated by two
-consecutive invocations of `tuist generate` or across environments or runs.
+Upewnij się, że skróty
+<LocalizedLink href="/guides/features/projects/hashing#debugging"> są
+deterministyczne</LocalizedLink> w różnych środowiskach i uruchomieniach. Może
+się tak zdarzyć, jeśli projekt zawiera odniesienia do środowiska, na przykład
+poprzez ścieżki bezwzględne. Można użyć polecenia `diff`, aby porównać projekty
+wygenerowane przez dwa kolejne wywołania `tuist generate` lub między
+środowiskami lub uruchomieniami.
 
-Also make sure that the target doesn't depend either directly or indirectly on a
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">non-cacheable
-target</LocalizedLink>.
+Upewnij się również, że cel nie zależy bezpośrednio lub pośrednio od celu
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">non-cacheable</LocalizedLink>.
 
-### Missing symbols {#missing-symbols}
+### Brakujące symbole {#missing-symbols}
 
-When using sources, Xcode's build system, through Derived Data, can resolve
-dependencies that are not declared explicitly. However, when you rely on the
-binary cache, dependencies must be declared explicitly; otherwise you'll likely
-see compilation errors when symbols can't be found. To debug this, we recommend
-using the
+Podczas korzystania ze źródeł, system kompilacji Xcode, poprzez Derived Data,
+może rozwiązywać zależności, które nie zostały jawnie zadeklarowane. Jeśli
+jednak polegasz na binarnej pamięci podręcznej, zależności muszą być jawnie
+zadeklarowane; w przeciwnym razie prawdopodobnie zobaczysz błędy kompilacji, gdy
+nie można znaleźć symboli. Aby to debugować, zalecamy użycie polecenia
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
-inspect implicit-imports`</LocalizedLink> command and setting it up in CI to
-prevent regressions in implicit linking.
+inspect implicit-imports`</LocalizedLink> i skonfigurowanie go w CI, aby
+zapobiec regresjom w niejawnym łączeniu.
