@@ -19,7 +19,7 @@ XcodeやXcodeプロジェクトと戦う代わりに、Tuistはそれを受け�
 
 Bazelは、ソフトウェアのビルドとテストの方法を定義するためにルールを使用する。ルールは、Pythonに似た言語である[Starlark](https://github.com/bazelbuild/starlark)で書かれている。Tuistは設定言語としてSwiftを使用し、Xcodeのオートコンプリート、タイプチェック、検証機能を使用する利便性を開発者に提供します。例えば、以下のルールはBazelでSwiftライブラリを構築する方法を説明している：
 
-::: code-group
+コードグループ
 ```txt [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
@@ -41,7 +41,7 @@ let project = Project(
 
 別の例だが、BazelとTuistのユニットテストの定義方法を比較してみよう：
 
-::: code-group
+コードグループ
 ```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
@@ -87,7 +87,7 @@ tuist install # Fetch dependencies defined in Tuist/Package.swift
 tuist generate # Generate an Xcode project
 ```
 
-## プロジェクト生成 {#project-generation}
+## プロジェクト生成 {#プロジェクト生成}
 
 コミュニティは、Bazelで宣言されたプロジェクトからXcodeプロジェクトを生成するためのルールセット、[rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)を提供しています。`BUILD`
 ファイルに設定を追加する必要がある Bazel とは異なり、Tuist は設定を全く必要としません。プロジェクトのルートディレクトリで`tuist
