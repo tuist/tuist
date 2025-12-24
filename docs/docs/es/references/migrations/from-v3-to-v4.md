@@ -14,7 +14,7 @@ creíamos que harían que el proyecto fuera más fácil de usar y mantener a lar
 plazo. Este documento describe los cambios que tendrás que hacer en tu proyecto
 para actualizar de Tuist 3 a Tuist 4.
 
-### Gestión de versiones abandonada a través de `tuistenv` {#dropped-version-management-through-tuistenv}
+### Abandonada la gestión de versiones a través de `tuistenv` {#dropped-version-management-through-tuistenv}
 
 Antes de Tuist 4, el script de instalación instalaba una herramienta,
 `tuistenv`, que era renombrada a `tuist` en el momento de la instalación. La
@@ -37,7 +37,7 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: aviso MISE EN ENTORNOS CI Y PROYECTOS XCODE
+::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
 <!-- -->
 Si decide adoptar el determinismo que aporta Mise en todos los ámbitos, le
 recomendamos que consulte la documentación sobre cómo utilizar Mise en [entornos
@@ -46,7 +46,7 @@ Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 <!-- -->
 :::
 
-::: info HOMEBREW ES APOYADO
+::: info HOMEBREW IS SUPPORTED
 <!-- -->
 Ten en cuenta que aún puedes instalar Tuist usando Homebrew, que es un popular
 gestor de paquetes para macOS. Puedes encontrar las instrucciones sobre cómo
@@ -56,7 +56,7 @@ de instalación</LocalizedLink>.
 <!-- -->
 :::
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### Eliminado `init` constructores de `ProjectDescription` modelos {#dropped-init-constructors-from-projectdescription-models}
 
 Con el objetivo de mejorar la legibilidad y expresividad de las APIs, hemos
 decidido eliminar los constructores `init` de todos los modelos
@@ -73,7 +73,7 @@ nombre del constructor estático. Por ejemplo, el constructor estático del mode
 <!-- -->
 :::
 
-### Renombrado `--no-cache` a `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
+### Se ha cambiado el nombre de `--no-cache` a `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
 Debido a que la opción `--no-cache` era ambigua, hemos decidido renombrarla a
 `--no-binary-cache` para dejar claro que se refiere a la caché binaria. Si
@@ -87,7 +87,7 @@ la convención de la industria. Si estaba utilizando el comando `tuist fetch`,
 tendrá que actualizar su proyecto para utilizar en su lugar el comando `tuist
 install`.
 
-### [Adoptar `Package.swift` como el DSL para dependencias](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [Adoptar `Package.swift` como DSL para dependencias](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
 Antes de Tuist 4, podías definir las dependencias en un archivo
 `Dependencies.swift`. Este formato propietario rompía el soporte en herramientas
@@ -129,7 +129,7 @@ puedes utilizar para especificar la configuración que deseas utilizar al genera
 el proyecto. Si estabas utilizando perfiles de caché, tendrás que actualizar tu
 proyecto para utilizar la opción `--configuration` en su lugar.
 
-### Eliminado `--skip-cache` en favor de argumentos {#removed-skipcache-in-favor-of-arguments}
+### Eliminado `--skip-cache` en favor de los argumentos {#removed-skipcache-in-favor-of-arguments}
 
 Hemos eliminado la opción `--skip-cache` del comando `generate` en favor de
 controlar para qué objetivos se debe omitir la caché binaria utilizando los
@@ -166,7 +166,7 @@ particular:
     Profiles`.
   - Un script que puede tomar perfiles y certificados existentes y encriptarlos.
 
-::: tip REQUISITOS DE FIRMA
+::: tip SIGNING REQUIREMENTS
 <!-- -->
 La firma requiere la presencia de los certificados adecuados en el llavero y de
 los perfiles de aprovisionamiento en el directorio
@@ -177,7 +177,7 @@ correcto.
 <!-- -->
 :::
 
-### Eliminada la integración de Cartago a través de `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
+### Eliminada la integración de Carthage a través de `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
 Antes de Tuist 4, las dependencias de Carthage podían definirse en un archivo
 `Dependencies.swift`, que los usuarios podían obtener ejecutando `tuist fetch`.
@@ -189,7 +189,7 @@ precompilados y XCFrameworks al directorio estándar de Carthage, y luego
 referenciar esos binarios desde tus tagets usando los casos
 `TargetDependency.xcframework` y `TargetDependency.framework`.
 
-::: info CARTHAGE TODAVÍA ESTÁ APOYADA
+::: info CARTHAGE IS STILL SUPPORTED
 <!-- -->
 Algunos usuarios entendieron que habíamos dejado de dar soporte a Carthage. No
 lo hicimos. El contrato entre Tuist y la salida de Carthage es a frameworks
@@ -199,7 +199,7 @@ Carthage, ahora es Carthage.
 <!-- -->
 :::
 
-### Se ha eliminado la API `TargetDependency.packagePlugin` {#dropped-the-targetdependencypackageplugin-api}
+### Eliminada la API `TargetDependency.packagePlugin` {#dropped-the-targetdependencypackageplugin-api}
 
 Antes de Tuist 4, podías definir una dependencia de plugin de paquete usando el
 caso `TargetDependency.packagePlugin`. Después de ver que el Gestor de Paquetes
