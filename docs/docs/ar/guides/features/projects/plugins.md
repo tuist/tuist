@@ -5,7 +5,7 @@
   "description": "Learn how to create and use plugins in Tuist to extend its functionality."
 }
 ---
-# المكونات الإضافية {#المكونات الإضافية}
+# المكونات الإضافية {#plugins}
 
 المكوّنات الإضافية هي أداة لمشاركة وإعادة استخدام القطع الأثرية ل Tuist عبر
 مشاريع متعددة. يتم دعم القطع الأثرية التالية:
@@ -30,9 +30,9 @@
 بك على إطار توليد تويست،
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-## أنواع المكونات الإضافية {# أنواع المكونات الإضافية}
+## أنواع المكونات الإضافية {#plugin-types}
 
-### المكوّن الإضافي المساعد لوصف المشروع {#project-descript-helper-plugin-plugin}
+### البرنامج المساعد المساعد لوصف المشروع {#project-description-helper-plugin}
 
 يتم تمثيل المكوّن الإضافي المساعد لوصف المشروع بدليل يحتوي على `Plugin.swift`
 ملف بيان يوضح اسم المكوّن الإضافي ودليل `ProjectDescriptionHelpers` يحتوي على
@@ -54,7 +54,7 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### المكون الإضافي لقوالب ملحق الموارد {#resource-accessor-accessor-templates-plugin}
+### المكون الإضافي لقوالب ملحقات الموارد {#resource-accessor-templates-plugin}
 
 إذا كنت بحاجة إلى مشاركة
 <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
@@ -104,9 +104,9 @@ let plugin = Plugin(name: "MyPlugin")
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### المكون الإضافي للمهمة <Badge type="warning" text="deprecated" /> {#المكون الإضافي للمهمة-المكون الإضافي-شارة-تحذير-نص-مهمل-}
+### المكون الإضافي للمهمة <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-:::: تحذير DEPRECATED
+::: warning DEPRECATED
 <!-- -->
 تم إهمال المكونات الإضافية للمهام. راجع [هذه التدوينة]
 (https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) إذا كنت تبحث عن
@@ -133,7 +133,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - إذا قمت بتسمية أداتك `tuist-{xxx}` ويمكن للمستخدمين تثبيتها عن طريق تشغيل
   `mise install` ، يمكنهم تشغيلها إما باستدعائها مباشرة، أو من خلال `tuist xxx`.
 
-::::: معلومات عن مستقبل المشروع
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 نحن نخطط لدمج نماذج `ProjectAutomation` و `XcodeGraph` في إطار عمل واحد متوافق
 مع الإصدارات السابقة يعرض جوهر الرسم البياني للمشروع للمستخدم. علاوة على ذلك،
@@ -142,7 +142,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 <!-- -->
 :::
 
-## استخدام الإضافات {# استخدام الإضافات}
+## استخدام المكونات الإضافية {#using-plugins}
 
 لاستخدام مكون إضافي، يجب عليك إضافته إلى ملف
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift.swift`</LocalizedLink>
@@ -178,14 +178,14 @@ let tuist = Tuist(
 بعد إضافة الإضافات، سيقوم `tuist install` بجلب الإضافات في دليل ذاكرة التخزين
 المؤقت العامة.
 
-:::: المعلومات لا يوجد حل للإصدار
+::: info NO VERSION RESOLUTION
 <!-- -->
 كما لاحظت، نحن لا نوفر دقة الإصدار للإضافات. نوصي باستخدام علامات Git أو SHAs
 لضمان إمكانية التكرار.
 <!-- -->
 :::
 
-:::: إكرامية وصف المشروع المساعدين المساعدين
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 عند استخدام المكون الإضافي لمساعدي وصف المشروع، يكون اسم الوحدة النمطية التي
 تحتوي على المساعدين هو اسم المكون الإضافي
