@@ -7,7 +7,7 @@
 ---
 # QA {#qa}
 
-::: ostrzeżenie WCZESNY PRZEGLĄD
+::: warning EARLY PREVIEW
 <!-- -->
 Tuist QA jest obecnie we wczesnej wersji zapoznawczej. Zarejestruj się na
 stronie [tuist.dev/qa](https://tuist.dev/qa), aby uzyskać dostęp.
@@ -105,7 +105,7 @@ W przypadku, gdy agent musi zalogować się do aplikacji w celu przetestowania
 niektórych funkcji, można podać mu dane uwierzytelniające. Agent wypełni te
 poświadczenia, jeśli rozpozna, że musi się zalogować.
 
-#### Uruchamianie grup argumentów {#launch-argument-groups}.
+#### Uruchamianie grup argumentów {#launch-argument-groups}
 
 Grupy argumentów uruchamiania są wybierane na podstawie monitu testowego przed
 uruchomieniem agenta. Na przykład, jeśli nie chcesz, aby agent wielokrotnie się
