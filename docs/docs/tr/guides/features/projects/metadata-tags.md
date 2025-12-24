@@ -5,33 +5,34 @@
   "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
 }
 ---
-# Metadata tags {#metadata-tags}
+# Meta veri etiketleri {#metadata-tags}
 
-As projects grow in size and complexity, working with the entire codebase at
-once can become inefficient. Tuist provides **metadata tags** as a way to
-organize targets into logical groups and focus on specific parts of your project
-during development.
+Projelerin boyutu ve karmaşıklığı arttıkça, tüm kod tabanı ile aynı anda
+çalışmak verimsiz hale gelebilir. Tuist, hedefleri mantıksal gruplar halinde
+düzenlemenin ve geliştirme sırasında projenizin belirli bölümlerine odaklanmanın
+bir yolu olarak **meta veri etiketlerini** sağlar.
 
-## What are metadata tags? {#what-are-metadata-tags}
+## Meta veri etiketleri nedir? {#what-are-metadata-tags}
 
-Metadata tags are string labels that you can attach to targets in your project.
-They serve as markers that allow you to:
+Meta veri etiketleri, projenizdeki hedeflere ekleyebileceğiniz dize
+etiketleridir. Aşağıdakileri yapmanıza olanak tanıyan işaretleyiciler olarak
+hizmet ederler:
 
-- **Group related targets** - Tag targets that belong to the same feature, team,
-  or architectural layer
-- **Focus your workspace** - Generate projects that include only targets with
-  specific tags
-- **Optimize your workflow** - Work on specific features without loading
-  unrelated parts of your codebase
-- **Select targets to keep as sources** - Choose which group of targets you'd
-  like to keep as sources when caching
+- **İlgili hedefleri gruplayın** - Aynı özelliğe, ekibe veya mimari katmana ait
+  hedefleri etiketleyin
+- **Çalışma alanınıza odaklanın** - Yalnızca belirli etiketlere sahip hedefleri
+  içeren projeler oluşturun
+- **İş akışınızı optimize edin** - Kod tabanınızın ilgisiz bölümlerini
+  yüklemeden belirli özellikler üzerinde çalışın
+- **Kaynak olarak tutulacak hedefleri seçin** - Önbelleğe alırken hangi hedef
+  grubunu kaynak olarak tutmak istediğinizi seçin
 
-Tags are defined using the `metadata` property on targets and are stored as an
-array of strings.
+Etiketler, hedeflerde `metadata` özelliği kullanılarak tanımlanır ve bir dizeler
+dizisi olarak saklanır.
 
-## Defining metadata tags {#defining-metadata-tags}
+## Meta veri etiketlerini tanımlama {#defining-metadata-tags}
 
-You can add tags to any target in your project manifest:
+Proje bildiriminizdeki herhangi bir hedefe etiket ekleyebilirsiniz:
 
 ```swift
 import ProjectDescription
@@ -70,15 +71,15 @@ let project = Project(
 )
 ```
 
-## Focusing on tagged targets {#focusing-on-tagged-targets}
+## Etiketlenmiş hedeflere odaklanma {#focusing-on-tagged-targets}
 
-Once you've tagged your targets, you can use the `tuist generate` command to
-create a focused project that includes only specific targets:
+Hedeflerinizi etiketledikten sonra, yalnızca belirli hedefleri içeren odaklanmış
+bir proje oluşturmak için `tuist generate` komutunu kullanabilirsiniz:
 
-### Focus by tag
+### Etikete göre odaklanın
 
-Use the `tag:` prefix to generate a project with all targets matching a specific
-tag:
+Belirli bir etiketle eşleşen tüm hedefleri içeren bir proje oluşturmak için
+`tag:` önekini kullanın:
 
 ```bash
 # Generate project with all authentication-related targets
@@ -88,33 +89,34 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Focus by name
+### İsme göre odaklanın
 
-You can also focus on specific targets by name:
+Ayrıca isme göre belirli hedeflere de odaklanabilirsiniz:
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### How focus works
+### Odaklanma nasıl çalışır?
 
-When you focus on targets:
+Hedeflere odaklandığınızda:
 
-1. **Included targets** - The targets matching your query are included in the
-   generated project
-2. **Dependencies** - All dependencies of the focused targets are automatically
-   included
-3. **Test targets** - Test targets for the focused targets are included
-4. **Exclusion** - All other targets are excluded from the workspace
+1. **Dahil edilen hedefler** - Sorgunuzla eşleşen hedefler oluşturulmuş projele
+   dahil edilir
+2. **Bağımlılıklar** - Odaklanılan hedeflerin tüm bağımlılıkları otomatik olarak
+   dahil edilir
+3. **Test hedefleri** - Odaklanılan hedefler için test hedefleri dahildir
+4. **Dışlama** - Diğer tüm hedefler çalışma alanından çıkarılır
 
-This means you get a smaller, more manageable workspace that contains only what
-you need to work on your feature.
+Bu, yalnızca özelliğiniz üzerinde çalışmak için ihtiyacınız olan şeyleri içeren
+daha küçük, daha yönetilebilir bir çalışma alanına sahip olacağınız anlamına
+gelir.
 
-## Tag naming conventions {#tag-naming-conventions}
+## Etiket adlandırma kuralları {#tag-naming-conventions}
 
-While you can use any string as a tag, following a consistent naming convention
-helps keep your tags organized:
+Herhangi bir dizeyi etiket olarak kullanabilseniz de, tutarlı bir adlandırma
+kuralını takip etmek etiketlerinizin düzenli kalmasına yardımcı olur:
 
 ```swift
 // Organize by feature
@@ -133,14 +135,14 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Using prefixes like `feature:`, `team:`, or `layer:` makes it easier to
-understand the purpose of each tag and avoid naming conflicts.
+`feature:`, `team:`, veya `layer:` gibi ön ekler kullanmak her bir etiketin
+amacını anlamayı kolaylaştırır ve adlandırma çakışmalarını önler.
 
-## Using tags with project description helpers {#using-tags-with-helpers}
+## Etiketleri proje açıklama yardımcıları ile kullanma {#using-tags-with-helpers}
 
-You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to standardize how tags are applied across your project:
+Projenizde etiketlerin nasıl uygulanacağını standartlaştırmak için
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcılarından</LocalizedLink> yararlanabilirsiniz:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -168,7 +170,7 @@ extension Target {
 }
 ```
 
-Then use it in your manifests:
+Sonra bunu manifestolarınızda kullanın:
 
 ```swift
 import ProjectDescription
@@ -183,34 +185,34 @@ let project = Project(
 )
 ```
 
-## Benefits of using metadata tags {#benefits}
+## Meta veri etiketlerini kullanmanın faydaları {#benefits}
 
-### Improved development experience
+### Geliştirilmiş geliştirme deneyimi
 
-By focusing on specific parts of your project, you can:
+Projenizin belirli bölümlerine odaklanarak şunları yapabilirsiniz:
 
-- **Reduce Xcode project size** - Work with smaller projects that are faster to
-  open and navigate
-- **Speed up builds** - Build only what you need for your current work
-- **Improve focus** - Avoid distractions from unrelated code
-- **Optimize indexing** - Xcode indexes less code, making autocompletion faster
+- **Xcode proje boyutunu azaltın** - Açılması ve gezinmesi daha hızlı olan daha
+  küçük projelerle çalışın
+- **Yapıları hızlandırın** - Yalnızca mevcut işiniz için ihtiyacınız olanı
+  oluşturun
+- **Odaklanmayı iyileştirin** - İlgisiz kodların dikkatinizi dağıtmasını önleyin
+- **İndekslemeyi optimize edin** - Xcode daha az kod indeksleyerek otomatik
+  tamamlamayı daha hızlı hale getirir
 
-### Better project organization
+### Daha iyi proje organizasyonu
 
-Tags provide a flexible way to organize your codebase:
+Etiketler kod tabanınızı düzenlemek için esnek bir yol sağlar:
 
-- **Multiple dimensions** - Tag targets by feature, team, layer, platform, or
-  any other dimension
-- **No structural changes** - Add organizational structure without changing
-  directory layout
-- **Cross-cutting concerns** - A single target can belong to multiple logical
-  groups
+- **Birden fazla boyut** - Hedefleri özellik, ekip, katman, platform veya başka
+  bir boyuta göre etiketleyin
+- **Yapısal değişiklik yok** - Dizin düzenini değiştirmeden organizasyonel yapı
+  ekleyin
+- **Kesişen kaygılar** - Tek bir hedef birden fazla mantıksal gruba ait olabilir
 
-### Integration with caching
+### Önbellekleme ile entegrasyon
 
-Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching
-features</LocalizedLink>:
+Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in
+önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
 
 ```bash
 # Cache all targets
@@ -220,24 +222,25 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## Best practices {#best-practices}
+## En iyi uygulamalar {#best-practices}
 
-1. **Start simple** - Begin with a single tagging dimension (e.g., features) and
-   expand as needed
-2. **Be consistent** - Use the same naming conventions across all your manifests
-3. **Document your tags** - Keep a list of available tags and their meanings in
-   your project's documentation
-4. **Use helpers** - Leverage project description helpers to standardize tag
-   application
-5. **Review periodically** - As your project evolves, review and update your
-   tagging strategy
+1. **Basit başlayın** - Tek bir etiketleme boyutuyla başlayın (ör. özellikler)
+   ve gerektiğinde genişletin
+2. **Tutarlı olun** - Tüm manifestolarınızda aynı adlandırma kurallarını
+   kullanın
+3. **Etiketlerinizi belgeleyin** - Projenizin belgelerinde mevcut etiketlerin ve
+   anlamlarının bir listesini tutun
+4. **Yardımcıları kullanın** - Etiket uygulamasını standartlaştırmak için proje
+   açıklama yardımcılarından yararlanın
+5. **Periyodik olarak gözden geçirin** - Projeniz geliştikçe etiketleme
+   stratejinizi gözden geçirin ve güncelleyin
 
-## Related features {#related-features}
+## İlgili özellikler {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code
-  sharing</LocalizedLink> - Use project description helpers to standardize tag
-  usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
-  tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective
-  testing</LocalizedLink> - Run tests only for changed targets
+- <LocalizedLink href="/guides/features/projects/code-sharing">Kod
+  paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
+  açıklama yardımcılarını kullanın
+- <LocalizedLink href="/guides/features/cache">Önbellek</LocalizedLink> -
+  Optimum derleme performansı için etiketleri önbelleğe alma ile birleştirin
+- <LocalizedLink href="/guides/features/selective-testing">Seçmeli
+  test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın
