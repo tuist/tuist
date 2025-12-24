@@ -6,7 +6,6 @@ defmodule TuistWeb.SlackOAuthController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
@@ -15,7 +14,7 @@ defmodule TuistWeb.SlackOAuthController do
   def callback(conn, params) do
     with {:ok, code} <- extract_code(params),
          {:ok, account_id} <- extract_account_id(params),
-         %Account{} = account <- Accounts.get_account_by_id(account_id, preload: [:slack_installation]),
+         {:ok, account} <- Accounts.get_account_by_id(account_id, preload: [:slack_installation]),
          redirect_uri = slack_redirect_uri(),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, redirect_uri),
          {:ok, _installation} <- create_or_update_installation(account, token_data) do

@@ -10,14 +10,13 @@ defmodule TuistWeb.GitHubAppSetupController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.VCS
   alias TuistWeb.Errors.BadRequestError
 
   def setup(conn, params) do
     with {:ok, installation_id} <- extract_installation_id(params),
          {:ok, account_id} <- extract_account_id(params),
-         %Account{} = account <- Accounts.get_account_by_id(account_id),
+         {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, _github_app_installation} <-
            VCS.create_github_app_installation(%{account_id: account.id, installation_id: installation_id}) do
       redirect(conn, to: ~p"/#{account.name}/integrations")

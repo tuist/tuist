@@ -903,7 +903,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "generates URL for a part of the multipart upload - postgres", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       upload_id = "12344"
       part_number = 3
@@ -948,7 +948,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "completes a multipart upload returns a raw error", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
       command_event =
         CommandEventsFixtures.command_event_fixture(project_id: project.id)

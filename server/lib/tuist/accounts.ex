@@ -66,9 +66,10 @@ defmodule Tuist.Accounts do
   def get_account_by_id(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    Account
-    |> Repo.get(id)
-    |> Repo.preload(preload)
+    case Repo.get(Account, id) do
+      nil -> {:error, :not_found}
+      account -> {:ok, Repo.preload(account, preload)}
+    end
   end
 
   def get_account_by_handle(handle) do
@@ -871,28 +872,28 @@ defmodule Tuist.Accounts do
   end
 
   def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
-    case account_id |> get_account_by_id() |> Repo.preload(:organization) do
-      %Account{organization: nil} = account ->
+    case get_account_by_id(account_id, preload: [:organization]) do
+      {:ok, %Account{organization: nil} = account} ->
         owns_account?(user, account)
 
-      %Account{organization: organization} = account ->
+      {:ok, %Account{organization: organization} = account} ->
         owns_account?(user, account) or organization_admin?(user, organization) or
           organization_user?(user, organization)
 
-      _ ->
+      {:error, :not_found} ->
         false
     end
   end
 
   def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
-    case account_id |> get_account_by_id() |> Repo.preload(:organization) do
-      %Account{organization: nil} = account ->
+    case get_account_by_id(account_id, preload: [:organization]) do
+      {:ok, %Account{organization: nil} = account} ->
         owns_account?(user, account)
 
-      %Account{organization: organization} = account ->
+      {:ok, %Account{organization: organization} = account} ->
         owns_account?(user, account) or organization_admin?(user, organization)
 
-      _ ->
+      {:error, :not_found} ->
         false
     end
   end
