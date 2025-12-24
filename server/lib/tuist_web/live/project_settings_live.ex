@@ -36,8 +36,33 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign_slack_channels(slack_installation)
+      |> assign_schedule_form_defaults(selected_project)
 
     {:ok, socket}
+  end
+
+  defp assign_schedule_form_defaults(socket, project) do
+    user_timezone = socket.assigns[:user_timezone] || "Etc/UTC"
+
+    frequency =
+      if project.slack_report_enabled do
+        project.slack_report_frequency || :weekly
+      else
+        :never
+      end
+
+    days = project.slack_report_days_of_week || [1, 2, 3, 4, 5]
+    days = if days == [], do: [1, 2, 3, 4, 5], else: days
+
+    # Get local hour from UTC time
+    hour = get_local_hour(project.slack_report_schedule_time, user_timezone) || 9
+
+    socket
+    |> assign(schedule_form_channel_id: project.slack_channel_id)
+    |> assign(schedule_form_channel_name: project.slack_channel_name)
+    |> assign(schedule_form_frequency: frequency)
+    |> assign(schedule_form_days: days)
+    |> assign(schedule_form_hour: hour)
   end
 
   defp assign_slack_channels(socket, nil) do
@@ -128,83 +153,6 @@ defmodule TuistWeb.ProjectSettingsLive do
   end
 
   def handle_event(
-        "update_slack_channel",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{
-        slack_channel_id: channel_id,
-        slack_channel_name: channel_name
-      })
-
-    socket = assign(socket, selected_project: updated_project)
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "update_slack_frequency",
-        %{"frequency" => frequency},
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{
-        slack_report_frequency: String.to_existing_atom(frequency)
-      })
-
-    socket = assign(socket, selected_project: updated_project)
-    {:noreply, socket}
-  end
-
-  def handle_event("toggle_slack_day", %{"day" => day_str}, %{assigns: %{selected_project: selected_project}} = socket) do
-    day = String.to_integer(day_str)
-    current_days = selected_project.slack_report_days_of_week || []
-
-    new_days =
-      if day in current_days do
-        Enum.reject(current_days, &(&1 == day))
-      else
-        Enum.sort([day | current_days])
-      end
-
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{slack_report_days_of_week: new_days})
-
-    socket = assign(socket, selected_project: updated_project)
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "update_slack_schedule_time",
-        %{"hour" => hour_str},
-        %{assigns: %{selected_project: selected_project, user_timezone: user_timezone}} = socket
-      ) do
-    local_hour = String.to_integer(hour_str)
-    timezone = user_timezone || "Etc/UTC"
-
-    utc_time = local_hour_to_utc(local_hour, timezone)
-
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{
-        slack_report_schedule_time: utc_time,
-        slack_report_timezone: timezone
-      })
-
-    socket = assign(socket, selected_project: updated_project)
-    {:noreply, socket}
-  end
-
-  def handle_event("toggle_slack_reports", _params, %{assigns: %{selected_project: selected_project}} = socket) do
-    new_enabled = not (selected_project.slack_report_enabled || false)
-
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{slack_report_enabled: new_enabled})
-
-    socket = assign(socket, selected_project: updated_project)
-    {:noreply, socket}
-  end
-
-  def handle_event(
         "send_test_slack_report",
         _params,
         %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
@@ -238,6 +186,104 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
+  def handle_event("update_schedule_form_frequency", %{"frequency" => frequency}, socket) do
+    new_frequency = String.to_existing_atom(frequency)
+    current_frequency = socket.assigns.schedule_form_frequency
+
+    socket =
+      if current_frequency == :never && new_frequency == :daily do
+        assign(socket, schedule_form_days: [1, 2, 3, 4, 5])
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, schedule_form_frequency: new_frequency)}
+  end
+
+  def handle_event("toggle_schedule_form_day", %{"day" => day_str}, socket) do
+    day = String.to_integer(day_str)
+    current_days = socket.assigns.schedule_form_days
+
+    new_days =
+      if day in current_days do
+        remaining = Enum.reject(current_days, &(&1 == day))
+        if remaining == [], do: current_days, else: remaining
+      else
+        Enum.sort([day | current_days])
+      end
+
+    {:noreply, assign(socket, schedule_form_days: new_days)}
+  end
+
+  def handle_event("update_schedule_form_hour", %{"hour" => hour_str}, socket) do
+    {:noreply, assign(socket, schedule_form_hour: String.to_integer(hour_str))}
+  end
+
+  def handle_event(
+        "update_schedule_form_channel",
+        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        socket
+      ) do
+    socket =
+      socket
+      |> assign(schedule_form_channel_id: channel_id)
+      |> assign(schedule_form_channel_name: channel_name)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("close_slack_schedule_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "slack-schedule-modal"})
+      |> assign_schedule_form_defaults(selected_project)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "save_slack_schedule",
+        _params,
+        %{assigns: %{selected_project: selected_project, user_timezone: user_timezone} = assigns} = socket
+      ) do
+    frequency = assigns.schedule_form_frequency
+    days = assigns.schedule_form_days
+    hour = assigns.schedule_form_hour
+    channel_id = assigns.schedule_form_channel_id
+    channel_name = assigns.schedule_form_channel_name
+    timezone = user_timezone || "Etc/UTC"
+
+    updates =
+      if frequency == :never do
+        %{
+          slack_report_enabled: false,
+          slack_channel_id: channel_id,
+          slack_channel_name: channel_name
+        }
+      else
+        utc_time = local_hour_to_utc(hour, timezone)
+
+        %{
+          slack_report_enabled: true,
+          slack_report_frequency: frequency,
+          slack_report_days_of_week: days,
+          slack_report_schedule_time: utc_time,
+          slack_report_timezone: timezone,
+          slack_channel_id: channel_id,
+          slack_channel_name: channel_name
+        }
+      end
+
+    {:ok, updated_project} = Projects.update_project(selected_project, updates)
+
+    socket =
+      socket
+      |> assign(selected_project: updated_project)
+      |> push_event("close-modal", %{id: "slack-schedule-modal"})
+
+    {:noreply, socket}
+  end
+
   defp get_slack_channels(%{slack_channels: slack_channels_async}) do
     if slack_channels_async.ok? do
       slack_channels_async.result
@@ -253,6 +299,38 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp day_name(5), do: dgettext("dashboard_projects", "Fri")
   defp day_name(6), do: dgettext("dashboard_projects", "Sat")
   defp day_name(7), do: dgettext("dashboard_projects", "Sun")
+
+  defp format_hour(hour) when hour == 0, do: "12AM"
+  defp format_hour(hour) when hour < 12, do: "#{hour}AM"
+  defp format_hour(hour) when hour == 12, do: "12PM"
+  defp format_hour(hour), do: "#{hour - 12}PM"
+
+  defp format_slack_reports_description(%{selected_project: project, user_timezone: user_timezone}) do
+    if project.slack_report_enabled do
+      channel_str =
+        if project.slack_channel_name do
+          "##{project.slack_channel_name}"
+        else
+          dgettext("dashboard_projects", "No channel")
+        end
+
+      days = project.slack_report_days_of_week || []
+      hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
+
+      time_str = if hour, do: format_hour(hour), else: ""
+
+      day_str =
+        days
+        |> Enum.map(&day_name/1)
+        |> Enum.join(", ")
+
+      schedule_str = dgettext("dashboard_projects", "%{days} at %{time}", days: day_str, time: time_str)
+
+      "#{channel_str} · #{schedule_str}"
+    else
+      dgettext("dashboard_projects", "Disabled")
+    end
+  end
 
   defp local_hour_to_utc(local_hour, timezone) do
     today = Date.utc_today()
