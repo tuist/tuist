@@ -7,19 +7,19 @@
 ---
 # 미리 보기 {#previews}
 
-::: warning 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
 - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
-앱을 빌드할 때 다른 사람들과 공유하여 피드백을 받고 싶을 수 있습니다. 전통적으로 팀은 앱을 빌드하고 서명하여 Apple의
+앱을 빌드할 때 다른 사람들과 공유하여 피드백을 받고 싶을 수 있습니다. 일반적으로 팀은 앱을 빌드하고 서명하여 Apple의
 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 푸시하는 방식으로 이 작업을
-수행했습니다. 하지만 이 과정은 번거롭고 느릴 수 있으며, 특히 동료나 친구로부터 빠른 피드백을 받고자 할 때는 더욱 그렇습니다.
+수행합니다. 하지만 이 과정은 번거롭고 느릴 수 있으며, 특히 동료나 친구로부터 빠른 피드백을 받고자 할 때는 더욱 그렇습니다.
 
 이 과정을 더욱 간소화하기 위해 Tuist는 앱의 미리보기를 생성하고 누구와도 공유할 수 있는 방법을 제공합니다.
 
-::: warning 장치 빌드에 서명해야 함
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 디바이스용으로 빌드할 때 앱이 올바르게 서명되었는지 확인하는 것은 현재 사용자의 책임입니다. 향후 이 과정을 간소화할 계획입니다.
 <!-- -->
@@ -27,8 +27,9 @@
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -60,6 +61,16 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+대부분의 CI 제공업체가 노출하는 CI 실행 번호를 활용하여 `CFBundleVersion` (빌드 버전)이 고유한지 확인하세요. 예를 들어,
+GitHub Actions에서 `CFBundleVersion` 을 <code v-pre>${{ github.run_number }}</code>
+변수로 설정할 수 있습니다.
+
+동일한 바이너리(빌드)와 동일한 `CFBundleVersion` 으로 미리 보기를 업로드하면 실패합니다.
+<!-- -->
+:::
+
 ## 트랙 {#tracks}
 
 트랙을 사용하면 미리 보기를 이름 지정된 그룹으로 구성할 수 있습니다. 예를 들어 내부 테스터를 위한 `베타` 트랙과 자동화된 빌드를 위한
@@ -73,11 +84,11 @@ tuist share App --track nightly
 ```
 
 이 기능은 다음과 같은 경우에 유용합니다:
-- **미리보기 구성하기**: 목적별 그룹 미리보기(예: `베타`, `야간`, `내부`)
-- **인앱 업데이트**: Tuist SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다.
+- **미리 보기 구성하기**: 목적별 그룹 미리 보기(예: `베타`, `야간`, `내부`)
+- **인앱 업데이트**: 튜이스트 SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다.
 - **필터링**: 튜이스트 대시보드에서 트랙별 미리보기를 쉽게 찾고 관리할 수 있습니다.
 
-::: warning 미리보기 표시 여부
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 프로젝트가 속한 조직에 대한 액세스 권한이 있는 사람만 미리 보기에 액세스할 수 있습니다. 만료되는 링크에 대한 지원도 추가할 계획입니다.
 <!-- -->
@@ -98,7 +109,7 @@ tuist share App --track nightly
 
 이제 미리보기 페이지에서 '실행'을 클릭하면 현재 선택한 기기에서 macOS 앱이 자동으로 실행됩니다.
 
-::: warning 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
 Xcode가 로컬에 설치되어 있어야 하며 macOS 14 이상을 사용 중이어야 합니다.
 <!-- -->
@@ -119,7 +130,7 @@ macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스�
 
 ## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
-::: warning GIT 플랫폼과의 통합이 필요합니다.
+::: warning Git과 통합 필요
 <!-- -->
 자동 풀/병합 요청 코멘트를 받으려면
 <LocalizedLink href="/guides/server/accounts-and-projects">원격 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
@@ -142,8 +153,8 @@ Tuist SDK](https://github.com/tuist/sdk)를 사용하면 앱에서 최신 프리
 사용자에게 알릴 수 있습니다. 이는 테스터를 최신 빌드로 유지하는 데 유용합니다.
 
 SDK는 동일한 **미리 보기 트랙** 내에서 업데이트를 확인합니다. ` --track` 을 사용하여 프리뷰를 명시적 트랙과 공유하면 SDK는
-해당 트랙에서 업데이트를 찾습니다. 트랙을 지정하지 않으면 git 브랜치가 트랙으로 사용되므로 `메인` 브랜치에서 빌드한 프리뷰는 `메인` 에서
-빌드한 최신 프리뷰에 대해서만 알림을 보냅니다.
+해당 트랙에서 업데이트를 찾습니다. 트랙을 지정하지 않으면 git 브랜치가 트랙으로 사용되므로 `메인` 브랜치에서 빌드된 프리뷰는 `메인` 에서
+빌드된 최신 프리뷰에 대해서만 알림을 보냅니다.
 
 ### 설치 {#sdk-installation}
 
@@ -204,7 +215,7 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
+::: info Mise란?
 <!-- -->
 시뮬레이터 및 App Store 빌드에서는 업데이트 확인이 자동으로 비활성화됩니다.
 <!-- -->

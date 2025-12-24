@@ -53,7 +53,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip WERYFIKACJA AUTENTYCZNOŚCI BINARII
+::: wskazówka WERYFIKACJA AUTENTYCZNOŚCI BINARII
 <!-- -->
 Możesz zweryfikować, czy pliki binarne Twojej instalacji zostały zbudowane przez
 nas, uruchamiając następujące polecenie, które sprawdza, czy zespół certyfikatu

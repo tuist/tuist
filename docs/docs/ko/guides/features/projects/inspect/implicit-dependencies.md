@@ -21,16 +21,16 @@ tuist inspect implicit-imports
 
 명령이 암시적 가져오기를 감지하면 0이 아닌 종료 코드를 사용하여 종료합니다.
 
-::: tip CI에서 유효성 검사
+::: tip VALIDATE IN CI
 <!-- -->
 새 코드가 업스트림에 푸시될 때마다 이 명령을
 <LocalizedLink href="/guides/features/automate/continuous-integration">연속 통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
 <!-- -->
 :::
 
-::: warning 모든 암시적 사례가 감지되는 것은 아닙니다.
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
-정적 코드 분석에 의존하여 암시적 종속성을 감지하기 때문에 모든 경우를 파악하지 못할 수도 있습니다. 예를 들어, 코드의 컴파일러 지시문을 통한
+정적 코드 분석에 의존하여 암시적 종속성을 감지하기 때문에 모든 경우를 포착하지 못할 수도 있습니다. 예를 들어, 코드의 컴파일러 지시문을 통한
 조건부 가져오기는 Tuist가 이해하지 못합니다.
 <!-- -->
 :::

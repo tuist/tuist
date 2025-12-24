@@ -12,7 +12,7 @@ diseño y el desarrollo de Tuist. Evolucionan con el proyecto y pretenden
 garantizar un crecimiento sostenible que esté bien alineado con los cimientos
 del proyecto.
 
-## Por defecto a las convenciones {#default-to-conventions}
+## Convenciones por defecto {#default-to-conventions}
 
 Una de las razones por las que Tuist existe es porque Xcode es débil en
 convenciones y eso lleva a proyectos complejos que son difíciles de escalar y
@@ -56,7 +56,7 @@ desde un entorno local o CI.
 **Tuist debe asumir la complejidad y exponer una interfaz sencilla, segura y
 agradable para describir sus proyectos de la forma más explícita posible.**
 
-## Hacer explícito lo implícito {#make-the-implicit-explicit}
+## Explicitar lo implícito {#make-the-implicit-explicit}
 
 Xcode soporta configuraciones implícitas. Un buen ejemplo de ello es inferir las
 dependencias definidas implícitamente. Mientras que la implicitud está bien para
@@ -110,7 +110,7 @@ procesables. ¿Alguna vez has recibido un error en *"framework X not found"* y n
 has sabido qué hacer? Imagina que tuviéramos una lista de las posibles causas
 del error.
 
-## Partir de la experiencia del desarrollador {#partir-de-la-experiencia-del-desarrollador}
+## Partir de la experiencia del promotor {#start-from-the-developers-experience}
 
 Parte de la razón por la que hay una falta de innovación en torno a Xcode, o
 dicho de otro modo, no tanta como en otros entornos de programación, es porque

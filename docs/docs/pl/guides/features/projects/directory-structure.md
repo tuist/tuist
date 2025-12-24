@@ -81,7 +81,7 @@ niego zależne.
 <!-- -->
 :::
 
-## Pakiet Swift <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}.
+## Pakiet Swift <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
 Tuist obsługuje również projekty pakietów SPM. Jeśli pracujesz nad pakietem SPM,
 nie musisz niczego aktualizować. Tuist automatycznie pobiera główny pakiet

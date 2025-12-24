@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcodeプロジェクト {#xcode-project}
+# Xcodeプロジェクト{#xcode-project}
 
 Xcode プロジェクトでレジストリを使用してパッケージを追加するには、デフォルトの Xcode UI を使用します。Xcode の`Package
 Dependencies` タブの`+`
@@ -13,7 +13,7 @@ Dependencies` タブの`+`
 
 パッケージの依存関係の追加](/images/guides/features/build/registry/registry-add-package.png)。
 
-::: 情報
+::: info
 <!-- -->
 現在、Xcode
 は、ソースコントロールパッケージをレジストリの同等物と自動的に置き換えることをサポートしていません。あなたは、手動でソースコントロールパッケージを削除し、解決をスピードアップするためにレジストリパッケージを追加する必要があります。

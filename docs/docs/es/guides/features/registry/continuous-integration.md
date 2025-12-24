@@ -10,7 +10,7 @@
 Para utilizar el registro en su CI, debe asegurarse de que ha iniciado sesión en
 el registro ejecutando `tuist registry login` como parte de su flujo de trabajo.
 
-::: info SOLO XCODE INTEGRATION
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 La creación de un nuevo llavero predesbloqueado sólo es necesaria si se utiliza
 la integración de paquetes en Xcode.
@@ -37,7 +37,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 Asegúrese de que su llavero predeterminado está creado y desbloqueado _antes de
 ejecutar_ `tuist registry login`.
 
-Además, debe asegurarse de que la variable de entorno `TUIST_CONFIG_TOKEN` está
+Además, debe asegurarse de que la variable de entorno `TUIST_TOKEN` está
 configurada. Puede crear una siguiendo la documentación
 <LocalizedLink href="/guides/server/authentication#as-a-project">aquí</LocalizedLink>.
 
@@ -60,12 +60,12 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
 
-### Resolución incremental entre entornos {#incremental-resolution-across-environments}
+### Resolución incremental en todos los entornos {#incremental-resolution-across-environments}
 
 Las resoluciones limpias/frías son ligeramente más rápidas con nuestro registro,
 y puede experimentar mejoras aún mayores si persiste las dependencias resueltas

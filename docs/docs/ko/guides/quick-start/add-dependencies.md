@@ -86,10 +86,10 @@ let project = Project(
 관리자](https://www.swift.org/documentation/package-manager/)를 사용하여 종속성을 해결하고
 가져옵니다.
 
-::: info 종속성 해결사로서의 SPM
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-종속성에 대한 Tuist의 권장 접근 방식은 종속성을 해결할 때만 Swift 패키지 관리자(SPM)를 사용합니다. 그런 다음 Tuist는
-종속성을 Xcode 프로젝트와 타깃으로 변환하여 구성 및 제어를 극대화합니다.
+종속성에 대한 Tuist의 권장 접근 방식은 종속성을 해결할 때만 Swift 패키지 관리자(SPM)를 사용합니다. 그런 다음 Tuist는 이를
+Xcode 프로젝트와 타깃으로 변환하여 구성 가능성과 제어를 극대화합니다.
 <!-- -->
 :::
 
@@ -105,7 +105,7 @@ tuist graph
 
 ![프로젝트 그래프](/images/guides/quick-start/graph.png)
 
-## 종속성 {#use-the-dependency} 사용
+## 종속성 사용 {#use-the-dependency}
 
 `tuist generate` 을 실행하여 Xcode에서 프로젝트를 열고 `ContentView.swift` 파일을 다음과 같이 변경합니다:
 

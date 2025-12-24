@@ -5,7 +5,7 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# 迁移 Swift 软件包 {#migrate-a-swift-package}
+# 迁移 Swift 软件包{#migrate-a-swift-package}
 
 Swift Package Manager 是作为 Swift 代码的依赖关系管理器出现的，它无意中解决了管理项目和支持 Objective-C
 等其他编程语言的问题。由于该工具在设计之初就考虑到了不同的目的，因此使用它来大规模管理项目可能具有挑战性，因为它缺乏 Tuist
@@ -22,14 +22,14 @@ Swift 包管理器和原生 Xcode 项目的性能：
 不过，我们没有看到任何迹象表明这种情况正在发生。事实上，我们看到的恰恰相反。他们正在做出受 Xcode
 启发的决定，比如通过隐式配置来实现便利性，而隐式配置<LocalizedLink href="/guides/features/projects/cost-of-convenience">可能是大规模复杂性的根源</LocalizedLink>。我们认为，苹果应该遵循第一原则，重新审视一些作为依赖关系管理器而非项目管理器的决策，例如使用编译语言作为定义项目的接口。
 
-::: tip SPM 只是一名代理经理
+::: tip SPM IS A DEPENDENCY MANAGER
 <!-- -->
 Tuist 将 Swift
 软件包管理器视为依赖关系管理器，它是一个很棒的管理器。我们用它来解决依赖关系并构建它们。我们不用它来定义项目，因为它不是为此而设计的。
 <!-- -->
 :::
 
-## 从 Swift 包管理器迁移到 Tuist {#migrating-from-swift-package-manager-to-tuist}
+## 从 Swift 包管理器迁移到 Tuist{#migrating-from-swift-package-manager-to-tuist}
 
 Swift 软件包管理器和 Tuist 之间的相似之处使得迁移过程简单明了。主要区别在于，您将使用 Tuist 的 DSL 而不是`Package.swift`
 来定义项目。
@@ -69,9 +69,9 @@ let tuist = Tuist()
 ```
 
 `Tuist.swift` 包含项目配置，其路径可作为确定项目根目录的参考。您可以查看
-<LocalizedLink href="/guides/features/projects/directory-structure">目录结构 </LocalizedLink> 文档，了解 Tuist 项目结构的更多信息。
+<LocalizedLink href="/guides/features/projects/directory-structure"> 目录结构 </LocalizedLink> 文档，了解 Tuist 项目结构的更多信息。
 
-## 编辑项目 {#editing-the-project}
+## 编辑项目{#editing-the-project}
 
 您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> 在 Xcode 中编辑项目。该命令将生成一个 Xcode 项目，您可以打开并开始工作。
 

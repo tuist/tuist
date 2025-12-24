@@ -26,12 +26,13 @@
 مديراً مدمجاً للمشروعات.** ومع ذلك، نحن لا نرى أي علامات على حدوث ذلك. في
 الواقع، نحن نرى العكس تماماً. إنهم يتخذون قرارات مستوحاة من Xcode، مثل تحقيق
 الراحة من خلال التكوينات الضمنية، والتي
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">كما تعلمون، </LocalizedLink> هي مصدر التعقيدات على نطاق واسع. نحن نعتقد أن الأمر يتطلب من
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> كما تعلمون،
+</LocalizedLink> هي مصدر التعقيدات على نطاق واسع. نحن نعتقد أن الأمر يتطلب من
 Apple العودة إلى المبادئ الأولى وإعادة النظر في بعض القرارات التي كانت منطقية
 كمدير للتبعية وليس كمدير للمشروع، على سبيل المثال استخدام لغة مجمعة كواجهة
 لتحديد المشاريع.
 
-::: tip SPM كمدير معتمد فقط
+::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
 يتعامل تويست مع مدير حزم سويفت كمدير تبعية، وهو مدير تبعية رائع. نحن نستخدمه لحل
 التبعيات وبنائها. لا نستخدمه لتحديد المشاريع لأنه غير مصمم لذلك.
@@ -84,11 +85,13 @@ let tuist = Tuist()
 
 يحتوي ملف `Tuist.swift.swift` على التكوين الخاص بمشروعك ويعمل مساره كمرجع لتحديد
 جذر مشروعك. يمكنك الاطلاع على مستند
-<LocalizedLink href="/guides/features/projects/directory-structure">بنية الدليل</LocalizedLink> لمعرفة المزيد عن بنية مشاريع تويست.
+<LocalizedLink href="/guides/features/projects/directory-structure"> بنية
+الدليل</LocalizedLink> لمعرفة المزيد عن بنية مشاريع تويست.
 
-## تحرير المشروع {#editing-the-project}
+## تحرير المشروع {#edit-the-project}
 
-يمكنك استخدام <LocalizedLink href="/guides/features/projects/editing">`tuist تحرير`</LocalizedLink> لتحرير المشروع في Xcode. سينشئ الأمر مشروع Xcode يمكنك
+يمكنك استخدام <LocalizedLink href="/guides/features/projects/editing">`tuist
+تحرير`</LocalizedLink> لتحرير المشروع في Xcode. سينشئ الأمر مشروع Xcode يمكنك
 فتحه وبدء العمل عليه.
 
 ```bash

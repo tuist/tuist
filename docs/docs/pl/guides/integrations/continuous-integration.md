@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Ciągła integracja (CI) {#ciągła-integracja-ci}
+# Ciągła integracja (CI) {#continuous-integration-ci}
 
 Aby uruchamiać polecenia Tuist w przepływach pracy [ciągłej
 integracji](https://en.wikipedia.org/wiki/Continuous_integration), należy
@@ -120,9 +120,9 @@ jobs:
 ::: info OIDC SETUP
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github">połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Uprawnienia `: id-token:
+<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Uprawnienia `: id-token:
 write` są wymagane do działania OIDC. Alternatywnie, można użyć
-<LocalizedLink href="/guides/server/authentication#project-tokens">tokenu projektu</LocalizedLink> z `TUIST_TOKEN` secret.
+<LocalizedLink href="/guides/server/authentication#project-tokens"> tokenu projektu</LocalizedLink> z `TUIST_TOKEN` secret.
 <!-- -->
 :::
 
@@ -166,7 +166,7 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Użyj tokenu
 <LocalizedLink href="/guides/server/authentication#project-tokens">projektu</LocalizedLink>,
@@ -230,13 +230,13 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github">połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny CircleCI OIDC
+<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny CircleCI OIDC
 zawierają podłączone repozytorium GitHub, którego Tuist używa do autoryzacji
 dostępu do projektów. Alternatywnie można użyć
-<LocalizedLink href="/guides/server/authentication#project-tokens">tokenu projektu</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
+<LocalizedLink href="/guides/server/authentication#project-tokens"> tokenu projektu</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -297,13 +297,13 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github">połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny Bitrise OIDC
+<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny Bitrise OIDC
 zawierają podłączone repozytorium GitHub, którego Tuist używa do autoryzacji
 dostępu do projektów. Alternatywnie można użyć
-<LocalizedLink href="/guides/server/authentication#project-tokens">tokenu projektu</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
+<LocalizedLink href="/guides/server/authentication#project-tokens"> tokenu projektu</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -349,7 +349,7 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTENTYFIKACJA
+::: info AUTHENTICATION
 <!-- -->
 Utwórz
 <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> i dodaj go jako tajną zmienną środowiskową o nazwie

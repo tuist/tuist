@@ -5,10 +5,11 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#generated-project-with-xcodeproj-based-integration}
+# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#generated-project-with-the-xcodeprojbased-package-integration}
 
 عند استخدام التكامل المستند إلى
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration"> XcodeProj</LocalizedLink>، يمكنك استخدام العلامة ``--استبدال
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">
+XcodeProj</LocalizedLink>، يمكنك استخدام العلامة ``--استبدال
 -Scm-with-registry`` لحل التبعيات من السجل إذا كانت متوفرة. أضفها إلى ملف
 `installOptions` في ملف `Tuist.swift` الخاص بك :
 ```swift

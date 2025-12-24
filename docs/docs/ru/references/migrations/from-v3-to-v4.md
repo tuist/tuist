@@ -35,7 +35,7 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: warning MISE в CI ENVIRONMENTS и XCODE PROJECTS
+::: предупреждение MISE в CI ENVIRONMENTS и XCODE PROJECTS
 <!-- -->
 Если вы решили использовать детерминизм, который привносит Mise, мы рекомендуем
 ознакомиться с документацией по использованию Mise в
@@ -53,7 +53,7 @@ Homebrew вы найдете в руководстве по установке
 <!-- -->
 :::
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### Удалены конструкторы `unit` из моделей `ProjectDescription` {#dropped-init-constructors-from-projectdescription-models}
 
 С целью улучшения читабельности и выразительности API мы решили удалить
 конструкторы `init` из всех моделей `ProjectDescription`. Теперь каждая модель
@@ -145,7 +145,7 @@ tuist generate Foo
 <!-- -->
 :::
 
-### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [Удалены возможности подписи](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
 Проблема подписи уже решена такими инструментами сообщества, как
 [Fastlane](https://fastlane.tools/) и сам Xcode, которые справляются с этой
@@ -204,7 +204,7 @@ tuist generate Foo
 то вместо этого вам придется использовать `TargetDependency.package`, а в
 качестве аргумента передать тип пакета, который вы хотите использовать.
 
-### [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
+### [Удалены устаревшие API](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
 Мы удалили API, которые были помечены как устаревшие в Tuist 3. Если вы
 использовали какой-либо из устаревших API, вам придется обновить свой проект,

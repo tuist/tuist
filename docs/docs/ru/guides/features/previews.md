@@ -7,7 +7,7 @@
 ---
 # Предварительные просмотры {#previews}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
@@ -33,8 +33,9 @@
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -70,6 +71,18 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Убедитесь, что `CFBundleVersion` (версия сборки) уникальна, используя номер
+запуска CI, который выставляют большинство провайдеров CI. Например, в GitHub
+Actions вы можете установить `CFBundleVersion` в переменную <code v-pre>${{
+github.run_number }}</code>.
+
+Загрузка предварительного просмотра с тем же бинарным файлом (сборкой) и той же
+`CFBundleVersion` завершится неудачей.
+<!-- -->
+:::
+
 ## Треки {#tracks}
 
 Треки позволяют организовать предварительные просмотры в именованные группы.
@@ -93,7 +106,7 @@ tuist share App --track nightly
 - **Фильтрация**: Удобный поиск и управление превью по трекам на приборной
   панели Tuist
 
-::: warning Визитная карточка ПРЕДИСЛОВИЕ
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 Только люди с доступом к организации, к которой принадлежит проект, могут
 получить доступ к предварительным просмотрам. Мы планируем добавить поддержку
@@ -118,7 +131,7 @@ tuist share App --track nightly
 Когда вы нажмете кнопку "Запустить" на странице предварительного просмотра,
 приложение для macOS автоматически запустится на выбранном устройстве.
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 Вам необходимо иметь локально установленный Xcode и быть на macOS 14 или более
 поздней версии.
@@ -139,9 +152,9 @@ tuist share App --track nightly
 Как и приложение для macOS, приложение Tuist для iOS упрощает доступ к
 предварительным просмотрам и их запуск.
 
-## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
+## Комментарии к запросам на перетяжку/слияние {#pullmerge-request-comments}
 
-::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш <LocalizedLink href="/guides/server/accounts-and-projects">удаленный проект</LocalizedLink> с
@@ -184,7 +197,7 @@ SDK проверяет наличие обновлений в пределах �
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Мониторинг обновлений {#sdk-monitor-updates}
+### Следите за обновлениями {#sdk-monitor-updates}
 
 Используйте `monitorPreviewUpdates`, чтобы периодически проверять наличие новых
 версий превью:
@@ -208,7 +221,7 @@ struct MyApp: App {
 }
 ```
 
-### Одиночная проверка обновлений {#sdk-single-check}
+### Однократная проверка обновлений {#sdk-single-check}
 
 Для проверки обновлений вручную:
 
@@ -265,7 +278,7 @@ Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## Автоматизации {#automations}
+## Автоматизация {#automations}
 
 Вы можете использовать флаг `--json`, чтобы получить вывод в формате JSON от
 команды `tuist share`:

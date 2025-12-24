@@ -12,7 +12,7 @@ wymagają większej kontroli nad swoją infrastrukturą. Ta wersja umożliwia
 hostowanie Tuist na własnej infrastrukturze, zapewniając bezpieczeństwo i
 prywatność danych.
 
-::: warning WYMAGANA LICENCJA
+::: warning LICENSE REQUIRED
 <!-- -->
 Samodzielny hosting Tuist wymaga prawnie ważnej płatnej licencji. Lokalna wersja
 Tuist jest dostępna tylko dla organizacji korzystających z planu Enterprise.
@@ -21,7 +21,7 @@ Jeśli jesteś zainteresowany tą wersją, skontaktuj się z
 <!-- -->
 :::
 
-## Zwolnienie kadencji {#release-cadence}
+## Kadencja zwalniania {#release-cadence}
 
 Wydajemy nowe wersje Tuist w sposób ciągły, w miarę jak nowe możliwe do wydania
 zmiany trafiają na main. Stosujemy [semantic versioning](https://semver.org/),
@@ -60,12 +60,12 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## Wymagania uruchomieniowe {#runtime-requirements}
+## Wymagania dotyczące czasu działania {#runtime-requirements}
 
 W tej sekcji przedstawiono wymagania dotyczące hostowania serwera Tuist w
 infrastrukturze użytkownika.
 
-### Macierz kompatybilności {#compatibility-matrix}
+### Matryca zgodności {#compatibility-matrix}
 
 Serwer Tuist został przetestowany i jest kompatybilny z następującymi
 minimalnymi wersjami:
@@ -87,7 +87,7 @@ PostgreSQL ma zainstalowaną i włączoną usługę TimescaleDB.
 <!-- -->
 :::
 
-### Uruchamianie zwirtualizowanych obrazów Docker {#running-dockervirtualized-images}.
+### Uruchamianie zwirtualizowanych obrazów Docker {#running-dockervirtualized-images}
 
 Dystrybuujemy serwer jako obraz [Docker](https://www.docker.com/) za
 pośrednictwem [GitHub's Container
@@ -114,7 +114,7 @@ Rozszerzenie to jest używane do obsługi zdarzeń, analiz i innych funkcji
 opartych na czasie. Upewnij się, że twoja instancja PostgreSQL ma zainstalowane
 i włączone TimescaleDB przed uruchomieniem Tuist.
 
-::: info MIGRACJE
+::: info MIGRATIONS
 <!-- -->
 Punkt wejścia obrazu Docker automatycznie uruchamia wszelkie oczekujące migracje
 schematów przed uruchomieniem usługi. Jeśli migracje nie powiodą się z powodu
@@ -130,14 +130,14 @@ dla funkcji takich jak build insights i będzie podstawową bazą danych szereg�
 czasowych w miarę wycofywania TimescaleDB. Możesz wybrać, czy chcesz
 samodzielnie hostować ClickHouse, czy skorzystać z ich hostowanej usługi.
 
-::: info MIGRACJE
+::: info MIGRATIONS
 <!-- -->
 Punkt wejścia obrazu Docker automatycznie uruchamia wszelkie oczekujące migracje
 schematów ClickHouse przed uruchomieniem usługi.
 <!-- -->
 :::
 
-### Pamięć masowa {#storage}
+### Przechowywanie {#storage}
 
 Potrzebne będzie również rozwiązanie do przechowywania plików (np. plików
 binarnych frameworków i bibliotek). Obecnie obsługujemy dowolną pamięć masową
@@ -173,7 +173,7 @@ usługa działa zgodnie z warunkami umowy.
 \* Należy podać albo `TUIST_LICENSE` albo `TUIST_LICENSE_CERTIFICATE_BASE64`,
 ale nie oba. W przypadku standardowych wdrożeń należy użyć `TUIST_LICENSE`.
 
-::: warning DATA WYGAŚNIĘCIA
+::: warning EXPIRATION DATE
 <!-- -->
 Licencje mają datę wygaśnięcia. Użytkownicy otrzymają ostrzeżenie podczas
 korzystania z poleceń Tuist, które wchodzą w interakcję z serwerem, jeśli
@@ -182,7 +182,7 @@ licencji, skontaktuj się z [contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
-### Podstawowa konfiguracja środowiska {#base-environment-configuration}.
+### Konfiguracja środowiska podstawowego {#base-environment-configuration}
 
 | Zmienna środowiskowa                  | Opis                                                                                                                                                                                                                                  | Wymagane | Domyślne                           | Przykłady                                                                       |                                                                                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -216,7 +216,7 @@ danych:
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Maksymalny rozmiar bufora ClickHouse w bajtach przed wymuszeniem spłukiwania                                                                                                                                                     | Nie      | `1000000` | `1000000`                                                              |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Liczba procesów bufora ClickHouse do uruchomienia                                                                                                                                                                                | Nie      | `5`       | `5`                                                                    |
 
-### Konfiguracja środowiska uwierzytelniania {#authentication-environment-configuration}.
+### Konfiguracja środowiska uwierzytelniania {#authentication-environment-configuration}
 
 Ułatwiamy uwierzytelnianie za pośrednictwem [dostawców tożsamości
 (IdP)](https://en.wikipedia.org/wiki/Identity_provider). Aby z tego skorzystać,
@@ -269,7 +269,7 @@ to adres URL, pod którym działa hostowana usługa. Po utworzeniu aplikacji
 skopiuj identyfikator klienta i sekret i ustaw je odpowiednio jako zmienne
 środowiskowe `GOOGLE_CLIENT_ID` i `GOOGLE_CLIENT_SECRET`.
 
-::: info SKALE ZGODY
+::: info CONSENT SCREEN SCOPES
 <!-- -->
 Może być konieczne utworzenie ekranu zgody. W tym celu należy dodać zakresy
 `userinfo.email` i `openid` oraz oznaczyć aplikację jako wewnętrzną.
@@ -281,7 +281,7 @@ Może być konieczne utworzenie ekranu zgody. W tym celu należy dodać zakresy
 Możesz włączyć uwierzytelnianie w Okta za pomocą protokołu [OAuth
 2.0](https://oauth.net/2/). Będziesz musiał [utworzyć
 aplikację](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta">tymi instrukcjami</LocalizedLink>.
+w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta"> tymi instrukcjami</LocalizedLink>.
 
 Po uzyskaniu identyfikatora klienta i hasła tajnego podczas konfigurowania
 aplikacji Okta należy ustawić następujące zmienne środowiskowe:
@@ -294,7 +294,7 @@ aplikacji Okta należy ustawić następujące zmienne środowiskowe:
 Numer `1` należy zastąpić identyfikatorem organizacji. Zazwyczaj będzie to 1,
 ale należy to sprawdzić w bazie danych.
 
-### Konfiguracja środowiska pamięci masowej {#storage-environment-configuration}.
+### Konfiguracja środowiska pamięci masowej {#storage-environment-configuration}
 
 Tuist potrzebuje pamięci masowej do przechowywania artefaktów przesłanych za
 pośrednictwem interfejsu API.** Aby aplikacja Tuist działała efektywnie,
@@ -324,8 +324,7 @@ magazynu wymagane są następujące zmienne środowiskowe:
 | `TUIST_S3_PROTOCOL`                                      | Protokół używany podczas łączenia się z dostawcą pamięci masowej (`http1` lub `http2`).                                                                                                 | Nie      | `http1`                          | `http1`                                                       |
 | `TUIST_S3_VIRTUAL_HOST`                                  | Czy adres URL powinien być skonstruowany z nazwą zasobnika jako subdomena (host wirtualny)?                                                                                             | Nie      | `fałszywy`                       | `1`                                                           |
 
-::: info Uwierzytelnianie AWS za pomocą tokenu tożsamości sieciowej ze zmiennych
-środowiskowych
+::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
 Jeśli dostawcą pamięci masowej jest AWS i chcesz uwierzytelniać się za pomocą
 tokena tożsamości sieciowej, możesz ustawić zmienną środowiskową
@@ -369,7 +368,7 @@ dla swojego lokalnego wdrożenia, skontaktuj się z
 <!-- -->
 :::
 
-::: info ZABEZPIECZENIA POWIETRZNE
+::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
 W przypadku instalacji lokalnych bez dostępu do Internetu lub konfiguracji
 dostawcy poczty e-mail, potwierdzenie e-mail jest domyślnie automatycznie
@@ -380,9 +379,9 @@ e-mail jest skonfigurowany, ustaw `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 <!-- -->
 :::
 
-### Konfiguracja platformy Git {#git-platform-configuration}.
+### Konfiguracja platformy Git {#git-platform-configuration}
 
-Tuist może <LocalizedLink href="/guides/server/authentication">integrować się z platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
+Tuist może <LocalizedLink href="/guides/server/authentication"> integrować się z platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
 automatyczne publikowanie komentarzy w pull requestach.
 
 #### GitHub {#platform-github}
@@ -401,7 +400,7 @@ będą następujące zmienne środowiskowe:
 | ------------------------------ | ------------------------------- | -------- | -------- | ------------------------------------ |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | Klucz prywatny aplikacji GitHub | Tak      |          | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-## Testowanie lokalne {#testowanie-lokalne}
+## Lokalne testy {#testing-locally}
 
 Zapewniamy kompleksową konfigurację Docker Compose, która obejmuje wszystkie
 wymagane zależności do testowania serwera Tuist na komputerze lokalnym przed
@@ -414,7 +413,7 @@ wdrożeniem w infrastrukturze:
 - Redis do trwałego przechowywania KV między wdrożeniami (opcjonalnie)
 - pgweb do administrowania bazami danych
 
-::: niebezpieczeństwo WYMAGANA LICENCJA
+::: danger LICENSE REQUIRED
 <!-- -->
 Ważna zmienna środowiskowa `TUIST_LICENSE` jest prawnie wymagana do uruchomienia
 serwera Tuist, w tym lokalnych instancji programistycznych. Jeśli potrzebujesz
@@ -496,7 +495,7 @@ Oficjalny obraz Tuist Docker dostępny jest pod adresem:
 ghcr.io/tuist/tuist
 ```
 
-### Wyciąganie obrazu Docker {#pulling-the-docker-image}.
+### Pobieranie obrazu Docker {#pulling-the-docker-image}
 
 Obraz można pobrać, wykonując następujące polecenie:
 
@@ -509,7 +508,7 @@ Lub pobrać określoną wersję:
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### Wdrażanie obrazu Docker {#deploying-the-docker-image}.
+### Wdrażanie obrazu Docker {#deploying-the-docker-image}
 
 Proces wdrażania obrazu Docker będzie różnił się w zależności od wybranego
 dostawcy chmury i podejścia organizacji do ciągłego wdrażania. Ponieważ
@@ -526,7 +525,7 @@ odpowiedzi.
 <!-- -->
 :::
 
-#### Fly {#fly}
+#### Latać {#fly}
 
 Aby wdrożyć aplikację na platformie [Fly](https://fly.io/), potrzebny będzie
 plik konfiguracyjny `fly.toml`. Rozważ wygenerowanie go dynamicznie w ramach
@@ -590,7 +589,7 @@ aplikację. Przy kolejnych wdrożeniach, zamiast uruchamiać `fly launch
 pobieranie prywatnych obrazów Docker, dlatego musimy użyć flagi `--local-only`.
 
 
-## Prometheus metrics {#prometheus-metrics}
+## Metryki Prometeusza {#prometheus-metrics}
 
 Tuist udostępnia metryki Prometheus pod adresem `/metrics`, aby pomóc w
 monitorowaniu samodzielnie hostowanej instancji. Metryki te obejmują:
@@ -660,7 +659,7 @@ Oprócz metryk Finch, Tuist udostępnia metryki dla:
 Tuist udostępnia zestaw narzędzi pod adresem `/ops/`, których można użyć do
 zarządzania instancją.
 
-::: warning Autoryzacja
+::: warning Authorization
 <!-- -->
 Tylko osoby, których uchwyty są wymienione w zmiennej środowiskowej
 `TUIST_OPS_USER_HANDLES` mogą uzyskać dostęp do punktów końcowych `/ops/`.

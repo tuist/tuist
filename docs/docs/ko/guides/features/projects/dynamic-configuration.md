@@ -24,7 +24,7 @@ TUIST_APP_NAME=MyApp tuist generate
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## 매니페스트에서 환경 변수 읽기 {#reading-the-환경-변수를-매니페스트에서-읽기}
+## 매니페스트에서 환경 변수 읽기 {#reading-the-environment-variables-from-manifests}
 
 변수는
 <LocalizedLink href="/references/project-description/enums/environment">`환경`</LocalizedLink>

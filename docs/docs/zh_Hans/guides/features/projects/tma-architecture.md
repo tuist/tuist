@@ -5,7 +5,7 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# 模块化架构（TMA） {#the-modular-architecture-tma}
+# 模块化架构（TMA）{#the-modular-architecture-tma}
 
 TMA 是一种架构方法，用于构建 Apple OS
 应用程序，以实现可扩展性、优化构建和测试周期，并确保团队的良好实践。它的核心理念是通过构建独立的功能来构建应用程序，这些功能通过简洁明了的应用程序接口相互连接。
@@ -18,11 +18,11 @@ TMA 是一种架构方法，用于构建 Apple OS
 <!-- -->
 :::
 
-## 核心原则 {#core-principle}
+## 核心原则{#core-principle}
 
 开发人员应该能够**，独立于主应用程序，快速构建、测试和尝试** 他们的功能，同时确保 Xcode 的 UI 预览、代码自动补全和调试等功能能够可靠地工作。
 
-## 什么是模块 {#what-is-a-module}
+## 什么是模块{#what-is-a-module}
 
 模块代表一种应用程序功能，是以下五个目标的组合（其中目标指的是 Xcode 目标）：
 
@@ -42,30 +42,30 @@ TMA 是一种架构方法，用于构建 Apple OS
 | `功能测试` | `功能接口`      | 测试数据和模拟   |
 | `功能示例` | `功能测试`,`功能` | 应用程序示例    |
 
-提示用户界面预览
+::: tip UI Previews
 <!-- -->
 `功能` 可以使用`FeatureTesting` 作为开发资产，以便进行用户界面预览
 <!-- -->
 :::
 
-警告 编译器指令代替测试目标
+::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
 或者，在编译`Debug` 时，可以使用编译器指令在`Feature` 或`FeatureInterface`
 目标中包含测试数据和模拟。这样可以简化图表，但最终编译的代码在运行应用程序时可能用不上。
 <!-- -->
 :::
 
-## 为什么是模块 {#why-a-module}
+## 为什么需要模块{#why-a-module}
 
-### 清晰简洁的应用程序接口 {#clear-and-concise-apis}
+### 清晰简洁的应用程序接口{#clear-and-concise-apis}
 
 当所有应用程序的源代码都在同一个目标中时，就很容易在代码中建立隐含的依赖关系，最终形成众所周知的意大利面条代码。所有东西都是强耦合的，状态有时是不可预测的，引入新的变化就成了一场噩梦。当我们在独立目标中定义功能时，我们需要设计公共应用程序接口作为功能实现的一部分。我们需要决定哪些应该是公共的，我们的功能应该如何被使用，哪些应该保持私有。我们可以更好地控制功能客户端如何使用功能，并通过设计安全的应用程序接口来执行良好的实践。
 
-### 小型模块 {#small-modules}
+### 小型模块{#small-modules}
 
 [分而治之](https://en.wikipedia.org/wiki/Divide_and_conquer)。在小模块中工作可以让你更加专注，并单独测试和尝试功能。此外，由于我们的编译更具选择性，只编译功能运行所需的组件，因此开发周期会更快。只有在工作的最后阶段，当我们需要将功能集成到应用程序中时，才有必要编译整个应用程序。
 
-### 可重复使用性 {#reusability}
+### 可重用性{#reusability}
 
 我们鼓励使用框架或库在应用程序和其他产品（如扩展）之间重复使用代码。通过构建模块，重复使用它们非常简单。我们只需组合现有模块并添加_ （必要时）_ 特定平台的
 UI 层，就能构建 iMessage 扩展、Today 扩展或 watchOS 应用程序。
@@ -79,7 +79,7 @@ SwiftRock 提出的 [使用接口模块缩短 iOS
 依赖接口要求应用程序在运行时构建实现图，并将其依赖注入到需要的模块中。虽然 TMA
 对如何做到这一点不持任何意见，但我们建议使用依赖注入解决方案或模式，或者使用不添加构建时间接性或使用非为此目的而设计的平台 API 的解决方案。
 
-## 产品类型 {#product-types｝
+## 产品类型{#product-types}
 
 构建模块时，可以在**库和框架** ，以及**静态和动态链接** 之间选择目标。在没有 Tuist
 的情况下，做出这一决定要复杂一些，因为您需要手动配置依赖关系图。不过，有了 Tuist 项目，这不再是问题。
@@ -108,13 +108,13 @@ func productType() -> Product {
 ```
 
 
-警告可合并图书馆
+::: warning MERGEABLE LIBRARIES
 <!-- -->
 苹果试图通过引入[可合并库](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)来减轻在静态库和动态库之间切换的麻烦。不过，这引入了构建时的非确定性，使你的构建不可重现，也更难优化，因此我们不建议使用。
 <!-- -->
 :::
 
-## 代码 {#code}
+## 代码{#code}
 
 TMA 对模块的代码架构和模式不持任何意见。不过，我们还是想根据自己的经验与大家分享一些技巧：
 

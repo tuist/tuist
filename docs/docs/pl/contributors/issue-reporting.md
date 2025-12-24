@@ -5,12 +5,12 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# Raportowanie zagadnień {#issue-reporting}
+# Zgłaszanie problemów {#issue-reporting}
 
 Jako użytkownik Tuist możesz natknąć się na błędy lub nieoczekiwane zachowania.
 Jeśli tak się stanie, zachęcamy do ich zgłaszania, abyśmy mogli je naprawić.
 
-## GitHub issues to nasza platforma do obsługi zgłoszeń {#github-issues-is-our-ticketing-platform}.
+## GitHub issues to nasza platforma do obsługi zgłoszeń {#github-issues-is-our-ticketing-platform}
 
 Problemy powinny być zgłaszane na GitHubie jako [GitHub
 issues](https://github.com/tuist/tuist/issues), a nie na Slacku czy innych
@@ -19,7 +19,7 @@ bliżej bazy kodu i pozwala nam śledzić postępy w zgłaszaniu zgłoszeń. Co 
 zachęca do długiego opisu problemu, co zmusza zgłaszającego do zastanowienia się
 nad problemem i zapewnienia szerszego kontekstu.
 
-## Kontekst ma kluczowe znaczenie {#context-is-crucial}.
+## Kontekst ma kluczowe znaczenie {#context-is-crucial}
 
 Zgłoszenie bez wystarczającego kontekstu zostanie uznane za niekompletne, a
 autor zostanie poproszony o podanie dodatkowego kontekstu. Jeśli nie zostaną one
@@ -35,9 +35,9 @@ Spróbuj odpowiedzieć na następujące pytania:
 
 Wymagamy również dostarczenia minimalnego projektu **do odtworzenia**.
 
-## Odtwarzalny projekt {#reproducible-project}
+## Projekt wielokrotnego użytku {#reproducible-project}
 
-### Czym jest odtwarzalny projekt? {#what-is-a-reproducible-project}
+### Czym jest powtarzalny projekt? {#what-is-a-reproducible-project}
 
 Odtwarzalny projekt to mały projekt Tuist mający na celu zademonstrowanie
 problemu - często problem ten jest spowodowany błędem w Tuist. Odtwarzalny
@@ -53,7 +53,7 @@ Odtwarzalny projekt to świetny sposób na udostępnienie określonego środowis
 które powoduje błąd. Twój odtwarzalny projekt to najlepszy sposób, by pomóc
 ludziom, którzy chcą pomóc tobie.
 
-### Kroki do stworzenia odtwarzalnego projektu {#steps-to-create-a-reproducible-project}
+### Kroki tworzenia powtarzalnego projektu {#steps-to-create-a-reproducible-project}
 
 - Utwórz nowe repozytorium git.
 - Zainicjuj projekt za pomocą `tuist init` w katalogu repozytorium.

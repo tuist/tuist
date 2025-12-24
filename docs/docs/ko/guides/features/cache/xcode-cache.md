@@ -11,7 +11,7 @@ Tuist는 빌드 시스템의 캐싱 기능을 활용하여 팀이 컴파일 아�
 
 ## 설정 {#setup}
 
-경고 요구 사항 ::: warning 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
 - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 - Xcode 26.0 이상
@@ -53,7 +53,7 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 `컴파일 캐시 원격 서비스 경로` 및 `컴파일 캐시 활성화 플러그인` 은 Xcode의 빌드 설정 UI에 직접 노출되지 않으므로 **사용자 정의
 빌드 설정** 으로 추가해야 합니다:
 
-::: info 소켓 경로
+::: info SOCKET PATH
 <!-- -->
 소켓 경로는 `tuist 설정 캐시` 를 실행할 때 표시됩니다. 프로젝트의 전체 핸들을 기반으로 하며 슬래시가 밑줄로 대체됩니다.
 <!-- -->
@@ -69,7 +69,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info 생성된 프로젝트
+::: info GENERATED PROJECTS
 <!-- -->
 Tuist에서 프로젝트를 생성한 경우 수동으로 설정을 지정할 필요가 없습니다.
 
@@ -93,17 +93,17 @@ let tuist = Tuist(
 
 CI 환경에서 캐싱을 활성화하려면 로컬 환경과 동일한 명령을 실행해야 합니다: `tuist setup cache`.
 
-또한 `TUIST_CONFIG_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
+또한 `TUIST_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
-문서를 참조하여 생성할 수 있습니다. ` TUIST_CONFIG_TOKEN` 환경 변수 _는 빌드 단계에 반드시_ 존재해야 하지만 전체 CI
-워크플로에 설정하는 것이 좋습니다.
+문서를 참조하여 생성할 수 있습니다. ` TUIST_TOKEN` 환경 변수 _는 빌드 단계에 반드시_ 존재해야 하지만 전체 CI 워크플로에
+설정하는 것이 좋습니다.
 
 그러면 GitHub 액션의 워크플로 예시는 다음과 같습니다:
 ```yaml
 name: Build
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
 jobs:
   build:

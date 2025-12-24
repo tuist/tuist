@@ -137,7 +137,7 @@ write` необходимо для работы OIDC. В качестве аль
 <!-- -->
 :::
 
-### Xcode Cloud {#xcode-cloud}
+### Облако Xcode {#xcode-cloud}
 
 В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), который использует
 проекты Xcode в качестве источника истины, вам нужно будет добавить скрипт

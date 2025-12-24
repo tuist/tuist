@@ -88,7 +88,7 @@ let project = Project(
 Następnie uruchom `tuist install`, aby rozwiązać i pobrać zależności za pomocą
 [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
-::: info SPM JAKO RESOLWER ZALEŻNOŚCI
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 Zalecane przez Tuist podejście do zależności wykorzystuje Swift Package Manager
 (SPM) wyłącznie do rozwiązywania zależności. Następnie Tuist konwertuje je na

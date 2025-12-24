@@ -10,7 +10,7 @@
 لاستخدام السجل على CI الخاص بك، تحتاج إلى التأكد من تسجيل الدخول إلى السجل عن
 طريق تشغيل `tuist تسجيل الدخول إلى السجل` كجزء من سير عملك.
 
-::: info فقط XCODE INTEGRATION
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 لا يلزم إنشاء سلسلة مفاتيح جديدة غير مؤمّنة مسبقًا إلا إذا كنت تستخدم تكامل حزم
 Xcode.
@@ -36,9 +36,10 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 إنشاء سلسلة المفاتيح الافتراضية وإلغاء قفلها _قبل تشغيل_ `تسجيل الدخول إلى سجل
 tuist`.
 
-بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_CONFIG_TOKEN`.
-يمكنك إنشاء واحد باتباع الوثائق
-<LocalizedLink href="/guides/server/authentication#as-a-project">هنا </LocalizedLink>.
+بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_TOKEN`. يمكنك
+إنشاء واحد باتباع الوثائق
+<LocalizedLink href="/guides/server/authentication#as-a-project">
+هنا</LocalizedLink>.
 
 مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
 ```yaml
@@ -59,12 +60,12 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
 
-### دقة متزايدة عبر البيئات {#incremental-resolution-across-environments}
+### الدقة التزايدية عبر البيئات {#incremental-resolution-across-environments}
 
 تكون عمليات الحل النظيف/البارد أسرع قليلاً مع السجل الخاص بنا، ويمكنك تجربة
 تحسينات أكبر إذا واصلت التبعيات التي تم حلها عبر إنشاءات CI. لاحظ أنه بفضل

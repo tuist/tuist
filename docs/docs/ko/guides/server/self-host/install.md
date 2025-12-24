@@ -10,7 +10,7 @@
 인프라에 대한 더 많은 제어가 필요한 조직을 위해 자체 호스팅 버전의 Tuist 서버를 제공합니다. 이 버전을 사용하면 자체 인프라에서
 Tuist를 호스팅하여 데이터를 안전하게 비공개로 유지할 수 있습니다.
 
-::: warning 라이선스 필요
+::: warning LICENSE REQUIRED
 <!-- -->
 자체 호스팅 Tuist에는 법적으로 유효한 유료 라이선스가 필요합니다. 온프레미스 버전의 Tuist는 Enterprise 요금제를 사용하는
 조직만 사용할 수 있습니다. 이 버전에 관심이 있으시면 [contact@tuist.dev](mailto:contact@tuist.dev)로
@@ -26,7 +26,7 @@ Tuist를 호스팅하여 데이터를 안전하게 비공개로 유지할 수 �
 주요 구성 요소는 온프레미스 사용자와의 조정이 필요한 Tuist 서버의 중대한 변경 사항을 알리는 데 사용됩니다. 당사가 이 기능을 사용할
 필요는 없으며, 필요한 경우 당사는 원활한 전환을 위해 여러분과 협력할 것이니 안심하세요.
 
-## 지속적 배포 {#continuous-deployment}
+## 지속적인 배포 {#continuous-deployment}
 
 매일 최신 버전의 Tuist를 자동으로 배포하는 지속적인 배포 파이프라인을 설정하는 것을 적극 권장합니다. 이렇게 하면 항상 최신 기능, 개선
 사항 및 보안 업데이트에 액세스할 수 있습니다.
@@ -65,7 +65,7 @@ Tuist 서버는 테스트를 거쳤으며 다음 최소 버전과 호환됩니�
 | 타임스케일DB    | 2.16.1 | 필수 PostgreSQL 확장(더 이상 사용되지 않음) |
 | ClickHouse | 25     | 분석에 필요                         |
 
-::: warning 시간 초과 디버깅 경고
+::: warning TIMESCALEDB DEPRECATION
 <!-- -->
 타임스케일DB는 현재 시계열 데이터 저장 및 쿼리에 사용되는 Tuist 서버의 필수 PostgreSQL 확장 프로그램입니다. 그러나
 **TimescaleDB는 더 이상 사용되지 않으며** 가까운 시일 내에 모든 시계열 기능을 ClickHouse로 마이그레이션함에 따라 필수
@@ -73,7 +73,7 @@ Tuist 서버는 테스트를 거쳤으며 다음 최소 버전과 호환됩니�
 <!-- -->
 :::
 
-### 도커 가상화 이미지 실행 {#running-dockervirtualized-images}
+### Docker 가상화 이미지 실행 {#running-dockervirtualized-images}
 
 GitHub의 컨테이너
 레지스트리](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)를
@@ -96,7 +96,7 @@ Cloud](https://cloud.google.com/sql/docs/postgres)).
 명령 이벤트, 분석 및 기타 시간 기반 기능에 사용됩니다. 튜이스트를 실행하기 전에 PostgreSQL 인스턴스에 타임스케일DB가 설치되어 있고
 활성화되어 있는지 확인하세요.
 
-::: info 마이그레이션
+::: info MIGRATIONS
 <!-- -->
 Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 보류 중인 모든 스키마 마이그레이션을 자동으로 실행합니다. 타임스케일DB 확장이
 누락되어 마이그레이션이 실패하는 경우, 먼저 데이터베이스에 해당 확장을 설치해야 합니다.
@@ -109,7 +109,7 @@ Tuist는 대량의 분석 데이터를 저장하고 쿼리하기 위해 [ClickHo
 ClickHouse는 인사이트 구축과 같은 기능에 **** 필요하며, 향후 타임스케일DB를 단계적으로 폐지함에 따라 기본 시계열 데이터베이스가
 될 것입니다. ClickHouse를 자체 호스팅할지 아니면 호스팅된 서비스를 사용할지 선택할 수 있습니다.
 
-::: info 마이그레이션
+::: info MIGRATIONS
 <!-- -->
 Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 보류 중인 모든 ClickHouse 스키마 마이그레이션을 자동으로 실행합니다.
 <!-- -->
@@ -124,7 +124,7 @@ Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 보�
 서비스 구성은 런타임에 환경 변수를 통해 이루어집니다. 이러한 변수의 민감한 특성을 고려할 때 안전한 비밀번호 관리 솔루션에 암호화하여 저장하는
 것이 좋습니다. Tuist는 이러한 변수를 매우 신중하게 처리하여 로그에 절대 표시되지 않도록 하므로 안심하셔도 됩니다.
 
-::: info 시작 확인
+::: info LAUNCH CHECKS
 <!-- -->
 시작 시 필요한 변수가 확인됩니다. 누락된 변수가 있으면 실행이 실패하고 오류 메시지에 누락된 변수가 자세히 표시됩니다.
 <!-- -->
@@ -143,7 +143,7 @@ Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 보�
 \* `TUIST_LICENSE` 또는 `TUIST_LICENSE_CERTIFICATE_BASE64` 중 하나만 제공해야 하며, 둘 다 제공하면
 안 됩니다. 표준 배포의 경우 `TUIST_LICENSE` 을 사용합니다.
 
-::: warning 만료 날짜
+::: warning EXPIRATION DATE
 <!-- -->
 라이선스에는 만료일이 있습니다. 라이선스가 30일 이내에 만료되면 서버와 상호 작용하는 Tuist 명령을 사용하는 동안 사용자에게 경고 메시지가
 표시됩니다. 라이선스 갱신에 관심이 있는 경우 [contact@tuist.dev](mailto:contact@tuist.dev)로 문의하시기
@@ -181,7 +181,7 @@ Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 보�
 | `튜이스트_데이터베이스_큐_타겟`                   | 풀에서 체크 아웃된 모든 연결이 큐 간격보다 오래 걸렸는지 확인하는 간격(밀리초)입니다 [(자세한 정보)(https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config).     | 아니요 | `300`     | `300`                                                                  |
 | `튜이스트_데이터베이스_큐_인터벌`                  | 풀에서 새 연결 드롭을 시작할지 여부를 결정하는 데 사용하는 큐의 임계값 시간(밀리초)입니다. [(자세한 정보)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | 아니요 | `1000`    | `1000`                                                                 |
 | `tuist_clickhouse_flush_interval_ms` | ClickHouse 버퍼 플러시 사이의 시간 간격(밀리초)                                                                                                              | 아니요 | `5000`    | `5000`                                                                 |
-| `tuist_clickhouse_max_buffer_size`   | 강제 플러시 전 최대 ClickHouse 버퍼 크기(바이트)                                                                                                             | 아니요 | `1000000` | `1000000`                                                              |
+| `튜이스트_클릭하우스_최대_버퍼_크기`                | 강제 플러시 전 최대 ClickHouse 버퍼 크기(바이트)                                                                                                             | 아니요 | `1000000` | `1000000`                                                              |
 | `튜이스트_클릭하우스_버퍼_풀_크기`                 | 실행할 ClickHouse 버퍼 프로세스 수                                                                                                                      | 아니요 | `5`       | `5`                                                                    |
 
 ### 인증 환경 구성 {#authentication-environment-configuration}
@@ -227,7 +227,7 @@ OAuth 2](https://developers.google.com/identity/protocols/oauth2)를 사용하�
 URL)으로 설정합니다. 앱을 생성한 후 클라이언트 ID와 비밀 번호를 복사하여 각각 `GOOGLE_CLIENT_ID` 및
 `GOOGLE_CLIENT_SECRET` 환경 변수로 설정합니다.
 
-::: info 동의 화면 범위
+::: info CONSENT SCREEN SCOPES
 <!-- -->
 동의 화면을 만들어야 할 수도 있습니다. 이 때 `userinfo.email` 및 `openid` 범위를 추가하고 앱을 내부로 표시하세요.
 <!-- -->
@@ -265,7 +265,7 @@ Okta 애플리케이션을 설정하는 동안 클라이언트 ID와 비밀번�
 | `TUIST_S3_ENDPOINT` 또는 `AWS_ENDPOINT`                   | 스토리지 제공업체의 엔드포인트                                                                | 예   |            | `https://s3.us-west-2.amazonaws.com`                          |
 | `tuist_s3_버킷_이름`                                        | 아티팩트를 저장할 버킷의 이름입니다.                                                            | 예   |            | `튜이스트 아티팩트`                                                   |
 | `TUIST_S3_CA_CERT_PEM`                                  | S3 HTTPS 연결을 확인하기 위한 PEM 인코딩된 CA 인증서. 자체 서명 인증서 또는 내부 인증 기관이 있는 에어 갭 환경에 유용합니다. | 아니요 | 시스템 CA 번들  | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
-| `tuist_s3_connect_timeout`                              | 스토리지 공급자에 대한 연결을 설정하는 데 걸리는 시간 제한(밀리초)                                          | 아니요 | `3000`     | `3000`                                                        |
+| `tuist_s3_connect_timeout`                              | 스토리지 공급업체에 연결하기 위한 시간 제한(밀리초)                                                   | 아니요 | `3000`     | `3000`                                                        |
 | `tuist_s3_receive_timeout`                              | 스토리지 공급자로부터 데이터를 수신하는 데 걸리는 시간 제한(밀리초)                                          | 아니요 | `5000`     | `5000`                                                        |
 | `tuist_s3_pool_timeout`                                 | 스토리지 공급자에 대한 연결 풀의 시간 제한(밀리초)입니다. 시간 초과가 없는 경우 `무한대` 사용                         | 아니요 | `5000`     | `5000`                                                        |
 | `tuist_s3_pool_max_idle_time`                           | 풀에 있는 연결의 최대 유휴 시간(밀리초)입니다. ` 무한대` 연결을 무기한으로 유지하려면 다음을 사용하세요.                   | 아니요 | `무한대`      | `60000`                                                       |
@@ -274,7 +274,7 @@ Okta 애플리케이션을 설정하는 동안 클라이언트 ID와 비밀번�
 | `튜이스트_S3_프로토콜`                                          | 스토리지 제공업체에 연결할 때 사용할 프로토콜 (`http1` 또는 `http2`)                                  | 아니요 | `http1`    | `http1`                                                       |
 | `tuist_s3_virtual_host`                                 | URL을 버킷 이름을 하위 도메인(가상 호스트)으로 구성해야 하는지 여부                                        | 아니요 | `false`    | `1`                                                           |
 
-::: info 환경 변수를 통한 웹 ID 토큰을 사용한 AWS 인증
+::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
 스토리지 제공업체가 AWS이고 웹 ID 토큰을 사용하여 인증하려는 경우, 환경 변수 `TUIST_S3_AUTHENTICATION_METHOD`
 을 `aws_web_identity_token_from_env_vars` 로 설정하면 Tuist는 기존 AWS 환경 변수를 사용하여 해당 방법을
@@ -288,7 +288,7 @@ Google 클라우드 스토리지의 경우, [이
 `AWS_ACCESS_KEY_ID` 및 `AWS_SECRET_ACCESS_KEY` 쌍을 얻으세요. ` AWS_ENDPOINT` 는
 `https://storage.googleapis.com` 로 설정해야 합니다. 다른 환경 변수는 다른 S3 호환 스토리지와 동일합니다.
 
-### 이메일 구성 {#email-config}
+### 이메일 구성 {#email-configuration}
 
 Tuist는 사용자 인증 및 거래 알림(예: 비밀번호 재설정, 계정 알림)을 위해 이메일 기능이 필요합니다. 현재 이메일 제공업체로는
 **Mailgun(** )만 지원됩니다.
@@ -303,14 +303,14 @@ Tuist는 사용자 인증 및 거래 알림(예: 비밀번호 재설정, 계정 
 
 \* 이메일 구성 변수는 이메일을 보내려는 경우에만 필요합니다. 구성하지 않으면 이메일 확인이 자동으로 건너뜁니다.
 
-::: info SMTP 지원
+::: info SMTP SUPPORT
 <!-- -->
 현재 일반 SMTP 지원은 제공되지 않습니다. 온프레미스 배포를 위해 SMTP 지원이 필요한 경우
 [contact@tuist.dev](mailto:contact@tuist.dev)로 연락하여 요구 사항을 논의하세요.
 <!-- -->
 :::
 
-::: info 공기 틈새 배포
+::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
 인터넷 액세스 또는 이메일 제공업체 구성이 없는 온프레미스 설치의 경우 이메일 확인은 기본적으로 자동으로 건너뜁니다. 사용자는 등록 후 바로
 로그인할 수 있습니다. 이메일이 설정되어 있지만 확인을 건너뛰려면 `TUIST_SKIP_EMAIL_CONFIRMATION=true` 을
@@ -319,9 +319,9 @@ Tuist는 사용자 인증 및 거래 알림(예: 비밀번호 재설정, 계정 
 <!-- -->
 :::
 
-### Git 플랫폼 구성 {#git-플랫폼-구성}
+### Git 플랫폼 구성 {#git-platform-configuration}
 
-Tuist는 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하여 풀 리퀘스트에 자동으로 댓글을 게시하는 등의 추가 기능을 제공할 수 있습니다.
+Tuist는 <LocalizedLink href="/guides/server/authentication"> Git 플랫폼</LocalizedLink>과 통합하여 풀 리퀘스트에 자동으로 댓글을 게시하는 등의 추가 기능을 제공할 수 있습니다.
 
 #### GitHub {#platform-github}
 
@@ -337,19 +337,19 @@ GitHub
 | ------------------------------ | -------------------- | --- | --- | -------------------------- |
 | `tuist_github_app_private_key` | GitHub 애플리케이션의 비공개 키 | 예   |     | `-----비긴 RSA 개인 키-----...` |
 
-## 로컬로 테스트 {#testing-locally}
+## 로컬 테스트 {#testing-locally}
 
 인프라에 배포하기 전에 로컬 컴퓨터에서 Tuist 서버를 테스트하는 데 필요한 모든 종속성을 포함하는 포괄적인 Docker Compose 구성을
 제공합니다:
 
 - 타임스케일DB 2.16 확장이 포함된 PostgreSQL 15(더 이상 사용되지 않음)
 - 분석용 ClickHouse 25
-- 클릭하우스 키퍼를 통한 조정
+- 클릭하우스 키퍼로 조정하기
 - S3 호환 스토리지용 MinIO
 - 배포 간 영구 KV 스토리지를 위한 Redis(선택 사항)
 - 데이터베이스 관리를 위한 PGWEB
 
-::: 위험 라이선스 필요
+::: danger LICENSE REQUIRED
 <!-- -->
 로컬 개발 인스턴스를 포함하여 Tuist 서버를 실행하려면 법적으로 유효한 `TUIST_LICENSE` 환경 변수가 필요합니다. 라이선스가
 필요한 경우 [contact@tuist.dev](mailto:contact@tuist.dev)로 문의하시기 바랍니다.
@@ -421,14 +421,14 @@ docker compose down -v
   - 클릭하우스 키퍼 구성
 - [.env.example](/server/self-host/.env.example) - 환경 변수 파일 예시
 
-## 배포 {#deploy}
+## 배포 {#deployment}
 
 공식 Tuist 도커 이미지는 다음 링크에서 확인할 수 있습니다:
 ```
 ghcr.io/tuist/tuist
 ```
 
-### 도커 이미지 가져오기 {#pulling-the-docker-image}
+### Docker 이미지 가져오기 {#pulling-the-docker-image}
 
 다음 명령을 실행하여 이미지를 검색할 수 있습니다:
 
@@ -441,7 +441,7 @@ docker pull ghcr.io/tuist/tuist:latest
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### 도커 이미지 배포 {#deploying-the-docker-image}
+### Docker 이미지 배포 {#deploying-the-docker-image}
 
 Docker 이미지의 배포 프로세스는 선택한 클라우드 제공업체와 조직의 지속적인 배포 방식에 따라 달라집니다.
 Kubernetes](https://kubernetes.io/)와 같은 대부분의 클라우드 솔루션 및 도구는 Docker 이미지를 기본 단위로
@@ -454,7 +454,7 @@ Kubernetes](https://kubernetes.io/)와 같은 대부분의 클라우드 솔루�
 <!-- -->
 :::
 
-#### 비행 {#fly}
+#### Fly {#fly}
 
 Fly](https://fly.io/)에 앱을 배포하려면 `fly.toml` 구성 파일이 필요합니다. 지속적 배포(CD) 파이프라인 내에서
 동적으로 생성하는 것을 고려하세요. 아래는 참조용 예제입니다:
@@ -516,7 +516,7 @@ launch --local-only` 을 실행하는 대신 `fly deploy --local-only` 을 실�
 Docker 이미지를 가져오는 것을 허용하지 않으므로 `--local-only` 플래그를 사용해야 합니다.
 
 
-## Prometheus 메트릭 {#prometheus-metrics}
+## 프로메테우스 메트릭 {#prometheus-metrics}
 
 Tuist는 자체 호스팅 인스턴스를 모니터링하는 데 도움이 되도록 `/metrics` 에서 Prometheus 지표를 노출합니다. 이러한
 메트릭에는 다음이 포함됩니다:
@@ -572,13 +572,13 @@ Tuist는 Finch 메트릭 외에도 다음에 대한 메트릭을 노출합니다
 - 사용자 지정 비즈니스 로직 메트릭(스토리지, 계정, 프로젝트 등)
 - 데이터베이스 성능(Tuist에서 호스팅하는 인프라를 사용하는 경우)
 
-## 작업 {#operations}
+## 운영 {#operations}
 
 Tuist는 `/ops/` 에서 인스턴스를 관리하는 데 사용할 수 있는 유틸리티 세트를 제공합니다.
 
-::: warning 권한 부여
+::: warning Authorization
 <!-- -->
-`TUIST_OPS_USER_HANDLES` 환경 변수에 핸들이 나열된 사용자만 `/ops/` 엔드포인트에 액세스할 수 있습니다.
+`TUIST_OPS_USER_HANDLES` 환경 변수에 핸들이 나열되어 있는 사용자만 `/ops/` 엔드포인트에 액세스할 수 있습니다.
 <!-- -->
 :::
 

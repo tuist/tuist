@@ -34,7 +34,7 @@ Tuist.
 يوفر كل من تويست و XcodeGen الأمر `توليد` الذي يحول إعلان مشروعك إلى مشاريع
 ومساحات عمل Xcode.
 
-::: code-group
+:::: مجموعة الرموز
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -58,7 +58,7 @@ tuist generate
 مع أهداف تشير إلى أهداف من مشاريع أخرى. في هذه الحالات، سينشئ تويست مساحة عمل
 Xcode تتضمن جميع المشاريع.
 
-::: code-group
+:::: مجموعة الرموز
 
 ```bash [XcodeGen directory structure]
 /
@@ -74,7 +74,7 @@ Xcode تتضمن جميع المشاريع.
 <!-- -->
 :::
 
-::: تلميح لغة XCODE'S LANGUAGE
+::: tip XCODE'S LANGUAGE
 <!-- -->
 يتبنى كل من XcodeGen و Tuist لغة Xcode ومفاهيمه. ومع ذلك، يوفر لك تكوين Tuist
 القائم على Swift راحة استخدام ميزات الإكمال التلقائي والتحقق من النوع والتحقق من
@@ -88,10 +88,11 @@ Xcode تتضمن جميع المشاريع.
 ملفات YAML خارج الصندوق. هذه حاجة شائعة عند وصف المشاريع، وهو ما كان على
 XcodeGen حله من خلال حل خاص بهم يسمى *"القوالب"*. مع تويست، فإن إمكانية إعادة
 الاستخدام مدمجة في اللغة نفسها، سويفت، ومن خلال وحدة سويفت المسماة
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع </LocalizedLink>، والتي تسمح بإعادة استخدام الشيفرة عبر جميع ملفات البيان الخاصة
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع
+</LocalizedLink>، والتي تسمح بإعادة استخدام الشيفرة عبر جميع ملفات البيان الخاصة
 بك.
 
-::: code-group
+:::: مجموعة الرموز
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 

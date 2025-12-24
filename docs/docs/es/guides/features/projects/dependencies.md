@@ -51,7 +51,7 @@ resto. Las complejidades y los detalles de implementación se abstraen de ti.
 
 En las siguientes secciones aprenderás a declarar dependencias en tu proyecto.
 
-::: tip VALIDACIÓN GRÁFICA
+::: tip GRAPH VALIDATION
 <!-- -->
 Tuist valida el grafo al generar el proyecto para asegurarse de que no hay
 ciclos y de que todas las dependencias son válidas. Gracias a ello, cualquier
@@ -74,7 +74,7 @@ pasar el argumento `dependencies` con cualquiera de las siguientes opciones:
 - `SDK`: Declara una dependencia con un SDK del sistema.
 - `XCTest`: Declara una dependencia con XCTest.
 
-::: info CONDICIONES DE DEPENDENCIA
+::: info DEPENDENCY CONDITIONS
 <!-- -->
 Cada tipo de dependencia acepta la opción `condition` para vincular
 condicionalmente la dependencia en función de la plataforma. Por defecto,
@@ -92,7 +92,7 @@ Los paquetes Swift son nuestra forma recomendada de declarar dependencias en tu
 proyecto. Puedes integrarlos usando el mecanismo de integración por defecto de
 Xcode o usando la integración basada en XcodeProj de Tuist.
 
-#### Integración basada en XcodeProj de Tuist {#tuists-xcodeprojbased-integration}
+#### Integración de Tuist basada en XcodeProj {#tuists-xcodeprojbased-integration}
 
 La integración por defecto de Xcode, aunque es la más conveniente, carece de la
 flexibilidad y el control necesarios para proyectos medianos y grandes. Para
@@ -147,7 +147,7 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip CONFIGURACIÓN DEL PAQUETE
+::: tip PACKAGE SETTINGS
 <!-- -->
 La instancia `PackageSettings` envuelta en una directiva de compilador permite
 configurar cómo se integran los paquetes. Por ejemplo, en el ejemplo anterior se
@@ -228,7 +228,7 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SE GENERAN ESQUEMAS PARA LOS PAQUETES EXTERNOS
+::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
 Los esquemas **** no se crean automáticamente para los proyectos de paquetes
 Swift para mantener limpia la lista de esquemas. Puede crearlos a través de la
@@ -258,7 +258,7 @@ let target = .target(name: "MyTarget", dependencies: [
 Para las macros Swift y los plugins de herramientas de compilación, deberá
 utilizar los tipos `.macro` y `.plugin` respectivamente.
 
-::: advertencia SPM Build Tool Plugins
+::: warning SPM Build Tool Plugins
 <!-- -->
 Los plugins de la herramienta de compilación SPM deben ser declarados usando el
 mecanismo de [integración por defecto de Xcode](#xcode-s-default-integration),
@@ -336,12 +336,12 @@ carthage update
 tuist generate
 ```
 
-::: advertencia BUILD AND TEST
+::: warning BUILD AND TEST
 <!-- -->
-Si construye y prueba su proyecto a través de `tuist build` y `tuist test`,
-necesitará igualmente asegurarse de que las dependencias resueltas por Carthage
-están presentes ejecutando el comando `carthage update` antes de ejecutar `tuist
-build` o `tuist test`.
+Si construyes y pruebas tu proyecto a través de `xcodebuild build` y `tuist
+test`, necesitarás igualmente asegurarte de que las dependencias resueltas por
+Carthage están presentes ejecutando el comando `carthage update` antes de
+construir o probar.
 <!-- -->
 :::
 
@@ -422,7 +422,7 @@ para asegurarnos de que los binarios resultantes son correctos. Por lo tanto, la
 postura que adoptamos es proporcionarle los recursos, normalmente en forma de
 documentación, para que tome las decisiones correctas.
 
-::: tip EJEMPLO: LA ARQUITECTURA COMPOSABLE
+::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
 Un paquete Swift que muchos proyectos integran es [The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture). Ver
@@ -558,7 +558,7 @@ La siguiente configuración enlazará todo dinámicamente - por lo que la
 aplicación + los objetivos de prueba y las vistas previas de SwiftUI están
 funcionando.
 
-::: tip ESTÁTICO O DINÁMICO
+::: tip STATIC OR DYNAMIC
 <!-- -->
 No siempre se recomienda la vinculación dinámica. Véase la sección [Estático o
 dinámico](#static-or-dynamic) para más detalles. En este ejemplo, todas las
@@ -619,7 +619,7 @@ En lugar de `import Sharing` tendrás que `import SwiftSharing`.
 <!-- -->
 :::
 
-### Dependencias estáticas transitivas que se filtran a través de `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### Fugas de dependencias estáticas transitivas a través de `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
 Cuando un framework o librería dinámicos dependen de otros estáticos a través de
 `import StaticSwiftModule`, los símbolos se incluyen en el `.swiftmodule` del

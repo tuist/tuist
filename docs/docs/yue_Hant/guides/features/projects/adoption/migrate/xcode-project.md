@@ -100,7 +100,7 @@ your manifest file:
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## Extract the project build settings into `.xcconfig` files {#extract-the-project-build-settings-into-xcconfig-files}
@@ -253,17 +253,16 @@ If the target has an associated test target, you should define it in the
 
 ### Validate the target migration {#validate-the-target-migration}
 
-Run `tuist build` and `tuist test` to ensure the project builds and tests pass.
-Additionally, you can use [xcdiff](https://github.com/bloomberg/xcdiff) to
-compare the generated Xcode project with the existing one to ensure that the
-changes are correct.
+Run `tuist generate` followed by `xcodebuild build` to ensure the project
+builds, and `tuist test` to ensure the tests pass. Additionally, you can use
+[xcdiff](https://github.com/bloomberg/xcdiff) to compare the generated Xcode
+project with the existing one to ensure that the changes are correct.
 
 ### Repeat {#repeat}
 
 Repeat until all the targets are fully migrated. Once you are done, we recommend
 updating your CI and CD pipelines to build and test the project using `tuist
-build` and `tuist test` commands to benefit from the speed and reliability that
-Tuist provides.
+generate` followed by `xcodebuild build` and `tuist test`.
 
 ## Troubleshooting {#troubleshooting}
 

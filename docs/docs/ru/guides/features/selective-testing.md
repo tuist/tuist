@@ -29,7 +29,7 @@
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Сгенерированный проект</LocalizedLink>
 
-::: warning ГРАНУЛЯРНОСТЬ МОДУЛЯ VS ГРАНУЛЯРНОСТЬ ФАЙЛОВОГО УРОВНЯ
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
 Из-за невозможности выявления внутрикодовых зависимостей между тестами и
 исходными текстами максимальная детализация выборочного тестирования находится
@@ -38,7 +38,7 @@
 <!-- -->
 :::
 
-::: warning ТЕСТОВОЕ ОБЕСПЕЧЕНИЕ
+::: warning TEST COVERAGE
 <!-- -->
 Инструменты для покрытия тестов предполагают, что весь набор тестов запускается
 сразу, что делает их несовместимыми с выборочным прогоном тестов - это означает,
@@ -52,9 +52,9 @@
 :::
 
 
-## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
+## Комментарии к запросам на перетяжку/слияние {#pullmerge-request-comments}
 
-::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш

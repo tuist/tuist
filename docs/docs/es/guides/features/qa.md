@@ -5,9 +5,9 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# QA {#qa}
+# CONTROL DE CALIDAD {#qa}
 
-::: advertencia PREVIA
+::: warning EARLY PREVIEW
 <!-- -->
 Tuist QA está actualmente en fase de vista previa. Regístrate en
 [tuist.dev/qa](https://tuist.dev/qa) para obtener acceso.
@@ -109,7 +109,7 @@ En caso de que el agente necesite iniciar sesión en la aplicación para probar
 algunas funciones, puede proporcionarle credenciales para que las utilice. El
 agente rellenará estas credenciales si reconoce que necesita iniciar sesión.
 
-#### Lanzar grupos de argumentos {#launch-argument-groups}
+#### Lanzar grupos de discusión {#launch-argument-groups}
 
 Los grupos de argumentos de lanzamiento se seleccionan en función de su
 solicitud de prueba antes de ejecutar el agente. Por ejemplo, si no quieres que

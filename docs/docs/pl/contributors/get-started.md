@@ -40,7 +40,7 @@ Aby wnieść wkład do Tuist, minimalne wymagania to:
 - macOS 14.0+
 - Xcode 16.3+
 
-## Skonfiguruj projekt lokalnie {#set-up-the-project-locally}.
+## Skonfiguruj projekt lokalnie {#set-up-the-project-locally}
 
 Aby rozpocząć pracę nad projektem, możemy wykonać poniższe kroki:
 
@@ -67,7 +67,7 @@ wygenerowanego przez Tuist w celu przetestowania narzędzia.
 <!-- -->
 :::
 
-## Edytuj projekt {#edit-the-project}
+## Edycja projektu {#edit-the-project}
 
 Jeśli chcesz edytować projekt, na przykład w celu dodania zależności lub
 dostosowania celów, możesz użyć polecenia
@@ -94,7 +94,7 @@ poniżej:
 ![Przykład ustawienia katalogu roboczego do uruchomienia
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning KOMPILACJA OPISU PROJEKTU
+::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
 Interfejs CLI `tuist` zależy od obecności frameworka `ProjectDescription` w
 katalogu zbudowanych produktów. Jeśli `tuist` nie uruchomi się, ponieważ nie

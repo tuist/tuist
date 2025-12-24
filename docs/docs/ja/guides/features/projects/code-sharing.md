@@ -5,7 +5,7 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# コード・シェアリング {#code-sharing}
+# コード共有{#code-sharing}
 
 Xcodeを大規模なプロジェクトで使用する際に不便な点の一つは、`.xcconfig`
 ファイルを通して、ビルド設定以外のプロジェクトの要素を再利用できないことです。プロジェクト定義を再利用できることは、以下の理由で便利です：
@@ -17,13 +17,13 @@ Xcodeを大規模なプロジェクトで使用する際に不便な点の一つ
 
 **プロジェクト記述ヘルパー** のコンセプトのおかげで、マニフェストファイル間でのコードの再利用がTuistでは可能です。
 
-::: チップ A TUIST ユニークな資産
+::: tip A TUIST UNIQUE ASSET
 <!-- -->
 多くの組織がTuistを気に入っているのは、プロジェクト記述ヘルパーに、プラットフォームチームが自分たちの規約を成文化し、自分たちのプロジェクトを記述するための独自の言語を考え出すためのプラットフォームを見出すからである。例えば、YAMLベースのプロジェクトジェネレータは、YAMLベースの独自のテンプレートソリューションを考え出さなければならない。
 <!-- -->
 :::
 
-## プロジェクト記述ヘルパー{#project-description-helpers}
+## プロジェクト説明ヘルパー{#project-description-helpers}
 
 プロジェクト記述ヘルパーは、マニフェストファイルがインポートできるモジュール`ProjectDescriptionHelpers` にコンパイルされる
 Swift ファイルです。モジュールは、`Tuist/ProjectDescriptionHelpers`
@@ -42,12 +42,12 @@ import ProjectDescriptionHelpers
 - `Package.swift` (`#TUIST` コンパイラフラグの後ろのみ)
 - `ワークスペース.swift`
 
-## 例 {#example}
+## 例{#example}
 
 以下のスニペットには、`Project` モデルを拡張して静的コンストラクタを追加する方法と、`Project.swift`
 ファイルからそれらを使用する方法の例が含まれています：
 
-::: code-group
+コードグループ
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -91,7 +91,7 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip 協約を確立するためのツール
+::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
 この関数を通して、ターゲットの名前、バンドル識別子、フォルダー構造に関する規約を定義していることに注目してほしい。
 <!-- -->

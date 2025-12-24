@@ -5,9 +5,9 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#generated-project-with-xcode-based-integration}
+# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#generated-project-with-the-xcode-package-integration}
 
-إذا كنت تستخدم <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">التكامل الافتراضي لـ Xcode</LocalizedLink> للحزم مع مشاريع تويست، فأنت بحاجة إلى استخدام معرّف السجل بدلاً من عنوان URL عند إضافة حزمة:
+إذا كنت تستخدم التكامل الافتراضي <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">لـ Xcode</LocalizedLink> للحزم مع مشاريع تويست، فأنت بحاجة إلى استخدام معرّف السجل بدلاً من عنوان URL عند إضافة حزمة:
 ```swift
 import ProjectDescription
 

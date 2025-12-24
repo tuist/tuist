@@ -28,7 +28,7 @@ katalog `Tuist` lub `.git`.
 <!-- -->
 :::
 
-## Używanie Tuist z pakietem Swift {#using-tuist-with-a-swift-package}.
+## Korzystanie z Tuist z pakietem Swift {#using-tuist-with-a-swift-package}
 
 Będziemy używać Tuist z repozytorium [TootSDK
 Package](https://github.com/TootSDK/TootSDK), które zawiera pakiet Swift.

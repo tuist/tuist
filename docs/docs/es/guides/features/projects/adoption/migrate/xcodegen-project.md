@@ -21,7 +21,7 @@ Xcode, no un gestor de proyectos. Si necesitas una herramienta que te ayude más
 allá de la generación de proyectos Xcode, es posible que desees considerar
 Tuist.
 
-::: tip SWIFT SOBRE YAML
+::: tip SWIFT OVER YAML
 <!-- -->
 Muchas organizaciones prefieren Tuist como herramienta de generación de
 proyectos también porque utiliza Swift como formato de configuración. Swift es
@@ -56,7 +56,7 @@ comando `tuist edit`, que genera un proyecto Xcode sobre la marcha que puedes
 abrir y empezar a trabajar en él. Esto es especialmente útil cuando quieres
 hacer cambios rápidos en tu proyecto.
 
-## `project.yaml` {#projectyaml}
+## `proyecto.yaml` {#projectyaml}
 
 El archivo de descripción `project.yaml` de XcodeGen se convierte en
 `Project.swift`. Además, puede tener `Workspace.swift` como una forma de
@@ -81,7 +81,7 @@ incluyendo todos los proyectos.
 <!-- -->
 :::
 
-::: tip LENGUAJE DE XCODE
+::: tip XCODE'S LANGUAGE
 <!-- -->
 Tanto XcodeGen como Tuist adoptan el lenguaje y los conceptos de Xcode. Sin
 embargo, la configuración basada en Swift de Tuist te ofrece la comodidad de

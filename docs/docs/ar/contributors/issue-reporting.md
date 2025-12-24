@@ -5,12 +5,12 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# الإبلاغ عن المشكلات {#issue-reporting}
+# إصدار التقارير {#issue-reporting}
 
 بصفتك مستخدمًا لـ Tuist، قد تصادف أخطاءً أو سلوكيات غير متوقعة. إذا حدث ذلك،
 فنحن نشجعك على الإبلاغ عنها حتى نتمكن من إصلاحها.
 
-## مشكلات GitHub هي منصتنا لإصدار التذاكر {#github-issues-is-our-ticketing-platform}
+## مشكلات GitHub هي منصة إصدار التذاكر الخاصة بنا {#github-issues-is-our-ticketing-platform}
 
 يجب الإبلاغ عن المشكلات على GitHub باسم [مشكلات GitHub]
 (https://github.com/tuist/tuist/issues) وليس على Slack أو منصات أخرى. يعد GitHub
@@ -58,7 +58,7 @@
 - انشر الكود (حساب GitHub الخاص بك هو مكان جيد للقيام بذلك) ثم اربطه عند إنشاء
   مشكلة.
 
-### فوائد المشروعات القابلة للتكرار {#benefits-of-reproducible-projects}
+### فوائد المشاريع القابلة للتكرار {#benefits-of-reproducible-projects}
 
 - **مساحة سطح أصغر:** بإزالة كل شيء ما عدا الخطأ، لن تضطر إلى الحفر للعثور على
   الخطأ.

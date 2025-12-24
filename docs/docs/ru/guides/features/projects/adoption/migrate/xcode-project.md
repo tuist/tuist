@@ -102,7 +102,7 @@ let package = Package(
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## Вынос настроек сборки проекта в файлы `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}
@@ -257,18 +257,17 @@ let project = Project(
 
 ### Проверка миграции target {#validate-the-target-migration}
 
-Выполните команды `tuist build` и `tuist test`, чтобы убедиться, что проект
-успешно собирается и все тесты проходят. Кроме того, вы можете использовать
-[xcdiff](https://github.com/bloomberg/xcdiff) для сравнения сгенерированного
-Xcode-проекта с существующим, чтобы проверить корректность изменений.
+Запустите `tuist generate`, затем `xcodebuild build`, чтобы убедиться, что
+проект собран, и `tuist test`, чтобы убедиться, что тесты пройдены. Кроме того,
+вы можете использовать [xcdiff](https://github.com/bloomberg/xcdiff) для
+сравнения сгенерированного проекта Xcode с существующим проектом, чтобы
+убедиться в правильности изменений.
 
 ### Повторение {#repeat}
 
-Повторяйте процесс, пока все targets не будут полностью мигрированы. После
-завершения мы рекомендуем обновить пайплайны CI и CD, чтобы сборка и
-тестирование проекта выполнялись с помощью команд `tuist build` и `tuist test` –
-это позволит воспользоваться скоростью и надёжностью, которые предоставляет
-Tuist.
+Повторяйте, пока все цели не будут полностью перенесены. После этого мы
+рекомендуем обновить конвейеры CI и CD для сборки и тестирования проекта с
+помощью `tuist generate`, затем `xcodebuild build` и `tuist test`.
 
 ## Устранение неполадок {#troubleshooting}
 

@@ -5,11 +5,11 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# GitHubの統合{#github}
+# GitHubとの統合{#github}
 
 Gitリポジトリは、世の中の大半のソフトウェアプロジェクトの中心的存在です。私たちはGitHubと統合し、プルリクエストでTuistの洞察を提供したり、デフォルトブランチの同期などの設定を省くことができます。
 
-## セットアップ {#setup}
+## セットアップ{#setup}
 
 組織の`Integrations` タブに Tuist GitHub アプリをインストールする必要があります:
 ![integrationsタブを示す画像](/images/guides/integrations/gitforge/github/integrations.png)。
@@ -18,19 +18,19 @@ Gitリポジトリは、世の中の大半のソフトウェアプロジェク�
 
 プロジェクト接続を追加するイメージ](/images/guides/integrations/gitforge/github/add-project-connection.png)。
 
-## プル／マージ・リクエスト・コメント {#pull-merge-request-comments}
+## プル/マージリクエストのコメント{#pull-merge-request-comments}
 
 GitHubアプリは、最新の<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>や<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>へのリンクを含むPRの要約を含むTuist実行レポートを投稿します：
 
 プルリクエストのコメントを表示する画像](/images/guides/integrations/gitforge/github/pull-request-comment.png)。
 
-必要な情報
+::: info REQUIREMENTS
 <!-- -->
 コメントが投稿されるのは、CIの実行が<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証</LocalizedLink>された場合のみです。
 <!-- -->
 :::
 
-::情報 GITHUB_REF
+::: info GITHUB_REF
 <!-- -->
 PR のコミットではなく GitHub のコメントなどをトリガーとするカスタムワークフローの場合は、`GITHUB_REF`
 変数に`refs/pull/<pr_number>/merge` または`refs/pull/<pr_number>/head`

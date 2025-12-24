@@ -63,7 +63,7 @@ el siguiente contenido:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: advertencia CARACTERÍSTICAS DE TUIST PROJECT-ONLY
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
 Tenga en cuenta que hay algunas características como
 <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> que

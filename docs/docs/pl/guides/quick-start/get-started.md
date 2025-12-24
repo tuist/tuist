@@ -30,11 +30,11 @@ takich funkcji jak
 <LocalizedLink href="/guides/features/previews">przeglądy</LocalizedLink> i
 <LocalizedLink href="/guides/features/registry">rejestr</LocalizedLink>.
 
-::: info MIGRUJ ISTNIEJĄCY PROJEKT
+::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
 Jeśli chcesz zmigrować istniejący projekt do wygenerowanych projektów, aby
 poprawić doświadczenie programisty i skorzystać z naszej
-<LocalizedLink href="/guides/features/cache">pamięci podręcznej</LocalizedLink>, zapoznaj się z naszym
+<LocalizedLink href="/guides/features/cache"> pamięci podręcznej</LocalizedLink>, zapoznaj się z naszym
 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project"> przewodnikiem migracji</LocalizedLink>.
 <!-- -->
 :::

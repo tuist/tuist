@@ -11,7 +11,7 @@
 نتكامل مع GitHub لتوفير رؤى تويست مباشرةً في طلبات السحب الخاصة بك ولتوفير بعض
 التكوينات مثل مزامنة الفرع الافتراضي الخاص بك.
 
-## إعداد {#setup}
+## الإعداد {#setup}
 
 ستحتاج إلى تثبيت تطبيق Tuist GitHub في علامة التبويب `التكاملات` في مؤسستك:
 ![صورة تُظهر علامة تبويب التكاملات]
@@ -23,20 +23,23 @@
 ![صورة تُظهر إضافة اتصال المشروع]
 (/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## تعليقات طلب السحب/الدمج {#pull-merge-request-comments}
+## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
 يقوم تطبيق GitHub بنشر تقرير تشغيل تويست، والذي يتضمن ملخصًا للعلاقات العامة،
 بما في ذلك روابط لأحدث
-<LocalizedLink href="/guides/features/previews#pullmerge-request-comments"> المراجعات</LocalizedLink> أو
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments"> الاختبارات</LocalizedLink>:
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">
+المراجعات</LocalizedLink> أو
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">
+الاختبارات</LocalizedLink>:
 
 ![صورة تُظهر تعليق طلب
 السحب](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: متطلبات المعلومات
+::: info REQUIREMENTS
 <!-- -->
 لا يتم نشر التعليق إلا عندما تكون عمليات تشغيل CI الخاصة بك
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> مصادق عليها</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+مصادق عليها</LocalizedLink>.
 <!-- -->
 :::
 

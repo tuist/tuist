@@ -17,7 +17,7 @@ Niniejsze wytyczne wprowadzają zasady architektury, pomagając zidentyfikować 
 zorganizować funkcje aplikacji w różnych warstwach. Przedstawia również
 wskazówki, narzędzia i porady, jeśli zdecydujesz się użyć tej architektury.
 
-::: info µFUNKCJE
+::: info µFEATURES
 <!-- -->
 Architektura ta była wcześniej znana jako µFeatures. Zmieniliśmy jej nazwę na
 The Modular Architecture (TMA), aby lepiej odzwierciedlić jej cel i zasady,
@@ -32,7 +32,7 @@ wypróbowywania **swoich funkcji, niezależnie od głównej aplikacji, przy
 jednoczesnym zapewnieniu niezawodnego działania funkcji Xcode, takich jak
 podgląd interfejsu użytkownika, uzupełnianie kodu i debugowanie.
 
-## Czym jest moduł {#what-is-a-module}
+## Co to jest moduł {#what-is-a-module}
 
 Moduł reprezentuje funkcję aplikacji i jest kombinacją następujących pięciu
 celów (gdzie cel odnosi się do celu Xcode):
@@ -67,7 +67,7 @@ umożliwić podgląd interfejsu użytkownika.
 <!-- -->
 :::
 
-::: warning KIERUNKI KOMPILATORA ZAMIAST TARGETÓW TESTOWYCH
+::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
 Alternatywnie można użyć dyrektyw kompilatora, aby dołączyć dane testowe i
 makiety do celów `Feature` lub `FeatureInterface` podczas kompilacji dla
@@ -127,7 +127,7 @@ z rozwiązań lub wzorców wstrzykiwania zależności lub rozwiązań, które ni
 pośredników w czasie wbudowanym ani nie używają interfejsów API platformy, które
 nie zostały zaprojektowane do tego celu.
 
-## Typy produktów {#product-types}
+## Rodzaje produktów {#product-types}
 
 Podczas tworzenia modułu można wybrać pomiędzy **bibliotekami i frameworkami**,
 a **statycznym i dynamicznym linkowaniem** dla celów. Bez Tuist podjęcie tej
@@ -164,7 +164,7 @@ func productType() -> Product {
 ```
 
 
-::: warning BIBLIOTEKI MERYTORYCZNE
+::: warning MERGEABLE LIBRARIES
 <!-- -->
 Apple próbowało złagodzić uciążliwość przełączania się między bibliotekami
 statycznymi i dynamicznymi, wprowadzając [mergeable

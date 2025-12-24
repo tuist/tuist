@@ -5,7 +5,7 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Traducir
+# Traducir {#translate}
 
 Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que
 Tuist sea accesible al mayor número de personas posible. Si hablas un idioma que
@@ -24,7 +24,7 @@ Actualmente se admiten los siguientes idiomas:
 - Español
 - Portugués
 
-::: tip SOLICITAR UN NUEVO IDIOMA
+::: tip REQUEST A NEW LANGUAGE
 <!-- -->
 Si crees que Tuist se beneficiaría de apoyar un nuevo idioma, por favor crea un
 nuevo [tema en el foro de la comunidad](https://community.tuist.io/c/general/4)
@@ -42,7 +42,7 @@ a traducir.
 Las traducciones se sincronizan con el repositorio fuente mediante pull requests
 de GitHub que los mantenedores revisarán y fusionarán.
 
-::: advertencia NO MODIFIQUE LOS RECURSOS EN EL IDIOMA DE DESTINO
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 <!-- -->
 Weblate segmenta los archivos para enlazar los idiomas de origen y de destino.
 Si modificas el idioma de origen, romperás el enlace y la reconciliación podría
@@ -69,7 +69,7 @@ traducen el título y el contenido **pero no el tipo de alerta**.
 :::
 ```
 
-### Títulos de los encabezamientos {#heading-titles}
+### Títulos de las rúbricas {#heading-titles}
 
 Al traducir títulos, traduzca sólo el título, pero no el id. Por ejemplo, al
 traducir el siguiente título:

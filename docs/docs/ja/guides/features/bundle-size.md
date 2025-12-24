@@ -5,9 +5,9 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# バンドル・インサイト {#bundle-size}
+# バンドル・インサイト{#bundle-size}
 
-::: warning 要件
+警告 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
@@ -19,7 +19,7 @@
 
 バンドルを分析するには、`tuist inspect bundle` コマンドを使います：
 
-::: code-group
+コードグループ
 ```bash [Analyze an .ipa]
 tuist inspect bundle App.ipa
 ```
@@ -53,16 +53,16 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 一度設定すれば、時間の経過とともにバンドルサイズがどのように変化していくかを確認することができる：
 
 ![バンドルサイズグラフ](/images/guides/features/bundle-size/bundle-size-graph.png)。
 
-## プル/マージリクエストのコメント {#pullmerge-request-comments}
+## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
-GITプラットフォームとの統合が必要です。
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
 <!-- -->

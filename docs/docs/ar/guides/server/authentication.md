@@ -29,14 +29,14 @@ tuist auth login
 ستبحث CLI تلقائيًا عن بيانات الاعتماد عند إجراء طلبات إلى الخادم. إذا انتهت
 صلاحية رمز الوصول، ستستخدم CLI رمز التحديث للحصول على رمز وصول جديد.
 
-## رموز OIDC {#oidc-tokens}
+## رموز OIDC المميزة {#oidc-tokens}
 
 بالنسبة لبيئات CI التي تدعم OpenID Connect (OIDC)، يمكن ل Tuist المصادقة
 تلقائيًا دون الحاجة إلى إدارة أسرار طويلة الأمد. عند التشغيل في بيئة CI مدعومة،
 ستقوم CLI تلقائيًا باكتشاف موفر رمز OIDC المميز وتبادل الرمز المميز المقدم من CI
 برمز وصول Tuist.
 
-### موفرو CI المدعومون {#supported-ci-providers}
+### مزودو خدمات CI المدعومون {#supported-ci-providers}
 
 - إجراءات GitHub
 - سيركلسي
@@ -45,21 +45,23 @@ tuist auth login
 ### إعداد مصادقة OIDC {#setting-up-oidc-authentication}
 
 1. **قم بتوصيل مستودعك بـ Tuist**: اتبع دليل
-   <LocalizedLink href="/guides/integrations/gitforge/github">تكامل GitHub</LocalizedLink> لربط مستودع GitHub الخاص بك بمشروع Tuist الخاص بك.
+   <LocalizedLink href="/guides/integrations/gitforge/github"> تكامل
+   GitHub</LocalizedLink> لربط مستودع GitHub الخاص بك بمشروع Tuist الخاص بك.
 
 2. **قم بتشغيل 'tuist auth login'**: في سير عمل CI الخاص بك، قم بتشغيل `tuist
    auth login` قبل أي أوامر تتطلب المصادقة. ستقوم CLI تلقائيًا باكتشاف بيئة CI
    والمصادقة باستخدام OIDC.
 
-راجع دليل <LocalizedLink href="/guides/integrations/continuous-integration"> التكامل المستمر</LocalizedLink> للاطلاع على أمثلة التكوين الخاصة بالموفر.
+راجع دليل <LocalizedLink href="/guides/integrations/continuous-integration">
+التكامل المستمر</LocalizedLink> للاطلاع على أمثلة التكوين الخاصة بالموفر.
 
-### نطاقات الرمز المميز OIDC {#oidc-token-scopes}
+### نطاقات رموز OIDC الرمزية {#oidc-token-scopes}
 
 يتم منح رموز OIDC الرموز المميزة `ci` مجموعة النطاق، والتي توفر الوصول إلى جميع
 المشاريع المتصلة بالمستودع. انظر [مجموعات النطاق] (#scope-groups) للحصول على
 تفاصيل حول ما يتضمنه النطاق `ci`.
 
-::: tip المزايا الأمنية
+::: tip SECURITY BENEFITS
 <!-- -->
 تعد مصادقة OIDC أكثر أمانًا من الرموز المميزة طويلة الأجل للأسباب التالية:
 - لا توجد أسرار للتدوير أو الإدارة
@@ -161,7 +163,7 @@ tuist account tokens revoke my-account ci-cache-token
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip متى يجب استخدام رموز الحساب
+::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
 استخدم الرموز المميزة للحساب عند الحاجة:
 - المصادقة في بيئات CI التي لا تدعم OIDC

@@ -5,11 +5,11 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logowanie {#logging}
+# Rejestrowanie {#logging}
 
 CLI rejestruje komunikaty wewnętrznie, aby pomóc w diagnozowaniu problemów.
 
-## Diagnozowanie problemów przy użyciu dzienników {#diagnose-issues-using-logs}.
+## Diagnozowanie problemów przy użyciu dzienników {#diagnose-issues-using-logs}
 
 Jeśli wywołanie polecenia nie przynosi zamierzonych rezultatów, można
 zdiagnozować problem, sprawdzając dzienniki. CLI przekazuje logi do
@@ -73,7 +73,7 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Debugowanie demona pamięci podręcznej {#cache-daemon-debugging}.
+### Debugowanie demona pamięci podręcznej {#cache-daemon-debugging}
 
 W celu debugowania problemów związanych z pamięcią podręczną, Tuist rejestruje
 operacje demona pamięci podręcznej za pomocą `os_log` z podsystemem

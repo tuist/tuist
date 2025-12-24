@@ -29,7 +29,7 @@ Si necesitas más flexibilidad, plantéate sugerir una función para la herramie
 o construir tu propia solución a partir del marco de generación de Tuist,
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-## Tipos de plugin {#plugin-types}
+## Tipos de plugins {#plugin-types}
 
 ### Plugin de ayuda para la descripción de proyectos {#project-description-helper-plugin}
 
@@ -104,9 +104,9 @@ nombre del plugin para utilizar las plantillas del mismo:
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### Tarea plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
+### Plugin de tareas <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: advertencia DEPRECATED
+::: warning DEPRECATED
 <!-- -->
 Los plugins de tareas están obsoletos. Echa un vistazo a [esta entrada del
 blog](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) si estás
@@ -139,7 +139,7 @@ construyas tu
   ejecutando `mise install`, pueden ejecutarla invocándola directamente o a
   través de `tuist xxx`.
 
-::: info EL FUTURO DE LA PROYECTAUTOMACIÓN
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 Planeamos consolidar los modelos de `ProjectAutomation` y `XcodeGraph` en un
 único framework compatible con versiones anteriores que exponga la totalidad del
@@ -192,7 +192,7 @@ Recomendamos utilizar etiquetas Git o SHA para garantizar la reproducibilidad.
 <!-- -->
 :::
 
-::: tip DESCRIPCIÓN DEL PROYECTO AYUDANTES PLUGINS
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 Cuando se utiliza un plugin de ayuda para la descripción del proyecto, el nombre
 del módulo que contiene la ayuda es el nombre del plugin.

@@ -7,7 +7,7 @@
 ---
 # Wygenerowane projekty {#generated-projects}
 
-::: warning WYMAGANIA
+::: ostrzeżenie WYMAGANIA
 <!-- -->
 - Projekt wygenerowany przez
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>

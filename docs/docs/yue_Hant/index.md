@@ -10,9 +10,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # A virtual platform team for developers who ship
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building
-apps** – transforming Apple platform development from frustrating complexity
-into a smooth, productive experience that grows with your team.
+**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -67,11 +65,7 @@ into a smooth, productive experience that grows with your team.
 
 ## Join thousands of developers who've made the switch
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
-[Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
-Spoons](https://bendingspoons.com/), and 100+ other companies** have already
-transformed their Apple platform development with Tuist. Here's what they're
-experiencing:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
 - **65% faster builds** with intelligent caching
 - **Zero merge conflicts** in Xcode projects
@@ -101,16 +95,13 @@ experiencing:
 
 ## See Tuist in action
 
-**Learn from real implementations** and get inspired by what's possible when
-your toolchain just works.
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
 
 <HomeVideos/>
 
 ## Join a thriving community
 
-**Connect with thousands of Apple platform developers** who are shipping better
-apps with Tuist. Get help, share wins, and shape the future of Apple platform
-development.
+**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

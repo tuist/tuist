@@ -5,7 +5,7 @@
   "description": "Get started contributing to Tuist by following this guide."
 }
 ---
-# 始めよう{#get-started}
+# スタート{#get-started}
 
 iOSのようなアップル・プラットフォーム向けのアプリを作った経験があれば、Tuistにコードを追加することはそれほど変わらないはずだ。アプリの開発と比べて、特筆すべき違いが2つある：
 
@@ -19,14 +19,14 @@ iOSのようなアップル・プラットフォーム向けのアプリを作�
 
 Swiftの経験がない場合は、言語とFoundationのAPIから最も使用される要素に慣れるために、[Appleの公式本](https://docs.swift.org/swift-book/)をお勧めします。
 
-## 最低要件 {#minimum-requirements}
+## 最低条件{#minimum-requirements}
 
 Tuistに貢献するための最低条件は以下の通り：
 
 - macOS 14.0+
 - Xcode 16.3+
 
-## プロジェクトをローカルにセットアップする {#set-up-the-project-locally}
+## プロジェクトをローカルにセットアップする{#set-up-the-project-locally}
 
 プロジェクトを開始するには、以下のステップを踏む：
 
@@ -41,20 +41,20 @@ Tuistに貢献するための最低条件は以下の通り：
 **生成されたプロジェクトは自動的に開きます** 。生成せずに再度開く必要がある場合は、`open Tuist.xcworkspace`
 を実行する（またはFinderを使用する）。
 
-::: 情報 XED .
+::: info XED .
 <!-- -->
 `xed .`
 を使ってプロジェクトを開こうとすると、パッケージが開かれ、Tuistが生成したプロジェクトは開かれない。ツールのドッグフードにはTuistが生成したプロジェクトを使うことを推奨する。
 <!-- -->
 :::
 
-## プロジェクトを編集する {#edit-the-project}
+## プロジェクトの編集{#edit-the-project}
 
 依存関係の追加やターゲットの調整など、プロジェクトの編集が必要な場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist edit` command</LocalizedLink>を使うことができる。これはほとんど使われませんが、存在を知っておくのは良いことです。
 
-## ラン・トゥイスト {#run-tuist}
+## ラン・トゥイスト{#run-tuist}
 
-### Xcodeから {#from-xcode}
+### Xcodeから{#from-xcode}
 
 生成されたXcodeプロジェクトから`tuist` を実行するには、`tuist` スキームを編集し、コマンドに渡したい引数を設定します。例えば、`tuist
 generate` コマンドを実行するには、`generate --no-open` に引数を設定して、生成後にプロジェクトが開かないようにします。

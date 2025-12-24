@@ -28,7 +28,7 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: warning CI 환경 및 XCODE 프로젝트에서 오류 발생
+::: 경고 CI 환경 및 XCODE 프로젝트에서 오류 발생
 <!-- -->
 Mise가 제공하는 결정론을 전반적으로 수용하기로 결정했다면 [CI
 환경](https://mise.jdx.dev/continuous-integration.html) 및 [Xcode
@@ -37,7 +37,7 @@ Mise가 제공하는 결정론을 전반적으로 수용하기로 결정했다�
 <!-- -->
 :::
 
-::: info 홈브루 지원됨
+::: info HOMEBREW SUPPORTED
 <!-- -->
 macOS에서 널리 사용되는 패키지 관리자인 Homebrew를 사용하여 Tuist를 설치할 수 있습니다. 홈브루를 사용하여 Tuist를 설치하는
 방법은
@@ -51,7 +51,7 @@ API의 가독성과 표현력을 개선하기 위해 모든 `ProjectDescription`
 모든 모델은 모델의 인스턴스를 생성하는 데 사용할 수 있는 정적 생성자를 제공합니다. ` init` 생성자를 사용 중이었다면 정적 생성자를
 사용하도록 프로젝트를 업데이트해야 합니다.
 
-::: tip 네이밍 규칙
+::: 팁 네이밍 규칙
 <!-- -->
 우리가 따르는 명명 규칙은 모델 이름을 정적 생성자의 이름으로 사용하는 것입니다. 예를 들어 `Target` 모델의 정적 생성자는
 `Target.target` 입니다.
@@ -126,7 +126,7 @@ tuist generate Foo
     `~/Library/MobileDevice/Provisioning\ Profiles` 에 프로비저닝 프로필을 설치하는 스크립트입니다.
   - 기존 프로필 및 인증서를 가져와서 암호화할 수 있는 스크립트입니다.
 
-::: tip 서명 요구 사항
+::: 팁 서명 요구 사항
 <!-- -->
 서명하려면 키체인에 올바른 인증서가 있어야 하고 프로비저닝 프로필이 `~/Library/MobileDevice/Provisioning\ 프로필`
 디렉터리에 있어야 합니다. ` security` 명령줄 도구를 사용하여 키체인에 인증서를 설치하고 `cp` 명령을 사용하여 프로비저닝 프로필을
@@ -142,7 +142,7 @@ Tuist의 장기적인 목표라고 생각했습니다. Carthage 종속성을 사
 프레임워크와 XCFramework를 Carthage의 표준 디렉토리로 가져온 다음 `TargetDependency.xcframework` 및
 `TargetDependency.framework` 사례를 사용하여 태그셋에서 해당 바이너리를 참조해야 합니다.
 
-::: info 카르타고는 여전히 지원됩니다.
+::: info CARTHAGE IS STILL SUPPORTED
 <!-- -->
 일부 사용자는 카르타고 지원을 중단한 것으로 이해했습니다. 그렇지 않습니다. Tuist와 Carthage의 결과물 간의 계약은 시스템에 저장된
 프레임워크와 XCFrameworks에 대한 것입니다. 변경된 유일한 사항은 종속성을 가져오는 책임이 있는 사람입니다. 이전에는 튜이스트가

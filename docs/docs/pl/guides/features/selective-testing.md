@@ -28,7 +28,7 @@ instrukcjami opartymi na konfiguracji projektu:
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany projekt</LocalizedLink>
 
-::: warning GRANULARNOŚĆ MODUŁOWA A GRANULARNOŚĆ NA POZIOMIE PLIKU
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
 Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
 testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
@@ -37,7 +37,7 @@ zmaksymalizować korzyści płynące z testowania selektywnego.
 <!-- -->
 :::
 
-::: warning OBJĘTOŚĆ TESTOWA
+::: warning TEST COVERAGE
 <!-- -->
 Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
 jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
@@ -51,9 +51,9 @@ przebiegami w przyszłości.
 :::
 
 
-## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
+## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
-::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>

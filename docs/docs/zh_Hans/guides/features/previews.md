@@ -5,7 +5,7 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# 预览 {#previews}
+# 预览{#previews}
 
 警告要求
 <!-- -->
@@ -19,7 +19,7 @@
 
 为了简化这一过程，Tuist 提供了一种生成并与任何人共享应用程序预览的方法。
 
-警告已安装的设备需要签名
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 目前，在为设备构建应用程序时，您有责任确保应用程序已正确签名。我们计划在未来简化这项工作。
 <!-- -->
@@ -27,8 +27,9 @@
 
 代码组
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -58,7 +59,16 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## 音轨 {#tracks}
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+利用大多数 CI 提供商公开的 CI 运行编号，确保`CFBundleVersion` （构建版本）是唯一的。例如，在 GitHub Actions
+中，可以将`CFBundleVersion` 设置为 <code v-pre>${{ github.run_number }}</code> 变量。
+
+上传具有相同二进制文件（构建）和相同`CFBundleVersion` 的预览将失败。
+<!-- -->
+:::
+
+## 轨道{#tracks}
 
 轨迹允许你将预览组织到命名的组中。例如，你可以为内部测试人员创建`beta` 跟踪，为自动构建创建`nightly`
 跟踪。轨迹可以轻松创建--只需在共享时指定一个轨迹名称，如果不存在，它就会自动创建。
@@ -75,13 +85,13 @@ tuist share App --track nightly
 - **应用内更新** ：Tuist SDK 使用轨迹来决定通知用户哪些更新
 - **过滤** ：在 Tuist 面板中按曲目轻松查找和管理预览
 
-警告预览的可见性
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
 <!-- -->
 :::
 
-## Tuist macOS 应用程序 {#tuist-macos-app}
+## Tuist macOS 应用程序{#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -102,7 +112,7 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 <!-- -->
 :::
 
-## Tuist iOS 应用程序 {#tuist-ios-app}
+## Tuist iOS 应用程序{#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -115,11 +125,12 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 
 与 macOS 应用程序类似，Tuist iOS 应用程序也能简化预览的访问和运行。
 
-## 拉取/合并请求注释 {#pullmerge-request-comments}
+## 拉取/合并请求注释{#pullmerge-request-comments}
 
-警告 需要与 GIT 平台集成
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
+要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>集成。
 <!-- -->
 :::
 
@@ -132,7 +143,7 @@ Tuist macOS 应用程序中选择的设备上自动运行应用程序呢？*
 应用程序注释](/images/guides/features/github-app-with-preview.png)。
 
 
-## 应用内更新通知 {# 应用内更新通知｝
+## 应用内更新通知{#in-app-update-notifications}
 
 Tuist SDK](https://github.com/tuist/sdk)
 可让您的应用程序检测到更新的预览版本，并通知用户。这对于让测试人员使用最新版本非常有用。
@@ -140,7 +151,7 @@ Tuist SDK](https://github.com/tuist/sdk)
 SDK 会检查同一**预览轨道** 中的更新。当您使用`--track` 将预览与明确的轨道共享时，SDK 会在该轨道上查找更新。如果未指定轨道，则使用 git
 分支作为轨道，因此从`main` 分支构建的预览只会通知同样从`main` 构建的更新预览。
 
-### 安装 {#SDK-installation}
+### 安装{#sdk-installation}
 
 将 Tuist SDK 添加为 Swift 软件包依赖项：
 
@@ -148,7 +159,7 @@ SDK 会检查同一**预览轨道** 中的更新。当您使用`--track` 将预�
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### 监控更新 {#sdk-monitor-updates}
+### 监测更新{#sdk-monitor-updates}
 
 使用`monitorPreviewUpdates` 定期检查新的预览版本：
 
@@ -171,7 +182,7 @@ struct MyApp: App {
 }
 ```
 
-### 单一更新检查 {#sdk-single-check}
+### 单次更新检查{#sdk-single-check}
 
 用于手动更新检查：
 
@@ -186,7 +197,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### 停止更新监控 {#SDK-stop-monitoring}
+### 停止更新监控{#sdk-stop-monitoring}
 
 `monitorPreviewUpdates` 返回一个可取消的`任务` ：
 
@@ -205,7 +216,7 @@ task.cancel()
 <!-- -->
 :::
 
-## README 徽章 {#readme-badge}
+## README 徽章{#readme-badge}
 
 为了让 Tuist 预览版在你的版本库中更显眼，你可以在`README` 文件中添加一个徽章，指向最新的 Tuist 预览版：
 
@@ -222,7 +233,7 @@ Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## 自动化 {#automations｝
+## 自动化{#automations}
 
 您可以使用`--json` 标志从`tuist share` 命令获取 JSON 输出：
 ```

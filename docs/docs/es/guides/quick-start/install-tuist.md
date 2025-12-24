@@ -42,7 +42,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">Homebrew</a> {#homebrew-recomendado}
+### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
 Puedes instalar Tuist usando [Homebrew](https://brew.sh) y [nuestras
 fórmulas](https://github.com/tuist/homebrew-tuist):
@@ -53,7 +53,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: consejo VERIFICAR LA AUTENTICIDAD DE LAS BINARIAS
+::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
 Puede verificar que los binarios de su instalación han sido creados por nosotros
 ejecutando el siguiente comando, que comprueba si el equipo del certificado es

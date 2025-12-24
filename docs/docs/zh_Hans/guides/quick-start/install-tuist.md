@@ -5,13 +5,13 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# 安装 Tuist {#install-tuist}
+# 安装图易斯特{#install-tuist}
 
 Tuist CLI
 由可执行文件、动态框架和一组资源（例如模板）组成。尽管您可以从[源代码](https://github.com/tuist/tuist)手动构建
 Tuist，**，但我们建议您使用以下安装方法之一，以确保安装有效。**
 
-### <a href="https://github.com/jdx/mise">Mise</a>{#recommended-mise}
+### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 ::: info
 <!-- -->
@@ -48,7 +48,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-小贴士 验证双向码的真实性
+::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
 您可以运行以下命令来验证您的安装二进制文件是否已由我们构建，该命令将检查证书团队是否为`U6LC622NKF` ：
 

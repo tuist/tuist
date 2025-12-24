@@ -5,7 +5,7 @@
   "description": "Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it."
 }
 ---
-# تكلفة الملاءمة {#the-cost-of-convenience}
+# تكلفة الراحة {#the-cost-of-convenience}
 
 يعد تصميم محرر أكواد يمكن للطيف **من المشاريع الصغيرة إلى الكبيرة الحجم
 استخدامه** مهمة صعبة. تتعامل العديد من الأدوات مع المشكلة من خلال وضع حلها في
@@ -21,7 +21,7 @@ Xcode**. السبب غير معروف، ولكن من المحتمل أن تحس
 الكثير من السلوكيات الضمنية التي تم حلها في وقت الإنشاء والتي هي السبب في العديد
 من المشكلات على نطاق واسع.
 
-## الوضوح والمقياس {#explicitness-and-scale}
+## الوضوح والحجم {#explicitness-and-scale}
 
 عند العمل على نطاق واسع، **الشرح هو المفتاح**. فهو يسمح لنظام الإنشاء بتحليل
 وفهم بنية المشروع وتبعياته في وقت مبكر، وإجراء التحسينات التي قد تكون مستحيلة
@@ -33,13 +33,11 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 تصميم صالح لتحقيق الراحة، وهو مبدأ ورثه مدير حزم Swift، فإن صعوبات استخدام Xcode
 موجودة أيضًا في مدير حزم Swift.
 
-::: info عن دور المعلم
-<!-- -->
+::: info THE ROLE OF TUIST
 يمكن أن نلخص دور تويست كأداة تمنع المشاريع المحددة ضمنيًا وتستفيد من الصراحة
 لتوفير تجربة أفضل للمطورين (مثل عمليات التحقق من الصحة والتحسينات). أدوات مثل
 [Bazel] (https://bazel.build) تأخذها إلى أبعد من ذلك من خلال نقلها إلى مستوى
 نظام البناء.
-<!-- -->
 :::
 
 هذه مشكلة بالكاد نوقشت في المجتمع، لكنها مشكلة كبيرة. أثناء عملنا على تويست،
@@ -54,7 +52,7 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 تجربة المطور وصحة المشروع. القائمة ليست شاملة، ولكن يجب أن تعطيك فكرة جيدة عن
 التحديات التي قد تواجهك عند العمل مع مشاريع Xcode أو حزم Swift.
 
-## الراحة تعترض طريقك {#convenience-getting-in-your-way}
+## الراحة التي تعترض طريقك {#convenience-getting-in-your-way}
 
 ### دليل المنتجات المبنية المشتركة {#shared-built-products-directory}
 
@@ -68,15 +66,11 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 تتمثل نتيجة قرار التصميم هذا في أن العديد من المشاريع يتم تجميعها بشكل عرضي برسم
 بياني غير محدد بشكل جيد.
 
-::: tip اكتشاف التبعات الضمنية
-<!-- -->
-يوفر تويست أمرًا
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">أمرًا </LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI
-من أن جميع التبعيات صريحة في CI.
-<!-- -->
+::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
+يوفر تويست أمرًا <LocalizedLink href="/guides/features/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
 :::
 
-### ابحث عن التبعيات الضمنية في المخططات {#find-implicit-dependencies-in-schemes}
+### البحث عن التبعيات الضمنية في المخططات {#find-implicit-dependencies-in-schemes}
 
 يصبح تحديد الرسم البياني للتبعية والحفاظ عليه في Xcode أكثر صعوبة مع نمو
 المشروع. إنه أمر صعب لأنه يتم تدوينها في ملفات `.pbxproj` كمراحل بناء وإعدادات
@@ -93,10 +87,8 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 التحويل البرمجي على CI لأن الحالة مختلفة.
 
 ::: tip
-<!-- -->
 نوصي بتعطيل ذلك في مخططات مشروعك، واستخدام مثل Tuist الذي يسهل إدارة الرسم
 البياني للتبعية.
-<!-- -->
 :::
 
 ### معاينات SwiftUI والمكتبات/الأطر الثابتة {#swiftui-previews-and-static-librariesframeworks}
@@ -111,7 +103,7 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 نموذجية، أو يتجنبون أشياء معينة، مثل استخدام المكتبات الثابتة أو مراحل بناء
 البرامج النصية، لأنها تتسبب في تعطل الميزة.
 
-### مكتبات قابلة للدمج {#mergeable-libraries}
+### المكتبات القابلة للدمج {#mergeable-libraries}
 
 على الرغم من أن الأطر الديناميكية أكثر مرونة وأسهل في العمل معها، إلا أن لها
 تأثيرًا سلبيًا في وقت تشغيل التطبيقات. على الجانب الآخر، تكون المكتبات الثابتة
@@ -136,7 +128,7 @@ SwiftUI.
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## صريح وصريح وصريح وصريح {#explicit-explicit-and-explicit}
+## صريح، وصريح، وصريح، وصريح {#explicit-explicit-and-explicit}
 
 إذا كان هناك مبدأ مهم غير مكتوب نوصي به كل مطور أو مؤسسة تريد تطويرها باستخدام
 Xcode لتوسيع نطاقها، فهو أن عليهم تبني الصراحة. وإذا كان من الصعب إدارة الشهود

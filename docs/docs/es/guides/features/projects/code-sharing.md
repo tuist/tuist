@@ -25,7 +25,7 @@ definiciones de proyecto es útil por las siguientes razones:
 Tuist permite reutilizar código en distintos archivos de manifiesto gracias al
 concepto de ayuda para la descripción de proyectos **** .
 
-::: tip A TUIST ACTIVIDAD ÚNICA
+::: tip A TUIST UNIQUE ASSET
 <!-- -->
 A muchas organizaciones les gusta Tuist porque ven en los ayudantes de
 descripción de proyectos una plataforma para que los equipos de la plataforma
@@ -36,7 +36,7 @@ forzar a las organizaciones a construir sus herramientas sobre ellas.
 <!-- -->
 :::
 
-## Ayudas para la descripción de proyectos {#project-description-helpers}
+## Ayudantes para la descripción de proyectos {#project-description-helpers}
 
 Las ayudas para la descripción de proyectos son archivos Swift que se compilan
 en un módulo, `ProjectDescriptionHelpers`, que los archivos de manifiesto pueden
@@ -107,7 +107,7 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip UNA HERRAMIENTA PARA ESTABLECER CONVENIOS
+::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
 Observe cómo a través de la función estamos definiendo convenciones sobre el
 nombre de los objetivos, el identificador del paquete y la estructura de

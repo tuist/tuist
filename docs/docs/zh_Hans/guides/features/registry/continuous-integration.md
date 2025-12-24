@@ -5,11 +5,11 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 持续集成（CI） {#continuous-integration-ci}
+# 持续集成 (CI){#continuous-integration-ci}
 
 要在 CI 上使用注册表，需要在工作流程中运行`tuist registry login` ，确保已登录注册表。
 
-信息 ONLY XCODE INTEGRATION
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 只有在使用 Xcode 集成软件包时，才需要创建新的预解锁钥匙串。
 <!-- -->
@@ -30,7 +30,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 
 `tuist 注册表登录` 会将凭证存储在默认钥匙串中。在运行_ `tuist registry login` 之前，确保已创建并解锁默认钥匙串_。
 
-此外，您还需要确保设置了`TUIST_CONFIG_TOKEN` 环境变量。您可以根据此处的文档
+此外，您还需要确保`TUIST_TOKEN` 环境变量已设置。您可以根据此处的文档
 <LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>
 创建一个环境变量。
 
@@ -53,12 +53,12 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
 
-### 跨环境递增分辨率 {#incremental-resolution-across-environments}
+### 跨环境递增分辨率{#incremental-resolution-across-environments}
 
 使用我们的注册表，清洁/冷解析的速度会稍快一些，如果在 CI
 构建过程中持续保持已解析的依赖关系，效果会更好。请注意，由于有了注册表，您需要存储和还原的目录大小比没有注册表时要小得多，所需的时间也大大减少。要在使用默认的

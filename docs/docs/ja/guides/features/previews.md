@@ -5,9 +5,9 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# プレビュー
+# プレビュー{#previews}
 
-::: warning 要件
+警告 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
@@ -17,16 +17,17 @@
 
 このプロセスをより合理化するために、Tuistはアプリのプレビューを生成して誰とでも共有する方法を提供する。
 
-::: 警告 デバイスの製造には署名が必要です。
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 デバイス用にビルドする場合、アプリが正しく署名されていることを確認するのは、現在のところお客様の責任です。将来的にはこれを合理化する予定です。
 <!-- -->
 :::
 
-::: code-group
+コードグループ
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -57,7 +58,17 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-## トラック {#tracks}
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+`CFBundleVersion` (ビルドバージョン) が一意であることを確認するには、ほとんどの CI プロバイダが公開している CI run number
+を利用します。例えば、GitHub Actions では、`CFBundleVersion` を <code v-pre>${{
+github.run_number }}</code> 変数に設定できます。
+
+同じバイナリ（ビルド）と同じ`CFBundleVersion` を持つプレビューのアップロードは失敗します。
+<!-- -->
+:::
+
+## トラック{#tracks}
 
 トラックによって、プレビューを名前付きのグループに整理することができます。例えば、社内テスター用に`beta`
 トラックを用意し、自動ビルド用に`nightly`
@@ -75,7 +86,7 @@ tuist share App --track nightly
 - **アプリ内アップデート** ：Tuist SDKは、どのアップデートをユーザーに通知するかを決定するためにトラックを使用します。
 - **フィルタリング** ：Tuistのダッシュボードでトラックごとのプレビューを簡単に検索・管理できる
 
-::: warning プレビューの可視性
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 プレビューにアクセスできるのは、プロジェクトが所属する組織にアクセスできる人だけです。期限切れリンクのサポートを追加する予定です。
 <!-- -->
@@ -96,13 +107,13 @@ install --cask tuist/tuist/tuist` を実行してアプリをインストール�
 
 プレビューページで「実行」をクリックすると、macOSアプリが現在選択されているデバイス上で自動的に起動します。
 
-::: warning 要件
+警告 要件
 <!-- -->
 Xcodeをローカルにインストールし、macOS 14以降を使用している必要があります。
 <!-- -->
 :::
 
-## TuistのiOSアプリ{#tuist-ios-app}
+## Tuist iOSアプリ{#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -115,9 +126,9 @@ Xcodeをローカルにインストールし、macOS 14以降を使用してい�
 
 macOSアプリと同様に、Tuist iOSアプリはプレビューへのアクセスと実行を効率化します。
 
-## プル/マージリクエストのコメント {#pullmerge-request-comments}
+## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
-GITプラットフォームとの統合が必要です。
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">リモートプロジェクト</LocalizedLink>と<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>を統合します。
 <!-- -->
@@ -140,7 +151,7 @@ SDKは、同じ**プレビュートラック** 内の更新をチェックしま
 はそのトラックの更新を探します。トラックが指定されていない場合は、git ブランチがトラックとして使用されます。そのため、`main`
 ブランチからビルドされたプレビューは、`main` からビルドされた新しいプレビューについてのみ通知されます。
 
-### インストール {#sdk-installation}
+### インストール{#sdk-installation}
 
 Swift Packageの依存関係としてTuist SDKを追加する：
 
@@ -148,7 +159,7 @@ Swift Packageの依存関係としてTuist SDKを追加する：
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### アップデートの監視{#sdk-monitor-updates}
+### アップデートを監視する{#sdk-monitor-updates}
 
 `monitorPreviewUpdates` を使用して、新しいプレビュー・バージョンを定期的にチェックしてください：
 
@@ -171,7 +182,7 @@ struct MyApp: App {
 }
 ```
 
-### 単一更新チェック{#sdk-single-check}
+### シングル・アップデート・チェック{#sdk-single-check}
 
 手動更新チェック用：
 
@@ -199,13 +210,13 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: 情報
+::: info
 <!-- -->
 アップデートチェックは、シミュレータおよびApp Storeビルドでは自動的に無効になります。
 <!-- -->
 :::
 
-## READMEバッジ {#readme-badge}
+## READMEバッジ{#readme-badge}
 
 Tuistプレビューをリポジトリでより見やすくするために、`README` ファイルに最新のTuistプレビューを指すバッジを追加することができます：
 
@@ -222,7 +233,7 @@ Tuistプレビューをリポジトリでより見やすくするために、`RE
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## オートメーション {#automations}
+## オートメーション{#automations}
 
 `--json` フラグを使えば、`tuist share` コマンドからJSON出力を得ることができる：
 ```

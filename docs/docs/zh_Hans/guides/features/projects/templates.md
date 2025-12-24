@@ -5,7 +5,7 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# 模板 {#templates}
+# 模板{#templates}
 
 在具有既定架构的项目中，开发人员可能希望引导与项目一致的新组件或功能。通过`tuist scaffold`
 ，您可以从模板生成文件。您可以定义自己的模板，也可以使用 Tuist 提供的模板。这些是脚手架可能有用的一些情况：
@@ -13,13 +13,13 @@
 - 创建遵循给定架构的新功能：`tuist scaffold viper --name MyFeature` 。
 - 创建新项目：`tuist scaffold feature-project --name Home`
 
-::: info 非观点性的
+::: info NON-OPINIONATED
 <!-- -->
 Tuist 对模板的内容和用途没有任何意见。它们只被要求放在特定的目录中。
 <!-- -->
 :::
 
-## 定义模板 {#defining-a-template}
+## 定义模板{#defining-a-template}
 
 要定义模板，可以运行 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>，然后在`Tuist/Templates` 下创建一个名为`name_of_template`
 的目录，代表你的模板。模板需要一个清单文件`name_of_template.swift` 来描述模板。因此，如果您要创建一个名为`framework`
@@ -55,7 +55,7 @@ let template = Template(
 )
 ```
 
-## 使用模板 {#using-a-template}
+## 使用模板{#using-a-template}
 
 定义模板后，我们可以通过`scaffold` 命令使用它：
 
@@ -78,7 +78,7 @@ tuist scaffold name_of_template --name Name --platform macos
 
 您还可以使用`.directory` 将整个文件夹复制到指定路径。
 
-提示项目说明帮助者
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
 <!-- -->

@@ -5,12 +5,12 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# ダイナミック・コンフィギュレーション {#dynamic-configuration}
+# ダイナミック・コンフィギュレーション{#dynamic-configuration}
 
 生成時にプロジェクトを動的に設定する必要があるシナリオがあります。たとえば、プロジェクトが生成される環境に基づいて、アプリの名前、バンドル識別子、またはデプロイメントターゲットを変更したい場合があります。Tuist
 は、マニフェストファイルからアクセス可能な環境変数によってこれをサポートします。
 
-## 環境変数による設定 {#configuration-through-environment-variables}
+## 環境変数による設定{#configuration-through-environment-variables}
 
 Tuistでは、マニフェストファイルからアクセス可能な環境変数を通して設定を渡すことができます。例えば
 
@@ -24,7 +24,7 @@ TUIST_APP_NAME=MyApp tuist generate
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## マニフェストから環境変数を読む {#reading-the-environment-variables-from-manifests}.
+## マニフェストから環境変数を読み取る{#reading-the-environment-variables-from-manifests}
 
 変数は<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>型を使ってアクセスできる。`TUIST_XXX`
 環境で定義された、あるいはコマンド実行時にTuistに渡された規約に従った変数は、`Environment`
@@ -50,7 +50,8 @@ func appName() -> String {
 変数を取得することもできます。これらのメソッドでは、ユーザーが毎回一貫した結果を得られるように、デフォルト値を渡す必要があります。これにより、上で定義した関数
 appName() を定義する必要がなくなります。
 
-::: code-group
+コードグループ
+
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")
 ```

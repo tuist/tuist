@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# Edición {#editing}
+# Edición de {#editing}
 
 A diferencia de los proyectos tradicionales de Xcode o Swift Packages, en los
 que los cambios se realizan a través de la interfaz de usuario de Xcode, los
@@ -33,7 +33,7 @@ El comando crea un proyecto Xcode en un directorio global y lo abre en Xcode. El
 proyecto incluye un directorio `Manifests` que puedes construir para asegurarte
 de que todos tus manifiestos son válidos.
 
-::: info MANIFESTOS RESUELTOS EN EL MUNDO
+::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
 `tuist edit` resuelve los manifiestos a incluir utilizando el glob
 `**/{Manifest}.swift` del directorio raíz del proyecto (el que contiene el
@@ -42,7 +42,7 @@ del proyecto.
 <!-- -->
 :::
 
-### Ignorar archivos de manifiesto {#ignoring-manifest-files}
+### Ignorar los archivos de manifiesto {#ignoring-manifest-files}
 
 Si tu proyecto contiene archivos Swift con el mismo nombre que los archivos de
 manifiesto (por ejemplo, `Project.swift`) en subdirectorios que no son

@@ -5,11 +5,11 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 洞察 {#insights}
+# インサイト{#insights}
 
-::: warning 要件
+警告 要件
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
@@ -26,7 +26,7 @@ Tuist Insightsは開発初期段階にある。
 <!-- -->
 :::
 
-## ビルド {#builds}
+## ビルド{#builds}
 
 おそらくCIワークフローのパフォーマンスに関するメトリクスは持っているだろうが、ローカルの開発環境については同じように可視化できていないかもしれない。しかし、ローカルのビルド時間は、開発者のエクスペリエンスに貢献する最も重要な要素の1つです。
 
@@ -36,7 +36,8 @@ Tuist Insightsは開発初期段階にある。
 
 ::: info
 <!-- -->
-Tuistがビルド設定を追跡できるように、"Provide build settings from"を実行ファイルまたはメインのビルドターゲットに設定することを推奨する。
+Tuistがビルド設定を追跡できるように、"Provide build settings from
+"を実行ファイルまたはメインのビルドターゲットに設定することを推奨する。
 <!-- -->
 :::
 
@@ -63,9 +64,10 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip ミセ＆プロジェクト・パス
+::: tip MISE & PROJECT PATHS
 <!-- -->
-あなたの環境の`PATH` 環境変数は、scheme postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
+あなたの環境の`PATH` 環境変数は、scheme
+postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
 <!-- -->
 :::
 
@@ -73,7 +75,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 Tuistアカウントにログインしている限り、ローカルのビルドが追跡されるようになりました。Tuistダッシュボードでビルドタイムにアクセスし、時間の経過とともにビルドタイムがどのように変化していくかを確認できるようになりました：
 
 
-::: tip
+::: チップ
 <!-- -->
 ダッシュボードに素早くアクセスするには、CLIから`tuist project show --web` を実行する。
 <!-- -->
@@ -96,9 +98,10 @@ Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポ�
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip ミセ＆プロジェクト・パス
+::: tip MISE & PROJECT PATHS
 <!-- -->
-あなたの環境の`PATH` 環境変数は、scheme postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
+あなたの環境の`PATH` 環境変数は、scheme
+postアクションによって継承されないので、Miseの絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクトのターゲットからビルド設定を継承することを忘れないでください。
 <!-- -->
 :::
 
@@ -110,7 +113,7 @@ Tuistアカウントにログインしている限り、テスト実行が追跡
 
 テスト詳細](/images/guides/features/insights/test-detail.png)。
 
-## 生成されたプロジェクト {#generated-projects}
+## 生成されたプロジェクト{#generated-projects}。
 
 ::: info
 <!-- -->

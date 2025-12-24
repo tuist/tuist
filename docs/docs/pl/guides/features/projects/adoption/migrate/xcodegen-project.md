@@ -32,7 +32,7 @@ korzystania z funkcji autouzupełniania, sprawdzania typów i walidacji Xcode.
 Poniżej znajduje się kilka uwag i wskazówek, które pomogą w migracji projektów z
 XcodeGen do Tuist.
 
-## Generowanie projektów {#project-generation}
+## Generowanie projektu {#project-generation}
 
 Zarówno Tuist, jak i XcodeGen udostępniają polecenie `generate`, które
 przekształca deklarację projektu w projekty i obszary robocze Xcode.
@@ -79,7 +79,7 @@ projekty.
 <!-- -->
 :::
 
-::: tip JĘZYK XCODE
+::: tip XCODE'S LANGUAGE
 <!-- -->
 Zarówno XcodeGen, jak i Tuist wykorzystują język i koncepcje Xcode. Jednak
 konfiguracja Tuist oparta na języku Swift zapewnia wygodę korzystania z funkcji

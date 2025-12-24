@@ -5,11 +5,11 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# 记录 {#logging｝
+# 记录{#logging}
 
 CLI 会在内部记录信息，以帮助您诊断问题。
 
-## 使用日志诊断问题 {#diagnose-issues-using-logs}
+## 使用日志诊断问题{#diagnose-issues-using-logs}
 
 如果命令调用没有产生预期结果，可以通过检查日志来诊断问题。CLI 会将日志转发到
 [OSLog](https://developer.apple.com/documentation/os/oslog) 和文件系统。
@@ -32,7 +32,7 @@ CLI 会在内部记录信息，以帮助您诊断问题。
 <!-- -->
 :::
 
-### 持续集成 {#diagnose-issues-using-logs-ci}
+### 持续集成{#diagnose-issues-using-logs-ci}
 
 在 CI 中，环境是一次性的，您可能希望将 CI 管道配置为导出 Tuist 日志。导出工件是 CI 服务的一项通用功能，配置取决于您使用的服务。例如，在
 GitHub Actions 中，可以使用`actions/upload-artifact` 操作将日志作为工件上传：
@@ -62,7 +62,7 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### 缓存守护进程调试 {#cache-daemon-debugging}
+### 缓存守护进程调试{#cache-daemon-debugging}
 
 为调试与缓存相关的问题，Tuist 使用`os_log` 和子系统`dev.tuist.cache`
 记录缓存守护进程的操作。您可以使用以下方式实时流式传输这些日志：

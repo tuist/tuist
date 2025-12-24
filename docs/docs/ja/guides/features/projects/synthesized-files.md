@@ -5,11 +5,11 @@
   "description": "Learn about synthesized files in Tuist projects."
 }
 ---
-# 合成されたファイル {#synthesized-files}
+# 合成ファイル{#synthesized-files}
 
 Tuistは、Xcodeプロジェクトの管理と作業に利便性をもたらすために、生成時にファイルとコードを生成することができます。このページでは、この機能と、あなたのプロジェクトでそれを使用する方法について学びます。
 
-## 対象リソース {#target-resources}
+## 対象リソース{#target-resources}
 
 Xcode
 プロジェクトは、ターゲットへのリソースの追加をサポートしています。しかし、ソースとリソースが頻繁に移動されるモジュール化されたプロジェクトで作業する場合は特に、チームにいくつかの課題をもたらします：
@@ -24,7 +24,7 @@ Xcode
 
 Tuistは、**、バンドルとリソースにアクセスするための統一されたインターフェイスを合成し、** 、実装の詳細を抽象化することで、上記の問題を解決している。
 
-::: warning 推奨
+::: warning RECOMMENDED
 <!-- -->
 Tuist-synthesizedインターフェイスを通してリソースにアクセスすることは必須ではないが、コードの推論が容易になり、リソースの移動が容易になるため、我々はそれを推奨している。
 <!-- -->
@@ -38,17 +38,17 @@ Tuistは、Swiftの`Info.plist`
 プロジェクトが生成されると、Tuistはそれらのファイルの内容を合成し、それらを定義したプロジェクトを含むディレクトリに相対する`Derived`
 ディレクトリに書き込む。
 
-::: 先端 ジティニョーレ・ディレクトリー
+::: tip GITIGNORE THE DERIVED DIRECTORY
 <!-- -->
 プロジェクトの`.gitignore` ファイルに`Derived` ディレクトリを追加することをお勧めします。
 <!-- -->
 :::
 
-## バンドル・アクセサ {#bundle-accessors}
+## バンドル・アクセサ{#bundle-accessors}
 
 Tuistは、ターゲットリソースを含むバンドルにアクセスするためのインターフェイスを合成する。
 
-### スウィフト {#swift}
+### スウィフト{#swift}
 
 ターゲットは、バンドルを公開する`バンドル` タイプの拡張を含みます：
 
@@ -56,7 +56,7 @@ Tuistは、ターゲットリソースを含むバンドルにアクセスする
 let bundle = Bundle.module
 ```
 
-### Objective-C {#objectivec}
+### Objective-C{#objectivec}
 
 Objective-Cでは、`{Target}Resources` 、バンドルにアクセスするためのインターフェイスを取得します：
 
@@ -64,21 +64,21 @@ Objective-Cでは、`{Target}Resources` 、バンドルにアクセスするた�
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: 警告 インターナル・ターゲットの制限
+::: warning LIMITATION WITH INTERNAL TARGETS
 <!-- -->
 現在、TuistはObjective-Cソースのみを含む内部ターゲットに対してリソースバンドルのアクセサを生成しません。これは[issue
 #6456](https://github.com/tuist/tuist/issues/6456)で追跡されている既知の制限です。
 <!-- -->
 :::
 
-::: tip バンドルを通して図書館のリソースをサポートする
+::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
 ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistはそのリソースを製品タイプ`バンドル`
 のターゲットに含めることで、最終的な製品が完成し、インターフェイスが正しいバンドルを指すようにする。
 <!-- -->
 :::
 
-## リソース・アクセサ {#resource-accessors}
+## リソース・アクセッサ{#resource-accessors}
 
 リソースは、文字列を使って名前と拡張子で識別される。これはコンパイル時に捕捉されず、リリース時にクラッシュにつながる可能性があるため、理想的ではありません。それを防ぐために、Tuistは[SwiftGen](https://github.com/SwiftGen/SwiftGen)をプロジェクト生成プロセスに統合し、リソースにアクセスするためのインターフェースを合成します。そのおかげで、どんな問題でもコンパイラを活用してリソースに自信を持ってアクセスすることができる。
 
@@ -95,7 +95,7 @@ Tuistには[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGen
 > 注: プロジェクト・オプションに`disableSynthesizedResourceAccessors`
 > オプションを渡すことで、プロジェクト単位でリソース・アクセッサの合成を無効にすることができます。
 
-#### カスタムテンプレート {#custom-templates}
+#### カスタムテンプレート{#custom-templates}
 
 SwiftGen](https://github.com/SwiftGen/SwiftGen)
 によってサポートされなければならない、他のリソースタイプへのアクセサを合成するために独自のテンプレートを提供したい場合、`Tuist/ResourceSynthesizers/{name}.stencil`
@@ -120,7 +120,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info 参照
+::: info REFERENCE
 <!-- -->
 このフィクスチャ](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができます。
 <!-- -->

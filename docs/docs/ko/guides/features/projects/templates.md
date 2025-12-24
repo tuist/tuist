@@ -12,9 +12,9 @@
 있는 몇 가지 시나리오입니다:
 
 - 주어진 아키텍처를 따르는 새 기능을 만듭니다: `tuist scaffold viper --name MyFeature`.
-- 새 프로젝트 만들기: `tuist scaffold 기능 프로젝트 --이름 홈`
+- 새 프로젝트 만들기: `튜스트 스캐폴드 기능 프로젝트 --이름 홈`
 
-::: info 의견 없음
+::: info NON-OPINIONATED
 <!-- -->
 Tuist는 템플릿의 콘텐츠와 템플릿의 용도에 대해 의견을 제시하지 않습니다. 템플릿은 특정 디렉토리에만 있어야 합니다.
 <!-- -->
@@ -80,7 +80,7 @@ tuist scaffold name_of_template --name Name --platform macos
 
 전체 폴더를 지정된 경로에 복사할 수 있는 `.디렉토리` 를 사용할 수도 있습니다.
 
-::: tip 프로젝트 설명 도우미
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
 <!-- -->

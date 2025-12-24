@@ -14,7 +14,7 @@ de despliegue basado en el entorno en el que se está generando el proyecto.
 Tuist soporta esto a través de variables de entorno, a las que se puede acceder
 desde los archivos de manifiesto.
 
-## Configuración a través de variables de entorno {#configuration-through-environment-variables}
+## Configuración mediante variables de entorno {#configuration-through-environment-variables}
 
 Tuist permite pasar la configuración a través de variables de entorno a las que
 se puede acceder desde los ficheros de manifiesto. Por ejemplo:

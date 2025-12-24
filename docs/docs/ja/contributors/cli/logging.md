@@ -14,7 +14,7 @@ CLIはロギングのための[swift-log](https://github.com/apple/swift-log)イ
 Logger.current
 ```
 
-::: 情報
+::: info
 <!-- -->
 タスク・ローカルは、`Dispatch`
 やデタッチド・タスクを使用したときに値を伝搬しないので、それらを使用する場合は、値を取得して非同期操作に渡す必要がある。

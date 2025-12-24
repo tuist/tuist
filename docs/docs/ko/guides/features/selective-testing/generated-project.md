@@ -7,10 +7,10 @@
 ---
 # Generated 프로젝트 {#generated-projects}
 
-경고 요구 사항 ::: warning 요구 사항
+::: warning REQUIREMENTS
 <!-- -->
-- <LocalizedLink href="/guides/features/projects"> 생성된 프로젝트</LocalizedLink>
-- <LocalizedLink href="/guides/features/projects">Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 

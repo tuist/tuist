@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# 使用基于 XcodeProj 的软件包集成生成项目 {#generated-project-with-xcodeproj-based-integration}
+# 使用基于 XcodeProj 的软件包集成生成项目{#generated-project-with-xcodeproj-based-integration}
 
 在使用基于
 <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj 的集成</LocalizedLink>时，您可以使用``--replace-scm-with-registry``

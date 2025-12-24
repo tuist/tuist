@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# 持续集成（CI） {#continuous-integration-ci}
+# 持续集成 (CI){#continuous-integration-ci}
 
 要在 [持续集成](https://en.wikipedia.org/wiki/Continuous_integration) 工作流程中运行 Tuist
 命令，需要在 CI 环境中安装它。
@@ -14,9 +14,9 @@
 
 以下各节将举例说明如何在不同的 CI 平台上实现这一功能。
 
-## 示例 {#examples}
+## 实例{#examples}
 
-### GitHub 操作 {#github-actions}
+### GitHub 操作{#github-actions}
 
 在[GitHub
 操作](https://docs.github.com/en/actions)中，您可以使用<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
@@ -113,7 +113,7 @@ jobs:
 <!-- -->
 :::
 
-信息 OIDC 设置
+::: info OIDC SETUP
 <!-- -->
 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。要使用 OIDC，需要`permissions: id-token:
 write` 。或者，你也可以使用带有`TUIST_TOKEN` secret 的
@@ -128,7 +128,7 @@ write` 。或者，你也可以使用带有`TUIST_TOKEN` secret 的
 <!-- -->
 :::
 
-### Xcode 云 {#xcode-cloud}
+### Xcode 云{#xcode-cloud}
 
 在使用 Xcode 项目作为真实源的 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)
 中，您需要添加一个
@@ -159,14 +159,14 @@ tuist generate
 <!-- -->
 :::
 
-信息认证
+::: info AUTHENTICATION
 <!-- -->
 通过在 Xcode Cloud 工作流设置中设置`TUIST_TOKEN` 环境变量，使用
 <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>。
 <!-- -->
 :::
 
-### CircleCI {#circleci}
+### CircleCI{#circleci}
 
 在 [CircleCI](https://circleci.com) 上，您可以使用
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
@@ -220,7 +220,7 @@ jobs:
 <!-- -->
 :::
 
-信息认证
+::: info AUTHENTICATION
 <!-- -->
 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。CircleCI OIDC 令牌包含已连接的 GitHub 仓库，Tuist
 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
@@ -228,7 +228,7 @@ jobs:
 <!-- -->
 :::
 
-### 比特锐斯 {#bitrise}
+### Bitrise{#bitrise}
 
 在 [Bitrise](https://bitrise.io) 上，您可以使用
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 身份验证</LocalizedLink>进行安全的无秘身份验证：
@@ -284,7 +284,7 @@ workflows:
 <!-- -->
 :::
 
-信息认证
+::: info AUTHENTICATION
 <!-- -->
 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。Bitrise OIDC 令牌包含已连接的 GitHub 仓库，Tuist
 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
@@ -292,7 +292,7 @@ workflows:
 <!-- -->
 :::
 
-### 代码魔力 {#codemagic}
+### Codemagic{#codemagic}
 
 在 [Codemagic](https://codemagic.io) 中，您可以在工作流程中添加一个额外步骤来安装 Tuist：
 
@@ -333,7 +333,7 @@ workflows:
 <!-- -->
 :::
 
-信息认证
+::: info AUTHENTICATION
 <!-- -->
 创建 <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>，并将其添加为秘密环境变量，命名为`TUIST_TOKEN` 。
 <!-- -->

@@ -15,14 +15,14 @@ Tuistのセルフホスティングには、法的に有効な有料ライセン
 <!-- -->
 :::
 
-## リリース・ケイデンス{#release-cadence}
+## リリース・ケイデンス{#release-cadence}。
 
 Tuistの新バージョンは、新しいリリース可能な変更がmainに載るたびに継続的にリリースしています。私たちは[semantic
 versioning](https://semver.org/)に従って、予測可能なバージョニングと互換性を保証します。
 
 この主要なコンポーネントは、オンプレミスのユーザーとの調整が必要となるTuistサーバーの変更にフラグを立てるために使用されます。私たちがそれを使うことを期待しないでください。万が一必要になったとしても、私たちはスムーズな移行ができるよう協力しますのでご安心ください。
 
-## 継続的デプロイメント{#continuous-deployment}
+## 継続的デプロイメント{#continuous-deployment}。
 
 Tuistの最新バージョンを毎日自動的にデプロイする継続的デプロイメントパイプラインを設定することを強くお勧めします。これにより、常に最新の機能、改善、セキュリティアップデートにアクセスできるようになります。
 
@@ -50,7 +50,7 @@ jobs:
 
 このセクションでは、Tuistサーバーをお客様のインフラストラクチャでホスティングするための要件を概説します。
 
-### 互換性マトリックス{#compatibility-matrix}
+### 互換性マトリックス{#compatibility-matrix}。
 
 Tuistサーバーは以下の最小バージョンでテストされ、互換性があります：
 
@@ -60,21 +60,21 @@ Tuistサーバーは以下の最小バージョンでテストされ、互換性
 | TimescaleDB | 2.16.1  | 必須 PostgreSQL 拡張モジュール (非推奨) |
 | クリックハウス     | 25      | 分析に必要                       |
 
-::: warning TIMESCALEDB DEPRECATION
+警告 TIMESCALEDB DEPRECATION
 <!-- -->
 TimescaleDBは現在Tuistサーバーの必須PostgreSQL拡張で、時系列データの保存とクエリに使用されています。しかし、**TimescaleDBは非推奨です。**
 、近い将来、すべての時系列機能をClickHouseに移行するため、必須の依存関係から外れる予定です。今のところ、PostgreSQLインスタンスにTimescaleDBがインストールされ、有効になっていることを確認してください。
 <!-- -->
 :::
 
-### Docker-仮想化イメージの実行 {#running-dockervirtualized-images}
+### Docker-仮想化イメージの実行 {#running-dockervirtualized-images}。
 
 サーバーは[Docker](https://www.docker.com/)イメージとして[GitHub's Container
 Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)経由で配布します。
 
 これを実行するには、インフラがDockerイメージの実行をサポートしている必要がある。ほとんどのインフラ・プロバイダーがDockerをサポートしているのは、Dockerが本番環境でソフトウェアを配布・実行するための標準的なコンテナになっているからだ。
 
-### Postgresデータベース{#postgres-database}
+### Postgresデータベース{#postgres-database}。
 
 Dockerイメージの実行に加えて、リレーショナルデータと時系列データを保存するために、[TimescaleDB拡張](https://www.timescale.com/)付きの[Postgresデータベース](https://www.postgresql.org/)が必要です。ほとんどのインフラプロバイダーはPostgresデータベースを提供しています（例：[AWS](https://aws.amazon.com/rds/postgresql/)や[Google
 Cloud](https://cloud.google.com/sql/docs/postgres)）。
@@ -125,13 +125,13 @@ Dockerイメージのエントリーポイントは、サービスを開始す�
 \*`TUIST_LICENSE` または`TUIST_LICENSE_CERTIFICATE_BASE64`
 のどちらかを提供する必要がありますが、両方を提供する必要はありません。標準的なデプロイメントには`TUIST_LICENSE` を使用してください。
 
-::: warning 有効期限
+警告 有効期限
 <!-- -->
 ライセンスには有効期限があります。ライセンスの有効期限が30日未満である場合、サーバーと相互作用するTuistコマンドの使用中に警告が表示されます。ライセンスの更新をご希望の場合は、[contact@tuist.dev](mailto:contact@tuist.dev)までご連絡ください。
 <!-- -->
 :::
 
-### ベース環境設定{#base-environment-configuration}
+### ベース環境設定{#base-environment-configuration}。
 
 | 環境変数                                  | 説明                                                                                             | 必須  | デフォルト                              | 例                                                                    |                                                                                                                                    |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------- | --- | ---------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -164,7 +164,7 @@ Dockerイメージのエントリーポイントは、サービスを開始す�
 | `tuist_clickhouse_max_buffer_size`  | フラッシュを強制する前のClickHouseバッファの最大サイズ（バイト単位                                                                                                             | いいえ | `1000000` | `1000000`                                                              |
 | `tuist_clickhouse_buffer_pool_size` | ClickHouseバッファプロセスの実行数                                                                                                                             | いいえ | `5`       | `5`                                                                    |
 
-### 認証環境設定{#authentication-environment-configuration}
+### 認証環境設定{#authentication-environment-configuration}。
 
 IDプロバイダ(IdP)](https://en.wikipedia.org/wiki/Identity_provider)を介した認証を容易にします。これを利用するには、選択したプロバイダに必要なすべての環境変数がサーバの環境に存在することを確認してください。****
 変数が欠落していると、Tuist はそのプロバイダをバイパスすることになります。
@@ -212,7 +212,7 @@ OAuth
 
 #### Okta {#okta}
 
-OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。<LocalizedLink href="/guides/integrations/sso#okta">以下の手順に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります</LocalizedLink>。
+[OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。<LocalizedLink href="/guides/integrations/sso#okta">以下の手順</LocalizedLink>に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります。
 
 Oktaアプリケーションのセットアップ時にクライアントIDとシークレットを取得したら、以下の環境変数を設定する必要があります：
 
@@ -223,7 +223,7 @@ Oktaアプリケーションのセットアップ時にクライアントIDと�
 
 `1` の数字を組織IDに置き換える必要がある。これは通常1ですが、データベースで確認してください。
 
-### ストレージ環境設定 {#storage-environment-configuration}
+### ストレージ環境設定 {#storage-environment-configuration}。
 
 TuistはAPIを通じてアップロードされた成果物を格納するストレージを必要とする。**Tuistが効果的に動作するためには、サポートされているストレージソリューション**
 のいずれかを設定することが不可欠である。
@@ -257,7 +257,7 @@ TuistはAPIを通じてアップロードされた成果物を格納するスト
 <!-- -->
 :::
 
-#### Google Cloud Storage {#google-cloud-storage}
+#### Google Cloud Storage {#google-cloud-storage}。
 Google Cloud
 Storageの場合は、[これらのドキュメント](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)に従って、`AWS_ACCESS_KEY_ID`
 と`AWS_SECRET_ACCESS_KEY` のペアを取得する。`AWS_ENDPOINT`
@@ -395,14 +395,14 @@ docker compose down -v
   クリックハウスキーパーの設定
 - [.env.example](/server/self-host/.env.example)- 環境変数ファイルの例
 
-## デプロイメント{#deployment}
+## デプロイメント{#deployment}。
 
 公式のTuist Dockerイメージは以下で入手できる：
 ```
 ghcr.io/tuist/tuist
 ```
 
-### Dockerイメージのプル{#pulling-the-docker-image}
+### Dockerイメージのプル{#pulling-the-docker-image}。
 
 以下のコマンドを実行すれば、画像を取り出すことができる：
 
@@ -415,7 +415,7 @@ docker pull ghcr.io/tuist/tuist:latest
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### Dockerイメージをデプロイする{#deploying-the-docker-image}
+### Dockerイメージをデプロイする{#deploying-the-docker-image}。
 
 Dockerイメージのデプロイプロセスは、選択したクラウドプロバイダと組織の継続的なデプロイアプローチによって異なります。Kubernetes](https://kubernetes.io/)のようなほとんどのクラウドソリューションやツールは、基本単位としてDockerイメージを利用しているため、このセクションの例は既存のセットアップとうまく一致するはずです。
 
@@ -488,12 +488,12 @@ kill_timeout = "5s"
 を実行する必要があります。Fly.ioではプライベートなDockerイメージをプルできないため、`--local-only` フラグを使用する必要があります。
 
 
-## プロメテウスのメトリクス{#prometheus-metrics}
+## プロメテウスのメトリクス{#prometheus-metrics}。
 
 Tuistは`/metrics`
 でPrometheusのメトリクスを公開しており、セルフホストインスタンスの監視に役立ちます。これらのメトリクスには以下が含まれます：
 
-### FinchのHTTPクライアント・メトリクス{#finch-metrics}
+### FinchのHTTPクライアント・メトリクス{#finch-metrics}。
 
 TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)を使用し、HTTPリクエストに関する詳細なメトリクスを公開している：
 
@@ -547,7 +547,7 @@ TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)�
 
 Tuistは、`/ops/` の下に、インスタンスを管理するために使用できる一連のユーティリティを提供しています。
 
-::: warning 認証
+警告 認証
 <!-- -->
 `TUIST_OPS_USER_HANDLES` 環境変数にリストされているハンドルを持つ人だけが、`/ops/` エンドポイントにアクセスできる。
 <!-- -->

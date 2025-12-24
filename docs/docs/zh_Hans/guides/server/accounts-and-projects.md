@@ -5,11 +5,11 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# 账户和项目 {#accounts and-projects}
+# 账目和项目{#accounts-and-projects}
 
 Tuist 的某些功能需要一个服务器，以增加数据的持久性并与其他服务交互。要与服务器交互，您需要一个账户和一个连接到本地项目的项目。
 
-## 账户 {#accounts｝
+## 账户{#accounts}
 
 要使用服务器，您需要一个账户。账户有两种类型：
 
@@ -19,7 +19,7 @@ Tuist 的某些功能需要一个服务器，以增加数据的持久性并与�
 如果你熟悉 [GitHub](https://github.com)，那么它的概念与之类似，你可以拥有个人账户和组织账户，它们由*句柄* 标识，该句柄用于构建
 URL。
 
-info CLI-FIRST
+::: info CLI-FIRST
 <!-- -->
 管理账户和项目的大部分操作都是通过 CLI 完成的。我们正在开发一个网络界面，它将使账户和项目管理更加方便。
 <!-- -->
@@ -30,7 +30,7 @@ info CLI-FIRST
 tuist organization create {account-handle}
 ```
 
-## 项目 {#projects}
+## 项目{#projects}
 
 您的项目，无论是 Tuist 的还是原始 Xcode 的，都需要通过远程项目与您的账户集成。继续与 GitHub
 进行比较，这就好比您拥有一个本地和一个远程仓库，您可以在其中推送您的修改。您可以使用
@@ -45,7 +45,7 @@ tuist organization create {account-handle}
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-警告：TUIST 项目专用功能
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
 请注意，有些功能（如<LocalizedLink href="/guides/features/cache">二进制缓存</LocalizedLink>）需要您拥有
 Tuist 项目。如果您使用的是原始 Xcode 项目，则无法使用这些功能。

@@ -38,7 +38,8 @@ mise use -g tuist@system      # Use the system's tuist as the global default
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-Homebrew](https://brew.sh)と[我々の公式](https://github.com/tuist/homebrew-tuist)を使ってTuistをインストールできます：
+[Homebrew](https://brew.sh)と[公式
+fomula](https://github.com/tuist/homebrew-tuist)を使ってTuistをインストールできます：
 
 ```bash
 brew tap tuist/tuist
@@ -46,7 +47,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-バイナリーの真正性を確認する。
+::: tip バイナリーの真正性を確認する
 <!-- -->
 証明書のチームが`U6LC622NKF`
 であるかどうかをチェックする以下のコマンドを実行することで、インストールのバイナリが当社によってビルドされたことを確認できます：

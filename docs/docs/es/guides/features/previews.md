@@ -5,7 +5,7 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# Preestrenos {#previews}
+# Vista previa {#previews}
 
 ::: advertencia REQUISITOS
 <!-- -->
@@ -23,7 +23,7 @@ opinión rápida de un colega o un amigo.
 Para agilizar este proceso, Tuist ofrece una forma de generar y compartir vistas
 previas de tus aplicaciones con cualquiera.
 
-::: advertencia DEVICE BUILDS NEED TO BE SIGNED
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 Actualmente, cuando se crea para un dispositivo, es responsabilidad del usuario
 asegurarse de que la aplicación está firmada correctamente. Tenemos previsto
@@ -33,8 +33,9 @@ simplificarlo en el futuro.
 
 ::: grupo de códigos
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -71,6 +72,18 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Asegúrate de que la `CFBundleVersion` (versión de compilación) es única
+aprovechando un número de ejecución de CI que la mayoría de los proveedores de
+CI exponen. Por ejemplo, en GitHub Actions, puede establecer `CFBundleVersion`
+en la variable <code v-pre>${{ github.run_number }}</code>.
+
+Subir una vista previa con el mismo binario (build) y el mismo `CFBundleVersion`
+fallará.
+<!-- -->
+:::
+
 ## Pistas {#tracks}
 
 Las pistas te permiten organizar tus vistas previas en grupos con nombre. Por
@@ -95,7 +108,7 @@ Esto es útil para:
 - **Filtrar**: Encuentra y gestiona fácilmente previsualizaciones por pista en
   el panel de control de Tuist.
 
-::: aviso VISIBILIDAD DE LOS PREVIOS
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 Sólo las personas con acceso a la organización a la que pertenece el proyecto
 pueden acceder a las vistas previas. Tenemos previsto añadir soporte para
@@ -141,9 +154,9 @@ Necesitas tener Xcode instalado localmente y estar en macOS 14 o posterior.
 Al igual que la aplicación para macOS, las aplicaciones de Tuist para iOS
 agilizan el acceso y la ejecución de tus previsualizaciones.
 
-## Comentarios de solicitudes pull/merge {#pullmerge-request-comments}
+## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: aviso SE REQUIERE INTEGRACIÓN CON LA PLATAFORMA GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu
 <LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
@@ -165,7 +178,7 @@ comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)
 
 
-## Notificaciones de actualización dentro de la aplicación {#in-app-update-notifications}
+## Notificaciones de actualizaciones en la aplicación {#in-app-update-notifications}
 
 El [Tuist SDK](https://github.com/tuist/sdk) permite a tu aplicación detectar
 cuándo hay disponible una versión preliminar más reciente y notificárselo a los
@@ -186,7 +199,7 @@ Añade Tuist SDK como dependencia del paquete Swift:
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Monitorización de actualizaciones {#sdk-monitor-updates}
+### Seguimiento de las actualizaciones {#sdk-monitor-updates}
 
 Utilice `monitorPreviewUpdates` para comprobar periódicamente si hay nuevas
 versiones de previsualización:
@@ -225,7 +238,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### Detención de la supervisión de actualizaciones {#sdk-stop-monitoring}
+### Detener la supervisión de actualizaciones {#sdk-stop-monitoring}
 
 `monitorPreviewUpdates` devuelve una tarea `` que puede ser cancelada:
 
