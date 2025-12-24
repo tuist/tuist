@@ -60,7 +60,8 @@ pasos para depurar el problema:
 
 1. Ejecute `tuist hash cache` o `tuist hash selective-testing` (hashes para
    <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> o
-   <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>), copie los hashes, cambie el nombre del directorio
+   <LocalizedLink href="/guides/features/selective-testing">selective
+   testing</LocalizedLink>), copie los hashes, cambie el nombre del directorio
    del proyecto y vuelva a ejecutar el comando. Los hashes deben coincidir.
 2. Si los hashes no coinciden, es probable que el proyecto generado dependa del
    entorno. Ejecute `tuist graph --format json` en ambos casos y compare los
