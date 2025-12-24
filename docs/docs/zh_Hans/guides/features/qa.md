@@ -21,8 +21,10 @@ Tuist 的 QA
 ## 先决条件 {#prerequisites}
 
 要开始使用 Tuist QA，您需要
-- 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览 </LocalizedLink>，然后代理就可以使用这些预览进行测试了
-- <LocalizedLink href="/guides/integrations/gitforge/github">与 GitHub 集成</LocalizedLink>，因此您可以直接从 PR 触发代理
+- 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览
+  </LocalizedLink>，然后代理就可以使用这些预览进行测试了
+- <LocalizedLink href="/guides/integrations/gitforge/github">与 GitHub
+  集成</LocalizedLink>，因此您可以直接从 PR 触发代理
 
 ## 用法 {#usage｝
 
@@ -39,7 +41,8 @@ feature A` 来触发 QA 代理：
 
 质量保证时间表](/images/guides/features/qa/qa-timeline.png)。
 
-您可以在我们的公共控制面板中查看我们为<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS 应用程序</LocalizedLink>进行的所有 QA 运行： https://tuist.dev/tuist/tuist/qa
+您可以在我们的公共控制面板中查看我们为<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+应用程序</LocalizedLink>进行的所有 QA 运行： https://tuist.dev/tuist/tuist/qa
 
 信息
 <!-- -->
