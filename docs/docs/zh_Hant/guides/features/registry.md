@@ -5,40 +5,30 @@
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Registry {#registry}
+# 註冊{#registry}
 
-As the number of dependencies grows, so does the time to resolve them. While
-other package managers like [CocoaPods](https://cocoapods.org/) or
-[npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not.
-Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of
-each repository, which can be time-consuming and takes up more memory than a
-centralized approach would. To address this, Tuist provides an implementation of
-the [Package
-Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
-so you can download only the commits you _actually need_. The packages in the
-registry are based on the [Swift Package Index](https://swiftpackageindex.com/)
-– if you can find a package there, the package is also available in the Tuist
-Registry. Additionally, the packages are distributed across the globe using an
-edge storage for minimum latency when resolving them.
+隨著相依性數量的增加，解決這些相依性的時間也隨之增加。其他套件管理員，例如 [CocoaPods](https://cocoapods.org/) 或
+[npm](https://www.npmjs.com/) 都是集中式的，但 Swift Package Manager 並非如此。因此，SwiftPM
+需要透過深入克隆每個套件庫來解決依賴關係，這可能會比集中式的方式更費時，也會佔用更多記憶體。為了解決這個問題，Tuist 提供了 [Package
+Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)
+的實作，因此您可以只下載_實際需要的提交_ 。註冊表中的套件基於 [Swift 套件索引](https://swiftpackageindex.com/)。-
+如果您能在那裡找到套件，該套件也可以在 Tuist Registry
+中找到。此外，這些套件使用邊緣儲存區分佈在全球各地，以便在解析這些套件時將延遲時間降至最低。
 
-## Usage {#usage}
+## 使用方式{#usage}
 
-To set up the registry, run the following command in your project's directory:
+要設定註冊表，請在專案目錄中執行下列指令：
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration file that enables the registry
-for your project. Ensure this file is committed so your team can also benefit
-from the registry.
+此指令會產生一個註冊表組態檔，為您的專案啟用註冊表。確保已提交此檔案，以便您的團隊也能受惠於註冊表。
 
-### Authentication (optional) {#authentication}
+### 驗證（可選）{#authentication}
 
-Authentication is **optional**. Without authentication, you can use the registry
-with a rate limit of **1,000 requests per minute** per IP address. To get a
-higher rate limit of **20,000 requests per minute**, you can authenticate by
-running:
+**** 身份驗證是可選的。在沒有認證的情況下，您可以使用註冊表，速率限制為**，每個 IP 位址每分鐘 1,000 次請求**
+。要獲得更高的速率限制**每分鐘 20,000 次請求** ，您可以執行驗證：
 
 ```bash
 tuist registry login
@@ -46,44 +36,36 @@ tuist registry login
 
 ::: info
 <!-- -->
-Authentication requires a
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-project</LocalizedLink>.
+驗證需要 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+帳戶和專案</LocalizedLink>。
 <!-- -->
 :::
 
-### Resolving dependencies {#resolving-dependencies}
+### 解決依賴性{#resolving-dependencies}
 
-To resolve dependencies from the registry instead of from source control,
-continue reading based on your project setup:
+若要從登錄而非原始碼控制解決相依性問題，請根據您的專案設定繼續閱讀：
 - <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
-  project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated
-  project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated
-  project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift
-  package</LocalizedLink>
+  專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">使用 Xcode
+  套件整合產生專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">使用基於
+  XcodeProj 的套件整合產生專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">快速套裝</LocalizedLink>
 
-To set up the registry on the CI, follow this guide:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
+若要在 CI
+上設定註冊表，請遵循此指南：<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
 integration</LocalizedLink>.
 
-### Package registry identifiers {#package-registry-identifiers}
+### 套件登錄識別碼{#package-registry-identifiers}
 
-When you use package registry identifiers in a `Package.swift` or
-`Project.swift` file, you need to convert the URL of the package to the registry
-convention. The registry identifier is always in the form of
-`{organization}.{repository}`. For example, to use the registry for the
-`https://github.com/pointfreeco/swift-composable-architecture` package, the
-package registry identifier would be
-`pointfreeco.swift-composable-architecture`.
+當您在`Package.swift` 或`Project.swift` 檔案中使用套件註冊表識別符時，您需要將套件的 URL
+轉換為註冊表慣例。註冊表識別符的形式總是`{organization}.{repository}`
+。例如，若要使用`https://github.com/pointfreeco/swift-composable-architecture`
+套件的註冊表，套件註冊表識別符應為`pointfreeco.swift-composable-architecture` 。
 
 ::: info
 <!-- -->
-The identifier can't contain more than one dot. If the repository name contains
-a dot, it's replaced with an underscore. For example, the
-`https://github.com/groue/GRDB.swift` package would have the registry identifier
-`groue.GRDB_swift`.
+識別符不能包含多於一個點。如果儲存庫名稱包含一個點，就會用下劃線取代。例如，`https://github.com/groue/GRDB.swift`
+套件的註冊表標識符為`groue.GRDB_swift` 。
 <!-- -->
 :::
