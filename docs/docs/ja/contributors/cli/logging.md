@@ -14,14 +14,14 @@ CLIはロギングのための[swift-log](https://github.com/apple/swift-log)イ
 Logger.current
 ```
 
-::: 情報
+::: info
 <!-- -->
 タスク・ローカルは、`Dispatch`
 やデタッチド・タスクを使用したときに値を伝搬しないので、それらを使用する場合は、値を取得して非同期操作に渡す必要がある。
 <!-- -->
 :::
 
-## 何を記録するか{#what-to-log}
+## 何を記録するか{#what-to-log}。
 
 ログはCLIのUIではない。問題が発生したときに診断するためのツールです。したがって、提供する情報は多ければ多いほど良い。新しい機能を作るときは、予想外の動作に出くわした開発者の立場になって、彼らにとってどんな情報が役に立つかを考えてください。正しい
 [ログレベル](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
