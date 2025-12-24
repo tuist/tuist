@@ -5,55 +5,47 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# 在 Swift 套件中使用 Tuist <Badge type="warning" text="beta" />{#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist supports using `Package.swift` as a DSL for your projects and it converts
-your package targets into a native Xcode project and targets.
+Tuist 支援使用`Package.swift` 作為專案的 DSL，它可以將您的套件目標轉換成原生的 Xcode 專案與目標。
 
 ::: warning
 <!-- -->
-The aim of this feature is to provide an easy way for developers to assess the
-impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to
-support the full range of Swift Package Manager features nor to bring every
-Tuist's unique features like
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to the packages world.
+此功能的目的是提供一個簡單的方法，讓開發人員評估在他們的 Swift 套件中採用 Tuist 的影響。因此，我們不打算支援全部的 Swift
+套件管理員功能，也不打算將每項 Tuist 的獨特功能，例如
+<LocalizedLink href="/guides/features/projects/code-sharing"> 專案描述輔助工具
+</LocalizedLink> 帶到套件世界。
 <!-- -->
 :::
 
 ::: info ROOT DIRECTORY
 <!-- -->
-Tuist commands expect a certain
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">directory
-structure</LocalizedLink> whose root is identified by a `Tuist` or a `.git`
-directory.
+Tuist 指令需要特定的
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">
+目錄結構</LocalizedLink>，其根目錄由`Tuist` 或`.git` 目錄所識別。
 <!-- -->
 :::
 
-## Using Tuist with a Swift Package {#using-tuist-with-a-swift-package}
+## 在 Swift 套件中使用 Tuist{#using-tuist-with-a-swift-package}
 
-We are going to use Tuist with the [TootSDK
-Package](https://github.com/TootSDK/TootSDK) repository, which contains a Swift
-Package. The first thing that we need to do is to clone the repository:
+我們將在 [TootSDK Package](https://github.com/TootSDK/TootSDK) 套件庫中使用 Tuist，其中包含一個
+Swift Package。我們要做的第一件事就是克隆資源庫：
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Once in the repository's directory, we need to install the Swift Package Manager
-dependencies:
+進入儲存庫目錄後，我們需要安裝 Swift 套件管理員的相依性：
 
 ```bash
 tuist install
 ```
 
-Under the hood `tuist install` uses the Swift Package Manager to resolve and
-pull the dependencies of the package. After the resolution completes, you can
-then generate the project:
+在引擎蓋下`tuist install` 使用 Swift Package Manager 解析並拉取套件的相依性。解析完成後，您就可以產生專案：
 
 ```bash
 tuist generate
 ```
 
-Voilà! You have a native Xcode project that you can open and start working on.
+瞧！您有一個原生的 Xcode 專案，可以開啟並開始工作。
