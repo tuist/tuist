@@ -17,7 +17,7 @@ Tuist 支持使用`Package.swift` 作为您项目的 DSL，它能将您的软件
 <!-- -->
 :::
 
-信息根目录
+::: info ROOT DIRECTORY
 <!-- -->
 Tuist 命令需要一个特定的
 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">
@@ -25,7 +25,7 @@ Tuist 命令需要一个特定的
 <!-- -->
 :::
 
-## 通过 Swift 软件包使用 Tuist {#using-tuist-with-a-swift-package}
+## 在 Swift 软件包中使用 Tuist{#using-tuist-with-a-swift-package}
 
 我们将在 [TootSDK Package](https://github.com/TootSDK/TootSDK) 仓库中使用 Tuist，其中包含一个
 Swift 包。我们需要做的第一件事就是克隆该版本库：
