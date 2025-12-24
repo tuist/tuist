@@ -5,18 +5,22 @@
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# المشروع المُنشأ {#generated-project}
+# المشروع المُنشأ {#المشروع المُنشأ}
 
-::: warning متطلبات
+:::: متطلبات التحذير
 <!-- -->
-- أ <LocalizedLink href="/guides/features/projects">مشروع تم إنشاؤه</LocalizedLink>
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست تويست</LocalizedLink>
+- أ <LocalizedLink href="/guides/features/projects"> مشروع تم
+  إنشاؤه</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
 لتشغيل الاختبارات بشكل انتقائي مع مشروعك الذي تم إنشاؤه، استخدم الأمر `tuist
-test`. يقوم الأمر <LocalizedLink href="/guides/features/projects/hashing"> بتجزئة </LocalizedLink> مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها
-<LocalizedLink href="/guides/features/cache#cache-warming">لتسخين ذاكرة التخزين المؤقت </LocalizedLink>، وعند النجاح، فإنه يستمر في التجزئة لتحديد ما تغير في
+test`. يقوم الأمر <LocalizedLink href="/guides/features/projects/hashing">
+بتجزئة </LocalizedLink> مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها
+<LocalizedLink href="/guides/features/cache#cache-warming"> لتسخين ذاكرة التخزين
+المؤقت </LocalizedLink>، وعند النجاح، فإنه يستمر في التجزئة لتحديد ما تغير في
 عمليات التشغيل المستقبلية.
 
 في عمليات التشغيل المستقبلية `اختبار تويست` يستخدم التجزئة بشفافية لتصفية
