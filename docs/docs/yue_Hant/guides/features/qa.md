@@ -55,7 +55,8 @@ happened:
 ![QA timeline](/images/guides/features/qa/qa-timeline.png)
 
 You can see all QA runs that we do for our
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
