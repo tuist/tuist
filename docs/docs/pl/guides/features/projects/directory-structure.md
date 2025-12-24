@@ -49,7 +49,8 @@ Workspace.swift
   - **Package.swift:** Ten plik zawiera zależności pakietu Swift dla Tuist, aby
     zintegrować je za pomocą projektów Xcode i celów (takich jak
     [CocoaPods](https://cococapods)), które można konfigurować i optymalizować.
-    Więcej <LocalizedLink href="/guides/features/projects/dependencies"> tutaj</LocalizedLink>.
+    Więcej <LocalizedLink href="/guides/features/projects/dependencies">
+    tutaj</LocalizedLink>.
 
 - **Katalog główny**: Katalog główny projektu, który zawiera również katalog
   `Tuist`.
@@ -91,5 +92,6 @@ nie musisz niczego aktualizować. Tuist automatycznie pobiera główny pakiet
 Aby rozpocząć, uruchom `tuist install` i `tuist generate` w swoim pakiecie SPM.
 Twój projekt powinien mieć teraz wszystkie te same schematy i pliki, które
 widziałbyś w waniliowej integracji Xcode SPM. Jednak teraz możesz również
-uruchomić <LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink> i mieć większość zależności i modułów SPM wstępnie
+uruchomić <LocalizedLink href="/guides/features/cache">`tuist
+cache`</LocalizedLink> i mieć większość zależności i modułów SPM wstępnie
 skompilowanych, dzięki czemu kolejne kompilacje będą niezwykle szybkie.
