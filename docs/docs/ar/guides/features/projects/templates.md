@@ -5,7 +5,7 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# القوالب {# القوالب}
+# القوالب {#templates}
 
 في المشاريع ذات البنية الراسخة، قد يرغب المطورون في تمهيد مكونات أو ميزات جديدة
 تتسق مع المشروع. مع `سقالة تويست` يمكنك إنشاء ملفات من قالب. يمكنك تحديد القوالب
@@ -15,14 +15,14 @@
 - قم بإنشاء ميزة جديدة تتبع بنية معينة: `tuist سقالة الأفعى - الاسم MyFeature`.
 - إنشاء مشاريع جديدة: `تويست سقالة ميزة المشروع - اسم المشروع الرئيسي`
 
-:::: معلومات غير متاحة على الإنترنت
+::: info NON-OPINIONATED
 <!-- -->
 تويست ليس له رأي في محتوى القوالب الخاصة بك، وما تستخدمها من أجله. فهي مطلوبة
 فقط لتكون في دليل محدد.
 <!-- -->
 :::
 
-## تعريف قالب {#تعريف قالب}
+## تعريف القالب {#defining-a-template}
 
 ولتعريف القوالب، يمكنك تشغيل
 <LocalizedLink href="/guides/features/projects/editing">`tuist
@@ -61,7 +61,7 @@ let template = Template(
 )
 ```
 
-## استخدام قالب {# استخدام قالب}
+## استخدام قالب {#using-a-template}
 
 بعد تحديد القالب، يمكننا استخدامه من الأمر `سقالة`:
 
@@ -89,7 +89,7 @@ tuist scaffold name_of_template --name Name --platform macos
 يمكنك أيضًا استخدام `.directory` الذي يتيح إمكانية نسخ مجلدات كاملة إلى مسار
 معين.
 
-:::: إكرامية مساعدو وصف المشروع
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 تدعم القوالب استخدام
 <LocalizedLink href="/guides/features/projects/code-sharing"> مساعدي وصف
