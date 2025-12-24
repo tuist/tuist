@@ -5,42 +5,30 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Implicit imports {#implicit-imports}
+# 隱含進口{#implicit-imports}
 
-To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
-project, Apple designed the build system in a way that allows dependencies to be
-implicitly defined. This means that a product, for example an app, can depend on
-a framework, even without declaring the dependency explicitly. At a small scale,
-this is fine, but as the project graph grows in complexity, the implicitness
-might manifest as unreliable incremental builds or editor-based features such as
-previews or code completion.
+為了減輕用原始 Xcode 專案維護 Xcode 專案圖的複雜性，Apple
+在設計建立系統時允許隱式定義依賴關係。這表示一個產品，例如一個應用程式，可以依賴於一個框架，甚至不需要明確地宣告依賴關係。在小規模的情況下，這是沒問題的，但隨著專案圖形的複雜度增加，隱含性可能會表現為不可靠的增量建立或基於編輯器的功能，例如預覽或程式碼完成。
 
-The problem is that you can't prevent implicit dependencies from happening. Any
-developer can add an `import` statement to their Swift code, and the implicit
-dependency will be created. This is where Tuist comes in. Tuist provides a
-command to inspect the implicit dependencies by statically analyzing the code in
-your project. The following command will output the implicit dependencies of
-your project:
+問題是您無法阻止隱含相依性的發生。任何開發人員都可以在他們的 Swift 程式碼中加入`import` 語句，隱含相依性就會產生。這就是 Tuist
+的用武之地。Tuist 提供了一個命令，透過靜態分析專案中的程式碼來檢查隱含相依性。以下命令將輸出專案的隱含相依性：
 
 ```bash
 tuist inspect implicit-imports
 ```
 
-If the command detects any implicit imports, it exits with an exit code other
-than zero.
+如果指令偵測到任何隱含的匯入，它會以 0 以外的退出代碼退出。
 
 ::: tip VALIDATE IN CI
 <!-- -->
-We strongly recommend to run this command as part of your
+我們強烈建議每次有新程式碼推送到上游時，就執行這個指令，作為
 <LocalizedLink href="/guides/features/automate/continuous-integration">continuous
-integration</LocalizedLink> command every time new code is pushed upstream.
+integration</LocalizedLink> 指令的一部分。
 <!-- -->
 :::
 
 ::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
-Since Tuist relies on static code analysis to detect implicit dependencies, it
-might not catch all cases. For example, Tuist is unable to understand
-conditional imports through compiler directives in code.
+由於 Tuist 依賴靜態程式碼分析來偵測隱含的依賴關係，因此可能無法偵測到所有的情況。例如，Tuist 無法理解程式碼中透過編譯器指令的條件匯入。
 <!-- -->
 :::
