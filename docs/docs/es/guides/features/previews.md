@@ -9,7 +9,8 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -33,8 +34,9 @@ simplificarlo en el futuro.
 
 ::: grupo de códigos
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -70,6 +72,18 @@ tuist run App@latest # Runs latest App preview associated with the project's def
 tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
+
+::: aviso NÚMEROS ÚNICOS DE CONSTRUCCIÓN EN CI
+<!-- -->
+Asegúrate de que la `CFBundleVersion` (versión de compilación) es única
+aprovechando un número de ejecución de CI que la mayoría de los proveedores de
+CI exponen. Por ejemplo, en GitHub Actions, puede establecer `CFBundleVersion`
+en la variable <code v-pre>${{ github.run_number }}</code>.
+
+Subir una vista previa con el mismo binario (build) y el mismo `CFBundleVersion`
+fallará.
+<!-- -->
+:::
 
 ## Pistas {#tracks}
 
@@ -146,8 +160,10 @@ agilizan el acceso y la ejecución de tus previsualizaciones.
 ::: aviso SE REQUIERE INTEGRACIÓN CON LA PLATAFORMA GIT
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu
-<LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
-<LocalizedLink href="/guides/server/authentication">plataforma Git</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">proyecto
+remoto</LocalizedLink> con una
+<LocalizedLink href="/guides/server/authentication">plataforma
+Git</LocalizedLink>.
 <!-- -->
 :::
 
@@ -159,7 +175,8 @@ enlace a la compilación que ejecutaría automáticamente la aplicación en un
 dispositivo seleccionado en la aplicación macOS de Tuist?*
 
 Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
-[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
+[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
 un enlace de Vista Previa directamente en tus pull requests: ![GitHub app
 comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)
