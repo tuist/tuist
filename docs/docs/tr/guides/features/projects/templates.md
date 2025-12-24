@@ -5,35 +5,36 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# Templates {#templates}
+# Şablonlar {#templates}
 
-In projects with an established architecture, developers might want to bootstrap
-new components or features that are consistent with the project. With `tuist
-scaffold` you can generate files from a template. You can define your own
-templates or use the ones that are vendored with Tuist. These are some scenarios
-where scaffolding might be useful:
+Yerleşik bir mimariye sahip projelerde, geliştiriciler proje ile tutarlı yeni
+bileşenleri veya özellikleri önyüklemek isteyebilir. ` tuist scaffold` ile bir
+şablondan dosya oluşturabilirsiniz. Kendi şablonlarınızı tanımlayabilir veya
+Tuist ile satılanları kullanabilirsiniz. Bunlar, iskelenin yararlı olabileceği
+bazı senaryolardır:
 
-- Create a new feature that follows a given architecture: `tuist scaffold viper
+- Belirli bir mimariyi izleyen yeni bir özellik oluşturun: `tuist scaffold viper
   --name MyFeature`.
-- Create new projects: `tuist scaffold feature-project --name Home`
+- Yeni projeler oluşturun: `tuist scaffold feature-project --name Home`
 
 ::: info NON-OPINIONATED
 <!-- -->
-Tuist is not opinionated about the content of your templates, and what you use
-them for. They are only required to be in a specific directory.
+Tuist, şablonlarınızın içeriği ve bunları ne için kullandığınız konusunda fikir
+sahibi değildir. Sadece belirli bir dizinde olmaları gerekmektedir.
 <!-- -->
 :::
 
-## Defining a template {#defining-a-template}
+## Bir şablon tanımlama {#defining-a-template}
 
-To define templates, you can run
+Şablonları tanımlamak için,
 <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink> and then create a directory called `name_of_template`
-under `Tuist/Templates` that represents your template. Templates need a manifest
-file, `name_of_template.swift` that describes the template. So if you are
-creating a template called `framework`, you should create a new directory
-`framework` at `Tuist/Templates` with a manifest file called `framework.swift`
-that could look like this:
+edit`</LocalizedLink> çalıştırabilir ve ardından şablonunuzu temsil eden
+`Tuist/Templates` altında `name_of_template` adlı bir dizin oluşturabilirsiniz.
+Şablonlar, şablonu tanımlayan `name_of_template.swift` adında bir manifesto
+dosyasına ihtiyaç duyar. Dolayısıyla, `framework` adında bir şablon
+oluşturuyorsanız, `Tuist/Templates` adresinde `framework` adında yeni bir dizin
+oluşturmalı ve `framework.swift` adında aşağıdaki gibi görünebilecek bir
+bildirim dosyası oluşturmalısınız:
 
 
 ```swift
@@ -64,9 +65,9 @@ let template = Template(
 )
 ```
 
-## Using a template {#using-a-template}
+## Şablon kullanma {#using-a-template}
 
-After defining the template, we can use it from the `scaffold` command:
+Şablonu tanımladıktan sonra `scaffold` komutundan kullanabiliriz:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
@@ -74,28 +75,29 @@ tuist scaffold name_of_template --name Name --platform macos
 
 ::: info
 <!-- -->
-Since platform is an optional argument, we can also call the command without the
-`--platform macos` argument.
+Platform isteğe bağlı bir argüman olduğundan, komutu `--platform macos` argümanı
+olmadan da çağırabiliriz.
 <!-- -->
 :::
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the
-[Stencil](https://stencil.fuller.li/en/latest/) templating language via the
-`.file` case. Besides that, you can also use additional filters defined here.
+`.string` ve `.files` yeterince esneklik sağlamıyorsa, `.file` durumu
+aracılığıyla [Stencil](https://stencil.fuller.li/en/latest/) şablonlama dilinden
+yararlanabilirsiniz. Bunun yanı sıra, burada tanımlanan ek filtreleri de
+kullanabilirsiniz.
 
-Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name
-}}`. If you'd like to use Stencil filters in the template definition, you can
-use that interpolation manually and add any filters you like. For example, you
-might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the
-lowercased value of the name attribute.
+Dize enterpolasyonu kullanıldığında, `\(nameAttribute)` yukarıdaki `{{ name }}`
+şeklinde çözümlenir. Şablon tanımında Stencil filtrelerini kullanmak isterseniz,
+bu enterpolasyonu manuel olarak kullanabilir ve istediğiniz filtreleri
+ekleyebilirsiniz. Örneğin, `{ { isim | küçük harf } }` yerine `\(nameAttribute)`
+name niteliğinin küçük harfli değerini almak için.
 
-You can also use `.directory` which gives the possibility to copy entire folders
-to a given path.
+Ayrıca, tüm klasörleri belirli bir yola kopyalama imkanı veren `.directory`
+adresini de kullanabilirsiniz.
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-Templates support the use of
-<LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink> to reuse code across templates.
+Şablonlar, kodun şablonlar arasında yeniden kullanılması için
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcılarının</LocalizedLink> kullanımını destekler.
 <!-- -->
 :::
