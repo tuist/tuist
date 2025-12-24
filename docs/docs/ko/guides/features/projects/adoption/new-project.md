@@ -11,7 +11,8 @@
 대화형 CLI를 실행합니다. 안내에 따라 진행할 때 "generated project"를 생성하는 옵션을 선택해야 합니다.
 
 그런 다음 `tuist edit`를 수행해서
-<LocalizedLink href="/guides/features/projects/editing">프로젝트를 편집할 수 있고</LocalizedLink>, 프로젝트를 수정할 수 있게 Xcode가 열립니다. 생성한 파일 중에 하나는 `Project.swift`이며,
+<LocalizedLink href="/guides/features/projects/editing">프로젝트를 편집할 수
+있고</LocalizedLink>, 프로젝트를 수정할 수 있게 Xcode가 열립니다. 생성한 파일 중에 하나는 `Project.swift`이며,
 이것은 프로젝트 정의를 포함합니다. Swift Package Manager에 익숙하다면, 이것을 `Package.swift`로 생각하면 되지만
 Xcode 프로젝트의 용어로 표현된 것이라고 생각하면 됩니다.
 
