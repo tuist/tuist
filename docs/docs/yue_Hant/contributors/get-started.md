@@ -66,7 +66,8 @@ to dog-food the tool.
 
 If you needed to edit the project, for example to add dependencies or adjust
 targets, you can use the
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit` command</LocalizedLink>. This is barely used, but it's good to know that it
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
+command</LocalizedLink>. This is barely used, but it's good to know that it
 exists.
 
 ## Run Tuist {#run-tuist}
