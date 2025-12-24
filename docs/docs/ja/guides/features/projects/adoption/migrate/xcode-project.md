@@ -7,7 +7,7 @@
 ---
 # Xcodeプロジェクトを移行する {#migrate-an-xcode-project}
 
-<LocalizedLink href="/guides/features/projects/adoption/new-project">Tuistを使用して新しいプロジェクトを作成しない限り</LocalizedLink>、自動的にすべてが設定されるので、Tuistのプリミティブを使用してXcodeプロジェクトを定義する必要があります。この作業がどの程度面倒かは、あなたのプロジェクトがどの程度複雑かによる。
+1}Tuistを使用して新しいプロジェクトを作成しない限り</LocalizedLink>、自動的にすべてが設定されるので、Tuistのプリミティブを使用してXcodeプロジェクトを定義する必要があります。この作業がどの程度面倒かは、あなたのプロジェクトがどの程度複雑かによる。
 
 ディレクトリ構造と一致しないグループ、ターゲット間で共有されるファイル、存在しないファイルを指すファイル参照（いくつか挙げると）。このような複雑さが蓄積すると、プロジェクトを確実に移行するコマンドを提供することが難しくなります。
 
@@ -19,7 +19,7 @@
 
 まず、以下のTuistファイルでプロジェクトの足場を作る：
 
-::: code-group
+コードグループ
 
 ```js [Tuist.swift]
 import ProjectDescription
@@ -76,14 +76,14 @@ let package = Package(
 <!-- -->
 :::
 
-## CIでTuistプロジェクトをビルドしてテストする{#build-and-test-the-tuist-project-in-ci}
+## CIでTuistプロジェクトをビルドしてテストする{#build-and-test-the-tuist-project-in-ci}。
 
 各変更の移行が有効であることを確認するために、継続的インテグレーションを拡張して、マニフェストファイルからTuistが生成したプロジェクトをビルドし、テストすることをお勧めします：
 
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## プロジェクトのビルド設定を`.xcconfig` ファイルに展開する {#extract-the-project-build-settings-into-xcconfig-files} 。
@@ -159,7 +159,7 @@ dictionaryに追加することで、特定のパッケージの製品タイプ�
 :::
 
 
-## 移行順序の決定{#determine-the-migration-order}
+## 移行順序の決定{#determine-the-migration-order}。
 
 依存関係の大きいものから小さいものへとターゲットを移行することをお勧めします。次のコマンドを使うと、プロジェクトのターゲットを依存関係の数でソートしてリストアップできます：
 
@@ -218,24 +218,23 @@ let project = Project(
 )
 ```
 
-::: info・テスト・ターゲット
+::インフォ・テスト・ターゲット
 <!-- -->
 ターゲットに関連するテストターゲッ トがある場合は、`Project.swift` ファイルで定義し、同じ手順を繰り返します。
 <!-- -->
 :::
 
-### ターゲットマイグレーションを検証する{#validate-the-target-migration}
+### ターゲットマイグレーションを検証する{#validate-the-target-migration}。
 
-`tuist build` と`tuist test`
-を実行して、プロジェクトのビルドとテストがパスすることを確認してください。さらに、[xcdiff](https://github.com/bloomberg/xcdiff)
-を使用して、生成された Xcode プロジェクトと既存のプロジェクトを比較し、変更が正しいことを確認できます。
+`tuist generate` に続いて、`xcodebuild build` を実行してプロジェクトがビルドされることを確認し、`tuist test`
+を実行してテストがパスすることを確認する。さらに、[xcdiff](https://github.com/bloomberg/xcdiff)を使用して、生成されたXcodeプロジェクトを既存のものと比較し、変更が正しいことを確認できます。
 
-### リピート{#repeat}
+### リピート{#repeat}。
 
-すべてのターゲットが完全に移行されるまで繰り返す。完了したら、Tuistが提供するスピードと信頼性の恩恵を受けるために、`tuist build`
-と`tuist test` コマンドを使用してプロジェクトをビルドしテストするようにCIとCDパイプラインを更新することをお勧めします。
+すべてのターゲットが完全に移行されるまで繰り返します。完了したら、`tuist generate` に続いて、`xcodebuild build`
+と`tuist test` を使用してプロジェクトをビルドしてテストするように、CIとCDパイプラインを更新することをお勧めします。
 
-## トラブルシューティング{#troubleshooting}
+## トラブルシューティング{#troubleshooting}。
 
 ### ファイル不足によるコンパイルエラー。ファイルが見つからないことによるコンパイルエラー} {#compilation-errors-due-to-missing-files
 
