@@ -5,46 +5,50 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# Loglama {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI, sorunları teşhis etmenize yardımcı olmak için mesajları dahili olarak
+günlüğe kaydeder.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## Günlükleri kullanarak sorunları teşhis etme {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+Bir komut çağrısı istenen sonuçları vermezse, günlükleri inceleyerek sorunu
+teşhis edebilirsiniz. CLI günlükleri
+[OSLog](https://developer.apple.com/documentation/os/oslog) ve dosya sistemine
+iletir.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a
-Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+Her çalıştırmada, `$XDG_STATE_HOME/tuist/logs/{uuid}.log` adresinde bir günlük
+dosyası oluşturur; burada `$XDG_STATE_HOME`, ortam değişkeni ayarlanmamışsa
+`~/.local/state` değerini alır. Tuist'e özgü bir durum dizini ayarlamak için
+`$TUIST_XDG_STATE_HOME` adresini de kullanabilirsiniz; bu, `$XDG_STATE_HOME`
+adresinden önceliklidir.
 
 ::: tip
 <!-- -->
-Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories
-documentation</LocalizedLink>.
+Tuist'in dizin organizasyonu ve özel dizinlerin nasıl yapılandırılacağı hakkında
+daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories
+belgesinde</LocalizedLink> bulabilirsiniz.
 <!-- -->
 :::
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly.
-If it doesn't, you can find the logs in the path mentioned above (i.e., the most
-recent log file).
+Varsayılan olarak CLI, yürütme beklenmedik bir şekilde sona erdiğinde günlük
+yolunun çıktısını verir. Çıkmazsa, günlükleri yukarıda belirtilen yolda
+bulabilirsiniz (yani, en son günlük dosyası).
 
 ::: warning
 <!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+Hassas bilgiler redakte edilmez, bu nedenle günlükleri paylaşırken dikkatli
+olun.
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### Sürekli entegrasyon {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+Ortamların tek kullanımlık olduğu CI'da, CI işlem hattınızı Tuist günlüklerini
+dışa aktaracak şekilde yapılandırmak isteyebilirsiniz. Yapıtların dışa
+aktarılması CI hizmetlerinde ortak bir özelliktir ve yapılandırma kullandığınız
+hizmete bağlıdır. Örneğin, GitHub Actions'ta günlükleri bir eser olarak yüklemek
+için `actions/upload-artifact` eylemini kullanabilirsiniz:
 
 ```yaml
 name: Node CI
@@ -71,17 +75,17 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### Önbellek daemon hata ayıklama {#cache-daemon-debugging}
 
-For debugging cache-related issues, Tuist logs cache daemon operations using
-`os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in
-real-time using:
+Önbellekle ilgili sorunları ayıklamak için Tuist, `dev.tuist.cache` alt sistemi
+ile `os_log` kullanarak önbellek daemon işlemlerini günlüğe kaydeder. Bu
+günlükleri kullanarak gerçek zamanlı olarak yayınlayabilirsiniz:
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
-These logs are also visible in Console.app by filtering for the
-`dev.tuist.cache` subsystem. This provides detailed information about cache
-operations, which can help diagnose cache upload, download, and communication
-issues.
+Bu günlükler, `dev.tuist.cache` alt sistemi için filtreleme yapılarak
+Console.app'de de görülebilir. Bu, önbellek yükleme, indirme ve iletişim
+sorunlarını teşhis etmeye yardımcı olabilecek önbellek işlemleri hakkında
+ayrıntılı bilgi sağlar.
