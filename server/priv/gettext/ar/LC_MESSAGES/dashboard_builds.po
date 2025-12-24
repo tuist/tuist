@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:45+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ar/>\n"
 "Language: ar\n"
@@ -316,9 +316,9 @@ msgstr "نظيفة"
 #: lib/tuist_web/live/generate_runs_live.ex:254
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
 #: lib/tuist_web/live/run_detail_live.html.heex:102
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr ""
+msgstr "الأوامر"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:74
 #: lib/tuist_web/live/run_detail_live.html.heex:149
@@ -705,9 +705,9 @@ msgstr "تفاصيل الوحدة النمطية"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:86
 #: lib/tuist_web/live/run_detail_live.html.heex:364
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "ذاكرة التخزين المؤقت للوحدة"
 
 #: lib/tuist_web/live/build_run_live.ex:832
 #, elixir-autogen, elixir-format, fuzzy
@@ -966,9 +966,9 @@ msgstr "المصادر"
 #: lib/tuist_web/live/build_runs_live.ex:240
 #: lib/tuist_web/live/generate_runs_live.ex:262
 #: lib/tuist_web/live/run_detail_live.html.heex:112
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Status"
-msgstr ""
+msgstr "الحالة"
 
 #: lib/tuist_web/live/builds_live.html.heex:797
 #, elixir-autogen, elixir-format, fuzzy
@@ -1413,9 +1413,9 @@ msgstr "قدم طلبك"
 
 #: lib/tuist_web/live/builds_live.html.heex:149
 #: lib/tuist_web/live/builds_live.html.heex:684
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Cancel"
-msgstr ""
+msgstr "إلغاء"
 
 #: lib/tuist_web/live/builds_live.html.heex:140
 #: lib/tuist_web/live/builds_live.html.heex:675
