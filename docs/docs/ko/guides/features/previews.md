@@ -19,7 +19,7 @@
 
 이 과정을 더욱 간소화하기 위해 Tuist는 앱의 미리보기를 생성하고 누구와도 공유할 수 있는 방법을 제공합니다.
 
-::: 경고 장치 빌드에 서명해야 함
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 디바이스용으로 빌드할 때 앱이 올바르게 서명되었는지 확인하는 것은 현재 사용자의 책임입니다. 향후 이 과정을 간소화할 계획입니다.
 <!-- -->
@@ -61,7 +61,7 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: 경고 CI에 고유한 빌드 번호가 없습니다.
+::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
 대부분의 CI 제공업체가 노출하는 CI 실행 번호를 활용하여 `CFBundleVersion` (빌드 버전)이 고유한지 확인하세요. 예를 들어,
 GitHub Actions에서 `CFBundleVersion` 을 <code v-pre>${{ github.run_number }}</code>
@@ -71,7 +71,7 @@ GitHub Actions에서 `CFBundleVersion` 을 <code v-pre>${{ github.run_number }}<
 <!-- -->
 :::
 
-## 트랙 {#트랙}
+## 트랙 {#tracks}
 
 트랙을 사용하면 미리 보기를 이름 지정된 그룹으로 구성할 수 있습니다. 예를 들어 내부 테스터를 위한 `베타` 트랙과 자동화된 빌드를 위한
 `야간` 트랙이 있을 수 있습니다. 트랙은 느리게 생성되므로 공유할 때 트랙 이름을 지정하기만 하면 트랙이 없는 경우 자동으로 생성됩니다.
@@ -88,7 +88,7 @@ tuist share App --track nightly
 - **인앱 업데이트**: 튜이스트 SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다.
 - **필터링**: 튜이스트 대시보드에서 트랙별 미리보기를 쉽게 찾고 관리할 수 있습니다.
 
-::: 경고 미리보기 표시 여부
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 프로젝트가 속한 조직에 대한 액세스 권한이 있는 사람만 미리 보기에 액세스할 수 있습니다. 만료되는 링크에 대한 지원도 추가할 계획입니다.
 <!-- -->
@@ -128,7 +128,7 @@ Xcode가 로컬에 설치되어 있어야 하며 macOS 14 이상을 사용 중�
 
 macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스하고 실행하는 과정을 간소화합니다.
 
-## 요청 댓글 풀/병합 {#풀머지-요청-댓글}
+## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
 ::: warning Git과 통합 필요
 <!-- -->
@@ -149,7 +149,7 @@ macOS 앱과 마찬가지로, 튜이스트 iOS 앱은 미리보기에 액세스�
 코멘트](/images/guides/features/github-app-with-preview.png)
 
 
-## 인앱 업데이트 알림 {#인앱-업데이트-알림}
+## 인앱 업데이트 알림 {#in-app-update-notifications}
 
 Tuist SDK](https://github.com/tuist/sdk)를 사용하면 앱에서 최신 프리뷰 버전을 사용할 수 있는 시기를 감지하여
 사용자에게 알릴 수 있습니다. 이는 테스터를 최신 빌드로 유지하는 데 유용합니다.
@@ -241,7 +241,7 @@ task.cancel()
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## 자동화 {#자동화}
+## 자동화 {#automations}
 
 `--json` 플래그를 사용하여 `tuist share` 명령에서 JSON 출력을 가져올 수 있습니다:
 ```
