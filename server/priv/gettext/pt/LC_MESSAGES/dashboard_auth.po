@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:45+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Portuguese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_auth/pt/>\n"
 "Language: pt\n"
@@ -269,9 +270,9 @@ msgid "Password reset successfully."
 msgstr ""
 
 #: lib/tuist_web/live/user_registration_live.ex:51
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "Previews"
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
@@ -295,9 +296,9 @@ msgid "Run this command to link your project to the dashboard."
 msgstr ""
 
 #: lib/tuist_web/live/user_registration_live.ex:27
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Selective testing"
-msgstr ""
+msgstr "Selective testing"
 
 #: lib/tuist_web/live/user_login_live.ex:183
 #: lib/tuist_web/live/user_registration_live.ex:181
