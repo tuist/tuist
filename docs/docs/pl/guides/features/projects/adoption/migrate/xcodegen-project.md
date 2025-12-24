@@ -94,7 +94,8 @@ możliwości ponownego wykorzystania plików YAML po wyjęciu z pudełka. Jest t
 powszechna potrzeba przy opisywaniu projektów, którą XcodeGen musiał rozwiązać
 za pomocą własnego rozwiązania o nazwie *"templates"*. W Tuist możliwość
 ponownego użycia jest wbudowana w sam język Swift i poprzez moduł Swift o nazwie
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, który umożliwia ponowne użycie kodu we wszystkich
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, który umożliwia ponowne użycie kodu we wszystkich
 plikach manifestu.
 
 ::: code-group
