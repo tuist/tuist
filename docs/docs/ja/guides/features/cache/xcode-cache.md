@@ -9,7 +9,7 @@
 
 TuistはXcodeコンパイルキャッシュのサポートを提供し、ビルドシステムのキャッシュ機能を活用することで、チームがコンパイル成果物を共有することを可能にする。
 
-## セットアップ {#setup}
+## セットアップ{#setup}
 
 警告 要件
 <!-- -->
@@ -37,7 +37,7 @@ tuist setup cache
 
 CIでキャッシュを設定するには、<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証されている</LocalizedLink>ことを確認してください。
 
-### Xcodeのビルド設定を構成する{#configure-xcode-build-settings}。
+### Xcodeのビルド設定を構成する{#configure-xcode-build-settings}
 
 Xcodeプロジェクトに以下のビルド設定を追加する：
 
@@ -51,7 +51,7 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` と`COMPILATION_CACHE_ENABLE_PLUGIN`
 は、Xcodeのビルド設定UIで直接公開されていないため、**ユーザー定義のビルド設定** として追加する必要があることに注意してください：
 
-::情報 SOCKET PATH
+::: info SOCKET PATH
 <!-- -->
 `tuist setup cache`
 を実行すると、ソケットパスが表示されます。スラッシュをアンダースコアに置き換えたプロジェクトの完全なハンドルに基づいています。
@@ -68,7 +68,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-情報 ジェネレイテッド・プロジェクト
+::: info GENERATED PROJECTS
 <!-- -->
 プロジェクトがTuistによって生成されている場合は、手動で設定する必要はない。
 
