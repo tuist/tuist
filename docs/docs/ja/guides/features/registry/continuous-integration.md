@@ -5,12 +5,12 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 継続的インテグレーション（CI）{#continuous-integration-ci}。
+# 継続的インテグレーション（CI）{#continuous-integration-ci}
 
 CIでレジストリを使用するには、ワークフローの一環として`tuist registry login`
 を実行して、レジストリにログインしていることを確認する必要がある。
 
-::情報のみ XCODE インテグレーション
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 新しいプレアンロックキーチェーンの作成は、パッケージのXcode統合を使用している場合にのみ必要です。
 <!-- -->
@@ -57,7 +57,7 @@ jobs:
       - # Your build steps
 ```
 
-### 環境間の増分解像度 {#incremental-resolution-across-environments}.
+### 環境を超えたインクリメンタルな解決{#incremental-resolution-across-environments}
 
 レジストリを使用することで、クリーン/コールドの解決がわずかに速くなり、解決した依存関係をCIビルド間で永続化すると、さらに大きな改善を体験できます。レジストリのおかげで、保存してリストアする必要があるディレクトリのサイズは、レジストリを使用しない場合よりもはるかに小さく、大幅に時間がかからないことに注意してください。デフォルトの
 Xcode パッケージ統合を使用するときに依存関係をキャッシュするために、最良の方法は、`xcodebuild`
