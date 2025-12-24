@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2025-12-24 20:45+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ar/>\n"
 "Language: ar\n"
@@ -862,9 +863,9 @@ msgid "Remote"
 msgstr "جهاز التحكم عن بُعد"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:617
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Resources"
-msgstr ""
+msgstr "الموارد"
 
 #: lib/tuist_web/live/run_detail_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
