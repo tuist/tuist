@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard-1/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -81,9 +82,9 @@ msgid "Build Runs"
 msgstr "建立運行"
 
 #: lib/tuist_web/components/app_layout_components.ex:28
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr ""
+msgstr "建置"
 
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format, fuzzy
@@ -139,9 +140,9 @@ msgid "Generate Runs"
 msgstr "產生運行"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Get started"
-msgstr ""
+msgstr "立即開始"
 
 #: lib/tuist_web/controllers/error_html.ex:143
 #, elixir-autogen, elixir-format, fuzzy
@@ -257,9 +258,9 @@ msgid "Prev"
 msgstr "上一頁"
 
 #: lib/tuist_web/components/app_layout_components.ex:157
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Previews"
-msgstr ""
+msgstr "預覽"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
@@ -268,9 +269,9 @@ msgstr "專案"
 
 #: lib/tuist_web/components/app_layout_components.ex:169
 #: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format, fuzzy
@@ -390,9 +391,9 @@ msgstr "太多要求了。"
 
 #: lib/tuist_web/components/app_layout_components.ex:219
 #: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Icon"
-msgstr ""
+msgstr "Tuist 圖示"
 
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format, fuzzy
@@ -411,9 +412,9 @@ msgid "Unknown"
 msgstr "未知"
 
 #: lib/tuist_web/components/app_layout_components.ex:149
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Xcode Cache"
-msgstr ""
+msgstr "Xcode 快取"
 
 #: lib/tuist_web/controllers/error_html.ex:29
 #, elixir-autogen, elixir-format, fuzzy
