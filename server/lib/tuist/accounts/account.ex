@@ -6,6 +6,7 @@ defmodule Tuist.Accounts.Account do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
@@ -38,6 +39,7 @@ defmodule Tuist.Accounts.Account do
 
     has_many(:projects, Project, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
+    has_many(:cache_endpoints, AccountCacheEndpoint, on_delete: :delete_all)
     has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType

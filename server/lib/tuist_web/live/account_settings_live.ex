@@ -8,6 +8,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Phoenix.HTML.Form
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
 
   @impl true
@@ -21,6 +22,8 @@ defmodule TuistWeb.AccountSettingsLive do
     delete_organization_form = to_form(%{"name" => ""})
     delete_user_form = to_form(%{"name" => ""})
     region_form = to_form(Account.update_changeset(selected_account, %{region: Atom.to_string(selected_account.region)}))
+    add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
+    cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
 
     socket =
       socket
@@ -29,6 +32,8 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
       |> assign(region_form: region_form)
+      |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
+      |> assign(cache_endpoints: cache_endpoints)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -126,6 +131,52 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "create_cache_endpoint",
+        %{"account_cache_endpoint" => %{"url" => url}},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
+    case Accounts.create_account_cache_endpoint(selected_account, %{url: url}) do
+      {:ok, _endpoint} ->
+        cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
+        add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
+
+        socket =
+          socket
+          |> assign(cache_endpoints: cache_endpoints)
+          |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
+          |> push_event("close-modal", %{id: "add-cache-endpoint-modal"})
+
+        {:noreply, socket}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, add_cache_endpoint_form: to_form(changeset))}
+    end
+  end
+
+  def handle_event(
+        "delete_cache_endpoint",
+        %{"id" => endpoint_id},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
+    endpoint = Accounts.get_account_cache_endpoint!(endpoint_id)
+    {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+    cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
+
+    {:noreply, assign(socket, cache_endpoints: cache_endpoints)}
+  end
+
+  def handle_event("close-add-cache-endpoint-modal", _, socket) do
+    add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
+
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "add-cache-endpoint-modal"})
+      |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
+
+    {:noreply, socket}
+  end
+
   attr(:region_form, Form, required: true)
   attr(:selected_account, Account, required: true)
 
@@ -157,6 +208,109 @@ defmodule TuistWeb.AccountSettingsLive do
           <:item value="europe" label={dgettext("dashboard_account", "Europe")} icon="world" />
           <:item value="usa" label={dgettext("dashboard_account", "United States")} icon="world" />
         </.select>
+      </div>
+    </.card_section>
+    """
+  end
+
+  attr(:cache_endpoints, :list, required: true)
+  attr(:add_cache_endpoint_form, Form, required: true)
+
+  def cache_endpoints_section(assigns) do
+    ~H"""
+    <.card_section data-part="cache-endpoints-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Custom cache endpoints")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Configure custom cache endpoints for self-hosted cache scenarios. When configured, these endpoints will be used instead of the default Tuist-hosted endpoints."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <%= if Enum.empty?(@cache_endpoints) do %>
+          <.alert
+            status="information"
+            type="secondary"
+            size="small"
+            title={
+              dgettext(
+                "dashboard_account",
+                "No custom cache endpoints configured. Default Tuist-hosted endpoints will be used."
+              )
+            }
+          />
+        <% else %>
+          <.table id="cache-endpoints-table" rows={@cache_endpoints}>
+            <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
+              <.text_cell label={endpoint.url} />
+            </:col>
+            <:col :let={endpoint} label="">
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Delete")}
+                variant="destructive"
+                size="small"
+                phx-click="delete_cache_endpoint"
+                phx-value-id={endpoint.id}
+              />
+            </:col>
+          </.table>
+        <% end %>
+        <.form
+          data-part="form"
+          for={@add_cache_endpoint_form}
+          id="add-cache-endpoint-form"
+          phx-submit="create_cache_endpoint"
+        >
+          <.modal
+            id="add-cache-endpoint-modal"
+            title={dgettext("dashboard_account", "Add cache endpoint")}
+            header_size="large"
+            on_dismiss="close-add-cache-endpoint-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Add endpoint")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <div data-part="content">
+              <.text_input
+                field={@add_cache_endpoint_form[:url]}
+                type="basic"
+                label={dgettext("dashboard_account", "Endpoint URL")}
+                placeholder="https://cache.example.com"
+              />
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="reset"
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-add-cache-endpoint-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Add")}
+                    variant="primary"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.form>
       </div>
     </.card_section>
     """

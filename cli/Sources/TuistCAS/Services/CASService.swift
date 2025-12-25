@@ -77,7 +77,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         Logger.current.debug("CAS.load starting - casID: \(casID)")
 
         do {
-            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
+            let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
             let compressedData = try await loadCacheCASService.loadCacheCAS(
                 casId: casID,
                 fullHandle: fullHandle,
@@ -193,7 +194,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             )
 
         do {
-            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
+            let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
             try await saveCacheCASService.saveCacheCAS(
                 compressedData,
                 casId: fingerprint,
