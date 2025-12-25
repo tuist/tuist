@@ -8,10 +8,11 @@
 
 # 모듈 캐시 {#module-cache}
 
-경고 요구 사항 ::: 경고 요구 사항
+::: warning 요구 사항
 <!-- -->
 - 1} 생성된 프로젝트</LocalizedLink>
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및
+  프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -35,7 +36,7 @@ tuist cache
 
 이 명령은 바이너리를 재사용하여 프로세스 속도를 높입니다.
 
-## 사용량 {#사용량}
+## 사용량 {#usage}
 
 기본적으로 Tuist 명령은 프로젝트 생성이 필요한 경우 종속 요소를 캐시에서 사용할 수 있는 경우 해당 바이너리로 자동 대체합니다. 또한
 집중할 대상 목록을 지정하는 경우, 사용 가능한 경우 종속 대상도 캐시된 바이너리로 대체합니다. 다른 접근 방식을 선호하는 경우 특정 플래그를
