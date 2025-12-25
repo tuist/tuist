@@ -141,18 +141,15 @@
             <label data-part="schedule-label">
               {dgettext("dashboard_projects", "Days")}
             </label>
-            <div data-part="day-toggles">
-              <button
+            <.button_group size="small">
+              <.button_group_item
                 :for={day <- 1..7}
-                type="button"
-                data-part="day-toggle"
+                label={day_name(day)}
                 data-selected={Enum.member?(@schedule_form_days, day)}
                 phx-click="toggle_schedule_form_day"
                 phx-value-day={day}
-              >
-                {day_name(day)}
-              </button>
-            </div>
+              />
+            </.button_group>
           </div>
           <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
             <label data-part="schedule-label">
