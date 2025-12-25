@@ -31,6 +31,7 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
 
 concurrency:
   group: docs-${{ github.head_ref }}
@@ -103,13 +104,17 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=12288
         working-directory: docs
         run: mise run build
+      - uses: 1password/install-cli-action@v2
+        if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
         working-directory: docs
         env:
-          MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
-          wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
+          op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

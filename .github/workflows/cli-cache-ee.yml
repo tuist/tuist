@@ -45,9 +45,9 @@ permissions:
   contents: read
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: "true"
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}

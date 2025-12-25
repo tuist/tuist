@@ -208,6 +208,8 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      stub(Tuist.Environment, :anthropic_api_key, fn -> "test-anthropic-api-key" end)
+      stub(Tuist.Environment, :openai_api_key, fn -> "test-openai-api-key" end)
 
       expect(Agent, :test, fn attrs, opts ->
         assert attrs.preview_url == "https://example.com/preview.zip"

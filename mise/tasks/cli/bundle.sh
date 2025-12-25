@@ -20,7 +20,7 @@ TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
 XCODE_VERSION=$(cat $MISE_PROJECT_ROOT/.xcode-version)
 TUIST_DIR=$MISE_PROJECT_ROOT
-APPLE_ID="pedro@pepicrft.me"
+APPLE_ID=$(op read "op://tuist/App Specific Password/username")
 TEAM_ID='U6LC622NKF'
 ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
@@ -39,7 +39,9 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-echo $BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
+op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+print_status "Importing certificate to keychain..."
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 
@@ -111,7 +113,7 @@ echo "$(format_section "Bundling")"
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
         --team-id "$TEAM_ID" \
-        --password "$APP_SPECIFIC_PASSWORD" \
+        --password "$(op read "op://tuist/App Specific Password/password")" \
         --output-format json)
     echo "$RAW_JSON"
     SUBMISSION_ID=$(echo "$RAW_JSON" | jq -r '.id')
@@ -121,7 +123,7 @@ echo "$(format_section "Bundling")"
         STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
-            --password "$APP_SPECIFIC_PASSWORD" \
+            --password "$(op read "op://tuist/App Specific Password/password")" \
             --output-format json | jq -r '.status')
 
         case $STATUS in
@@ -138,7 +140,7 @@ echo "$(format_section "Bundling")"
                 xcrun notarytool log "$SUBMISSION_ID" \
                     --apple-id "$APPLE_ID" \
                     --team-id "$TEAM_ID" \
-                    --password "$APP_SPECIFIC_PASSWORD"
+                    --password "$(op read "op://tuist/App Specific Password/password")"
                 exit 1
                 ;;
             *)
