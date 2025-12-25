@@ -33,6 +33,88 @@ defmodule Cache.CASEventsPipelineTest do
   end
 
   describe "handle_batch/4" do
+    test "skips sending events when API key is nil" do
+      original_config = Application.get_env(:cache, :cas)
+
+      try do
+        Application.put_env(:cache, :cas, Keyword.put(original_config, :api_key, nil))
+
+        events = [
+          %{
+            action: "upload",
+            size: 1024,
+            cas_id: "abc123",
+            account_handle: "test-account",
+            project_handle: "test-project"
+          }
+        ]
+
+        messages =
+          Enum.map(events, fn event ->
+            %Broadway.Message{
+              data: event,
+              acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
+            }
+          end)
+
+        # Req.request should NOT be called
+        reject(&Req.request/1)
+
+        result =
+          CASEventsPipeline.handle_batch(
+            :http,
+            messages,
+            %{batch_key: :default},
+            %{}
+          )
+
+        assert result == messages
+      after
+        Application.put_env(:cache, :cas, original_config)
+      end
+    end
+
+    test "skips sending events when API key is empty string" do
+      original_config = Application.get_env(:cache, :cas)
+
+      try do
+        Application.put_env(:cache, :cas, Keyword.put(original_config, :api_key, ""))
+
+        events = [
+          %{
+            action: "upload",
+            size: 1024,
+            cas_id: "abc123",
+            account_handle: "test-account",
+            project_handle: "test-project"
+          }
+        ]
+
+        messages =
+          Enum.map(events, fn event ->
+            %Broadway.Message{
+              data: event,
+              acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
+            }
+          end)
+
+        # Req.request should NOT be called
+        reject(&Req.request/1)
+
+        result =
+          CASEventsPipeline.handle_batch(
+            :http,
+            messages,
+            %{batch_key: :default},
+            %{}
+          )
+
+        assert result == messages
+      after
+        Application.put_env(:cache, :cas, original_config)
+      end
+    end
+
     test "sends batch of events to the cache webhook successfully" do
       account_handle = "test-account"
       project_handle = "test-project"
