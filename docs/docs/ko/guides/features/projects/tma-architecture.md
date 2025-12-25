@@ -13,7 +13,7 @@ TMA는 확장성을 지원하고 빌드 및 테스트 주기를 최적화하며 
 이 가이드라인에서는 아키텍처의 원칙을 소개하여 애플리케이션 기능을 여러 계층으로 식별하고 구성하는 데 도움을 줍니다. 또한 이 아키텍처를
 사용하기로 결정한 경우 유용한 팁, 도구 및 조언도 소개합니다.
 
-::: info µ특징
+::: info µFEATURES
 <!-- -->
 이 아키텍처는 이전에는 µFeatures로 알려졌습니다. 그 목적과 원칙을 더 잘 반영하기 위해 모듈형 아키텍처(TMA)로 이름을 변경했습니다.
 <!-- -->
@@ -46,13 +46,13 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 | `기능 테스트`  | `기능인터페이스`      | 데이터 및 모의 테스트  |
 | `기능예시`    | `기능 테스트`, `기능` | 앱 예시          |
 
-::: tip UI 미리보기
+::: 팁 UI 미리보기
 <!-- -->
 `Feature` 는 `FeatureTesting` 을 개발 에셋으로 사용하여 UI 미리 보기를 허용할 수 있습니다.
 <!-- -->
 :::
 
-::: warning 컴파일러가 테스트 대상 대신 지시합니다.
+::: 경고 컴파일러가 테스트 대상 대신 지시합니다.
 <!-- -->
 또는 컴파일러 지시어를 사용하여 `디버그` 를 위해 컴파일할 때 `Feature` 또는 `FeatureInterface` 타깃에 테스트 데이터와
 모의 코드를 포함할 수 있습니다. 그래프를 단순화할 수 있지만 앱 실행에 필요하지 않은 코드를 컴파일하게 됩니다.
@@ -103,7 +103,7 @@ Xcode 기능이 안정적으로 작동하도록 보장해야 합니다.
 특성에서 분리하는 것이 좋습니다. 이는 컴파일 시간을 단축하고 [SwiftUI
 미리보기](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가
 안정적으로 작동하도록 하기 위한 핵심 요소입니다. 또한 릴리스 빌드를 위한 정적 라이브러리 또는 프레임워크는 앱이 빠르게 부팅되도록 합니다.
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">동적 구성</LocalizedLink>을 활용하여 생성 시점에 제품 유형을 변경할 수 있습니다:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -124,7 +124,7 @@ func productType() -> Product {
 ```
 
 
-::: warning 병합 가능한 라이브러리
+::: 경고 병합 가능한 라이브러리
 <!-- -->
 Apple은 [병합 가능한
 라이브러리](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)를

@@ -5,7 +5,7 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# Swiftパッケージを移行する {#migrate-a-swift-package}
+# Swiftパッケージを移行する{#migrate-a-swift-package}
 
 Swift Package
 Managerは、Swiftコードのための依存関係マネージャとして登場し、意図せずして、プロジェクトを管理し、Objective-Cのような他のプログラミング言語をサポートするという問題を解決することになった。このツールは異なる目的を念頭に置いて設計されたため、Tuistが提供する柔軟性、パフォーマンス、パワーを欠いているため、大規模なプロジェクトを管理するために使用するのは難しいかもしれません。これは[Scaling
@@ -21,13 +21,14 @@ Managerが同じようなプロジェクト管理の役割を果たせること�
 **AppleがSwift Package Managerをビルドフォースケールのプロジェクトマネージャーにするかどうかは不明だ。**
 しかし、そうなる兆候は見られない。実際、私たちは全く逆のことを見ている。彼らはXcodeに触発された決定をしており、暗黙的なコンフィギュレーションを通して利便性を達成しているようなものです。私たちは、Appleが第一原則に立ち返り、例えばプロジェクトを定義するインターフェイスとしてコンパイル言語を使用するなど、依存関係マネージャーとしては意味があってもプロジェクトマネージャーとしては意味がなかったいくつかの決定を見直す必要があると考えている。
 
-::: tip SPMは単なるディペンダンシーマネージャーとして。
+::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-TuistはSwift Package Managerを依存性マネージャーとして扱い、それは素晴らしいものだ。私たちは依存関係を解決し、それらをビルドするためにそれを使います。そのために設計されているわけではないので、プロジェクトを定義するために使うことはありません。
+TuistはSwift Package
+Managerを依存性マネージャーとして扱い、それは素晴らしいものだ。私たちは依存関係を解決し、それらをビルドするためにそれを使います。そのために設計されているわけではないので、プロジェクトを定義するために使うことはありません。
 <!-- -->
 :::
 
-## SwiftパッケージマネージャからTuistへの移行 {#migrating-from-swift-package-manager-to-tuist}
+## Swift Package ManagerからTuistへの移行{#migrating-from-swift-package-manager-to-tuist}
 
 Swift Package Manager と Tuist の類似点は移行プロセスを簡単にします。主な違いは、`Package.swift`
 の代わりにTuistのDSLを使ってプロジェクトを定義することです。
@@ -71,9 +72,10 @@ let tuist = Tuist()
 `Tuist.swift`
 にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するリファレンスとして機能します。Tuistプロジェクトの構造については<LocalizedLink href="/guides/features/projects/directory-structure">ディレクトリ構造</LocalizedLink>ドキュメントを参照してください。
 
-## プロジェクトを編集する {#editing-the-project}
+## プロジェクトの編集{#editing-the-project}
 
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
+1}`tuist
+edit`を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
 
 ```bash
 tuist edit

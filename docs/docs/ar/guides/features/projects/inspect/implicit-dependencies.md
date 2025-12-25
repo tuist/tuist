@@ -25,14 +25,11 @@ tuist inspect implicit-imports
 
 إذا اكتشف الأمر أي واردات ضمنية، فإنه يخرج برمز خروج غير الصفر.
 
-::: tip التحقق في CI
-<!-- -->
-نوصي بشدة بتشغيل هذا الأمر كجزء من أمر
-<LocalizedLink href="/guides/features/automate/continuous-integration">التكامل المستمر</LocalizedLink> في كل مرة يتم فيها دفع شيفرة جديدة إلى المنبع.
-<!-- -->
+::: tip VALIDATE IN CI
+نوصي بشدة بتشغيل هذا الأمر كجزء من أمر <LocalizedLink href="/guides/features/automate/continuous-integration">التكامل المستمر</LocalizedLink> في كل مرة يتم فيها دفع شيفرة جديدة إلى المنبع.
 :::
 
-::: warning لم يتم اكتشاف جميع الحالات الدلالية
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
 نظرًا لأن Tuist يعتمد على تحليل الشيفرة الثابتة لاكتشاف التبعيات الضمنية، فقد لا
 يكتشف جميع الحالات. على سبيل المثال، لا يستطيع تويست فهم الواردات الشرطية من

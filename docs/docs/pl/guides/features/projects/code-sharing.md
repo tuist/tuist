@@ -104,7 +104,7 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip NARZĘDZIE DO USTANAWIANIA KONWENCJI
+::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
 Zwróć uwagę, jak za pomocą funkcji definiujemy konwencje dotyczące nazw obiektów
 docelowych, identyfikatora pakietu i struktury folderów.

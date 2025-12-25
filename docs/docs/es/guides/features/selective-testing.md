@@ -28,7 +28,7 @@ instrucciones basadas en la configuración de su proyecto:
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
-::: advertencia GRANULARIDAD A NIVEL DE MÓDULO VS A NIVEL DE ARCHIVO
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
 Debido a la imposibilidad de detectar las dependencias dentro del código entre
 las pruebas y las fuentes, la granularidad máxima de las pruebas selectivas es a
@@ -37,7 +37,7 @@ centrados para maximizar los beneficios de las pruebas selectivas.
 <!-- -->
 :::
 
-::: advertencia COBERTURA DE LA PRUEBA
+::: warning TEST COVERAGE
 <!-- -->
 Las herramientas de cobertura de pruebas asumen que todo el conjunto de pruebas
 se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de
@@ -52,9 +52,9 @@ selectivas en el futuro.
 :::
 
 
-## Comentarios de solicitudes pull/merge {#pullmerge-request-comments}
+## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: aviso SE REQUIERE INTEGRACIÓN CON LA PLATAFORMA GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>

@@ -14,9 +14,9 @@
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info
+:::: المعلومات
 <!-- -->
-يعد Mise بديلاً موصى به لـ [Homebrew](https://brew.sh) إذا كنت فريقًا أو مؤسسة
+يعد Mise بديلاً موصى به لـ [Homebrew] (https://brew.sh) إذا كنت فريقًا أو مؤسسة
 تحتاج إلى ضمان إصدارات حتمية من الأدوات عبر بيئات مختلفة.
 <!-- -->
 :::
@@ -51,7 +51,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip التحقق من صحة الثنائيات
+::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
 يمكنك التحقق من أن ثنائيات التثبيت الخاصة بك قد تم بناؤها من خلال تشغيل الأمر
 التالي، والذي يتحقق مما إذا كان فريق الشهادة هو `U6LC622NKF`:

@@ -27,8 +27,9 @@ When building for device, it is currently your responsibility to ensure the app 
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -57,6 +58,14 @@ tuist run App@latest # Runs latest App preview associated with the project's def
 tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
+
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run number that most CI providers expose. For example, in GitHub Actions you can set the `CFBundleVersion` to the  <code v-pre>${{ github.run_number }}</code> variable. 
+
+Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
+<!-- -->
+:::
 
 ## Tracks {#tracks}
 

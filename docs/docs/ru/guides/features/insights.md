@@ -7,7 +7,7 @@
 ---
 # Озарения {#insights}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
@@ -142,8 +142,8 @@ $SRCROOT.
 учетную запись Tuist. Вы можете получить доступ к результатам тестирования на
 приборной панели Tuist и увидеть, как они меняются со временем:
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![Дашборд с аналитикой
+тестов](/images/guides/features/insights/tests-dashboard.png)
 
 Помимо общих тенденций, вы также можете глубоко погрузиться в каждый отдельный
 тест, например, при отладке сбоев или медленных тестов на CI:

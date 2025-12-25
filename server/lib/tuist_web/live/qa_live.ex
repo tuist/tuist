@@ -10,6 +10,7 @@ defmodule TuistWeb.QALive do
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -47,11 +48,29 @@ defmodule TuistWeb.QALive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/qa?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+          "/#{selected_account.name}/#{selected_project.name}/qa?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
         replace: true
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/qa?#{query_params}")}
   end
 
   defp load_qa_runs(socket, params \\ %{}) do
@@ -94,12 +113,15 @@ defmodule TuistWeb.QALive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    date_range = date_range(params)
-    analytics_app = analytics_app(params)
+    analytics_app = params["analytics-app"] || "any"
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
     opts = [
       project_id: project.id,
-      start_date: start_date(date_range),
+      start_datetime: start_datetime,
+      end_datetime: end_datetime,
       app_name:
         case analytics_app do
           "any" -> nil
@@ -113,7 +135,7 @@ defmodule TuistWeb.QALive do
     qa_issues_analytics = QA.qa_issues_analytics(project.id, opts)
     qa_duration_analytics = QA.qa_duration_analytics(project.id, opts)
 
-    analytics_selected_widget = analytics_selected_widget(params)
+    analytics_selected_widget = params["analytics-selected-widget"] || "qa_run_count"
 
     analytics_chart_data =
       case analytics_selected_widget do
@@ -147,8 +169,9 @@ defmodule TuistWeb.QALive do
       end
 
     socket
-    |> assign(:analytics_date_range, date_range)
-    |> assign(:analytics_trend_label, analytics_trend_label(date_range))
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_app, analytics_app)
     |> assign(:analytics_app_label, analytics_app_label(analytics_app, socket.assigns.available_apps))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
@@ -159,12 +182,10 @@ defmodule TuistWeb.QALive do
     |> assign(:uri, uri)
   end
 
-  defp start_date("last_12_months"), do: Date.add(Date.utc_today(), -365)
-  defp start_date("last_30_days"), do: Date.add(Date.utc_today(), -30)
-  defp start_date("last_7_days"), do: Date.add(Date.utc_today(), -7)
-
-  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_qa", "since last week")
-  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_qa", "since last year")
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_qa", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_qa", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_qa", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_qa", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_qa", "since last month")
 
   defp analytics_app_label("any", _available_apps), do: dgettext("dashboard_qa", "Any")
@@ -177,36 +198,6 @@ defmodule TuistWeb.QALive do
   end
 
   defp analytics_app_label(_app_name, _available_apps), do: dgettext("dashboard_qa", "Any")
-
-  defp date_range(params) do
-    analytics_date_range = params["analytics_date_range"]
-
-    if is_nil(analytics_date_range) do
-      "last_30_days"
-    else
-      analytics_date_range
-    end
-  end
-
-  defp analytics_app(params) do
-    analytics_app = params["analytics_app"]
-
-    if is_nil(analytics_app) do
-      "any"
-    else
-      analytics_app
-    end
-  end
-
-  defp analytics_selected_widget(params) do
-    analytics_selected_widget = params["analytics_selected_widget"]
-
-    if is_nil(analytics_selected_widget) do
-      "qa_run_count"
-    else
-      analytics_selected_widget
-    end
-  end
 
   defp has_qa_runs?(project) do
     project

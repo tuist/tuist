@@ -79,14 +79,14 @@ NSBundle *bundle = [MyFeatureResources bundle];
 <!-- -->
 :::
 
-::: tip 번들을 통한 라이브러리 리소스 지원
+::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
 예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, Tuist는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
-가리키도록 하기 위해 `번들` 제품 유형 대상에 리소스를 포함시킵니다.
+가리키도록 하기 위해 `번들` 제품 유형의 대상에 리소스를 포함시킵니다.
 <!-- -->
 :::
 
-## 리소스 액세스자 {#resource-accessors}
+## 리소스 접근자 {#resource-accessors}
 
 리소스는 문자열을 사용하여 이름과 확장자로 식별됩니다. 이는 컴파일 시 포착되지 않고 릴리스 시 충돌을 일으킬 수 있으므로 이상적이지 않습니다.
 이를 방지하기 위해 Tuist는 프로젝트 생성 프로세스에
@@ -114,7 +114,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른
 합성하기 위해 자체 템플릿을 제공하려는 경우 `Tuist/ResourceSynthesizers/{name}.stencil` 에서 만들 수
 있으며, 여기서 이름은 리소스의 대소문자 버전입니다.
 
-| 참고자료     | 템플릿 이름             |
+| 리소스      | 템플릿 이름             |
 | -------- | ------------------ |
 | 문자열      | `문자열.스텐실`          |
 | 자산       | `Assets.stencil`   |
@@ -133,7 +133,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-정보 참조 ::: info 참조
+::: info REFERENCE
 <!-- -->
 사용자 지정 템플릿을 사용하여 리소스에 대한 액세스자를 합성하는 방법의 예는 [이 수정
 사항](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)에서

@@ -13,6 +13,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -44,7 +45,6 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
-    bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
 
     bundle_size_branch =
       case params["bundle-size-branch"] do
@@ -53,6 +53,9 @@ defmodule TuistWeb.BundlesLive do
       end
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
+
+    %{preset: preset, period: {bundle_start_date, _} = period} =
+      DatePicker.date_picker_params(params, "bundle-size")
 
     {
       :noreply,
@@ -67,10 +70,8 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundles_type, bundles_type)
       |> assign(:bundle_size_selected_app, bundle_size_selected_app)
       |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-      |> assign(
-        :bundle_size_date_range,
-        bundle_size_date_range
-      )
+      |> assign(:bundle_size_preset, preset)
+      |> assign(:bundle_size_period, period)
       |> assign(:bundle_size_branch, bundle_size_branch)
       |> assign(
         :bundle_size_last_bundle,
@@ -84,7 +85,7 @@ defmodule TuistWeb.BundlesLive do
         :bundle_size_previous_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          inserted_before: start_date(bundle_size_date_range),
+          inserted_before: bundle_start_date,
           git_branch: bundle_size_git_branch(bundle_size_branch, project),
           type: string_to_bundle_type(bundles_type)
         )
@@ -197,10 +198,10 @@ defmodule TuistWeb.BundlesLive do
          %{
            assigns: %{
              selected_project: project,
-             bundle_size_date_range: bundle_size_date_range,
              bundle_size_selected_widget: bundle_size_selected_widget,
              bundle_size_branch: bundle_size_branch,
-             bundles_type: bundles_type
+             bundles_type: bundles_type,
+             current_params: params
            }
          } = socket
        ) do
@@ -213,16 +214,22 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_type = string_to_bundle_type(bundles_type)
 
+    %{period: {start_datetime, end_datetime}} =
+      DatePicker.date_picker_params(params, "bundle-size")
+
+    opts = [
+      project_id: project.id,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime,
+      git_branch: git_branch,
+      type: bundle_type
+    ]
+
     bundle_size_analytics =
       case bundle_size_selected_widget do
         "download-size" ->
           project
-          |> Bundles.bundle_download_size_analytics(
-            project_id: project.id,
-            start_date: start_date(bundle_size_date_range),
-            git_branch: git_branch,
-            type: bundle_type
-          )
+          |> Bundles.bundle_download_size_analytics(opts)
           |> Enum.map(
             &[
               &1.date,
@@ -232,12 +239,7 @@ defmodule TuistWeb.BundlesLive do
 
         _ ->
           project
-          |> Bundles.project_bundle_install_size_analytics(
-            project_id: project.id,
-            start_date: start_date(bundle_size_date_range),
-            git_branch: git_branch,
-            type: bundle_type
-          )
+          |> Bundles.project_bundle_install_size_analytics(opts)
           |> Enum.map(
             &[
               &1.date,
@@ -249,12 +251,9 @@ defmodule TuistWeb.BundlesLive do
     assign(socket, :bundle_size_analytics, bundle_size_analytics)
   end
 
-  defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
-
   defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
   defp bundle_size_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
+  defp bundle_size_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp bundle_size_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
   defp bundle_size_trend_value(last_bundle, previous_bundle) do
@@ -353,6 +352,24 @@ defmodule TuistWeb.BundlesLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "bundle_size_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("bundle-size-date-range", "custom")
+        |> Query.put("bundle-size-start-date", start_date)
+        |> Query.put("bundle-size-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "bundle-size-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/bundles?#{query_params}")}
   end
 
   defp format_bytes(bytes) when is_integer(bytes) do

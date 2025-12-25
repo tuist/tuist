@@ -1,0 +1,1437 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:50+0000\n"
+"PO-Revision-Date: 2025-12-24 20:46+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
+"projects/tuist/dashboard_builds/zh_Hans/>\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/build_run_live.html.heex:674
+#: lib/tuist_web/live/generate_runs_live.html.heex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{hit_rate}%"
+msgstr "%{命中率}%"
+
+#: lib/tuist_web/live/build_run_live.ex:568
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{message} in %{link}"
+msgstr "%{链接}中的%{信息｝"
+
+#: lib/tuist_web/live/builds_live.html.heex:188
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{percentage}%"
+msgstr "%{百分比}%"
+
+#: lib/tuist_web/live/generate_runs_live.html.heex:101
+#: lib/tuist_web/live/run_detail_live.html.heex:158
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{run_duration}s"
+msgstr "%{run_duration}s"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:693
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Additional strings"
+msgstr "附加字符串"
+
+#: lib/tuist_web/live/builds_live.ex:333
+#: lib/tuist_web/live/builds_live.ex:341
+#: lib/tuist_web/live/builds_live.ex:344
+#: lib/tuist_web/live/builds_live.html.heex:15
+#: lib/tuist_web/live/builds_live.html.heex:39
+#: lib/tuist_web/live/builds_live.html.heex:63
+#: lib/tuist_web/live/builds_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "任何"
+
+#: lib/tuist_web/live/build_runs_live.ex:267
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Archive"
+msgstr "档案"
+
+#: lib/tuist_web/live/builds_live.html.heex:361
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average"
+msgstr "平均"
+
+#: lib/tuist_web/live/builds_live.html.heex:221
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. build duration"
+msgstr "平均建设周期"
+
+#: lib/tuist_web/live/build_run_live.html.heex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. latency reading cache keys"
+msgstr "读取缓存键的平均延迟"
+
+#: lib/tuist_web/live/build_run_live.html.heex:896
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. latency writing cache keys"
+msgstr "写入缓存键的平均延迟"
+
+#: lib/tuist_web/live/build_runs_live.ex:253
+#: lib/tuist_web/live/build_runs_live.html.heex:71
+#: lib/tuist_web/live/generate_runs_live.ex:275
+#: lib/tuist_web/live/generate_runs_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "分支机构"
+
+#: lib/tuist_web/live/build_runs_live.ex:265
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build"
+msgstr "建设"
+
+#: lib/tuist_web/live/build_run_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Details"
+msgstr "建设细节"
+
+#: lib/tuist_web/live/build_run_live.ex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Run"
+msgstr "构建运行"
+
+#: lib/tuist_web/live/build_run_live.html.heex:3
+#: lib/tuist_web/live/build_runs_live.ex:23
+#: lib/tuist_web/live/build_runs_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Runs"
+msgstr "构建运行"
+
+#: lib/tuist_web/live/build_run_live.ex:816
+#: lib/tuist_web/live/build_run_live.html.heex:144
+#: lib/tuist_web/live/build_run_live.html.heex:295
+#: lib/tuist_web/live/build_run_live.html.heex:311
+#: lib/tuist_web/live/build_run_live.html.heex:353
+#: lib/tuist_web/live/builds_live.html.heex:707
+#: lib/tuist_web/live/builds_live.html.heex:757
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build duration"
+msgstr "建设周期"
+
+#: lib/tuist_web/live/build_run_live.ex:22
+#: lib/tuist_web/live/build_run_live.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build not found."
+msgstr "未找到构建。"
+
+#: lib/tuist_web/live/builds_live.html.heex:467
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build runs"
+msgstr "构建运行"
+
+#: lib/tuist_web/live/builds_live.html.heex:184
+#: lib/tuist_web/live/builds_live.html.heex:595
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build success rate"
+msgstr "建设成功率"
+
+#: lib/tuist_web/live/builds_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build:"
+msgstr "建设："
+
+#: lib/tuist_web/live/run_detail_live.html.heex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Buildable folders"
+msgstr "可构建文件夹"
+
+#: lib/tuist_web/live/builds_live.ex:20
+#: lib/tuist_web/live/builds_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Builds"
+msgstr "构建"
+
+#: lib/tuist_web/live/build_run_live.html.heex:151
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built at"
+msgstr "建于"
+
+#: lib/tuist_web/live/build_run_live.html.heex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built by"
+msgstr "建造者"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:593
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle ID"
+msgstr "捆绑 ID"
+
+#: lib/tuist_web/live/build_run_live.html.heex:705
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS Outputs"
+msgstr "CAS 输出"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1062
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS output"
+msgstr "CAS 输出"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1175
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs"
+msgstr "CAS 输出"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1411
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs will appear here when using Tuist cache"
+msgstr "使用 Tuist 缓存时，CAS 输出将显示在此处"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs:"
+msgstr "CAS 输出："
+
+#: lib/tuist_web/live/builds_live.ex:335
+#: lib/tuist_web/live/builds_live.html.heex:109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/build_run_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI Run"
+msgstr "CI 运行"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:16
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache Runs"
+msgstr "缓存运行"
+
+#: lib/tuist_web/live/build_run_live.html.heex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache Summary"
+msgstr "缓存摘要"
+
+#: lib/tuist_web/live/build_run_live.html.heex:683
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache downloads"
+msgstr "缓存下载"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:351
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hit rate"
+msgstr "缓存命中率"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:326
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hits"
+msgstr "缓存点击率"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1027
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache key"
+msgstr "缓存键"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:340
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache misses"
+msgstr "缓存丢失"
+
+#: lib/tuist_web/live/build_run_live.html.heex:691
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache uploads"
+msgstr "缓存上传"
+
+#: lib/tuist_web/live/build_run_live.html.heex:700
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable Tasks"
+msgstr "可缓存任务"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:442
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable targets"
+msgstr "可缓存目标"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:392
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable targets:"
+msgstr "可缓存目标："
+
+#: lib/tuist_web/live/build_run_live.html.heex:771
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks"
+msgstr "可缓存任务"
+
+#: lib/tuist_web/live/build_run_live.html.heex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks that were not found in cache."
+msgstr "缓存中找不到的可缓存任务。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:640
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks that were retrieved from cache (local + remote)."
+msgstr "从缓存（本地 + 远程）中获取的可缓存任务。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1101
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks will appear here when using Tuist cache"
+msgstr "使用 Tuist 缓存时，此处将显示可缓存任务"
+
+#: lib/tuist_web/live/build_run_live.html.heex:723
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks:"
+msgstr "可缓存任务："
+
+#: lib/tuist_web/live/build_run_live.html.heex:162
+#: lib/tuist_web/live/build_runs_live.ex:261
+#: lib/tuist_web/live/build_runs_live.html.heex:98
+#: lib/tuist_web/live/builds_live.html.heex:893
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Category"
+msgstr "类别"
+
+#: lib/tuist_web/live/builds_live.html.heex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Clean"
+msgstr "清洁"
+
+#: lib/tuist_web/live/build_run_live.html.heex:101
+#: lib/tuist_web/live/generate_runs_live.ex:254
+#: lib/tuist_web/live/generate_runs_live.html.heex:58
+#: lib/tuist_web/live/run_detail_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command"
+msgstr "命令"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:74
+#: lib/tuist_web/live/run_detail_live.html.heex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit SHA"
+msgstr "承诺 SHA"
+
+#: lib/tuist_web/live/build_run_live.ex:787
+#: lib/tuist_web/live/build_run_live.ex:824
+#: lib/tuist_web/live/build_run_live.html.heex:296
+#: lib/tuist_web/live/build_run_live.html.heex:319
+#: lib/tuist_web/live/build_run_live.html.heex:374
+#: lib/tuist_web/live/build_run_live.html.heex:444
+#: lib/tuist_web/live/build_run_live.html.heex:451
+#: lib/tuist_web/live/build_run_live.html.heex:513
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compilation duration"
+msgstr "编译时间"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1281
+#: lib/tuist_web/live/build_run_live.html.heex:1282
+#: lib/tuist_web/live/build_run_live.html.heex:1308
+#: lib/tuist_web/live/build_run_live.html.heex:1376
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compressed Size"
+msgstr "压缩尺寸"
+
+#: lib/tuist_web/live/build_run_live.ex:1120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compressed Size (MB)"
+msgstr "压缩大小（MB）"
+
+#: lib/tuist_web/live/build_run_live.html.heex:116
+#: lib/tuist_web/live/build_runs_live.ex:230
+#: lib/tuist_web/live/build_runs_live.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration"
+msgstr "配置"
+
+#: lib/tuist_web/live/builds_live.html.heex:616
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration Insights"
+msgstr "配置透视"
+
+#: lib/tuist_web/live/builds_live.html.heex:35
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration:"
+msgstr "配置："
+
+#: lib/tuist_web/live/build_run_live.html.heex:1080
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy"
+msgstr "复制"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:372
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy as JSON"
+msgstr "复制为 JSON"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy files"
+msgstr "复制文件"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:629
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Core data models"
+msgstr "核心数据模型"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:669
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dependencies"
+msgstr "依赖"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Deployment target"
+msgstr "部署目标"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Destinations"
+msgstr "目的地"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:124
+#: lib/tuist_web/live/builds_live.ex:339
+#: lib/tuist_web/live/builds_live.html.heex:636
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Device"
+msgstr "设备"
+
+#: lib/tuist_web/live/build_run_live.ex:1093
+#: lib/tuist_web/live/build_run_live.html.heex:1188
+#: lib/tuist_web/live/build_run_live.html.heex:1345
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download"
+msgstr "下载"
+
+#: lib/tuist_web/live/build_run_live.html.heex:50
+#: lib/tuist_web/live/run_detail_live.html.heex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download result"
+msgstr "下载结果"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1229
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download throughput"
+msgstr "下载吞吐量"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:13
+#: lib/tuist_web/live/build_runs_live.html.heex:21
+#: lib/tuist_web/live/build_runs_live.html.heex:82
+#: lib/tuist_web/live/builds_live.html.heex:885
+#: lib/tuist_web/live/generate_runs_live.html.heex:13
+#: lib/tuist_web/live/generate_runs_live.html.heex:21
+#: lib/tuist_web/live/generate_runs_live.html.heex:92
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "持续时间"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:663
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Entitlements"
+msgstr "应享权利"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:641
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment"
+msgstr "环境"
+
+#: lib/tuist_web/live/builds_live.html.heex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "环境"
+
+#: lib/tuist_web/live/build_run_live.html.heex:86
+#: lib/tuist_web/live/build_run_live.html.heex:208
+#: lib/tuist_web/live/build_run_live.html.heex:592
+#: lib/tuist_web/live/build_run_live.html.heex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Errors"
+msgstr "错误"
+
+#: lib/tuist_web/live/build_run_live.html.heex:198
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Errors and Warnings"
+msgstr "错误和警告"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:608
+#, elixir-autogen, elixir-format, fuzzy
+msgid "External"
+msgstr "外部"
+
+#: lib/tuist_web/live/build_run_live.ex:853
+#: lib/tuist_web/live/build_run_live.html.heex:133
+#: lib/tuist_web/live/build_run_live.html.heex:397
+#: lib/tuist_web/live/build_runs_live.ex:245
+#: lib/tuist_web/live/build_runs_live.html.heex:68
+#: lib/tuist_web/live/builds_live.html.heex:876
+#: lib/tuist_web/live/generate_runs_live.ex:267
+#: lib/tuist_web/live/generate_runs_live.html.heex:81
+#: lib/tuist_web/live/run_detail_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "失败"
+
+#: lib/tuist_web/live/builds_live.html.heex:201
+#: lib/tuist_web/live/builds_live.html.heex:531
+#: lib/tuist_web/live/builds_live.html.heex:802
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed builds"
+msgstr "失败的构建"
+
+#: lib/tuist_web/live/build_run_live.ex:584
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling C file %{path}"
+msgstr "编译 C 文件 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:587
+#: lib/tuist_web/live/build_run_live.ex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling Swift file %{path}"
+msgstr "编译 Swift 文件 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:620
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling XIB file %{path}"
+msgstr "编译 XIB 文件 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:602
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling assets catalog %{path}"
+msgstr "编译资产目录 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:605
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling storyboard %{path}"
+msgstr "编译故事板 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed copying Swift libraries %{path}"
+msgstr "复制 Swift 库 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:614
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed copying resource file %{path}"
+msgstr "复制资源文件 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:593
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed creating static library %{path}"
+msgstr "创建静态库 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:590
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed executing script %{script_name}"
+msgstr "执行脚本 %{script_name} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:596
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed linking %{path}"
+msgstr "链接 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:611
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed linking storyboards %{path}"
+msgstr "链接故事板失败 %{path}"
+
+#: lib/tuist_web/live/build_run_live.ex:617
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed merging Swift module %{path}"
+msgstr "合并 Swift 模块失败 %{path}"
+
+#: lib/tuist_web/live/build_run_live.ex:626
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed precompiling bridging header %{path}"
+msgstr "预编译桥接头 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:638
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed processing %{path}"
+msgstr "处理 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed validating %{path}"
+msgstr "验证 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:629
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed validating embedded binary %{path}"
+msgstr "验证嵌入式二进制 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.ex:608
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed writing auxiliary file %{path}"
+msgstr "写入辅助文件 %{path} 失败"
+
+#: lib/tuist_web/live/build_run_live.html.heex:443
+#: lib/tuist_web/live/build_run_live.html.heex:459
+#: lib/tuist_web/live/build_run_live.html.heex:479
+#, elixir-autogen, elixir-format, fuzzy
+msgid "File"
+msgstr "文件"
+
+#: lib/tuist_web/live/build_run_live.html.heex:266
+#: lib/tuist_web/live/build_run_live.html.heex:422
+#, elixir-autogen, elixir-format, fuzzy
+msgid "File Breakdown"
+msgstr "文件分类"
+
+#: lib/tuist_web/live/build_run_live.html.heex:328
+#: lib/tuist_web/live/build_run_live.html.heex:468
+#: lib/tuist_web/live/build_run_live.html.heex:963
+#: lib/tuist_web/live/build_run_live.html.heex:1314
+#: lib/tuist_web/live/build_runs_live.html.heex:38
+#: lib/tuist_web/live/generate_runs_live.html.heex:38
+#: lib/tuist_web/live/run_detail_live.html.heex:521
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "过滤器"
+
+#: lib/tuist_web/live/generate_runs_live.ex:19
+#: lib/tuist_web/live/generate_runs_live.html.heex:3
+#: lib/tuist_web/live/run_detail_live.html.heex:30
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generate Runs"
+msgstr "生成运行"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:292
+#: lib/tuist_web/live/run_detail_live.html.heex:574
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hash"
+msgstr "散列"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:646
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Headers"
+msgstr "页眉"
+
+#: lib/tuist_web/live/build_run_live.ex:1068
+#: lib/tuist_web/live/build_run_live.html.heex:1000
+#: lib/tuist_web/live/run_detail_live.ex:357
+#: lib/tuist_web/live/run_detail_live.html.heex:270
+#: lib/tuist_web/live/run_detail_live.html.heex:552
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit"
+msgstr "点击"
+
+#: lib/tuist_web/live/build_run_live.html.heex:660
+#: lib/tuist_web/live/generate_runs_live.ex:283
+#: lib/tuist_web/live/generate_runs_live.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit rate"
+msgstr "命中率"
+
+#: lib/tuist_web/live/builds_live.html.heex:71
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Incremental"
+msgstr "递增"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Info.plist"
+msgstr "Info.plist"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1279
+#: lib/tuist_web/live/build_run_live.html.heex:1292
+#: lib/tuist_web/live/build_run_live.html.heex:1329
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Key"
+msgstr "钥匙"
+
+#: lib/tuist_web/live/build_run_live.ex:1072
+#: lib/tuist_web/live/build_run_live.html.heex:788
+#: lib/tuist_web/live/build_run_live.html.heex:1004
+#: lib/tuist_web/live/builds_live.ex:334
+#: lib/tuist_web/live/builds_live.html.heex:101
+#: lib/tuist_web/live/run_detail_live.ex:362
+#: lib/tuist_web/live/run_detail_live.html.heex:280
+#: lib/tuist_web/live/run_detail_live.html.heex:456
+#: lib/tuist_web/live/run_detail_live.html.heex:562
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "当地"
+
+#: lib/tuist_web/live/build_run_live.html.heex:584
+#: lib/tuist_web/live/build_run_live.html.heex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Looks like you're having a great day!"
+msgstr "看来你今天过得不错！"
+
+#: lib/tuist_web/live/build_run_live.html.heex:109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mac device"
+msgstr "Mac 设备"
+
+#: lib/tuist_web/live/build_run_live.ex:1074
+#: lib/tuist_web/live/build_run_live.html.heex:816
+#: lib/tuist_web/live/build_run_live.html.heex:1016
+#: lib/tuist_web/live/run_detail_live.ex:363
+#: lib/tuist_web/live/run_detail_live.html.heex:286
+#: lib/tuist_web/live/run_detail_live.html.heex:484
+#: lib/tuist_web/live/run_detail_live.html.heex:568
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Missed"
+msgstr "错过"
+
+#: lib/tuist_web/live/build_run_live.html.heex:294
+#: lib/tuist_web/live/build_run_live.html.heex:303
+#: lib/tuist_web/live/build_run_live.html.heex:339
+#: lib/tuist_web/live/run_detail_live.html.heex:256
+#: lib/tuist_web/live/run_detail_live.html.heex:538
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module"
+msgstr "模块"
+
+#: lib/tuist_web/live/build_run_live.html.heex:261
+#: lib/tuist_web/live/build_run_live.html.heex:273
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Breakdown"
+msgstr "模块细目"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:86
+#: lib/tuist_web/live/run_detail_live.html.heex:364
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Cache"
+msgstr "模块缓存"
+
+#: lib/tuist_web/live/build_run_live.ex:832
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "名称"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1409
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No CAS outputs found"
+msgstr "未找到 CAS 输出"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1099
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No cacheable tasks found"
+msgstr "未找到可缓存任务"
+
+#: lib/tuist_web/live/build_run_live.html.heex:890
+#: lib/tuist_web/live/build_run_live.html.heex:946
+#: lib/tuist_web/live/build_run_live.html.heex:1243
+#: lib/tuist_web/live/build_run_live.html.heex:1260
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data"
+msgstr "无数据"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:142
+#: lib/tuist_web/live/builds_live.html.heex:607
+#: lib/tuist_web/live/builds_live.html.heex:770
+#: lib/tuist_web/live/builds_live.html.heex:909
+#: lib/tuist_web/live/generate_runs_live.html.heex:131
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "尚无数据"
+
+#: lib/tuist_web/live/build_run_live.html.heex:621
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No errors detected"
+msgstr "未检测到错误"
+
+#: lib/tuist_web/live/build_run_live.html.heex:535
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No files found"
+msgstr "未找到文件"
+
+#: lib/tuist_web/live/build_run_live.html.heex:403
+#: lib/tuist_web/live/run_detail_live.html.heex:300
+#: lib/tuist_web/live/run_detail_live.html.heex:704
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No modules found"
+msgstr "未找到模块"
+
+#: lib/tuist_web/live/build_run_live.html.heex:582
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No warnings detected"
+msgstr "未检测到警告"
+
+#: lib/tuist_web/live/build_run_live.html.heex:176
+#: lib/tuist_web/live/run_detail_live.html.heex:145
+#: lib/tuist_web/live/run_detail_live.html.heex:151
+#, elixir-autogen, elixir-format, fuzzy
+msgid "None"
+msgstr "无"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Optimization Summary"
+msgstr "优化总结"
+
+#: lib/tuist_web/live/build_run_live.html.heex:70
+#: lib/tuist_web/live/run_detail_live.html.heex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "概述"
+
+#: lib/tuist_web/live/build_run_live.ex:852
+#: lib/tuist_web/live/build_run_live.html.heex:127
+#: lib/tuist_web/live/build_run_live.html.heex:395
+#: lib/tuist_web/live/build_runs_live.ex:244
+#: lib/tuist_web/live/build_runs_live.html.heex:66
+#: lib/tuist_web/live/builds_live.html.heex:874
+#: lib/tuist_web/live/generate_runs_live.ex:266
+#: lib/tuist_web/live/generate_runs_live.html.heex:79
+#: lib/tuist_web/live/run_detail_live.html.heex:115
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed"
+msgstr "通过"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:353
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Percentage of modules that were successfully retrieved from the cache."
+msgstr "从缓存中成功检索模块的百分比。"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:582
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Product"
+msgstr "产品"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:587
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Product name"
+msgstr "产品名称"
+
+#: lib/tuist_web/live/build_run_live.ex:803
+#: lib/tuist_web/live/build_run_live.ex:840
+#: lib/tuist_web/live/build_run_live.html.heex:508
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project"
+msgstr "项目"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project settings"
+msgstr "项目设置"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:14
+#: lib/tuist_web/live/build_runs_live.html.heex:29
+#: lib/tuist_web/live/build_runs_live.html.heex:109
+#: lib/tuist_web/live/builds_live.html.heex:902
+#: lib/tuist_web/live/generate_runs_live.html.heex:14
+#: lib/tuist_web/live/generate_runs_live.html.heex:29
+#: lib/tuist_web/live/generate_runs_live.html.heex:111
+#: lib/tuist_web/live/run_detail_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "在"
+
+#: lib/tuist_web/live/build_runs_live.ex:299
+#: lib/tuist_web/live/build_runs_live.html.heex:77
+#: lib/tuist_web/live/builds_live.html.heex:882
+#: lib/tuist_web/live/generate_runs_live.ex:299
+#: lib/tuist_web/live/generate_runs_live.html.heex:87
+#: lib/tuist_web/live/run_detail_live.html.heex:130
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "由"
+
+#: lib/tuist_web/live/builds_live.html.heex:780
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent Builds"
+msgstr "近期建设"
+
+#: lib/tuist_web/live/build_run_live.ex:1073
+#: lib/tuist_web/live/build_run_live.html.heex:802
+#: lib/tuist_web/live/build_run_live.html.heex:1010
+#: lib/tuist_web/live/run_detail_live.ex:361
+#: lib/tuist_web/live/run_detail_live.html.heex:274
+#: lib/tuist_web/live/run_detail_live.html.heex:470
+#: lib/tuist_web/live/run_detail_live.html.heex:556
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote"
+msgstr "远程"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:617
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Resources"
+msgstr "资源"
+
+#: lib/tuist_web/live/run_detail_live.ex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run"
+msgstr "运行"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:155
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run duration"
+msgstr "运行时间"
+
+#: lib/tuist_web/live/build_runs_live.ex:222
+#: lib/tuist_web/live/build_runs_live.html.heex:58
+#: lib/tuist_web/live/builds_live.html.heex:867
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme"
+msgstr "计划"
+
+#: lib/tuist_web/live/builds_live.html.heex:11
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme:"
+msgstr "计划："
+
+#: lib/tuist_web/live/build_run_live.html.heex:284
+#: lib/tuist_web/live/build_run_live.html.heex:433
+#: lib/tuist_web/live/build_run_live.html.heex:955
+#: lib/tuist_web/live/build_run_live.html.heex:1269
+#: lib/tuist_web/live/run_detail_live.html.heex:247
+#: lib/tuist_web/live/run_detail_live.html.heex:513
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "搜索..."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:237
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective Testing"
+msgstr "选择性测试"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits"
+msgstr "选择性测试命中"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:212
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr "选择性测试命中率表示由于选择性测试而跳过的测试模块数量。"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:224
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses"
+msgstr "选择性漏测"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:226
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr "选择性测试缺失表示因之前未成功运行而运行的测试模块数量。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1280
+#: lib/tuist_web/live/build_run_live.html.heex:1300
+#: lib/tuist_web/live/build_run_live.html.heex:1362
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Size"
+msgstr "尺寸"
+
+#: lib/tuist_web/live/build_run_live.ex:1112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Size (MB)"
+msgstr "大小（MB）"
+
+#: lib/tuist_web/live/build_run_live.html.heex:299
+#: lib/tuist_web/live/build_run_live.html.heex:447
+#: lib/tuist_web/live/build_run_live.html.heex:1285
+#: lib/tuist_web/live/build_runs_live.html.heex:17
+#: lib/tuist_web/live/generate_runs_live.html.heex:17
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sort by:"
+msgstr "排序方式"
+
+#: lib/tuist_web/live/build_run_live.html.heex:173
+#: lib/tuist_web/live/run_detail_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Source"
+msgstr "源代码"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:612
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sources"
+msgstr "源代码"
+
+#: lib/tuist_web/live/build_run_live.ex:848
+#: lib/tuist_web/live/build_run_live.ex:1089
+#: lib/tuist_web/live/build_run_live.html.heex:124
+#: lib/tuist_web/live/build_run_live.html.heex:1341
+#: lib/tuist_web/live/build_runs_live.ex:240
+#: lib/tuist_web/live/generate_runs_live.ex:262
+#: lib/tuist_web/live/run_detail_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "Status"
+
+#: lib/tuist_web/live/builds_live.html.heex:797
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Successful builds"
+msgstr "成功建造"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:320
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Summary"
+msgstr "摘要"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:173
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Swift version"
+msgstr "Swift 版本"
+
+#: lib/tuist_web/live/build_run_live.ex:795
+#: lib/tuist_web/live/build_run_live.html.heex:505
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target"
+msgstr "目标"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:635
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target scripts"
+msgstr "目标脚本"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:681
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target settings"
+msgstr "目标设置"
+
+#: lib/tuist_web/live/build_run_live.html.heex:988
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task"
+msgstr "任务"
+
+#: lib/tuist_web/live/build_run_live.html.heex:638
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task hits"
+msgstr "任务命中率"
+
+#: lib/tuist_web/live/build_run_live.html.heex:649
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task misses"
+msgstr "任务遗漏"
+
+#: lib/tuist_web/live/build_runs_live.ex:266
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test"
+msgstr "测试"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Details"
+msgstr "测试详情"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Optimizations"
+msgstr "测试优化"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:4
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "测试运行"
+
+#: lib/tuist_web/live/build_run_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test: %{scheme}"
+msgstr "测试：%{scheme｝"
+
+#: lib/tuist_web/live/builds_live.html.heex:233
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The average build duration with individual percentile intervals."
+msgstr "平均建造时间与各百分位数间隔。"
+
+#: lib/tuist_web/live/builds_live.html.heex:203
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The number of builds that failed."
+msgstr "失败的构建次数。"
+
+#: lib/tuist_web/live/builds_live.html.heex:186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The percentage of builds that succeeded."
+msgstr "成功构建的百分比。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:662
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
+msgstr "可缓存任务中缓存命中的百分比（本地 + 远程）。"
+
+#: lib/tuist_web/live/builds_live.html.heex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The total number of builds."
+msgstr "构建总数。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:847
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
+msgstr "从缓存中读取缓存键的时间，缓存键唯一标识可缓存任务。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:903
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
+msgstr "将唯一标识可缓存任务的缓存键写入缓存的时间。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1231
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time-weighted average download throughput in megabits per second."
+msgstr "时间加权平均下载吞吐量，单位为兆比特/秒。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1248
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time-weighted average upload throughput in megabits per second."
+msgstr "时间加权平均上传吞吐量，单位为兆比特/秒。"
+
+#: lib/tuist_web/live/builds_live.html.heex:170
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total builds"
+msgstr "建设总数"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:199
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules"
+msgstr "模块总数"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:201
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules represents the total number of testable modules."
+msgstr "模块总数表示可测试模块的总数。"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules taken from either the local or the remote cache."
+msgstr "从本地或远程缓存中提取的模块总数。"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:342
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules that could have been taken from the cache if it was fully populated."
+msgstr "如果缓存已全部装满，可从缓存中取出的模块总数。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:685
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total size of cache artifacts downloaded."
+msgstr "下载的缓存工件的总大小。"
+
+#: lib/tuist_web/live/build_run_live.html.heex:692
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total size of cache artifacts uploaded."
+msgstr "上传的缓存工件的总大小。"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:301
+#: lib/tuist_web/live/run_detail_live.html.heex:705
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "尝试更改搜索词"
+
+#: lib/tuist_web/live/build_run_live.html.heex:404
+#: lib/tuist_web/live/build_run_live.html.heex:536
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try updating your search"
+msgstr "尝试更新您的搜索"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist version"
+msgstr "Tuist 版本"
+
+#: lib/tuist_web/live/build_run_live.ex:1055
+#: lib/tuist_web/live/build_run_live.ex:1102
+#: lib/tuist_web/live/build_run_live.html.heex:491
+#: lib/tuist_web/live/build_run_live.html.heex:1022
+#: lib/tuist_web/live/build_run_live.html.heex:1357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Type"
+msgstr "类型"
+
+#: lib/tuist_web/live/builds_live.html.heex:624
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Type:"
+msgstr "类型"
+
+#: lib/tuist_web/live/build_run_live.html.heex:35
+#: lib/tuist_web/live/build_run_live.html.heex:118
+#: lib/tuist_web/live/build_run_live.html.heex:166
+#: lib/tuist_web/live/build_run_live.html.heex:998
+#: lib/tuist_web/live/build_runs_live.html.heex:62
+#: lib/tuist_web/live/build_runs_live.html.heex:102
+#: lib/tuist_web/live/build_runs_live.html.heex:119
+#: lib/tuist_web/live/build_runs_live.html.heex:122
+#: lib/tuist_web/live/build_runs_live.html.heex:127
+#: lib/tuist_web/live/builds_live.ex:352
+#: lib/tuist_web/live/builds_live.html.heex:869
+#: lib/tuist_web/live/builds_live.html.heex:880
+#: lib/tuist_web/live/builds_live.html.heex:897
+#: lib/tuist_web/live/run_detail_live.html.heex:294
+#: lib/tuist_web/live/run_detail_live.html.heex:576
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "未知"
+
+#: lib/tuist_web/live/build_run_live.html.heex:26
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown scheme"
+msgstr "不明计划"
+
+#: lib/tuist_web/live/build_run_live.ex:1094
+#: lib/tuist_web/live/build_run_live.html.heex:1205
+#: lib/tuist_web/live/build_run_live.html.heex:1351
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upload"
+msgstr "上传"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1246
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upload throughput"
+msgstr "上传吞吐量"
+
+#: lib/tuist_web/live/build_run_live.html.heex:243
+#: lib/tuist_web/live/builds_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "查看更多"
+
+#: lib/tuist_web/live/build_run_live.ex:642
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling C file %{path}"
+msgstr "编译 C 文件 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:645
+#: lib/tuist_web/live/build_run_live.ex:681
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling Swift file %{path}"
+msgstr "编译 Swift 文件 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:678
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling XIB file %{path}"
+msgstr "编译 XIB 文件 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:660
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling assets catalog %{path}"
+msgstr "编译资产目录 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:663
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling storyboard %{path}"
+msgstr "编译故事板 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when copying Swift libraries %{path}"
+msgstr "复制 Swift 库时出现警告 %{path}"
+
+#: lib/tuist_web/live/build_run_live.ex:672
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when copying resource file %{path}"
+msgstr "复制资源文件 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when creating static library %{path}"
+msgstr "创建静态库 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:648
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when executing script %{script_name}"
+msgstr "执行脚本 %{script_name} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:654
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when linking %{path}"
+msgstr "链接 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:669
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when linking storyboards %{path}"
+msgstr "链接故事板时出现警告 %{path}"
+
+#: lib/tuist_web/live/build_run_live.ex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when merging Swift module %{path}"
+msgstr "合并 Swift 模块时出现警告 %{path}"
+
+#: lib/tuist_web/live/build_run_live.ex:684
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when precompiling bridging header %{path}"
+msgstr "预编译桥接头 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:696
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when processing %{path}"
+msgstr "处理 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:690
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when validating %{path}"
+msgstr "验证 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when validating embedded binary %{path}"
+msgstr "验证嵌入式二进制 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.ex:666
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when writing auxiliary file %{path}"
+msgstr "写入辅助文件 %{path} 时出现警告"
+
+#: lib/tuist_web/live/build_run_live.html.heex:81
+#: lib/tuist_web/live/build_run_live.html.heex:233
+#: lib/tuist_web/live/build_run_live.html.heex:555
+#: lib/tuist_web/live/build_run_live.html.heex:562
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warnings"
+msgstr "警告"
+
+#: lib/tuist_web/live/build_run_live.html.heex:76
+#: lib/tuist_web/live/build_run_live.html.heex:712
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Xcode Cache"
+msgstr "Xcode 缓存"
+
+#: lib/tuist_web/live/build_run_live.html.heex:180
+#: lib/tuist_web/live/build_runs_live.ex:275
+#: lib/tuist_web/live/build_runs_live.html.heex:118
+#: lib/tuist_web/live/builds_live.ex:337
+#: lib/tuist_web/live/builds_live.html.heex:628
+#: lib/tuist_web/live/builds_live.html.heex:879
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Xcode version"
+msgstr "Xcode 版本"
+
+#: lib/tuist_web/live/build_run_live.html.heex:186
+#: lib/tuist_web/live/build_runs_live.ex:283
+#: lib/tuist_web/live/build_runs_live.html.heex:121
+#: lib/tuist_web/live/builds_live.ex:338
+#: lib/tuist_web/live/builds_live.html.heex:644
+#: lib/tuist_web/live/run_detail_live.html.heex:180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "macOS version"
+msgstr "macOS 版本"
+
+#: lib/tuist_web/live/builds_live.html.heex:403
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/builds_live.html.heex:220
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 build duration"
+msgstr "P50 的建造时间"
+
+#: lib/tuist_web/live/build_run_live.html.heex:843
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 latency reading cache keys"
+msgstr "p50 读取缓存键的延迟"
+
+#: lib/tuist_web/live/build_run_live.html.heex:899
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 latency writing cache keys"
+msgstr "p50 写入缓存键的延迟"
+
+#: lib/tuist_web/live/builds_live.html.heex:389
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/builds_live.html.heex:219
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 build duration"
+msgstr "P90 的建造时间"
+
+#: lib/tuist_web/live/build_run_live.html.heex:842
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 latency reading cache keys"
+msgstr "p90 读取缓存键的延迟"
+
+#: lib/tuist_web/live/build_run_live.html.heex:898
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 latency writing cache keys"
+msgstr "p90 写入缓存键的延迟"
+
+#: lib/tuist_web/live/builds_live.html.heex:375
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/builds_live.html.heex:218
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 build duration"
+msgstr "p99 构建持续时间"
+
+#: lib/tuist_web/live/build_run_live.html.heex:841
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 latency reading cache keys"
+msgstr "p99 读取缓存键的延迟"
+
+#: lib/tuist_web/live/build_run_live.html.heex:897
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 latency writing cache keys"
+msgstr "p99 写入缓存键的延迟"
+
+#: lib/tuist_web/live/builds_live.ex:331
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "自上个月以来"
+
+#: lib/tuist_web/live/builds_live.ex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "上周以来"
+
+#: lib/tuist_web/live/builds_live.ex:329
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "去年以来"
+
+#: lib/tuist_web/live/build_run_live.html.heex:211
+#: lib/tuist_web/live/build_run_live.html.heex:236
+#: lib/tuist_web/live/build_run_live.html.heex:565
+#: lib/tuist_web/live/build_run_live.html.heex:602
+#, elixir-autogen, elixir-format, fuzzy
+msgid "•"
+msgstr "-"
+
+#: lib/tuist_web/live/builds_live.html.heex:158
+#: lib/tuist_web/live/builds_live.html.heex:693
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "申请"
+
+#: lib/tuist_web/live/builds_live.html.heex:149
+#: lib/tuist_web/live/builds_live.html.heex:684
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "Cancel"
+
+#: lib/tuist_web/live/builds_live.html.heex:140
+#: lib/tuist_web/live/builds_live.html.heex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "定制"
+
+#: lib/tuist_web/live/builds_live.html.heex:137
+#: lib/tuist_web/live/builds_live.html.heex:672
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "过去 12 个月"
+
+#: lib/tuist_web/live/builds_live.html.heex:122
+#: lib/tuist_web/live/builds_live.html.heex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "过去 24 小时"
+
+#: lib/tuist_web/live/builds_live.html.heex:132
+#: lib/tuist_web/live/builds_live.html.heex:667
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+#: lib/tuist_web/live/builds_live.html.heex:127
+#: lib/tuist_web/live/builds_live.html.heex:662
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+#: lib/tuist_web/live/builds_live.ex:330
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "自上期以来"
+
+#: lib/tuist_web/live/builds_live.ex:327
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "自昨"

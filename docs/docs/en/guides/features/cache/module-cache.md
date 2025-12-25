@@ -136,7 +136,7 @@ The following are some examples of common workflows:
 
 ### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `tuist build` or `tuist test` to build or test the project.
+1. The CI pipeline will run `xcodebuild build` or `tuist test` to build or test the project.
 2. The workflow will pull the most recent binaries from `main` and generate the project with them.
 3. It will then build or test the project incrementally.
 

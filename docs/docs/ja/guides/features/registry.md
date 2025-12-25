@@ -39,7 +39,7 @@ tuist registry login
 <!-- -->
 :::
 
-### 依存関係の解決{#resolving-dependencies}
+### 依存関係の解決{#resolving-dependencies}。
 
 ソース・コントロールからではなくレジストリから依存関係を解決するには、プロジェクトのセットアップに基づいて読み進めてください：
 - <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>

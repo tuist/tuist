@@ -9,7 +9,7 @@
 
 Tuistのユーザーとして、バグや予期せぬ動作に出くわすことがあるかもしれません。そのような場合は、ぜひご報告ください。
 
-## GitHub issuesは私たちのチケット発券プラットフォームです{#github-issues-is-our-ticketing-platform}
+## GitHub issuesは私たちのチケット管理プラットフォームです。{#github-issues-is-our-ticketing-platform}
 
 課題はSlackや他のプラットフォームではなく、[GitHub
 issues](https://github.com/tuist/tuist/issues)としてGitHubで報告してください。GitHub
@@ -29,17 +29,17 @@ issues](https://github.com/tuist/tuist/issues)としてGitHubで報告してく�
 
 ## 再現可能なプロジェクト{#reproducible-project}
 
-### 再現可能なプロジェクトとは何か？{再現可能なプロジェクトとは何か？｝
+### 再現可能なプロジェクトとは何か？{#what-is-a-reproducible-project}
 
 再現可能なプロジェクトとは、ある問題を実証するための小さなTuistプロジェクトのことで、多くの場合この問題はTuistのバグによって引き起こされます。再現可能なプロジェクトは、バグを明確に示すために必要な最低限の機能を含んでいなければなりません。
 
-### なぜ再現可能なテストケースを作成すべきなのか？{#why-should-you-create-a-reproducible-test-case} 再現可能なテストケースを作るべき理由とは？
+### なぜ再現可能なテストケースを作成する必要があるのでしょうか？{#why-should-you-create-a-reproducible-test-case}
 
 再現可能なプロジェクトがあれば、問題の原因を切り分けることができ、それが問題解決への第一歩となります！バグレポートの最も重要な部分は、バグを再現するために必要な正確な手順を記述することです。
 
 再現可能なプロジェクトは、バグの原因となる特定の環境を共有するのに最適な方法です。あなたの再現可能なプロジェクトは、あなたを助けたい人々を助ける最良の方法です。
 
-### 再現可能なプロジェクトを作成する手順{#steps-to-create-a-reproducible-project}
+### 再現可能なプロジェクトの作成手順{#steps-to-create-a-reproducible-project}
 
 - 新しいgitリポジトリを作成する。
 - リポジトリ・ディレクトリの`tuist init` を使ってプロジェクトを初期化する。

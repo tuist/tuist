@@ -26,7 +26,6 @@ permissions:
   contents: read
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
@@ -106,6 +105,9 @@ jobs:
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
+      - name: Update CFBundleVersion
+        run: |
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
@@ -176,6 +178,8 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -200,6 +204,9 @@ jobs:
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
+      - name: Update CFBundleVersion
+        run: |
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

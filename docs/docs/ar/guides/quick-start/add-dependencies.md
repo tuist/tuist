@@ -5,7 +5,7 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# إضافة تبعيات {#add-dependencies}
+# إضافة التبعيات {#add-dependencies}
 
 من الشائع أن تعتمد المشاريع على مكتبات الطرف الثالث لتوفير وظائف إضافية. للقيام
 بذلك، قم بتشغيل الأمر التالي للحصول على أفضل تجربة لتحرير مشروعك:
@@ -86,7 +86,7 @@ let project = Project(
 ثم قم بتشغيل `tuist install` لحل وسحب التبعيات باستخدام [Swift Package Manager]
 (https://www.swift.org/documentation/package-manager/).
 
-::: info SPM كمحلل اعتماد
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 النهج الموصى به من تويست للتبعيات يستخدم مدير حزم سويفت (SPM) فقط لحل التبعيات.
 ثم يقوم تويست بتحويلها إلى مشاريع وأهداف Xcode لتحقيق أقصى قدر من التهيئة
@@ -94,7 +94,7 @@ let project = Project(
 <!-- -->
 :::
 
-## تصوّر المشروع {#visualize-the-project}
+## تصور المشروع {#visualize-the-project}
 
 يمكنك تصور بنية المشروع من خلال تشغيل:
 
@@ -106,7 +106,7 @@ tuist graph
 
 ![الرسم البياني للمشروع] (/images/guides/quick-start/graph.png)
 
-## استخدم التبعية {#use-the-dependency}
+## استخدام التبعية {#use-the-dependency}
 
 قم بتشغيل `tuist توليد` لفتح المشروع في Xcode، وقم بإجراء التغييرات التالية على
 ملف `ContentView.swift.swift`

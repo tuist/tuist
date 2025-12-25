@@ -7,7 +7,7 @@
 ---
 # ضمان الجودة {#qa}
 
-::: warning عرض تمهيدي مبكر
+::: warning EARLY PREVIEW
 <!-- -->
 تويست QA حاليًا في مرحلة المعاينة المبكرة. سجّل في [tuist.dev.dev/qa]
 (https://tuist.dev/qa) للحصول على إمكانية الوصول.
@@ -29,10 +29,8 @@
 ## المتطلبات الأساسية {#prerequisites}
 
 لبدء استخدام ضمان الجودة من تويست، تحتاج إلى
-- قم بإعداد تحميل <LocalizedLink href="/guides/features/previews">مراجعات </LocalizedLink> من سير عمل العلاقات العامة CI، والتي يمكن للوكيل استخدامها
-  بعد ذلك للاختبار
-- <LocalizedLink href="/guides/integrations/gitforge/github">دمج</LocalizedLink>
-  مع GitHub، حتى تتمكن من تشغيل الوكيل مباشرةً من علاقاتك العامة
+- قم بإعداد تحميل <LocalizedLink href="/guides/features/previews">مراجعات</LocalizedLink> من سير عمل العلاقات العامة CI، والتي يمكن للوكيل استخدامها بعد ذلك للاختبار
+- <LocalizedLink href="/guides/integrations/gitforge/github">دمج</LocalizedLink> مع GitHub، حتى تتمكن من تشغيل الوكيل مباشرةً من علاقاتك العامة
 
 ## الاستخدام {#usage}
 
@@ -54,9 +52,7 @@
 
 ![جدول زمني لضمان الجودة] (/images/guides/features/qa/qa-timeline.png)
 
-يمكنك الاطلاع على جميع عمليات ضمان الجودة التي نقوم بها لتطبيق
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink>
-الخاص بنا في لوحة التحكم العامة لدينا: https://tuist.dev/tuist/tuist/qa
+يمكنك الاطلاع على جميع عمليات ضمان الجودة التي نقوم بها لتطبيق <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink> الخاص بنا في لوحة التحكم العامة لدينا: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
@@ -91,13 +87,13 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### بيانات الاعتماد {#credentials}
+#### أوراق الاعتماد {#credentials}
 
 في حال احتاج الوكيل إلى تسجيل الدخول إلى التطبيق لاختبار بعض الميزات، يمكنك
 توفير بيانات اعتماد للوكيل لاستخدامها. سيقوم الوكيل بملء بيانات الاعتماد هذه إذا
 أدرك أنه بحاجة إلى تسجيل الدخول.
 
-#### مجموعات حجج الإطلاق {#launch-argument-groups}
+#### إطلاق مجموعات الحجج {#launch-argument-groups}
 
 يتم تحديد مجموعات وسيطة التشغيل بناءً على مطالبة الاختبار الخاصة بك قبل تشغيل
 الوكيل. على سبيل المثال، إذا كنت لا تريد أن يقوم الوكيل بتسجيل الدخول بشكل

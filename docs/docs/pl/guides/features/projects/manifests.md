@@ -46,7 +46,7 @@ let project = Project(
 ```
 
 
-::: warning ROOT VARIABLES
+::: ostrzeżenie ROOT VARIABLES
 <!-- -->
 Jedyną zmienną, która powinna znajdować się w katalogu głównym manifestu jest
 `let project = Project(...)`. Jeśli chcesz ponownie użyć kodu w różnych

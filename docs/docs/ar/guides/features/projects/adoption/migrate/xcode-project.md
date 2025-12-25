@@ -7,7 +7,8 @@
 ---
 # ترحيل مشروع Xcode {#migrate-an-xcode-project}
 
-ما لم تقم <LocalizedLink href="/guides/features/projects/adoption/new-project"> بإنشاء مشروع جديد باستخدام تويست </LocalizedLink>، وفي هذه الحالة ستحصل على كل
+ما لم تقم <LocalizedLink href="/guides/features/projects/adoption/new-project">
+بإنشاء مشروع جديد باستخدام تويست </LocalizedLink>، وفي هذه الحالة ستحصل على كل
 شيء مهيأ تلقائيًا، سيكون عليك تحديد مشاريع Xcode الخاصة بك باستخدام أساسيات
 تويست. يعتمد مدى ملل هذه العملية على مدى تعقيد مشاريعك.
 
@@ -24,11 +25,11 @@
 بهدف تسهيل هذا العمل، نقدم لك بعض الإرشادات بناءً على الملاحظات التي تلقيناها من
 المستخدمين.
 
-## إنشاء سقالة مشروع {#create-project-scaffold}
+## إنشاء سقالة المشروع {#create-project-scaffold}
 
 أولاً، قم بإنشاء سقالة لمشروعك باستخدام ملفات Tuist التالية:
 
-::: code-group
+:::: مجموعة الرموز
 
 ```js [Tuist.swift]
 import ProjectDescription
@@ -78,14 +79,14 @@ let package = Package(
 البيان حيث ستحدد تبعياتك. ملف `Tuist.swift.swift` هو الملف الذي يمكنك من خلاله
 تحديد إعدادات Tuist على نطاق المشروع لمشروعك.
 
-::: تلميح اسم المشروع مع -TUIST SUFFIX
+::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 لمنع التعارض مع مشروع Xcode الحالي، نوصي بإضافة لاحقة `-Tuist` إلى اسم المشروع.
 يمكنك إسقاطها بمجرد ترحيل مشروعك بالكامل إلى Tuist.
 <!-- -->
 :::
 
-## بناء واختبار مشروع تويست في CI {#build-and-test-the-tuist-project-in-ci}
+## إنشاء واختبار مشروع تويست في CI {#build-and-test-the-tuist-project-in-ci}
 
 للتأكد من صحة ترحيل كل تغيير، نوصي بتوسيع نطاق التكامل المستمر لبناء واختبار
 المشروع الذي تم إنشاؤه بواسطة Tuist من ملف البيان الخاص بك:
@@ -93,7 +94,7 @@ let package = Package(
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
 ## استخرج إعدادات بناء المشروع إلى ملفات `.xcconfig` {#extract-the-project-build-settings-into-xcconfig-files}
@@ -163,7 +164,7 @@ let package = Package(
 )
 ```
 
-::: tip أنواع المنتجات
+::: tip PRODUCT TYPES
 <!-- -->
 يمكنك تجاوز نوع المنتج لحزمة معينة عن طريق إضافته إلى قاموس `productTypes` في
 `PackageSettings` structure. يفترض تويست افتراضيًا أن جميع الحزم هي أطر عمل
@@ -189,7 +190,7 @@ tuist migration list-targets -p Project.xcodeproj
 ترحيل الأهداف واحدًا تلو الآخر. نوصي بإجراء طلب سحب لكل هدف لضمان مراجعة
 التغييرات واختبارها قبل دمجها.
 
-### استخرج إعدادات البناء الهدف إلى ملفات `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}
+### استخرج إعدادات بناء الهدف إلى ملفات `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}
 
 كما فعلت مع إعدادات بناء المشروع، استخرج إعدادات بناء الهدف في ملف `.xcconfig`
 لجعل الهدف أكثر مرونة وأسهل في الترحيل. يمكنك استخدام الأمر التالي لاستخراج
@@ -199,7 +200,7 @@ tuist migration list-targets -p Project.xcodeproj
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### قم بتعريف الهدف في ملف `Project.swift.` {#define-the-target-in-the-projectswift-file}
+### حدد الهدف في ملف `Project.swift.swift` {#define-the-target-in-the-projectswift-file}
 
 حدد الهدف في `Project.targets`:
 
@@ -233,7 +234,7 @@ let project = Project(
 )
 ```
 
-::: info اختبار الأهداف الاختبارية
+::: info TEST TARGETS
 <!-- -->
 إذا كان للهدف هدف اختبار مرتبط، فيجب عليك تعريفه في ملف `Project.swift.` أيضًا
 بتكرار نفس الخطوات.
@@ -242,16 +243,16 @@ let project = Project(
 
 ### التحقق من صحة الترحيل المستهدف {#validate-the-target-migration}
 
-قم بتشغيل `tuist build` و `tuist test` للتأكد من أن المشروع قد تم إنشاؤه
-واختباراته قد نجحت. بالإضافة إلى ذلك، يمكنك استخدام [xcdiff]
-(https://github.com/bloomberg/xcdiff) لمقارنة مشروع Xcode الذي تم إنشاؤه مع
-المشروع الحالي للتأكد من صحة التغييرات.
+قم بتشغيل `tuist gener` متبوعًا بـ `xcodebuild build` للتأكد من بناء المشروع، و
+`tuist test` للتأكد من اجتياز الاختبارات. بالإضافة إلى ذلك، يمكنك استخدام
+[xcdiff] (https://github.com/bloomberg/xcdiff) لمقارنة مشروع Xcode الذي تم
+إنشاؤه مع المشروع الحالي للتأكد من صحة التغييرات.
 
-### كرر {#repeat}
+### التكرار {#repeat}
 
 كرر ذلك حتى يتم ترحيل جميع الأهداف بالكامل. بمجرد الانتهاء من ذلك، نوصي بتحديث
-خطوط أنابيب CI و CD الخاصة بك لبناء واختبار المشروع باستخدام الأوامر `tuist
-build` و `tuist test` للاستفادة من السرعة والموثوقية التي يوفرها Tuist.
+خطوط أنابيب CI و CD الخاصة بك لبناء واختبار المشروع باستخدام `tuist generate`
+متبوعًا بـ `xcodebuild build` و `tuist test`.
 
 ## استكشاف الأخطاء وإصلاحها {#troubleshooting}
 

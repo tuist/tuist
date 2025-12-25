@@ -5,7 +5,7 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# Integracja z GitHub {#github}
+# Integracja z serwisem GitHub {#github}
 
 Repozytoria Git stanowią centralny element większości projektów
 programistycznych. Zintegrowaliśmy się z GitHub, aby zapewnić wgląd w Tuist
@@ -35,7 +35,7 @@ lub
 ![Obrazek przedstawiający komentarz do pull
 requesta](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info WYMAGANIA
+::: info REQUIREMENTS
 <!-- -->
 Komentarz jest publikowany tylko wtedy, gdy uruchomienia CI są
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelnione</LocalizedLink>.

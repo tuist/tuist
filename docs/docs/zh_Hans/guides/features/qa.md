@@ -5,9 +5,9 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# QA {#qa}
+# 质量保证{#qa}
 
-早期预览警告
+::: warning EARLY PREVIEW
 <!-- -->
 Tuist QA 目前处于早期预览阶段。登录 [tuist.dev/qa](https://tuist.dev/qa) 获取访问权限。
 <!-- -->
@@ -18,7 +18,7 @@ Tuist QA 目前处于早期预览阶段。登录 [tuist.dev/qa](https://tuist.de
 Tuist 的 QA
 代理通过模拟真实的用户行为解决了这一难题。它可以自主探索您的应用程序，识别界面元素，执行真实的交互，并标记潜在的问题。这种方法可以帮助您在开发早期识别错误和可用性问题，同时避免传统验收和质量保证测试的开销和维护负担。
 
-## 先决条件 {#prerequisites}
+## 先决条件{#prerequisites}
 
 要开始使用 Tuist QA，您需要
 - 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览 </LocalizedLink>，然后代理就可以使用这些预览进行测试了
@@ -49,7 +49,7 @@ feature A` 来触发 QA 代理：
 <!-- -->
 :::
 
-### 应用程序上下文 {#app-context}
+### 应用程序背景{#app-context}
 
 代理可能需要更多关于您应用程序的上下文，以便能够很好地导航。我们有三种应用程序上下文：
 - 应用程序说明
@@ -58,7 +58,7 @@ feature A` 来触发 QA 代理：
 
 所有这些都可以在项目的仪表板设置中进行配置 (`Settings` >`QA`)。
 
-#### 应用程序描述 {#app-description}
+#### 应用程序说明{#app-description}
 
 应用程序描述用于提供有关应用程序功能和工作原理的额外信息。这是一个长格式文本字段，在启动代理时作为提示的一部分传递。举例如下
 
@@ -68,11 +68,11 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### 凭证 {#credentials}
+#### 证书{#credentials}
 
 如果代理需要登录应用程序来测试某些功能，您可以提供凭证供代理使用。如果代理意识到需要登录，就会填写这些凭据。
 
-#### 启动参数组 {#launch-argument-groups}
+#### 启动争论小组{#launch-argument-groups}
 
 启动参数组是根据运行代理前的测试提示选择的。例如，如果不想让代理重复登录，浪费令牌和运行时间，可以在此处指定凭据。如果代理认为它应该以登录方式启动会话，那么它将在启动应用程序时使用凭据启动参数组。
 

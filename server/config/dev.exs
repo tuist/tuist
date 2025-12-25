@@ -1,5 +1,19 @@
 import Config
 
+# For development, we disable any cache and enable
+# debugging and code reloading.
+#
+# The watchers configuration can be used to run external
+# watchers to your application. For example, we can use it
+# to bundle .js and .css sources.
+
+# Base watchers for esbuild
+base_watchers = [
+  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
+  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
+]
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
 
@@ -40,24 +54,75 @@ config :tuist, Tuist.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-# For development, we disable any cache and enable
-# debugging and code reloading.
-#
-# The watchers configuration can be used to run external
-# watchers to your application. For example, we can use it
-# to bundle .js and .css sources.
-config :tuist, TuistWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 8080],
-  check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
-  watchers: [
-    esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-    esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-    esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
-  ]
+# When NOORA_LOCAL is set, override esbuild config to use local noora path via alias
+# and add a noora_local profile for watching/rebuilding noora assets
+if System.get_env("NOORA_LOCAL") do
+  noora_static_path = Path.expand("../../../noora/web/priv/static", __DIR__)
+  noora_web_path = Path.expand("../../../noora/web", __DIR__)
+  deps_path = Path.expand("../deps", __DIR__)
+
+  config :esbuild,
+    app: [
+      args: [
+        "app.js",
+        "--bundle",
+        "--target=es2017",
+        "--outfile=../../priv/static/app/assets/bundle.js",
+        "--external:/fonts/*",
+        "--external:/images/*",
+        "--alias:noora=#{noora_static_path}/noora.js",
+        "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      ],
+      cd: Path.expand("../assets/app", __DIR__),
+      env: %{"NODE_PATH" => deps_path}
+    ],
+    marketing: [
+      args: [
+        "marketing.js",
+        "--bundle",
+        "--loader:.svg=dataurl",
+        "--loader:.jpg=dataurl",
+        "--loader:.png=dataurl",
+        "--loader:.webp=dataurl",
+        "--target=es2017",
+        "--outfile=../../priv/static/marketing/assets/bundle.js",
+        "--external:/fonts/*",
+        "--external:/images/*",
+        "--alias:noora=#{noora_static_path}/noora.js",
+        "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      ],
+      cd: Path.expand("../assets/marketing", __DIR__),
+      env: %{"NODE_PATH" => deps_path}
+    ],
+    apidocs: [
+      args:
+        ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+      cd: Path.expand("../assets/apidocs", __DIR__),
+      env: %{"NODE_PATH" => deps_path}
+    ],
+    noora_local: [
+      args: ~w(js/index.js --bundle --sourcemap --format=esm --outfile=./priv/static/noora.js),
+      cd: noora_web_path
+    ]
+end
+
+# When NOORA_LOCAL is set, add a watcher to rebuild noora JS assets
+noora_watchers =
+  if System.get_env("NOORA_LOCAL") do
+    [
+      esbuild_noora: {Esbuild, :install_and_run, [:noora_local, ~w(--watch)]}
+    ]
+  else
+    []
+  end
+
+# Reloadable apps for Elixir code hot-reloading
+reloadable_apps =
+  if System.get_env("NOORA_LOCAL") do
+    [:tuist, :noora]
+  else
+    [:tuist]
+  end
 
 # ## SSL Support
 #
@@ -83,16 +148,45 @@ config :tuist, TuistWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :tuist, TuistWeb.Endpoint,
-  live_reload: [
-    patterns: [
-      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"priv/gettext/.*(po)$",
-      ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
-      ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
-      ~r"priv/marketing/blog/*/.*(md)$"
+base_live_reload_patterns = [
+  ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+  ~r"priv/gettext/.*(po)$",
+  ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
+  ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
+  ~r"priv/marketing/blog/*/.*(md)$"
+]
+
+# When NOORA_LOCAL is set, also watch noora source files
+noora_live_reload_patterns =
+  if System.get_env("NOORA_LOCAL") do
+    [
+      ~r"../../noora/web/lib/noora/.*(ex|heex)$",
+      ~r"../../noora/web/priv/static/.*(js|css)$"
     ]
+  else
+    []
+  end
+
+# Configure phoenix_live_reload dirs when NOORA_LOCAL is set
+if System.get_env("NOORA_LOCAL") do
+  config :phoenix_live_reload,
+    dirs: [
+      "../../noora/web/lib",
+      "../../noora/web/priv/static"
+    ]
+end
+
+config :tuist, TuistWeb.Endpoint,
+  # Binding to loopback ipv4 address prevents access from other machines.
+  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
+  http: [ip: {127, 0, 0, 1}, port: 8080],
+  check_origin: false,
+  code_reloader: true,
+  debug_errors: true,
+  reloadable_apps: reloadable_apps,
+  watchers: base_watchers ++ noora_watchers,
+  live_reload: [
+    patterns: base_live_reload_patterns ++ noora_live_reload_patterns
   ]
 
 # Enable dev routes for dashboard and mailbox

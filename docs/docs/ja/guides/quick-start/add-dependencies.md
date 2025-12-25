@@ -5,7 +5,7 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 依存関係の追加 {#add-dependencies}
+# 依存関係の追加{#add-dependencies}
 
 追加機能を提供するために、プロジェクトがサードパーティのライブラリに依存することはよくあることです。そのためには、以下のコマンドを実行すると、プロジェクトの編集がより快適になります：
 
@@ -84,7 +84,7 @@ let project = Project(
 それから`tuist install` を実行し、[Swift Package
 Manager](https://www.swift.org/documentation/package-manager/)を使って依存関係を解決し、取り出します。
 
-::: info ディペンダント・リゾルバとしてのSPM
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 依存関係に対するTuistの推奨アプローチは、依存関係を解決するためにSwift Package Manager
 (SPM)のみを使用する。そしてTuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定と制御を可能にする。
@@ -103,7 +103,7 @@ tuist graph
 
 プロジェクトグラフ
 
-## 依存関係を使う {#use-the-dependency} 。
+## 依存関係を利用する{#use-the-dependency}
 
 `tuist generate` を実行して Xcode でプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます：
 

@@ -11,8 +11,7 @@
 (https://en.wikipedia.org/wiki/Continuous_integration) الخاصة بك، ستحتاج إلى
 تثبيته في بيئة CI الخاصة بك.
 
-تكون المصادقة اختيارية ولكنها مطلوبة إذا كنت تريد استخدام ميزات من جانب الخادم
-مثل <LocalizedLink href="/guides/features/cache">ذاكرة التخزين المؤقت</LocalizedLink>.
+تكون المصادقة اختيارية ولكنها مطلوبة إذا كنت تريد استخدام ميزات من جانب الخادم مثل <LocalizedLink href="/guides/features/cache">ذاكرة التخزين المؤقت</LocalizedLink>.
 
 تقدم الأقسام التالية أمثلة على كيفية القيام بذلك على منصات CI المختلفة.
 
@@ -24,7 +23,7 @@
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
 للمصادقة الآمنة وغير السرية:
 
-::: code-group
+:::: code-group
 ```yaml [OIDC (Mise)]
 name: Build Application
 on:
@@ -113,23 +112,16 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist setup cache
 ```
-<!-- -->
-:::
 
-::: info إعداد OIDC
-<!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف:
-الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
-<!-- -->
+::::
+
+::: info OIDC SETUP
+قبل استخدام مصادقة OIDC، تحتاج إلى <LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف: الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام <LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
 :::
 
 ::: tip
-<!-- -->
 نوصي باستخدام `mise استخدام --pin` في مشاريع تويست الخاصة بك لتثبيت إصدار تويست
 عبر البيئات. سينشئ الأمر ملف `.tool-versions` يحتوي على إصدار تويست.
-<!-- -->
 :::
 
 ### سحابة Xcode السحابية {#xcode-cloud}
@@ -140,7 +132,7 @@ Xcode كمصدر للحقيقة، ستحتاج إلى إضافة [ما بعد ا
 برنامج نصي لتثبيت Tuist وتشغيل الأوامر التي تحتاجها، على سبيل المثال `tuist
 توليد`:
 
-::: code-group
+:::: مجموعة الرموز
 
 ```bash [Mise]
 #!/bin/sh
@@ -164,21 +156,22 @@ tuist generate
 <!-- -->
 :::
 
-::: info المصادقة
+::: info AUTHENTICATION
 <!-- -->
 استخدم رمزًا مميزًا
-<LocalizedLink href="/guides/server/authentication#project-tokens">للمشروع </LocalizedLink> عن طريق تعيين متغير البيئة `TUIST_TOKEN` في إعدادات سير عمل
+<LocalizedLink href="/guides/server/authentication#project-tokens"> للمشروع
+</LocalizedLink> عن طريق تعيين متغير البيئة `TUIST_TOKEN` في إعدادات سير عمل
 Xcode Cloud الخاص بك.
 <!-- -->
 :::
 
-### سيركل سي آي {#circleci}
+### سيركلسي {#circleci}
 
 في [CircleCI](https://circleci.com) يمكنك استخدام مصادقة
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
 للمصادقة الآمنة وغير السرية:
 
-::: code-group
+:::: مجموعة الرموز
 ```yaml [OIDC (Mise)]
 version: 2.1
 jobs:
@@ -227,13 +220,15 @@ jobs:
 <!-- -->
 :::
 
-::: info المصادقة
+::: info AUTHENTICATION
 <!-- -->
 قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
+<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
+الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
 رموز CircleCI OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والتي يستخدمها
 Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
+المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -243,7 +238,7 @@ Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، 
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
 للمصادقة الآمنة وغير السرية:
 
-::: code-group
+:::: مجموعة الرموز
 ```yaml [OIDC (Mise)]
 workflows:
   build:
@@ -294,22 +289,24 @@ workflows:
 <!-- -->
 :::
 
-::: info المصادقة
+::: info AUTHENTICATION
 <!-- -->
 قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
+<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
+الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
 رموز Bitrise OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والذي يستخدمه
 Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
+المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
 <!-- -->
 :::
 
-### كودمجيك {#codemagic}
+### كودماغك {#codemagic}
 
 في [Codemagic] (https://codemagic.io)، يمكنك إضافة خطوة إضافية إلى سير عملك
 لتثبيت Tuist:
 
-::: code-group
+:::: مجموعة الرموز
 ```yaml [Mise]
 workflows:
   build:
@@ -346,8 +343,9 @@ workflows:
 <!-- -->
 :::
 
-::: info المصادقة
+::: info AUTHENTICATION
 <!-- -->
-قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
+قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز
+مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
 <!-- -->
 :::

@@ -5,7 +5,7 @@
   "description": "Learn about synthesized files in Tuist projects."
 }
 ---
-# Pliki zsyntetyzowane {#synthesized-files}
+# Syntetyzowane pliki {#synthesized-files}
 
 Tuist może generować pliki i kod w czasie generowania, aby ułatwić zarządzanie
 projektami Xcode i pracę z nimi. Na tej stronie dowiesz się więcej o tej
@@ -41,7 +41,7 @@ modułowym, w którym źródła i zasoby są często przenoszone:
 Tuist rozwiązuje powyższe problemy poprzez **syntezę ujednoliconego interfejsu
 dostępu do pakietów i zasobów**, który abstrahuje od szczegółów implementacji.
 
-::: warning ZALECANE
+::: warning RECOMMENDED
 <!-- -->
 Chociaż dostęp do zasobów za pośrednictwem interfejsu zsyntetyzowanego przez
 Tuist nie jest obowiązkowy, zalecamy go, ponieważ ułatwia on rozumowanie kodu i
@@ -67,7 +67,7 @@ Zalecamy dodanie katalogu `Derived` do pliku `.gitignore` projektu.
 <!-- -->
 :::
 
-## Akcesoria do pakietów {#bundle-accessors}
+## Akcesory pakietu {#bundle-accessors}
 
 Tuist syntetyzuje interfejs umożliwiający dostęp do pakietu zawierającego zasoby
 docelowe.
@@ -89,7 +89,7 @@ do pakietu:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning OGRANICZENIE Z TARGETAMI WEWNĘTRZNYMI
+::: warning LIMITATION WITH INTERNAL TARGETS
 <!-- -->
 Obecnie Tuist nie generuje akcesorów pakietów zasobów dla wewnętrznych celów,
 które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledzone w
@@ -97,7 +97,7 @@ które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledz
 <!-- -->
 :::
 
-::: tip WSPIERANIE ZASOBÓW W BIBLIOTEKACH POPRZEZ BUNDLE
+::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
 Jeśli produkt docelowy, na przykład biblioteka, nie obsługuje zasobów, Tuist
 umieści zasoby w produkcie docelowym typu `bundle`, zapewniając, że trafią one
@@ -105,7 +105,7 @@ do produktu końcowego, a interfejs wskaże właściwy pakiet.
 <!-- -->
 :::
 
-## Akcesory zasobów {#resource-accessors}
+## Accessory zasobów {#resource-accessors}
 
 Zasoby są identyfikowane przez ich nazwę i rozszerzenie za pomocą ciągów znaków.
 Nie jest to idealne rozwiązanie, ponieważ nie jest wychwytywane w czasie

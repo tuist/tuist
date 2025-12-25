@@ -5,7 +5,7 @@
   "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
 }
 ---
-# المانيفست {#manifests}
+# المظاهر {#manifests}
 
 يستخدم تويست افتراضيًا ملفات سويفت كطريقة أساسية لتحديد المشاريع ومساحات العمل
 وتهيئة عملية الإنشاء. يُشار إلى هذه الملفات باسم ملفات البيان **** في جميع أنحاء
@@ -18,7 +18,7 @@ Swift لتحديد الحزم. وبفضل استخدام Swift، يمكننا ا
 لتوفير تجربة تحرير من الدرجة الأولى بفضل تسليط الضوء على بناء الجملة والإكمال
 التلقائي والتحقق من الصحة.
 
-::: info التخزين المؤقت
+::: info CACHING
 <!-- -->
 نظرًا لأن ملفات البيان هي ملفات Swift التي تحتاج إلى تجميعها، فإن Tuist يخزن
 نتائج التجميع مؤقتًا لتسريع عملية التحليل. لذلك، ستلاحظ أنه في المرة الأولى التي
@@ -45,7 +45,7 @@ let project = Project(
 ```
 
 
-::: warning المتغيرات الجذرية
+::: warning ROOT VARIABLES
 <!-- -->
 المتغير الوحيد الذي يجب أن يكون في جذر البيان هو `دع المشروع = المشروع(...)`.
 إذا كنت بحاجة إلى إعادة استخدام الشيفرة عبر أجزاء مختلفة من البيان، يمكنك
@@ -74,7 +74,7 @@ let workspace = Workspace(
 )
 ```
 
-::: info
+:::: المعلومات
 <!-- -->
 سيقوم تويست بحل الرسم البياني للتبعية وتضمين مشاريع التبعيات في مساحة العمل. لا
 تحتاج إلى تضمينها يدويًا. هذا ضروري لنظام البناء لحل التبعيات بشكل صحيح.
@@ -92,14 +92,16 @@ Git ليست مشكلة. ولذلك، فإن قرار استخدام مشروع 
 
 في مشروع تويست نعتمد في مشروع تويست على المشاريع الأحادية لأن وقت التوليد البارد
 أسرع (عدد أقل من ملفات البيان للتحويل البرمجي) ونستفيد من
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع</LocalizedLink> كوحدة تغليف. ومع ذلك، قد ترغب في استخدام مشاريع Xcode
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف
+المشروع</LocalizedLink> كوحدة تغليف. ومع ذلك، قد ترغب في استخدام مشاريع Xcode
 كوحدة تغليف لتمثيل مجالات مختلفة من تطبيقك، وهو ما يتوافق بشكل أكبر مع بنية
 مشروع Xcode الموصى به.
 
-## تويست سويفت {#tuistswift}
+## تويست.سويفت {#tuistswift}
 
 يوفّر تويست
-<LocalizedLink href="/contributors/principles.html#default-to-conventions"> إعدادات افتراضية </LocalizedLink> لتبسيط تكوين المشروع. ومع ذلك، يمكنك تخصيص
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">
+إعدادات افتراضية </LocalizedLink> لتبسيط تكوين المشروع. ومع ذلك، يمكنك تخصيص
 التهيئة عن طريق تحديد
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 في جذر المشروع، والذي يستخدمه Tuist لتحديد جذر المشروع.

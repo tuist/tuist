@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * module cache by [@cschmatzler](https://github.com/cschmatzler) in [#8931](https://github.com/tuist/tuist/pull/8931)
+### 🐛 Bug Fixes
+
+* fix selective testing when experimental cache enabled by [@cschmatzler](https://github.com/cschmatzler) in [#8981](https://github.com/tuist/tuist/pull/8981)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.117.0...4.118.0
 

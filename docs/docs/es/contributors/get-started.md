@@ -96,7 +96,7 @@ se muestra a continuación:
 ![Un ejemplo de cómo establecer el directorio de trabajo para ejecutar
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: advertencia COMPILACIÓN DE LA DESCRIPCIÓN DEL PROYECTO
+::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
 El CLI `tuist` depende de la presencia del framework `ProjectDescription` en el
 directorio de productos construidos. Si `tuist` no se ejecuta porque no
@@ -105,7 +105,7 @@ encuentra el framework `ProjectDescription`, construya primero el esquema
 <!-- -->
 :::
 
-### Desde la terminal {#from-the-terminal}
+### Desde el terminal {#from-the-terminal}
 
 Puedes ejecutar `tuist` utilizando el propio Tuist a través de su comando `run`:
 

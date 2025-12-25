@@ -5,7 +5,7 @@
   "description": "Learn how to migrate your projects from Bazel to Tuist."
 }
 ---
-# 迁移 Bazel 项目 {#migrate-a-bazel-project}
+# 迁移 Bazel 项目{#migrate-a-bazel-project}
 
 [Bazel](https://bazel.build)是谷歌于2015年开源的一个构建系统。它是一款功能强大的工具，可以快速、可靠地构建和测试任何规模的软件。Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/)、[Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae)或[Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)等一些大型组织都在使用它，但它需要前期投入（即学习技术）和持续投入（即跟上
 Xcode
@@ -13,14 +13,14 @@ Xcode
 iOS 平台团队引入了 Bazel，但在领导这项工作的工程师离开公司后，他们不得不放弃这项工作。苹果公司对 Xcode 和构建系统之间强耦合的立场也是导致
 Bazel 项目难以长期维护的另一个因素。
 
-提示 TUIST 的独特之处在于它的精致
+::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
 <!-- -->
 Tuist 与其与 Xcode 和 Xcode 项目对抗，不如拥抱它。相同的概念（如目标、方案、构建设置），熟悉的语言（如
 Swift），简单而愉快的体验，让维护和扩展项目成为每个人的工作，而不仅仅是 iOS 平台团队的工作。
 <!-- -->
 :::
 
-## 规则 {#rules｝
+## 规则{#rules}
 
 Bazel 使用规则来定义如何构建和测试软件。这些规则是用类似 Python 的语言
 [Starlark](https://github.com/bazelbuild/starlark) 编写的。Tuist 使用 Swift
@@ -80,7 +80,7 @@ let project = Project(
 :::
 
 
-## Swift 软件包管理器依赖项 {#swift-package-manager-dependencies}
+## Swift 软件包管理器依赖项{#swift-package-manager-dependencies}
 
 在 Bazel 中，您可以使用
 [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager)
@@ -94,7 +94,7 @@ tuist install # Fetch dependencies defined in Tuist/Package.swift
 tuist generate # Generate an Xcode project
 ```
 
-## 项目生成 {#project-generation}
+## 项目生成{#project-generation}
 
 社区提供了一组规则
 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)，用于从

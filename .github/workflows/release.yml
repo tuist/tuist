@@ -415,8 +415,7 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
 
       - name: Update CHANGELOG.md
         working-directory: app
@@ -491,8 +490,7 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
@@ -594,7 +592,8 @@ jobs:
   release-cache:
     name: Release Cache
     needs: check-releases
-    if: needs.check-releases.outputs.cache-should-release == 'true'
+    # Temporarily disabled: https://github.com/mise-plugins/mise-tuist/pull/3
+    if: false && needs.check-releases.outputs.cache-should-release == 'true'
     runs-on: namespace-profile-default
     timeout-minutes: 30
     env:

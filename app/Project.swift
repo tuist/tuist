@@ -96,7 +96,7 @@ let project = Project(
                     ],
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
-                    "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
+                    "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
                     "CFBundleShortVersionString": "0.23.0",
@@ -138,7 +138,7 @@ let project = Project(
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
-                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad Hoc",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )

@@ -5,9 +5,9 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# Xcodeプロジェクト {#xcode-project}
+# Xcodeプロジェクト{#xcode-project}
 
-::: warning 要件
+警告 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->

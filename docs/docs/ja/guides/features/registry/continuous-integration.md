@@ -10,7 +10,7 @@
 CIでレジストリを使用するには、ワークフローの一環として`tuist registry login`
 を実行して、レジストリにログインしていることを確認する必要がある。
 
-::情報のみ XCODE インテグレーション
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 新しいプレアンロックキーチェーンの作成は、パッケージのXcode統合を使用している場合にのみ必要です。
 <!-- -->
@@ -30,8 +30,8 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 `tuist registry login` を実行すると、認証情報がデフォルトのキーチェーンに保存されます。__ `tuist registry login`
 を実行する前に、デフォルトのキーチェーンが作成され、ロックが解除されていることを確認してください。
 
-さらに、`TUIST_CONFIG_TOKEN`
-環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。
+さらに、`TUIST_TOKEN`
+環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成してください。
 
 GitHub Actions のワークフローの例は次のようになります：
 ```yaml
@@ -52,12 +52,12 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```
 
-### 環境間の増分解像度 {#incremental-resolution-across-environments}.
+### 環境を超えたインクリメンタルな解決{#incremental-resolution-across-environments}
 
 レジストリを使用することで、クリーン/コールドの解決がわずかに速くなり、解決した依存関係をCIビルド間で永続化すると、さらに大きな改善を体験できます。レジストリのおかげで、保存してリストアする必要があるディレクトリのサイズは、レジストリを使用しない場合よりもはるかに小さく、大幅に時間がかからないことに注意してください。デフォルトの
 Xcode パッケージ統合を使用するときに依存関係をキャッシュするために、最良の方法は、`xcodebuild`

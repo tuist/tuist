@@ -102,23 +102,48 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
-        <.button_group size="large">
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
-            label={dgettext("dashboard_cache", "7 days")}
-            data-selected={@bundle_size_date_range == "last-7-days"}
-          />
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
-            label={dgettext("dashboard_cache", "30 days")}
-            data-selected={@bundle_size_date_range == "last-30-days"}
-          />
-          <.button_group_item
-            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
-            label={dgettext("dashboard_cache", "12 months")}
-            data-selected={@bundle_size_date_range == "last-12-months"}
-          />
-        </.button_group>
+        <.date_picker
+          id="bundles-date-range-picker"
+          name="bundle-size-date-range"
+          presets={[
+            %{
+              id: "last-7-days",
+              label: dgettext("dashboard_cache", "Last 7 days"),
+              period: {7, :day}
+            },
+            %{
+              id: "last-30-days",
+              label: dgettext("dashboard_cache", "Last 30 days"),
+              period: {30, :day}
+            },
+            %{
+              id: "last-12-months",
+              label: dgettext("dashboard_cache", "Last 12 months"),
+              period: {12, :month}
+            },
+            %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+          ]}
+          selected_preset={@bundle_size_preset}
+          period={@bundle_size_period}
+          on_period_change="bundle_size_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_cache", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel", detail: %{id: "bundles-date-range-picker"})
+              }
+            />
+            <.button
+              label={dgettext("dashboard_cache", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply", detail: %{id: "bundles-date-range-picker"})
+              }
+            />
+          </:actions>
+        </.date_picker>
       </:actions>
       <div data-part="widgets">
         <.widget
@@ -143,7 +168,7 @@
               0.0
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
@@ -167,7 +192,7 @@
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
           }
           trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_date_range)}
+          trend_label={bundle_size_trend_label(@bundle_size_preset)}
           empty={is_nil(@bundle_size_last_bundle)}
         />
       </div>

@@ -1,17 +1,19 @@
 [tools]
-    tuist = "4.118.0"
+    tuist = "4.118.1"
     swiftlint = "0.59.1"
     swiftformat = "0.57.2"
     git-cliff = "2.6.0"
     sops = "3.9.3"
     age = "1.2.1"
     protoc = "32.1"
+    "1password-cli" = "2.32.0"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
     _.file = { path = ".env.json", redact = true }
+    TUIST_EXPERIMENTAL_MODULE_CACHE="1"
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
     MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4

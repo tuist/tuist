@@ -7,7 +7,7 @@
 ---
 # Проект Xcode {#xcode-project}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->

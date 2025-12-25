@@ -7,7 +7,7 @@
 ---
 # QA {#qa}
 
-::: warning 조기 미리보기
+::: warning EARLY PREVIEW
 <!-- -->
 현재 튜이스트 QA는 초기 프리뷰 버전입니다. tuist.dev/qa](https://tuist.dev/qa)에서 등록하여 액세스 권한을
 얻으세요.
@@ -15,19 +15,20 @@
 :::
 
 고품질 모바일 앱 개발은 포괄적인 테스트에 의존하지만 기존 접근 방식에는 한계가 있습니다. 단위 테스트는 빠르고 비용 효율적이지만 실제 사용자
-시나리오를 놓칠 수 있습니다. 수락 테스트와 수동 QA는 이러한 차이를 포착할 수 있지만 리소스 집약적이며 확장성이 떨어집니다.
+시나리오를 놓칠 수 있습니다. 수락 테스트와 수동 QA는 이러한 차이를 포착할 수 있지만 리소스 집약적이고 확장성이 떨어집니다.
 
 Tuist의 QA 에이전트는 실제 사용자 행동을 시뮬레이션하여 이 문제를 해결합니다. 이 에이전트는 자율적으로 앱을 탐색하고, 인터페이스 요소를
 인식하고, 실제와 같은 상호작용을 실행하고, 잠재적인 문제에 플래그를 지정합니다. 이 접근 방식을 사용하면 개발 초기에 버그와 사용성 문제를
 식별하는 동시에 기존 승인 및 QA 테스트의 오버헤드 및 유지 관리 부담을 피할 수 있습니다.
 
-## 전제 조건 {#prerequisites}
+## 사전 요구 사항 {#prerequisites}
 
 Tuist QA를 사용하려면 다음을 수행해야 합니다:
 - PR CI 워크플로우에서
   <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> 업로드를
   설정하면 상담원이 테스트에 사용할 수 있습니다.
-- <LocalizedLink href="/guides/integrations/gitforge/github">통합</LocalizedLink>하여 GitHub과 연동하면 PR에서 직접 에이전트를 트리거할 수 있습니다.
+- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub와 통합</LocalizedLink>하여
+  PR에서 직접 에이전트를 트리거할 수 있습니다.
 
 ## 사용량 {#usage}
 
@@ -48,7 +49,7 @@ PR 댓글이 링크되는 대시보드의 보고서에는 이슈 목록과 타�
 공개 대시보드(https://tuist.dev/tuist/tuist/qa)에서
 <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS 앱</LocalizedLink>에 대해 수행한 모든 QA 실행을 확인할 수 있습니다.
 
-::: info
+::: info Mise란?
 <!-- -->
 QA 에이전트는 자율적으로 실행되며 일단 시작되면 추가 프롬프트로 중단할 수 없습니다. 에이전트가 앱과 상호 작용하는 방식을 이해하는 데 도움이
 되도록 실행 전반에 걸쳐 자세한 로그를 제공합니다. 이러한 로그는 앱 컨텍스트를 반복하고 프롬프트를 테스트하여 에이전트의 동작을 더 잘 안내하는
@@ -84,7 +85,7 @@ The app additionally includes a profile tab to surface about information about t
 상담원이 일부 기능을 테스트하기 위해 앱에 로그인해야 하는 경우 상담원이 사용할 자격 증명을 제공할 수 있습니다. 상담원이 로그인해야 한다고
 인식하면 이러한 자격 증명을 입력합니다.
 
-#### 인수 그룹 실행 {#launch-argument-groups}
+#### 인수 그룹 시작 {#launch-argument-groups}
 
 실행 인수 그룹은 에이전트를 실행하기 전에 테스트 프롬프트에 따라 선택됩니다. 예를 들어 상담원이 반복적으로 로그인하여 토큰과 러너 시간을
 낭비하지 않도록 하려면 여기에 자격 증명을 지정할 수 있습니다. 에이전트가 로그인한 세션을 시작해야 한다고 인식하면 앱을 시작할 때 자격 증명

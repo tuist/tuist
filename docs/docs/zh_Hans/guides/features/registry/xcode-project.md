@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcode 项目 {#xcode-project}
+# Xcode 项目{#xcode-project}
 
 要在 Xcode 项目中使用注册表添加软件包，请使用默认的 Xcode UI。您可以点击 Xcode 中`Package Dependencies`
 标签页中的`+` 按钮，在注册表中搜索软件包。如果软件包在注册表中可用，您将在右上角看到`tuist.dev` 注册表：

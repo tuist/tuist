@@ -5,7 +5,7 @@
   "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
 }
 ---
-# Manifiestos {#manifiestos}
+# Manifiestos {#manifests}
 
 Tuist utiliza por defecto archivos Swift para definir proyectos y espacios de
 trabajo y configurar el proceso de generación. Estos archivos se denominan
@@ -29,7 +29,7 @@ ejecuciones serán más rápidas.
 <!-- -->
 :::
 
-## Project.swift {#projectswift}
+## Proyecto.swift {#projectswift}
 
 El
 <LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
@@ -48,7 +48,7 @@ let project = Project(
 ```
 
 
-::: advertencia VARIABLES RAÍCES
+::: warning ROOT VARIABLES
 <!-- -->
 La única variable que debe estar en la raíz del manifiesto es `let project =
 Project(...)`. Si necesitas reutilizar código en varias partes del manifiesto,
@@ -56,7 +56,7 @@ puedes utilizar funciones Swift.
 <!-- -->
 :::
 
-## Workspace.swift {#workspaceswift}
+## Espacio de trabajo.swift {#workspaceswift}
 
 Por defecto, Tuist genera un [Xcode
 Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)

@@ -38,7 +38,7 @@ tuist organization create {account-handle}
 ## 프로젝트 {#projects}
 
 Tuist의 프로젝트든 원시 Xcode의 프로젝트든 원격 프로젝트를 통해 계정과 통합해야 합니다. GitHub와 계속 비교하면 변경 사항을
-푸시하는 로컬 리포지토리와 원격 리포지토리가 있는 것과 같습니다. <LocalizedLink href="/cli/organization">`tuist 프로젝트`</LocalizedLink>를 사용하여 프로젝트를
+푸시하는 로컬 리포지토리와 원격 리포지토리가 있는 것과 같습니다. <LocalizedLink href="/cli/project">`tuist 프로젝트`</LocalizedLink>를 사용하여 프로젝트를
 만들고 관리할 수 있습니다.
 
 프로젝트는 조직 핸들과 프로젝트 핸들을 연결한 결과인 전체 핸들로 식별됩니다. 예를 들어, 조직 핸들이 `tuist` 이고 프로젝트 핸들이
@@ -51,9 +51,9 @@ Tuist의 프로젝트든 원시 Xcode의 프로젝트든 원격 프로젝트를 
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning 튜이스트 프로젝트 전용 기능
+::: 경고 튜이스트 프로젝트 전용 기능
 <!-- -->
-<LocalizedLink href="/cli/organization">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
+<LocalizedLink href="/guides/features/cache">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
 프로젝트를 사용하는 경우 이러한 기능을 사용할 수 없습니다.
 <!-- -->
 :::

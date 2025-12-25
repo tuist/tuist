@@ -359,13 +359,13 @@
                             }
                         },
                         "insights": {
-                            "text": "インサイトを構築する"
+                            "text": "ビルド分析"
                         },
                         "bundle-size": {
-                            "text": "バンドル・インサイト"
+                            "text": "バンドル分析"
                         },
                         "qa": {
-                            "text": "品質保証"
+                            "text": "QA"
                         }
                     }
                 },
@@ -389,7 +389,7 @@
                         "git-forges": {
                             "items": {
                                 "github": {
-                                    "text": "ギットハブ"
+                                    "text": "GitHub"
                                 }
                             },
                             "text": "ギットの鍛造"

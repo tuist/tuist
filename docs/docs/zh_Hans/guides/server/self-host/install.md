@@ -5,25 +5,25 @@
   "description": "Learn how to install Tuist on your infrastructure."
 }
 ---
-# 自主机安装 {#self-host-installation}
+# 自助安装{#self-host-installation}
 
 我们为需要对基础设施进行更多控制的组织提供自助托管版 Tuist 服务器。该版本允许您在自己的基础设施上托管 Tuist，确保您的数据安全私密。
 
-警告 需要许可证
+::: warning LICENSE REQUIRED
 <!-- -->
 自助托管 Tuist 需要合法有效的付费许可证。企业内部版本的 Tuist 仅适用于企业计划。如果您对该版本感兴趣，请联系
 [contact@tuist.dev](mailto:contact@tuist.dev)。
 <!-- -->
 :::
 
-## 释放节奏 {#release-cadence}
+## 释放节奏{#release-cadence}
 
 我们会根据 Main 上可发布的新变更，不断发布 Tuist
 的新版本。我们遵循[语义版本](https://semver.org/)，以确保可预测的版本和兼容性。
 
 主要组件用于标记 Tuist 服务器中需要与内部用户协调的破坏性更改。您不要指望我们会使用它，如果我们需要，请放心，我们会与您合作，使过渡顺利进行。
 
-## 持续部署 {#continuous-deployment}
+## 持续部署{#continuous-deployment}
 
 我们强烈建议设置持续部署管道，每天自动部署最新版本的 Tuist。这将确保您始终可以访问最新的功能、改进和安全更新。
 
@@ -47,11 +47,11 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## 运行时要求 {#runtime-requirements}
+## 运行时间要求{#runtime-requirements}
 
 本节概述了在您的基础设施上托管 Tuist 服务器的要求。
 
-### 兼容性矩阵 {#compatibility-matrix}
+### 兼容性矩阵{#compatibility-matrix}
 
 Tuist 服务器经过测试，兼容以下最低版本：
 
@@ -61,7 +61,7 @@ Tuist 服务器经过测试，兼容以下最低版本：
 | 时标数据库      | 2.16.1 | 所需 PostgreSQL 扩展（已弃用） |
 | 点击之家       | 25     | 分析所需                  |
 
-TIMESCALEDB DEPRECATION 警告
+::: warning TIMESCALEDB DEPRECATION
 <!-- -->
 TimescaleDB 目前是 Tuist 服务器所需的 PostgreSQL 扩展，用于时间序列数据存储和查询。不过，**TimescaleDB 已被弃用**
 ，在不久的将来，随着我们将所有时间序列功能迁移到 ClickHouse，TimescaleDB 将不再作为一个必需的依赖项。目前，请确保您的
@@ -69,14 +69,14 @@ PostgreSQL 实例已安装并启用 TimescaleDB。
 <!-- -->
 :::
 
-### 运行 Docker 虚拟化镜像 {#running-dockervirtualized-images}
+### 运行 Docker 虚拟化映像{#running-dockervirtualized-images}
 
 我们通过[GitHub
 的容器注册中心](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)将服务器作为[Docker](https://www.docker.com/)镜像发布。
 
 要运行它，你的基础架构必须支持运行 Docker 映像。请注意，大多数基础设施提供商都支持 Docker，因为它已成为在生产环境中分发和运行软件的标准容器。
 
-### Postgres 数据库 {#postgres-database}
+### Postgres 数据库{#postgres-database}
 
 除了运行 Docker 映像，您还需要一个带有 [TimescaleDB 扩展](https://www.timescale.com/)的 [Postgres
 数据库](https://www.postgresql.org/)，以存储关系数据和时间序列数据。大多数基础设施提供商都提供 Postgres
@@ -87,24 +87,24 @@ Cloud](https://cloud.google.com/sql/docs/postgres)）。
 扩展，以实现高效的时间序列数据存储和查询。该扩展用于命令事件、分析和其他基于时间的功能。运行 Tuist 前，请确保您的 PostgreSQL 实例已安装并启用
 TimescaleDB。
 
-信息迁移
+::: info MIGRATIONS
 <!-- -->
 在启动服务之前，Docker 镜像的入口点会自动运行任何待定的模式迁移。如果迁移因缺少 TimescaleDB 扩展而失败，则需要先在数据库中安装该扩展。
 <!-- -->
 :::
 
-### ClickHouse 数据库 {#clickhouse-database}
+### ClickHouse 数据库{#clickhouse-database}
 
 Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分析数据。ClickHouse 是**所必需的**
 ，用于构建洞察力等功能，并将在我们逐步淘汰 TimescaleDB 后成为主要的时间序列数据库。您可以选择自行托管 ClickHouse 或使用其托管服务。
 
-信息迁移
+::: info MIGRATIONS
 <!-- -->
 在启动服务之前，Docker 镜像的入口点会自动运行任何待处理的 ClickHouse 模式迁移。
 <!-- -->
 :::
 
-### 存储 {#storage}
+### 存储{#storage}
 
 您还需要一个存储文件（如框架和库二进制文件）的解决方案。目前，我们支持任何符合 S3 标准的存储。
 
@@ -113,13 +113,13 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 服务的配置在运行时通过环境变量完成。鉴于这些变量的敏感性，我们建议将其加密并存储在安全的密码管理解决方案中。请放心，Tuist
 会谨慎处理这些变量，确保它们不会显示在日志中。
 
-信息 启动检查
+::: info LAUNCH CHECKS
 <!-- -->
 启动时会验证必要的变量。如果缺少任何变量，启动将失败，错误信息将详细说明缺少的变量。
 <!-- -->
 :::
 
-### 许可证配置 {#license-configuration}
+### 许可证配置{#license-configuration}
 
 作为内部用户，您会收到一个许可证密钥，您需要将其作为环境变量公开。该密钥用于验证许可证，确保服务在协议条款范围内运行。
 
@@ -131,14 +131,14 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 * 必须提供`TUIST_LICENSE` 或`TUIST_LICENSE_CERTIFICATE_BASE64`
 ，但不能同时提供。标准部署使用`TUIST_LICENSE` 。
 
-警告失效日期
+::: warning EXPIRATION DATE
 <!-- -->
 许可证有过期日期。如果许可证过期不到 30 天，用户在使用 Tuist 命令与服务器交互时将收到警告。如果您有兴趣更新许可证，请联系
 [contact@tuist.dev](mailto:contact@tuist.dev)。
 <!-- -->
 :::
 
-### 基本环境配置 {#base-environment-configuration}
+### 基本环境配置{#base-environment-configuration}
 
 | 环境变量                                  | 描述                                                                   | 必需  | 默认值                                | 示例                                                                  |                                                                                                                                    |
 | ------------------------------------- | -------------------------------------------------------------------- | --- | ---------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -155,7 +155,7 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 | `tuist_ops_user_handles`              | 以逗号分隔的用户句柄列表，可访问操作 URL                                               | 没有  |                                    | `用户1,用户2`                                                           |                                                                                                                                    |
 | `TUIST_WEB`                           | 启用网络服务器端点                                                            | 没有  | `1`                                | `1` 或`0`                                                            |                                                                                                                                    |
 
-### 数据库配置 {#database-configuration}
+### 数据库配置{#database-configuration}
 
 以下环境变量用于配置数据库连接：
 
@@ -171,12 +171,12 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 | `tuist_clickhouse_max_buffer_size`   | 强制刷新前 ClickHouse 缓冲区的最大字节数                                                                                                       | 没有  | `1000000` | `1000000`                                                              |
 | `tuist_clickhouse_buffer_pool_size`  | 运行的 ClickHouse 缓冲进程数量                                                                                                            | 没有  | `5`       | `5`                                                                    |
 
-### 身份验证环境配置 {#authentication-environment-configuration}
+### 验证环境配置{#authentication-environment-configuration}
 
 我们通过[身份提供商（IdP）](https://en.wikipedia.org/wiki/Identity_provider)为身份验证提供便利。要利用这一点，请确保服务器环境中存在所选提供商的所有必要环境变量。**缺少变量**
 将导致 Tuist 绕过该提供商。
 
-#### GitHub {#github}
+#### GitHub{#github}
 
 我们建议使用 [GitHub
 应用程序](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)，但也可以使用
@@ -204,7 +204,7 @@ GitHub 指定的所有重要环境变量。缺少变量会导致 Tuist 忽略 Gi
 | `tuist_github_app_client_id`     | GitHub 应用程序的客户端 ID | 是   |     | `Iv1.a629723000043722`                     |
 | `tuist_github_app_client_secret` | 应用程序的客户秘密          | 是   |     | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
-#### 谷歌 {#google｝
+#### 谷歌{#google}
 
 您可以使用 [OAuth 2](https://developers.google.com/identity/protocols/oauth2) 与
 Google 进行身份验证。为此，你需要创建一个 OAuth 客户端 ID 类型的新凭证。创建凭证时，选择 "Web 应用程序
@@ -212,13 +212,13 @@ Google 进行身份验证。为此，你需要创建一个 OAuth 客户端 ID �
 ，其中`base_url` 是您的托管服务运行的 URL。创建应用程序后，复制客户端 ID 和秘密，并将其分别设置为环境变量`GOOGLE_CLIENT_ID`
 和`GOOGLE_CLIENT_SECRET` 。
 
-信息 同意筛查分数
+::: info CONSENT SCREEN SCOPES
 <!-- -->
 您可能需要创建一个同意屏幕。创建时，请确保添加`userinfo.email` 和`openid` 作用域，并将应用程序标记为内部应用程序。
 <!-- -->
 :::
 
-#### Okta {#okta}
+#### Okta{#okta}
 
 您可以通过 [OAuth 2.0](https://oauth.net/2/) 协议启用 Okta
 身份验证。您必须按照<LocalizedLink href="/guides/integrations/sso#okta">以下说明</LocalizedLink>在
@@ -234,11 +234,11 @@ Okta
 
 `1` 需要用您的机构 ID 代替。通常是 1，但请在您的数据库中查看。
 
-### 存储环境配置 {#storage-environment-configuration}
+### 存储环境配置{#storage-environment-configuration}
 
 Tuist 需要存储空间来存放通过 API 上传的工件。**必须配置一个受支持的存储解决方案** ，Tuist 才能有效运行。
 
-#### 符合 S3 标准的存储设备 {#s3compliant-storages}
+#### 符合 S3 标准的存储{#s3compliant-storages}
 
 您可以使用任何兼容 S3 的存储提供程序来存储人工制品。需要使用以下环境变量来验证和配置与存储提供商的集成：
 
@@ -259,20 +259,20 @@ Tuist 需要存储空间来存放通过 API 上传的工件。**必须配置一�
 | `tuist_s3_protocol`                                   | 连接存储提供商时使用的协议（`http1` 或`http2`)                                    | 没有  | `http1` | `http1`                                                      |
 | `tuist_s3_virtual_host`                               | 是否应将邮筒名称作为子域（虚拟主机）来构建 URL                                          | 没有  | `错误`    | `1`                                                          |
 
-从环境变量中获取使用网络身份令牌的 AWS 身份验证信息
+::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
 如果您的存储提供商是 AWS，并且您想使用网络身份令牌进行身份验证，您可以将环境变量`TUIST_S3_AUTHENTICATION_METHOD`
 设置为`aws_web_identity_token_from_env_vars` ，Tuist 将使用传统的 AWS 环境变量使用该方法。
 <!-- -->
 :::
 
-#### 谷歌云存储 {#google-cloud-storage｝
+#### 谷歌云存储{#google-cloud-storage}
 对于 Google Cloud
 Storage，请按照[这些文档](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)获取`AWS_ACCESS_KEY_ID`
 和`AWS_SECRET_ACCESS_KEY` 对。`AWS_ENDPOINT` 应设置为`https://storage.googleapis.com`
 。其他环境变量与任何其他 S3 兼容存储相同。
 
-### 电子邮件配置 {#email-configuration}
+### 电子邮件配置{#email-configuration}
 
 Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码重置、账户通知）。目前，**只支持 Mailgun 作为电子邮件提供商** 。
 
@@ -286,25 +286,25 @@ Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码�
 
 \* Email 配置变量只有在要发送电子邮件时才需要。如果没有配置，将自动跳过电子邮件确认。
 
-支持信息 SMTP
+::: info SMTP SUPPORT
 <!-- -->
 目前不提供通用 SMTP 支持。如果您的内部部署需要 SMTP 支持，请联系
 [contact@tuist.dev](mailto:contact@tuist.dev) 讨论您的需求。
 <!-- -->
 :::
 
-:: info 空气密封部署
+::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
 对于没有互联网接入或电子邮件提供商配置的内部安装，默认情况下会自动跳过电子邮件确认。用户注册后可立即登录。如果已配置电子邮件但仍想跳过确认，请设置`TUIST_SKIP_EMAIL_CONFIRMATION=true`
 。要在配置电子邮件时要求电子邮件确认，请设置`TUIST_SKIP_EMAIL_CONFIRMATION=false` 。
 <!-- -->
 :::
 
-### Git 平台配置 {#git-platform-configuration}
+### Git 平台配置{#git-platform-configuration}
 
 Tuist 可以<LocalizedLink href="/guides/server/authentication">与 Git 平台</LocalizedLink>集成，提供额外功能，例如自动在拉取请求中发布注释。
 
-#### GitHub {#platform-github}
+#### GitHub{#platform-github}
 
 您需要[创建一个 GitHub
 应用程序](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)。除非你创建了一个
@@ -317,7 +317,7 @@ permissions` 部分，你还需要将`Pull requests` 权限设置为`Read and wr
 | ------------------------------ | -------------- | --- | --- | ------------------------------------ |
 | `tuist_github_app_private_key` | GitHub 应用程序的私钥 | 是   |     | `-----begin rsa private key-----...` |
 
-## 本地测试 {#testing-locally}
+## 本地测试{#testing-locally}
 
 我们提供全面的 Docker Compose 配置，其中包括在本地计算机上测试 Tuist 服务器所需的所有依赖项，然后再部署到您的基础架构：
 
@@ -328,7 +328,7 @@ permissions` 部分，你还需要将`Pull requests` 权限设置为`Read and wr
 - Redis 用于跨部署的持久 KV 存储（可选）
 - 用于数据库管理的 pgweb
 
-需要危险许可证
+::: danger LICENSE REQUIRED
 <!-- -->
 运行 Tuist 服务器（包括本地开发实例）需要合法的`TUIST_LICENSE` 环境变量。如果您需要许可证，请联系
 [contact@tuist.dev](mailto:contact@tuist.dev)。
@@ -399,14 +399,14 @@ docker compose down -v
   ClickHouse Keeper 配置
 - [.env.example](/server/self-host/.env.example)- 环境变量文件示例
 
-## 部署 {#deployment｝
+## 部署{#deployment}
 
 Tuist 官方 Docker 映像可在以下网址获取：
 ```
 ghcr.io/tuist/tuist
 ```
 
-### 拉取 Docker 映像 {#pulling-the-docker-image}
+### 提取 Docker 映像{#pulling-the-docker-image}
 
 执行以下命令即可获取图像：
 
@@ -419,7 +419,7 @@ docker pull ghcr.io/tuist/tuist:latest
 docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
-### 部署 Docker 映像 {#deploying-the-docker-image}
+### 部署 Docker 映像{#deploying-the-docker-image}
 
 Docker 映像的部署流程将根据您选择的云提供商和组织的持续部署方法而有所不同。由于大多数云解决方案和工具（如
 [Kubernetes](https://kubernetes.io/)）都使用 Docker 映像作为基本单元，因此本节中的示例应与您的现有设置保持一致。
@@ -430,7 +430,7 @@ Docker 映像的部署流程将根据您选择的云提供商和组织的持续�
 <!-- -->
 :::
 
-#### 飞 {#fly}
+#### 飞{#fly}
 
 要在 [Fly](https://fly.io/) 上部署应用程序，您需要`fly.toml` 配置文件。请考虑在持续部署 (CD)
 管道中动态生成该文件。以下是供您使用的参考示例：
@@ -492,11 +492,11 @@ kill_timeout = "5s"
 镜像，因此我们需要使用`--local-only` 标志。
 
 
-## 普罗米修斯度量标准 {#prometheus-metrics}
+## 普罗米修斯指标{#prometheus-metrics}
 
 Tuist 在`/metrics` 公开 Prometheus 指标，帮助您监控自托管实例。这些指标包括
 
-### Finch HTTP 客户端指标 {#finch-metrics}
+### Finch HTTP 客户端指标{#finch-metrics}
 
 Tuist 使用 [Finch](https://github.com/sneako/finch) 作为 HTTP 客户端，并公开 HTTP 请求的详细指标：
 
@@ -543,11 +543,11 @@ Tuist 使用 [Finch](https://github.com/sneako/finch) 作为 HTTP 客户端，�
 - 自定义业务逻辑指标（存储、账户、项目等）
 - 数据库性能（使用 Tuist 托管基础设施时）
 
-## 操作 {# 操作｝
+## 业务{#operations}
 
 Tuist 在`/ops/` 下提供了一套实用程序，可用于管理实例。
 
-警告 授权
+::: warning Authorization
 <!-- -->
 只有手柄列在`TUIST_OPS_USER_HANDLES` 环境变量中的用户才能访问`/ops/` 端点。
 <!-- -->

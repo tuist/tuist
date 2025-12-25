@@ -362,13 +362,13 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def run_events(project_id, start_date, end_date, opts) do
+  def run_events(project_id, start_datetime, end_datetime, opts) do
     query =
       from(e in Event,
         as: :event,
         where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id
       )
 
@@ -378,11 +378,11 @@ defmodule Tuist.CommandEvents do
     |> Enum.map(&Event.normalize_enums/1)
   end
 
-  def run_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+  def run_average_durations(project_id, start_datetime, end_datetime, date_period, time_bucket, name, opts) do
     date_format = get_date_format(time_bucket)
 
     date_range_query =
-      build_date_range_query(start_date, end_date, date_period, date_format)
+      build_date_range_query(start_datetime, end_datetime, date_period, date_format)
 
     data_query =
       add_filters(
@@ -390,8 +390,8 @@ defmodule Tuist.CommandEvents do
           as: :event,
           group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           where:
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-              e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+              e.ran_at < ^DateTime.to_naive(end_datetime) and e.name == ^name and
               e.project_id == ^project_id,
           select: %{
             date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -411,11 +411,11 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  def run_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+  def run_count(project_id, start_datetime, end_datetime, date_period, time_bucket, name, opts) do
     date_format = get_date_format(time_bucket)
 
     date_range_query =
-      build_date_range_query(start_date, end_date, date_period, date_format)
+      build_date_range_query(start_datetime, end_datetime, date_period, date_format)
 
     data_query =
       add_filters(
@@ -423,8 +423,8 @@ defmodule Tuist.CommandEvents do
           as: :event,
           group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           where:
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-              e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+              e.ran_at < ^DateTime.to_naive(end_datetime) and
               e.project_id == ^project_id,
           select: %{
             date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -444,14 +444,14 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  def cache_hit_rate(project_id, start_date, end_date, opts) do
+  def cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
     query =
       from(e in Event,
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime),
         select: %{
           cacheable_targets_count: sum(e.cacheable_targets_count),
           local_cache_hits_count: sum(e.local_cache_hits_count),
@@ -464,7 +464,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def cache_hit_rates(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+  def cache_hit_rates(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_date_format(time_bucket)
 
     query =
@@ -472,8 +472,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -488,7 +488,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def cache_hit_rate_percentiles(project_id, start_date, end_date, _date_period, time_bucket, percentile, opts) do
+  def cache_hit_rate_percentiles(project_id, start_datetime, end_datetime, _date_period, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
     # For hit rate (higher is better), flip the percentile to get descending order
@@ -500,8 +500,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.cacheable_targets_count > 0,
         select: %{
@@ -522,7 +522,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def cache_hit_rate_period_percentile(project_id, start_date, end_date, percentile, opts) do
+  def cache_hit_rate_period_percentile(project_id, start_datetime, end_datetime, percentile, opts) do
     # For hit rate (higher is better), flip the percentile to get descending order
     # p99 means 99% of runs achieved this hit rate or better
     flipped_percentile = 1 - percentile
@@ -532,8 +532,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.cacheable_targets_count > 0,
         select:
           fragment(
@@ -550,14 +550,14 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rate(project_id, start_date, end_date, opts) do
+  def selective_testing_hit_rate(project_id, start_datetime, end_datetime, opts) do
     query =
       from(e in Event,
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime),
         select: %{
           test_targets_count: sum(e.test_targets_count),
           local_test_hits_count: sum(e.local_test_hits_count),
@@ -570,7 +570,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rate_percentiles(project_id, start_date, end_date, time_bucket, percentile, opts) do
+  def selective_testing_hit_rate_percentiles(project_id, start_datetime, end_datetime, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
     # For hit rate (higher is better), flip the percentile to get descending order
@@ -582,8 +582,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.test_targets_count > 0,
         select: %{
@@ -604,7 +604,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def selective_testing_hit_rate_period_percentile(project_id, start_date, end_date, percentile, opts) do
+  def selective_testing_hit_rate_period_percentile(project_id, start_datetime, end_datetime, percentile, opts) do
     # For hit rate (higher is better), flip the percentile to get descending order
     # p99 means 99% of runs achieved this hit rate or better
     flipped_percentile = 1 - percentile
@@ -614,8 +614,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         where:
           e.project_id == ^project_id and
-            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.test_targets_count > 0,
         select:
           fragment(
@@ -632,7 +632,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rates(project_id, start_date, end_date, _date_period, time_bucket, opts) do
+  def selective_testing_hit_rates(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_date_format(time_bucket)
 
     query =
@@ -640,8 +640,8 @@ defmodule Tuist.CommandEvents do
         as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^DateTime.to_naive(start_datetime) and
+            e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
@@ -656,10 +656,12 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def count_events_in_period(start_date, end_date) do
+  def count_events_in_period(start_datetime, end_datetime) do
     ClickHouseRepo.aggregate(
       from(e in Event,
-        where: e.ran_at >= ^start_date and e.ran_at <= ^end_date
+        where:
+          e.ran_at >= ^DateTime.to_naive(start_datetime) and
+            e.ran_at <= ^DateTime.to_naive(end_datetime)
       ),
       :count
     )
@@ -669,8 +671,8 @@ defmodule Tuist.CommandEvents do
     ClickHouseRepo.aggregate(from(e in Event, []), :count)
   end
 
-  def run_average_duration(project_id, start_date, end_date, opts) do
-    query = build_analytics_query(project_id, start_date, end_date, opts)
+  def run_average_duration(project_id, start_datetime, end_datetime, opts) do
+    query = build_analytics_query(project_id, start_datetime, end_datetime, opts)
 
     result =
       query
@@ -683,8 +685,8 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def run_analytics(project_id, start_date, end_date, opts) do
-    query = build_analytics_query(project_id, start_date, end_date, opts)
+  def run_analytics(project_id, start_datetime, end_datetime, opts) do
+    query = build_analytics_query(project_id, start_datetime, end_datetime, opts)
 
     result =
       query
@@ -707,10 +709,10 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  defp build_analytics_query(project_id, start_date, end_date, opts) do
+  defp build_analytics_query(project_id, start_datetime, end_datetime, opts) do
     from(e in Event, as: :event)
-    |> where([event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
-    |> where([event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
+    |> where([event: e], e.ran_at > ^DateTime.to_naive(start_datetime))
+    |> where([event: e], e.ran_at < ^DateTime.to_naive(end_datetime))
     |> where([event: e], e.project_id == ^project_id)
     |> apply_analytics_filters(opts)
   end
@@ -786,9 +788,33 @@ defmodule Tuist.CommandEvents do
   defp get_date_format("1 month"), do: "%Y-%m"
   defp get_date_format(_), do: "%Y-%m-%d"
 
-  defp build_date_range_query(start_date, end_date, date_period, date_format) do
+  defp build_date_range_query(start_datetime, end_datetime, date_period, date_format) do
     case date_period do
+      :hour ->
+        start_datetime = DateTime.truncate(start_datetime, :second)
+        end_datetime = DateTime.truncate(end_datetime, :second)
+        hours_count = max(div(DateTime.diff(end_datetime, start_datetime, :second), 3600) + 1, 1)
+
+        from(
+          d in fragment(
+            """
+              SELECT formatDateTime(
+                toDateTime(?) + INTERVAL number HOUR,
+                ?
+              ) AS date
+              FROM numbers(?)
+            """,
+            ^DateTime.to_naive(start_datetime),
+            ^date_format,
+            ^hours_count
+          ),
+          select: %{date: d.date}
+        )
+
       :day ->
+        start_date = DateTime.to_date(start_datetime)
+        end_date = DateTime.to_date(end_datetime)
+
         from(
           d in fragment(
             """
@@ -798,7 +824,7 @@ defmodule Tuist.CommandEvents do
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
             """,
-            ^NaiveDateTime.new!(start_date, ~T[00:00:00]),
+            ^DateTime.to_naive(start_datetime),
             ^date_format,
             ^start_date,
             ^end_date
@@ -807,6 +833,9 @@ defmodule Tuist.CommandEvents do
         )
 
       :month ->
+        start_date = DateTime.to_date(start_datetime)
+        end_date = DateTime.to_date(end_datetime)
+
         from(
           d in fragment(
             """

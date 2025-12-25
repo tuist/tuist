@@ -37,7 +37,7 @@
 - macOS 14.0+
 - Xcode 16.3+
 
-## قم بإعداد المشروع محلياً {#set-up-the-project-locally}
+## إعداد المشروع محلياً {#set-up-the-project-locally}
 
 لبدء العمل على المشروع، يمكننا اتباع الخطوات التالية:
 
@@ -45,8 +45,7 @@
 - [تثبيت] (https://mise.jdx.dev/getting-started.html) Mise لتوفير بيئة التطوير.
 - قم بتشغيل `mise install` لتثبيت تبعيات النظام التي يحتاجها تويست
 - قم بتشغيل `tuist install` لتثبيت التبعيات الخارجية التي يحتاجها Tuist
-- (اختياري) قم بتشغيل `tuist auth تسجيل الدخول` للوصول إلى ذاكرة التخزين المؤقت
-  <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
+- (اختياري) قم بتشغيل `tuist auth تسجيل الدخول` للوصول إلى ذاكرة التخزين المؤقت <LocalizedLink href="/guides/features/cache">Tuist Cache</LocalizedLink>
 - تشغيل `توليد تويست` لإنشاء مشروع تويست إكس كود باستخدام تويست نفسه
 
 **يفتح المشروع الذي تم إنشاؤه تلقائيًا**. إذا كنت بحاجة إلى فتحه مرة أخرى دون
@@ -62,11 +61,9 @@
 
 ## تحرير المشروع {#edit-the-project}
 
-إذا كنت بحاجة إلى تحرير المشروع، على سبيل المثال لإضافة تبعيات أو تعديل أهداف،
-يمكنك استخدام الأمر
-<LocalizedLink href="/guides/features/projects/editing">`tuist تحرير` الأمر </LocalizedLink>. بالكاد يُستخدم هذا الأمر، لكن من الجيد أن تعرف أنه موجود.
+إذا كنت بحاجة إلى تحرير المشروع، على سبيل المثال لإضافة تبعيات أو تعديل أهداف، يمكنك استخدام الأمر <LocalizedLink href="/guides/features/projects/editing">`tuist تحرير` الأمر</LocalizedLink>. بالكاد يُستخدم هذا الأمر، لكن من الجيد أن تعرف أنه موجود.
 
-## رن تويست {#run-tuist}
+## تشغيل تويست {#run-tuist}
 
 ### من Xcode {#from-xcode}
 
@@ -86,7 +83,7 @@
 ![مثال على كيفية ضبط دليل العمل لتشغيل تويست]
 (/images/contributors/scheme-working-directory.png)
 
-::: التحذير تجميع وصف المشروع
+::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
 يعتمد `tuist` CLI على وجود إطار عمل `ProjectDescription` في دليل المنتجات
 المبنية. إذا فشل `tuist` في التشغيل بسبب عدم تمكنه من العثور على إطار عمل
@@ -94,7 +91,7 @@
 <!-- -->
 :::
 
-### من الطرفية {#from-the-terminal}
+### من المحطة الطرفية {#from-the-terminal}
 
 يمكنك تشغيل `تويست` باستخدام تويست نفسه من خلال الأمر `تشغيل`:
 

@@ -5,7 +5,7 @@
   "description": "Learn how to set up Single Sign-On (SSO) with your organization."
 }
 ---
-# SSO {#sso}
+# SSO{#sso}
 
 ## グーグル
 

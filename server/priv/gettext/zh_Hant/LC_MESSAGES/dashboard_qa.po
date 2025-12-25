@@ -1,0 +1,723 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:49+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
+"projects/tuist/dashboard_qa/zh_Hant/>\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/qa_run_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid " or sit back and relax..."
+msgstr " 或坐下來放鬆..."
+
+#: lib/tuist_web/live/qa_run_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{app_name} icon"
+msgstr "%{app_name} 圖示"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:513
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{current_step}/%{total_steps} steps"
+msgstr "%{current_step}/%{total_steps} 步數"
+
+#: lib/tuist_web/live/qa_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{qa_average_duration}s"
+msgstr "%{qa_average_duration}s"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:147
+#, elixir-autogen, elixir-format, fuzzy
+msgid "--my-launch-argument value"
+msgstr "--我的啟動參數值"
+
+#: lib/tuist_web/live/qa_live.html.heex:341
+#, elixir-autogen, elixir-format, fuzzy
+msgid "1. Upload a preview from a PR"
+msgstr "1.從 PR 上傳預覽"
+
+#: lib/tuist_web/live/qa_live.html.heex:365
+#, elixir-autogen, elixir-format, fuzzy
+msgid "2. Trigger the QA session from the PR"
+msgstr "2.從 PR 觸發 QA 會話"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:108
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account"
+msgstr "帳戶"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:317
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Action"
+msgstr "行動"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:156
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Actions"
+msgstr "行動"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add"
+msgstr "新增"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:119
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add arguments"
+msgstr "新增論點"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:113
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add launch argument group"
+msgstr "新增啟動參數群組"
+
+#: lib/tuist_web/live/qa_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Analytics"
+msgstr "分析"
+
+#: lib/tuist_web/live/qa_live.ex:191
+#: lib/tuist_web/live/qa_live.ex:200
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "任何"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:641
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App context"
+msgstr "應用程式情境"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:682
+#: lib/tuist_web/live/qa_settings_live.html.heex:25
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App description"
+msgstr "應用程式說明"
+
+#: lib/tuist_web/live/qa_live.ex:154
+#: lib/tuist_web/live/qa_live.html.heex:100
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App issues found"
+msgstr "發現應用程式問題"
+
+#: lib/tuist_web/live/qa_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App issues found represents the total number of issues discovered during QA testing in a given period."
+msgstr ""
+"App Issues Found（發現的應用程式問題）代表特定期間內 QA 測試中發現的問題總數"
+"。"
+
+#: lib/tuist_web/live/qa_live.html.heex:8
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App:"
+msgstr "App："
+
+#: lib/tuist_web/live/qa_run_live.html.heex:675
+#: lib/tuist_web/live/qa_settings_live.html.heex:146
+#: lib/tuist_web/live/qa_settings_live.html.heex:182
+#: lib/tuist_web/live/qa_settings_live.html.heex:232
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Arguments"
+msgstr "論點"
+
+#: lib/tuist_web/live/qa_live.html.heex:120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average QA duration represents the average time it took to complete a QA session during a given period."
+msgstr "平均 QA 持續時間代表在特定期間內完成一個 QA 環節所需的平均時間。"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:117
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average Tokens per Run"
+msgstr "每次執行的平均代幣"
+
+#: lib/tuist_web/live/qa_live.ex:166
+#: lib/tuist_web/live/qa_live.html.heex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. QA duration"
+msgstr "平均值。品質保證持續時間"
+
+#: lib/tuist_web/live/ops_qa_logs_live.html.heex:5
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Back"
+msgstr "返回"
+
+#: lib/tuist_web/live/qa_live.html.heex:272
+#: lib/tuist_web/live/qa_run_live.html.heex:141
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "分支機構"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:169
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle identifier"
+msgstr "套件識別碼"
+
+#: lib/tuist_web/live/qa_live.html.heex:61
+#: lib/tuist_web/live/qa_settings_live.html.heex:157
+#: lib/tuist_web/live/qa_settings_live.html.heex:243
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "取消"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:98
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Check the live "
+msgstr "檢查現場 "
+
+#: lib/tuist_web/live/qa_live.html.heex:278
+#: lib/tuist_web/live/qa_run_live.html.heex:148
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit SHA"
+msgstr "承諾 SHA"
+
+#: lib/tuist_web/live/qa_live.html.heex:242
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Completed"
+msgstr "已完成"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:133
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Created at"
+msgstr "建立於"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:66
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Credentials"
+msgstr "證書"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:672
+#: lib/tuist_web/live/qa_settings_live.html.heex:140
+#: lib/tuist_web/live/qa_settings_live.html.heex:179
+#: lib/tuist_web/live/qa_settings_live.html.heex:222
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Description"
+msgstr "說明"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:108
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Details"
+msgstr "詳細資訊"
+
+#: lib/tuist_web/live/qa_live.html.heex:281
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "時間長度"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Edit launch argument group"
+msgstr "編輯啟動參數群組"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:28
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Edit or update the app description to ensure the agent can run tests smoothly:"
+msgstr "編輯或更新應用程式說明，以確保代理能順利執行測試："
+
+#: lib/tuist_web/live/qa_run_live.html.heex:648
+#: lib/tuist_web/live/qa_settings_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email"
+msgstr "電子郵件"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:49
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Enter your app description..."
+msgstr "輸入您的應用程式描述..."
+
+#: lib/tuist_web/live/qa_live.html.heex:241
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "失敗"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:8
+#, elixir-autogen, elixir-format, fuzzy
+msgid "General"
+msgstr "一般"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:167
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Get our customers to run some QA!"
+msgstr "讓我們的客戶執行一些 QA！"
+
+#: lib/tuist_web/live/qa_live.html.heex:376
+#, elixir-autogen, elixir-format, fuzzy
+msgid "GitHub comment"
+msgstr "GitHub 評論"
+
+#: lib/tuist_web/live/qa_live.html.heex:284
+#: lib/tuist_web/live/qa_run_live.html.heex:364
+#, elixir-autogen, elixir-format, fuzzy
+msgid "In progress"
+msgstr "進行中"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Include expected outcomes"
+msgstr "包括預期成果"
+
+#: lib/tuist_web/live/qa_live.html.heex:263
+#: lib/tuist_web/live/qa_run_live.html.heex:331
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issues"
+msgstr "Issues"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:182
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issues identified"
+msgstr "確定的問題"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:111
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 Days"
+msgstr "最近 30 天"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:114
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last Year"
+msgstr "去年"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:141
+#: lib/tuist_web/live/qa_settings_live.html.heex:223
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Launch argument group description"
+msgstr "啟動參數群組說明"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:108
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Launch argument groups"
+msgstr "啟動爭論群組"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:666
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Launch arguments"
+msgstr "啟動論點"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:81
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Logs"
+msgstr "日誌"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:69
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
+msgstr "修改或更新您的應用程式憑證。代理會像使用者一樣使用這些欄位登入。"
+
+#: lib/tuist_web/live/qa_live.html.heex:232
+#: lib/tuist_web/live/qa_run_live.html.heex:669
+#: lib/tuist_web/live/qa_settings_live.html.heex:134
+#: lib/tuist_web/live/qa_settings_live.html.heex:176
+#: lib/tuist_web/live/qa_settings_live.html.heex:212
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "名稱"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:404
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Next step"
+msgstr "下一步"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No QA runs found"
+msgstr "未找到 QA 運行"
+
+#: lib/tuist_web/live/qa_live.html.heex:312
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No QA runs yet"
+msgstr "尚未執行 QA"
+
+#: lib/tuist_web/live/qa_live.html.heex:212
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "暫無資料"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:187
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No issues identified"
+msgstr "未發現問題"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:700
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No logs found"
+msgstr "未找到記錄"
+
+#: lib/tuist_web/live/ops_qa_logs_live.html.heex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No logs found for this QA run"
+msgstr "未找到此 QA 執行的記錄"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:123
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No token usage found"
+msgstr "未找到令牌用途"
+
+#: lib/tuist_web/live/qa_live.html.heex:275
+#: lib/tuist_web/live/qa_run_live.html.heex:144
+#: lib/tuist_web/live/qa_run_live.html.heex:164
+#, elixir-autogen, elixir-format, fuzzy
+msgid "None"
+msgstr "無"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "概述"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:156
+#, elixir-autogen, elixir-format, fuzzy
+msgid "PR Comment"
+msgstr "公關評論"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:656
+#: lib/tuist_web/live/qa_settings_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Password"
+msgstr "密碼"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:91
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Password for test account"
+msgstr "測試帳號密碼"
+
+#: lib/tuist_web/live/qa_live.html.heex:240
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pending"
+msgstr "待定"
+
+#: lib/tuist_web/live/qa_live.html.heex:256
+#: lib/tuist_web/live/qa_run_live.html.heex:113
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Platform"
+msgstr "平台"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:699
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Preparing the agent environment..."
+msgstr "準備代理環境..."
+
+#: lib/tuist_web/live/qa_run_live.html.heex:384
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previous step"
+msgstr "上一步"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:141
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project"
+msgstr "專案"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:92
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Projects"
+msgstr "專案"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:53
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Projects Using QA (Last 30 Days)"
+msgstr "使用 QA 的專案 (最近 30 天)"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:147
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Prompt"
+msgstr "提示"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:35
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Provide clear instructions for testing"
+msgstr "提供明確的測試指示"
+
+#: lib/tuist_web/live/qa_live.ex:22
+#: lib/tuist_web/live/qa_run_live.html.heex:4
+#: lib/tuist_web/live/qa_settings_live.html.heex:13
+#: lib/tuist_web/live/qa_settings_live.html.heex:19
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA"
+msgstr "QA"
+
+#: lib/tuist_web/live/ops_qa_logs_live.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Logs"
+msgstr "QA 日誌"
+
+#: lib/tuist_web/live/ops_qa_live.ex:18
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Operations"
+msgstr "QA 作業"
+
+#: lib/tuist_web/live/qa_run_live.ex:64
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Run"
+msgstr "QA 運行"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Runs"
+msgstr "QA 運行"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Runs (Last 30 Days)"
+msgstr "QA 執行 (最近 30 天)"
+
+#: lib/tuist_web/live/qa_live.html.heex:220
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Sessions"
+msgstr "QA 環節"
+
+#: lib/tuist_web/live/qa_settings_live.ex:62
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA Settings"
+msgstr "QA 設定"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:123
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA duration"
+msgstr "QA 期限"
+
+#: lib/tuist_web/live/qa_live.ex:146
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA run count"
+msgstr "QA 次數"
+
+#: lib/tuist_web/live/ops_qa_logs_live.ex:14
+#: lib/tuist_web/live/qa_run_live.ex:31
+#: lib/tuist_web/live/qa_run_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA run not found"
+msgstr "未找到 QA 執行"
+
+#: lib/tuist_web/live/qa_live.html.heex:82
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA runs"
+msgstr "QA 運行"
+
+#: lib/tuist_web/live/qa_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA runs represent the number of QA test sessions executed during a given period."
+msgstr "QA runs 代表在特定期間執行的 QA 測試階段數量。"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "在"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:138
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent QA Runs"
+msgstr "最近的 QA 執行"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Result"
+msgstr "結果"
+
+#: lib/tuist_web/live/qa_live.html.heex:239
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Running"
+msgstr "運行"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Running tests..."
+msgstr "執行測試..."
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:55
+#: lib/tuist_web/live/qa_settings_live.html.heex:97
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Save"
+msgstr "節省"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Share your naming conventions with the LLM"
+msgstr "與 LLM 分享您的命名慣例"
+
+#: lib/tuist_web/live/qa_live.html.heex:368
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Start the QA session from GitHub with the sample command below."
+msgstr "使用下面的示例命令從 GitHub 開始 QA 會話。"
+
+#: lib/tuist_web/live/qa_live.html.heex:297
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Started at"
+msgstr "開始於"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:144
+#: lib/tuist_web/live/qa_live.html.heex:235
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "狀態"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:608
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Step %{step_index}"
+msgstr "步驟 %{step_index}"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:388
+#: lib/tuist_web/live/qa_run_live.html.heex:409
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Step %{step_number}"
+msgstr "步驟 %{step_number}"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:297
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Steps"
+msgstr "步驟"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:208
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Temporary visual inconsistency"
+msgstr "暫時性的視覺不一致"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:95
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The agent is currently running tests"
+msgstr "代理程式目前正在執行測試"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:343
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Timestamp"
+msgstr "時間戳記"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:105
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Token Usage by Account"
+msgstr "各帳戶的代幣使用量"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:150
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Token usage"
+msgstr "代幣使用"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Token usage will appear here once QA runs start using LLM features"
+msgstr "一旦 QA 測試開始使用 LLM 功能，代幣的使用情況就會出現在這裡。"
+
+#: lib/tuist_web/live/qa_live.html.heex:352
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist documentation"
+msgstr "Tuist 文件"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "未知"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:253
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Update"
+msgstr "更新"
+
+#: lib/tuist_web/live/qa_live.html.heex:344
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
+msgstr "按照下列文件中的指示，從 PR 上傳預覽，以啟動 QA 會話。"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:47
+#, elixir-autogen, elixir-format, fuzzy
+msgid "V %{version}"
+msgstr "V %{version｝"
+
+#: lib/tuist_web/live/ops_qa_live.html.heex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View Logs"
+msgstr "檢視日誌"
+
+#: lib/tuist_web/live/qa_settings_live.ex:17
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are not authorized to perform this action."
+msgstr "您無權執行此動作。"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:135
+#: lib/tuist_web/live/qa_settings_live.html.heex:213
+#, elixir-autogen, elixir-format, fuzzy
+msgid "argument-group-name"
+msgstr "argument-group-name"
+
+#: lib/tuist_web/live/qa_live.html.heex:266
+#, elixir-autogen, elixir-format, fuzzy
+msgid "issue"
+msgid_plural "issues"
+msgstr[0] "問題"
+
+#: lib/tuist_web/live/qa_run_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "logs"
+msgstr "原木"
+
+#: lib/tuist_web/live/qa_live.ex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "上個月以來"
+
+#: lib/tuist_web/live/qa_live.ex:186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "自上周以來"
+
+#: lib/tuist_web/live/qa_live.ex:187
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "自去年以來"
+
+#: lib/tuist_web/live/qa_settings_live.html.heex:85
+#, elixir-autogen, elixir-format, fuzzy
+msgid "test@example.com"
+msgstr "test@example.com"
+
+#: lib/tuist_web/live/qa_live.html.heex:70
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "申請"
+
+#: lib/tuist_web/live/qa_live.html.heex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "客製化"
+
+#: lib/tuist_web/live/qa_live.html.heex:49
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "過去 12 個月"
+
+#: lib/tuist_web/live/qa_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "過去 24 小時"
+
+#: lib/tuist_web/live/qa_live.html.heex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+#: lib/tuist_web/live/qa_live.html.heex:39
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+#: lib/tuist_web/live/qa_live.ex:188
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "自上期"
+
+#: lib/tuist_web/live/qa_live.ex:185
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "自昨"

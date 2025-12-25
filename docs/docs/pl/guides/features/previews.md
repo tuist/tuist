@@ -7,7 +7,7 @@
 ---
 # Zapowiedzi {#previews}
 
-::: warning WYMAGANIA
+::: ostrzeżenie WYMAGANIA
 <!-- -->
 - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->
@@ -23,7 +23,7 @@ szybkiej informacji zwrotnej od współpracownika lub znajomego.
 Aby usprawnić ten proces, Tuist zapewnia sposób generowania i udostępniania
 podglądów aplikacji każdemu.
 
-::: warning URZĄDZENIA MUSZĄ BYĆ PODPISANE
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
 Podczas tworzenia aplikacji na urządzenie użytkownik jest obecnie odpowiedzialny
 za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
@@ -32,8 +32,9 @@ za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -70,6 +71,18 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
+::: warning UNIQUE BUILD NUMBERS IN CI
+<!-- -->
+Upewnij się, że `CFBundleVersion` (wersja kompilacji) jest unikalna,
+wykorzystując numer przebiegu CI, który ujawnia większość dostawców CI. Na
+przykład w GitHub Actions można ustawić `CFBundleVersion` na zmienną
+<code v-pre>${{ github.run_number }}</code>.
+
+Przesłanie podglądu z tą samą wersją binarną (kompilacją) i tą samą
+`CFBundleVersion` nie powiedzie się.
+<!-- -->
+:::
+
 ## Utwory {#tracks}
 
 Ścieżki pozwalają organizować podglądy w nazwane grupy. Na przykład, możesz mieć
@@ -93,7 +106,7 @@ Jest to przydatne dla:
 - **Filtrowanie**: Łatwe wyszukiwanie i zarządzanie podglądami według utworów na
   pulpicie nawigacyjnym Tuist.
 
-::: warning WIDOCZNOŚĆ PRZEGLĄDÓW
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
 Tylko osoby z dostępem do organizacji, do której należy projekt, mogą uzyskać
 dostęp do podglądu. Planujemy dodać obsługę wygasających linków.
@@ -118,7 +131,7 @@ tuist/tuist/tuist`.
 Po kliknięciu przycisku "Uruchom" na stronie podglądu, aplikacja macOS
 automatycznie uruchomi się na aktualnie wybranym urządzeniu.
 
-::: warning WYMAGANIA
+::: ostrzeżenie WYMAGANIA
 <!-- -->
 Musisz mieć zainstalowany lokalnie Xcode i korzystać z systemu macOS 14 lub
 nowszego.
@@ -139,12 +152,12 @@ nowszego.
 Podobnie jak aplikacja na macOS, aplikacje Tuist na iOS usprawniają dostęp do
 podglądów i ich uruchamianie.
 
-## Komentarze do pull/merge requestów {#pullmerge-request-comments}.
+## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
-::: warning WYMAGANA INTEGRACJA Z PLATFORMĄ GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
-<LocalizedLink href="/guides/server/accounts-and-projects">zdalny projekt</LocalizedLink> z platformą
+<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny projekt</LocalizedLink> z platformą
 <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
@@ -163,7 +176,7 @@ GitHub z linkiem do podglądu
 Tuist](/images/guides/features/github-app-with-preview.png)
 
 
-## Powiadomienia o aktualizacjach w aplikacji {#in-app-update-notifications}.
+## Powiadomienia o aktualizacjach w aplikacji {#in-app-update-notifications}
 
 Zestaw [Tuist SDK](https://github.com/tuist/sdk) umożliwia aplikacji wykrywanie,
 kiedy dostępna jest nowsza wersja podglądu i powiadamianie o tym użytkowników.
@@ -183,7 +196,7 @@ Dodaj Tuist SDK jako zależność pakietu Swift:
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Monitorowanie aktualizacji {#sdk-monitor-updates}.
+### Monitorowanie aktualizacji {#sdk-monitor-updates}
 
 Użyj `monitorPreviewUpdates`, aby okresowo sprawdzać dostępność nowych wersji
 podglądu:
@@ -207,7 +220,7 @@ struct MyApp: App {
 }
 ```
 
-### Pojedyncze sprawdzenie aktualizacji {#sdk-single-check}.
+### Kontrola pojedynczej aktualizacji {#sdk-single-check}
 
 Do ręcznego sprawdzania aktualizacji:
 
@@ -222,7 +235,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### Zatrzymanie monitorowania aktualizacji {#sdk-stop-monitoring}.
+### Zatrzymywanie monitorowania aktualizacji {#sdk-stop-monitoring}
 
 `monitorPreviewUpdates` zwraca zadanie `` , które można anulować:
 
@@ -263,7 +276,7 @@ zapytania `bundle-id`:
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## Automatyzacje {#automations}
+## Automatyzacja {#automations}
 
 Można użyć flagi `--json`, aby uzyskać dane wyjściowe JSON z polecenia `tuist
 share`:

@@ -5,7 +5,7 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Logowanie {#logging}
+# Rejestrowanie {#logging}
 
 CLI obejmuje interfejs [swift-log](https://github.com/apple/swift-log) dla
 logowania. Pakiet abstrahuje od szczegółów implementacji logowania, pozwalając

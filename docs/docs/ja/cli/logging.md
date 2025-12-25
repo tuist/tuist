@@ -9,7 +9,7 @@
 
 CLIは問題を診断するために内部的にメッセージを記録します。
 
-## ログを使って問題を診断する{#diagnose-issues-using-logs}
+## ログを使って問題を診断する{#diagnose-issues-using-logs}。
 
 コマンドを実行しても意図した結果が得られない場合、ログを調べることで問題を診断することができます。CLIはログを[OSLog](https://developer.apple.com/documentation/os/oslog)とファイルシステムに転送します。
 
@@ -31,7 +31,7 @@ Tuistのディレクトリ構成とカスタムディレクトリの設定方法
 <!-- -->
 :::
 
-### 継続的インテグレーション{#diagnose-issues-using-logs-ci}
+### 継続的インテグレーション{#diagnose-issues-using-logs-ci}。
 
 環境を使い捨てにするCIでは、TuistログをエクスポートするようにCIパイプラインを設定したいかもしれない。アーティファクトのエクスポートはCIサービスに共通する機能であり、設定は利用するサービスに依存する。例えば
 GitHub Actions では、`actions/upload-artifact` アクションを使ってログをアーティファクトとしてアップロードできます：
@@ -61,7 +61,7 @@ jobs:
           path: /tmp/tuist/logs/*.log
 ```
 
-### キャッシュ・デーモンのデバッグ{#cache-daemon-debugging}
+### キャッシュ・デーモンのデバッグ{#cache-daemon-debugging}。
 
 キャッシュ関連の問題をデバッグするために、Tuistはサブシステム`dev.tuist.cache` で`os_log`
 を使用してキャッシュデーモンの操作をログに記録します。これらのログをリアルタイムでストリーミングすることができます：

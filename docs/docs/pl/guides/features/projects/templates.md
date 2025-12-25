@@ -17,7 +17,7 @@ może być przydatne:
   MyFeature`.
 - Tworzenie nowych projektów: `tuist scaffold feature-project --name Home`
 
-::: info BEZ OPINII
+::: info NON-OPINIONATED
 <!-- -->
 Tuist nie ma zdania na temat zawartości szablonów i tego, do czego ich używasz.
 Wymagane jest jedynie, aby znajdowały się one w określonym katalogu.
@@ -92,9 +92,9 @@ aby uzyskać wartość atrybutu name pisaną małymi literami.
 Można również użyć `.directory`, który daje możliwość kopiowania całych folderów
 do podanej ścieżki.
 
-::: tip POMOCNICY W OPISIE PROJEKTU
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Szablony obsługują użycie
-<LocalizedLink href="/guides/features/projects/code-sharing">pomocników opisu projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
+<LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
 <!-- -->
 :::

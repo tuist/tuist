@@ -35,23 +35,57 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_cache", "7 days")}
-          data-selected={@analytics_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_cache", "30 days")}
-          data-selected={@analytics_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_cache", "12 months")}
-          data-selected={@analytics_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="module-cache-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_cache", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_cache", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_cache", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_cache", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_cache", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "module-cache-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_cache", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "module-cache-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
@@ -221,9 +255,12 @@
                   formatter: @analytics_chart_data.value_formatter
                 }
               },
-              tooltip: %{
-                valueFormat: @analytics_chart_data.value_formatter
-              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                else
+                  %{valueFormat: @analytics_chart_data.value_formatter}
+                end,
               legend: %{
                 show: false
               }
@@ -298,9 +335,12 @@
                   formatter: "{value}%"
                 }
               },
-              tooltip: %{
-                valueFormat: "{value}%"
-              }
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "{value}%", dateFormat: "hour"}
+                else
+                  %{valueFormat: "{value}%"}
+                end
             }
           }
           series={[

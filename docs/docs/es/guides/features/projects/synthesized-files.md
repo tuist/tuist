@@ -11,7 +11,7 @@ Tuist puede generar archivos y código en tiempo de generación para aportar alg
 de comodidad a la gestión y el trabajo con proyectos Xcode. En esta página
 aprenderás sobre esta funcionalidad y cómo puedes utilizarla en tus proyectos.
 
-## Recursos objetivo {#target-resources}
+## Recursos {#target-resources}
 
 Los proyectos Xcode permiten añadir recursos a los objetivos. Sin embargo,
 plantean algunos retos a los equipos, sobre todo cuando se trabaja con un
@@ -44,7 +44,7 @@ frecuencia:
 Tuist resuelve los problemas anteriores sintetizando en **una interfaz unificada
 para acceder a paquetes y recursos** que abstrae los detalles de implementación.
 
-::: advertencia RECOMENDADA
+::: warning RECOMMENDED
 <!-- -->
 Aunque acceder a los recursos a través de la interfaz sintetizada por Tuist no
 es obligatorio, lo recomendamos porque facilita el razonamiento sobre el código
@@ -64,7 +64,7 @@ Cuando se genere tu proyecto, Tuist sintetizará el contenido de esos archivos y
 los escribirá en el directorio `Derived` relativo al directorio que contiene el
 proyecto que los define.
 
-::: tip GITIGNORE EL DIRECTORIO DERIVADO
+::: tip GITIGNORE THE DERIVED DIRECTORY
 <!-- -->
 Le recomendamos que añada el directorio `Derived` al archivo `.gitignore` de su
 proyecto.
@@ -84,7 +84,7 @@ El objetivo contendrá una extensión del tipo `Bundle` que expone el bundle:
 let bundle = Bundle.module
 ```
 
-### Objective-C {#objectivec}
+### Objetivo-C {#objectivec}
 
 En Objective-C, obtendrá una interfaz `{Target}Resources` para acceder al
 bundle:
@@ -93,7 +93,7 @@ bundle:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: advertencia LIMITACIÓN CON LOS OBJETIVOS INTERNOS
+::: warning LIMITATION WITH INTERNAL TARGETS
 <!-- -->
 Actualmente, Tuist no genera accesores de paquetes de recursos para objetivos
 internos que contienen sólo fuentes Objective-C. Se trata de una limitación
@@ -102,7 +102,7 @@ conocida de la que se hace un seguimiento en [issue
 <!-- -->
 :::
 
-::: tip APOYO A LOS RECURSOS EN BIBLIOTECAS A TRAVÉS DE BUNDLES
+::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
 Si un producto de destino, por ejemplo una biblioteca, no admite recursos, Tuist
 incluirá los recursos en un destino del tipo de producto `bundle` asegurándose
@@ -165,7 +165,7 @@ lista de sintetizadores de recursos que desea utilizar:
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info REFERENCIA
+::: info REFERENCE
 <!-- -->
 Puedes consultar [this
 fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)

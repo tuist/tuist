@@ -76,7 +76,7 @@ Tuist로 만든 프로젝트를 권장 합니다.
 
 ![Tuist를 실행하기 위한 작업 폴더 설정 예 ](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION 컴파일
+::: 경고 PROJECTDESCRIPTION 컴파일
 <!-- -->
 `tuist` CLI는 만들어진 products 폴더에 있는 `ProjectDescription` framework에 의존 합니다.
 `ProjectDescription` framework가 없다고 `tuist`가 실행되지 않는다면, `Tuist-Workspace`
