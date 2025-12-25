@@ -7,9 +7,10 @@
 ---
 # 인사이트 {#인사이트}
 
-경고 요구 사항 ::: 경고 요구 사항
+::: warning 요구 사항
 <!-- -->
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및
+  프로젝트</LocalizedLink>
 <!-- -->
 :::
 
