@@ -208,7 +208,7 @@ testAction: .testAction(
 )
 ```
 
-## 지속적 통합 {#continuous-integration}
+## 지속 통합 {#continuous-integration}
 
 CI에 대한 빌드 및 테스트 인사이트를 추적하려면 CI가
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지
