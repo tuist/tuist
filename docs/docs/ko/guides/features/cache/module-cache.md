@@ -22,10 +22,10 @@ Tuist의 모듈 캐시는 모듈을 바이너리(`.xcframework`)로 캐시하고
 
 ## 미리준비 {#warming}
 
-Tuist는 종속성 그래프에서 각 대상에 대해 해시</LocalizedLink>를 효율적으로
-<LocalizedLink href="/guides/features/projects/hashing">활용하여 변경 사항을 감지합니다. 이
-데이터를 활용하여 이러한 타깃에서 파생된 바이너리에 고유 식별자를 생성하고 할당합니다. 그런 다음 그래프를 생성할 때 Tuist는 원본 대상을
-해당 바이너리 버전으로 원활하게 대체합니다.
+Tuist는 변경 사항을 감지하기 위해 종속성 그래프의 각 대상에 대해 </LocalizedLink>해시를 효율적으로
+활용<LocalizedLink href="/guides/features/projects/hashing">합니다. 이 데이터를 활용하여, 이런
+Target에서 파생된 바이너리에 고유 식별자를 생성하고 할당합니다. 그 다음 Tuist는 그래프를 생성할 때, 원본 Target을 해당
+바이너리 버전으로 자연스럽게 대체합니다.
 
 *"워밍업"(* )으로 알려진 이 작업은 로컬에서 사용하거나 Tuist를 통해 팀원 및 CI 환경과 공유할 수 있는 바이너리를 생성합니다.
 캐시를 워밍업하는 과정은 간단하며 간단한 명령으로 시작할 수 있습니다:
