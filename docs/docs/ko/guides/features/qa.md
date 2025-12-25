@@ -30,7 +30,7 @@ Tuist QA를 사용하려면 다음을 수행해야 합니다:
 - <LocalizedLink href="/guides/integrations/gitforge/github">1}을 GitHub와 통합하여
   PR에서 직접 에이전트를 트리거할 수 있습니다.
 
-## 사용량 {#사용량}
+## 사용량 {#usage}
 
 현재 튜이스트 QA는 PR에서 직접 트리거됩니다. PR과 연결된 미리 보기가 있으면 PR에 `/qa test 기능 A를 테스트하고 싶습니다`
 라고 댓글을 달아 QA 에이전트를 트리거할 수 있습니다:
