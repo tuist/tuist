@@ -171,23 +171,22 @@
             }
 
             & input {
-              min-width: 0;
               width: 100%;
+              min-width: 0;
             }
           }
         }
 
         & [data-part="channel-list"] {
           flex: 1;
-          overflow-y: auto;
           width: 100%;
+          overflow-y: auto;
 
           & > div {
             display: contents;
           }
         }
       }
-
     }
   }
 }
