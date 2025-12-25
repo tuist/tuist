@@ -79,7 +79,7 @@ struct SetupCacheCommandService {
                     """
                     Tuist Cache setup is almost complete!
 
-                    To enable caching for this project, set the enableCaching property in your Tuist.swift file to true:
+                    To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:
 
                     let tuist = Tuist(
                         fullHandle: "\(fullHandle)",
