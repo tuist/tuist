@@ -1,8 +1,8 @@
 #marketing-changelog {
   display: flex;
   flex-direction: column;
-  padding-bottom: var(--noora-spacing-12);
   gap: var(--noora-spacing-9);
+  padding-bottom: var(--noora-spacing-12);
 
   @media (min-width: 1024px) {
     gap: var(--noora-spacing-11);
@@ -17,13 +17,12 @@
     align-self: stretch;
     gap: var(--noora-spacing-7);
 
-
     @media (min-width: 1024px) {
-      padding-top: var(--noora-spacing-12);
-      padding-bottom: var(--noora-spacing-8);
       flex-direction: row;
       align-items: flex-end;
+      padding-top: var(--noora-spacing-12);
       padding-right: calc(var(--noora-spacing-6) + var(--noora-spacing-6));
+      padding-bottom: var(--noora-spacing-8);
       padding-left: calc(var(--noora-spacing-6) + var(--noora-spacing-6));
     }
 
