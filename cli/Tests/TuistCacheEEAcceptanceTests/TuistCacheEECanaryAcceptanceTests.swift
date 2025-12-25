@@ -18,7 +18,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withTestingSimulator("iPhone 17"),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func ios_app_with_frameworks() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -144,7 +144,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withTestingSimulator("iPhone 17"),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func run_with_no_selective_testing() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -195,7 +195,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func ios_app_with_frameworks_when_no_remote_artifacts() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -264,7 +264,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func clean_remote_cache() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

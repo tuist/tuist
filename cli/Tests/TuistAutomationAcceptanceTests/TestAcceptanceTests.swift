@@ -10,7 +10,7 @@ import XCTest
 
 struct TestAcceptanceTests {
     @Test(
-        .withFixture("ios_app_with_frameworks"),
+        .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
@@ -27,7 +27,7 @@ struct TestAcceptanceTests {
     }
 
     @Test(
-        .withFixture("app_with_framework_and_tests"),
+        .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
@@ -71,24 +71,24 @@ struct TestAcceptanceTests {
 /// Test projects using tuist test
 final class TestXCTestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_framework_with_spm_bundle() async throws {
-        try await setUpFixture(.frameworkWithSPMBundle)
+        try await setUpFixture("generated_framework_with_spm_bundle")
         try await run(InstallCommand.self)
         try await run(TestCommand.self)
     }
 
     func test_with_app_with_test_plan() async throws {
-        try await setUpFixture(.appWithTestPlan)
+        try await setUpFixture("generated_app_with_test_plan")
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
     }
 
     func test_with_app_workspace_with_test_plan() async throws {
-        try await setUpFixture(.appWorkspaceWithTestPlan)
+        try await setUpFixture("generated_app_workspace_with_test_plan")
         try await run(TestCommand.self, "App", "--test-plan", "AppTestPlan")
     }
 
     func test_with_invalid_arguments() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture("generated_app_with_framework_and_tests")
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-scheme", "App"),
             XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
@@ -134,7 +134,7 @@ final class TestXCTestAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_with_multiplatform_app() async throws {
-        try await setUpFixture(.multiplatformApp)
+        try await setUpFixture("generated_multiplatform_app")
         try await run(TestCommand.self)
     }
 }

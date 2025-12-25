@@ -70,7 +70,7 @@ If you want to see this in action, you can play with one of the Tuist project's 
 
 1. Clone the repository: `git clone https://github.com/tuist/tuist`.
 2. Install the repository dependencies: `mise install`.
-3. Choose the fixture directory: `cd fixtures/framework_with_native_swift_macro`
+3. Choose the example directory: `cd examples/xcode/generated_framework_with_native_swift_macro`
 4. Install the project dependencies: `tuist install`
 5. Cache the dependencies: `tuist cache`
 6. Generate the Xcode project: `tuist generate`
