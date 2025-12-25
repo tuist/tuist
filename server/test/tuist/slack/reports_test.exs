@@ -15,7 +15,7 @@ defmodule Tuist.Slack.ReportsTest do
   end
 
   describe "report/1" do
-    test "generates Slack blocks with correct structure", %{project: project, account: account} do
+    test "returns report with all metric blocks", %{project: project, account: account} do
       now = ~U[2025-01-15 10:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
 
@@ -47,18 +47,33 @@ defmodule Tuist.Slack.ReportsTest do
           created_at: DateTime.add(now, -12, :hour)
         )
 
-      blocks = Reports.report(project)
+      assert [
+               %{type: "header", text: %{type: "plain_text", text: "Daily " <> _}},
+               %{type: "context", elements: [%{type: "mrkdwn", text: period}]},
+               %{type: "divider"},
+               %{type: "section", text: %{type: "mrkdwn", text: ":hammer_and_wrench: *Build Duration*\n" <> _}},
+               %{type: "section", text: %{type: "mrkdwn", text: ":test_tube: *Test Duration*\n" <> _}},
+               %{type: "section", text: %{type: "mrkdwn", text: ":zap: *Cache Hit Rate*\n" <> _}},
+               %{type: "context", elements: [%{type: "mrkdwn", text: "<" <> _}]}
+             ] = Reports.report(project)
 
-      assert is_list(blocks)
-      assert length(blocks) > 0
-
-      header_block = Enum.find(blocks, fn block -> block.type == "header" end)
-      assert header_block
-      assert String.contains?(header_block.text.text, project.name)
-      assert String.contains?(header_block.text.text, "Daily")
+      assert String.contains?(period, "<!date^")
     end
 
-    test "uses last_report_at when provided", %{project: project, account: account} do
+    test "returns no data block when no metrics available", %{project: project} do
+      now = ~U[2025-01-15 10:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
+      assert [
+               %{type: "header", text: %{type: "plain_text", text: "Daily " <> _}},
+               %{type: "context", elements: [%{type: "mrkdwn"}]},
+               %{type: "divider"},
+               %{type: "section", text: %{type: "mrkdwn", text: "No analytics data available for this period."}},
+               %{type: "context", elements: [%{type: "mrkdwn"}]}
+             ] = Reports.report(project)
+    end
+
+    test "uses last_report_at for date range", %{project: project, account: account} do
       now = ~U[2025-01-15 10:00:00Z]
       last_report_at = ~U[2025-01-14 10:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
@@ -72,12 +87,15 @@ defmodule Tuist.Slack.ReportsTest do
           inserted_at: DateTime.add(now, -12, :hour)
         )
 
-      blocks = Reports.report(project, last_report_at: last_report_at)
+      assert [
+               %{type: "header"},
+               %{type: "context", elements: [%{type: "mrkdwn", text: period}]},
+               %{type: "divider"},
+               %{type: "section", text: %{type: "mrkdwn", text: ":hammer_and_wrench: *Build Duration*\n" <> _}},
+               %{type: "context"}
+             ] = Reports.report(project, last_report_at: last_report_at)
 
-      assert is_list(blocks)
-      header_block = Enum.find(blocks, fn block -> block.type == "header" end)
-      assert header_block
-      assert String.contains?(header_block.text.text, project.name)
+      assert String.contains?(period, "<!date^#{DateTime.to_unix(last_report_at)}^")
     end
   end
 end

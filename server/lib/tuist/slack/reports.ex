@@ -227,14 +227,13 @@ defmodule Tuist.Slack.Reports do
     }
   end
 
-  defp maybe_duration_line(_label, %{total_average_duration: nil}), do: nil
-  defp maybe_duration_line(_label, %{total_average_duration: 0}), do: nil
-
-  defp maybe_duration_line(label, %{total_average_duration: duration, trend: trend}) do
+  defp maybe_duration_line(label, %{total_average_duration: duration, trend: trend}) when duration > 0 do
     duration_text = DateFormatter.format_duration_from_milliseconds(duration)
     change_text = format_change(trend)
     "#{label}: #{duration_text} #{change_text}\n"
   end
+
+  defp maybe_duration_line(_, _), do: nil
 
   defp format_change(nil), do: ""
 
