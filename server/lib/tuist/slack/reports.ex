@@ -4,183 +4,71 @@ defmodule Tuist.Slack.Reports do
   """
 
   alias Tuist.Bundles
-  alias Tuist.CommandEvents
+  alias Tuist.Cache
+  alias Tuist.Runs.Analytics
 
-  def generate_report(project, frequency, opts \\ []) do
+  def report(project, opts \\ []) do
     last_report_at = Keyword.get(opts, :last_report_at)
-    {current_start, current_end, previous_start, previous_end} = compute_date_ranges(frequency, last_report_at)
+    {current_start, current_end} = compute_date_range(last_report_at)
 
-    %{
-      account_name: project.account.name,
-      project_name: project.name,
-      frequency: frequency,
-      period: format_period(current_start, current_end),
-      build_duration:
-        compute_build_duration_metrics(project.id, current_start, current_end, previous_start, previous_end),
-      test_duration: compute_test_duration_metrics(project.id, current_start, current_end, previous_start, previous_end),
-      cache_hit_rate:
-        compute_cache_hit_rate_metrics(project.id, current_start, current_end, previous_start, previous_end),
-      selective_test_effectiveness:
-        compute_selective_test_metrics(project.id, current_start, current_end, previous_start, previous_end),
-      bundle_size: compute_bundle_size_metrics(project)
+    base_opts = [project_id: project.id, start_datetime: current_start, end_datetime: current_end]
+    ci_opts = Keyword.put(base_opts, :is_ci, true)
+    local_opts = Keyword.put(base_opts, :is_ci, false)
+
+    cache_analytics = Cache.Analytics.cache_hit_rate_analytics(base_opts)
+    selective_analytics = Analytics.selective_testing_analytics(base_opts)
+
+    build_duration = %{
+      ci: Analytics.build_duration_analytics(project.id, ci_opts),
+      local: Analytics.build_duration_analytics(project.id, local_opts),
+      overall: Analytics.build_duration_analytics(project.id, base_opts)
     }
-  end
 
-  def format_report_blocks(report) do
+    test_duration = %{
+      ci: Analytics.test_run_duration_analytics(project.id, ci_opts),
+      local: Analytics.test_run_duration_analytics(project.id, local_opts),
+      overall: Analytics.test_run_duration_analytics(project.id, base_opts)
+    }
+
+    cache_hit_rate = %{current: cache_analytics.cache_hit_rate, trend: cache_analytics.trend}
+    selective_test_effectiveness = %{current: selective_analytics.hit_rate, trend: selective_analytics.trend}
+    bundle_size = compute_bundle_size_metrics(project)
+
     metric_blocks =
-      build_duration_blocks(report.build_duration) ++
-        test_duration_blocks(report.test_duration) ++
-        cache_hit_rate_blocks(report.cache_hit_rate) ++
-        selective_test_blocks(report.selective_test_effectiveness) ++
-        bundle_size_blocks(report.bundle_size)
+      duration_blocks(build_duration, ":hammer_and_wrench:", "Build Duration") ++
+        duration_blocks(test_duration, ":test_tube:", "Test Duration") ++
+        cache_hit_rate_blocks(cache_hit_rate) ++
+        selective_test_blocks(selective_test_effectiveness) ++
+        bundle_size_blocks(bundle_size)
+
+    account_name = project.account.name
+    project_name = project.name
+    period = format_period(current_start, current_end)
 
     if Enum.empty?(metric_blocks) do
       [
-        header_block(report),
-        context_block(report),
+        header_block(project_name),
+        context_block(period),
         divider_block(),
         no_data_block(),
-        footer_block(report.account_name, report.project_name)
+        footer_block(account_name, project_name)
       ]
     else
       [
-        header_block(report),
-        context_block(report),
+        header_block(project_name),
+        context_block(period),
         divider_block()
-      ] ++ metric_blocks ++ [footer_block(report.account_name, report.project_name)]
+      ] ++ metric_blocks ++ [footer_block(account_name, project_name)]
     end
   end
 
-  defp compute_date_ranges(_frequency, last_report_at) when not is_nil(last_report_at) do
+  defp compute_date_range(last_report_at) when not is_nil(last_report_at) do
+    {last_report_at, DateTime.utc_now()}
+  end
+
+  defp compute_date_range(_last_report_at) do
     now = DateTime.utc_now()
-    current_end = now
-    current_start = last_report_at
-    previous_end = current_start
-    period_seconds = DateTime.diff(current_end, current_start, :second)
-    previous_start = DateTime.add(previous_end, -period_seconds, :second)
-    {current_start, current_end, previous_start, previous_end}
-  end
-
-  defp compute_date_ranges(:daily, _last_report_at) do
-    now = DateTime.utc_now()
-    current_end = now
-    current_start = DateTime.add(now, -1, :day)
-    previous_end = current_start
-    previous_start = DateTime.add(previous_end, -1, :day)
-    {current_start, current_end, previous_start, previous_end}
-  end
-
-  defp compute_date_ranges(:weekly, _last_report_at) do
-    now = DateTime.utc_now()
-    current_end = now
-    current_start = DateTime.add(now, -7, :day)
-    previous_end = current_start
-    previous_start = DateTime.add(previous_end, -7, :day)
-    {current_start, current_end, previous_start, previous_end}
-  end
-
-  defp compute_build_duration_metrics(project_id, current_start, current_end, previous_start, previous_end) do
-    ci =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end,
-        is_ci: true,
-        name: "build"
-      )
-
-    local =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end,
-        is_ci: false,
-        name: "build"
-      )
-
-    overall =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end, name: "build")
-
-    %{ci: ci, local: local, overall: overall}
-  end
-
-  defp compute_test_duration_metrics(project_id, current_start, current_end, previous_start, previous_end) do
-    ci =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end,
-        is_ci: true,
-        name: "test"
-      )
-
-    local =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end,
-        is_ci: false,
-        name: "test"
-      )
-
-    overall =
-      compute_duration_change(project_id, current_start, current_end, previous_start, previous_end, name: "test")
-
-    %{ci: ci, local: local, overall: overall}
-  end
-
-  defp compute_duration_change(project_id, current_start, current_end, previous_start, previous_end, opts) do
-    current = CommandEvents.run_average_duration(project_id, current_start, current_end, opts)
-    previous = CommandEvents.run_average_duration(project_id, previous_start, previous_end, opts)
-
-    %{
-      current: current,
-      previous: previous,
-      change_pct: calculate_change_percentage(current, previous)
-    }
-  end
-
-  defp compute_cache_hit_rate_metrics(project_id, current_start, current_end, previous_start, previous_end) do
-    current_data = CommandEvents.cache_hit_rate(project_id, current_start, current_end, [])
-    previous_data = CommandEvents.cache_hit_rate(project_id, previous_start, previous_end, [])
-
-    current = calculate_hit_rate(current_data)
-    previous = calculate_hit_rate(previous_data)
-
-    %{
-      current: current,
-      previous: previous,
-      change_pct: calculate_change_percentage(current, previous)
-    }
-  end
-
-  defp compute_selective_test_metrics(project_id, current_start, current_end, previous_start, previous_end) do
-    current_data = CommandEvents.selective_testing_hit_rate(project_id, current_start, current_end, [])
-    previous_data = CommandEvents.selective_testing_hit_rate(project_id, previous_start, previous_end, [])
-
-    current = calculate_selective_test_rate(current_data)
-    previous = calculate_selective_test_rate(previous_data)
-
-    %{
-      current: current,
-      previous: previous,
-      change_pct: calculate_change_percentage(current, previous)
-    }
-  end
-
-  defp calculate_hit_rate(nil), do: nil
-
-  defp calculate_hit_rate(%{cacheable_targets_count: nil}), do: nil
-  defp calculate_hit_rate(%{cacheable_targets_count: 0}), do: nil
-
-  defp calculate_hit_rate(%{
-         cacheable_targets_count: cacheable,
-         local_cache_hits_count: local_hits,
-         remote_cache_hits_count: remote_hits
-       }) do
-    total_hits = (local_hits || 0) + (remote_hits || 0)
-    total_hits / cacheable
-  end
-
-  defp calculate_selective_test_rate(nil), do: nil
-  defp calculate_selective_test_rate(%{test_targets_count: nil}), do: nil
-  defp calculate_selective_test_rate(%{test_targets_count: 0}), do: nil
-
-  defp calculate_selective_test_rate(%{
-         test_targets_count: test_targets,
-         local_test_hits_count: local_hits,
-         remote_test_hits_count: remote_hits
-       }) do
-    total_hits = (local_hits || 0) + (remote_hits || 0)
-    total_hits / test_targets
+    {DateTime.add(now, -1, :day), now}
   end
 
   defp compute_bundle_size_metrics(project) do
@@ -200,13 +88,6 @@ defmodule Tuist.Slack.Reports do
     end
   end
 
-  defp calculate_change_percentage(_current, previous) when previous == 0 or is_nil(previous), do: nil
-  defp calculate_change_percentage(current, _previous) when is_nil(current), do: nil
-
-  defp calculate_change_percentage(current, previous) do
-    Float.round((current - previous) / previous * 100, 1)
-  end
-
   defp format_period(start_dt, end_dt) do
     start_ts = DateTime.to_unix(start_dt)
     end_ts = DateTime.to_unix(end_dt)
@@ -216,23 +97,21 @@ defmodule Tuist.Slack.Reports do
     "<!date^#{start_ts}^{date_short} {time}|#{start_fallback}> - <!date^#{end_ts}^{date_short} {time}|#{end_fallback}>"
   end
 
-  defp header_block(report) do
-    frequency_label = if report.frequency == :daily, do: "Daily", else: "Weekly"
-
+  defp header_block(project_name) do
     %{
       type: "header",
       text: %{
         type: "plain_text",
-        text: "#{frequency_label} #{report.project_name} Report"
+        text: "Daily #{project_name} Report"
       }
     }
   end
 
-  defp context_block(report) do
+  defp context_block(period) do
     %{
       type: "context",
       elements: [
-        %{type: "mrkdwn", text: report.period}
+        %{type: "mrkdwn", text: period}
       ]
     }
   end
@@ -241,7 +120,7 @@ defmodule Tuist.Slack.Reports do
     %{type: "divider"}
   end
 
-  defp build_duration_blocks(%{ci: ci, local: local, overall: overall}) do
+  defp duration_blocks(%{ci: ci, local: local, overall: overall}, emoji, title) do
     lines =
       Enum.reject(
         [maybe_duration_line("Overall", overall), maybe_duration_line("CI", ci), maybe_duration_line("Local", local)],
@@ -256,39 +135,15 @@ defmodule Tuist.Slack.Reports do
           type: "section",
           text: %{
             type: "mrkdwn",
-            text: ":hammer_and_wrench: *Build Duration*\n" <> Enum.join(lines)
+            text: "#{emoji} *#{title}*\n" <> Enum.join(lines)
           }
         }
       ]
     end
   end
 
-  defp test_duration_blocks(%{ci: ci, local: local, overall: overall}) do
-    lines =
-      Enum.reject(
-        [maybe_duration_line("Overall", overall), maybe_duration_line("CI", ci), maybe_duration_line("Local", local)],
-        &is_nil/1
-      )
-
-    if Enum.empty?(lines) do
-      []
-    else
-      [
-        %{
-          type: "section",
-          text: %{
-            type: "mrkdwn",
-            text: ":test_tube: *Test Duration*\n" <> Enum.join(lines)
-          }
-        }
-      ]
-    end
-  end
-
-  defp cache_hit_rate_blocks(%{current: nil}), do: []
-
-  defp cache_hit_rate_blocks(%{current: current, change_pct: change_pct}) do
-    change_text = format_change(change_pct, :higher_is_better)
+  defp cache_hit_rate_blocks(%{current: current, trend: trend}) when current > 0 do
+    change_text = format_change(trend)
     rate_text = "#{Float.round(current * 100, 1)}%"
 
     [
@@ -302,10 +157,10 @@ defmodule Tuist.Slack.Reports do
     ]
   end
 
-  defp selective_test_blocks(%{current: nil}), do: []
+  defp cache_hit_rate_blocks(_), do: []
 
-  defp selective_test_blocks(%{current: current, change_pct: change_pct}) do
-    change_text = format_change(change_pct, :higher_is_better)
+  defp selective_test_blocks(%{current: current, trend: trend}) when current > 0 do
+    change_text = format_change(trend)
     rate_text = "#{Float.round(current * 100, 1)}%"
 
     [
@@ -318,6 +173,8 @@ defmodule Tuist.Slack.Reports do
       }
     ]
   end
+
+  defp selective_test_blocks(_), do: []
 
   defp bundle_size_blocks(nil), do: []
 
@@ -369,12 +226,12 @@ defmodule Tuist.Slack.Reports do
     }
   end
 
-  defp maybe_duration_line(_label, %{current: nil}), do: nil
-  defp maybe_duration_line(_label, %{current: 0}), do: nil
+  defp maybe_duration_line(_label, %{total_average_duration: nil}), do: nil
+  defp maybe_duration_line(_label, %{total_average_duration: 0}), do: nil
 
-  defp maybe_duration_line(label, %{current: current, change_pct: change_pct}) do
-    duration_text = format_duration(current)
-    change_text = format_change(change_pct, :lower_is_better)
+  defp maybe_duration_line(label, %{total_average_duration: duration, trend: trend}) do
+    duration_text = format_duration(duration)
+    change_text = format_change(trend)
     "#{label}: #{duration_text} #{change_text}\n"
   end
 
@@ -384,22 +241,13 @@ defmodule Tuist.Slack.Reports do
   defp format_duration(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)}s"
   defp format_duration(ms), do: "#{Float.round(ms / 60_000, 1)}m"
 
-  defp format_change(nil, _), do: ""
+  defp format_change(nil), do: ""
 
-  defp format_change(change_pct, preference) do
-    {icon, sign} =
-      cond do
-        change_pct > 0 and preference == :lower_is_better -> {":chart_with_upwards_trend:", "+"}
-        change_pct > 0 and preference == :higher_is_better -> {":chart_with_upwards_trend:", "+"}
-        change_pct < 0 and preference == :lower_is_better -> {":chart_with_downwards_trend:", ""}
-        change_pct < 0 and preference == :higher_is_better -> {":chart_with_downwards_trend:", ""}
-        true -> {"", ""}
-      end
-
-    if change_pct == 0 do
-      ""
-    else
-      "(#{sign}#{change_pct}% #{icon})"
+  defp format_change(change_pct) do
+    cond do
+      change_pct > 0 -> "(+#{change_pct}% :chart_with_upwards_trend:)"
+      change_pct < 0 -> "(#{change_pct}% :chart_with_downwards_trend:)"
+      true -> ""
     end
   end
 end

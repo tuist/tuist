@@ -194,7 +194,7 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
-  defp build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
+  def build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
     result =
       from(b in Build,
         where:
@@ -1376,7 +1376,7 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
-  defp test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
+  def test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =

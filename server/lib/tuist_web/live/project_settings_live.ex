@@ -8,7 +8,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Projects.Project
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
-  alias Tuist.Slack.Reports, as: SlackReports
+  alias Tuist.Slack.Reports
 
   @impl true
   def mount(
@@ -158,9 +158,7 @@ defmodule TuistWeb.ProjectSettingsLive do
         %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
       )
       when not is_nil(slack_installation) do
-    frequency = selected_project.slack_report_frequency || :daily
-    report = SlackReports.generate_report(selected_project, frequency)
-    blocks = SlackReports.format_report_blocks(report)
+    blocks = Reports.report(selected_project)
 
     case SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks) do
       :ok ->
