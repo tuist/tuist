@@ -4,7 +4,7 @@ category: "product"
 tags: ["product"]
 excerpt: "Keep everyone on the latest version with the new Tuist SDK and Tracks."
 author: fortmarek
-og_image_path: /marketing/images/blog/2025/01/05/previews-sdk-and-tracks/og.jpg
+og_image_path: /marketing/images/blog/2026/01/05/previews-sdk-and-tracks/og.jpg
 highlighted: true
 ---
 
@@ -49,7 +49,7 @@ struct MyApp: App {
 
 When a newer preview is available, the SDK will present an alert prompting the user to update:
 
-<img alt="Preview update alert" src="/marketing/images/blog/2025/01/05/previews-sdk-and-tracks/preview-update-alert.png" style="max-width: 300px;">
+<img alt="Preview update alert" src="/marketing/images/blog/2026/01/05/previews-sdk-and-tracks/preview-update-alert.png" style="max-width: 300px;">
 
 > Update checking is automatically disabled on simulators and App Store builds, so you don't need to worry about conditional compilation.
 
