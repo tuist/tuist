@@ -44,12 +44,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp assign_schedule_form_defaults(socket, project) do
     user_timezone = socket.assigns[:user_timezone] || "Etc/UTC"
 
-    frequency =
-      if project.slack_report_enabled do
-        project.slack_report_frequency || :weekly
-      else
-        :never
-      end
+    frequency = project.slack_report_frequency || :never
 
     days = project.slack_report_days_of_week || [1, 2, 3, 4, 5]
     days = if days == [], do: [1, 2, 3, 4, 5], else: days
@@ -256,7 +251,7 @@ defmodule TuistWeb.ProjectSettingsLive do
     updates =
       if frequency == :never do
         %{
-          slack_report_enabled: false,
+          slack_report_frequency: :never,
           slack_channel_id: channel_id,
           slack_channel_name: channel_name
         }
@@ -264,7 +259,6 @@ defmodule TuistWeb.ProjectSettingsLive do
         utc_time = local_hour_to_utc(hour, timezone)
 
         %{
-          slack_report_enabled: true,
           slack_report_frequency: frequency,
           slack_report_days_of_week: days,
           slack_report_schedule_time: utc_time,
@@ -329,7 +323,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_day_group([first | rest]), do: "#{day_name(first)}-#{day_name(List.last(rest))}"
 
   defp format_slack_reports_description(%{selected_project: project, user_timezone: user_timezone}) do
-    if project.slack_report_enabled do
+    if project.slack_report_frequency == :daily do
       channel_str =
         if project.slack_channel_name do
           "##{project.slack_channel_name}"

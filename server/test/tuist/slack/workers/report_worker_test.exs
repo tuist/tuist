@@ -23,12 +23,12 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       {:ok, _project} =
         Projects.update_project(project, %{
-          slack_report_enabled: true,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel",
           slack_report_frequency: :daily,
           slack_report_days_of_week: [day_of_week],
-          slack_report_schedule_time: now
+          slack_report_schedule_time: now,
+          slack_report_timezone: "Etc/UTC"
         })
 
       stub(DateTime, :utc_now, fn -> now end)
@@ -38,7 +38,11 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       end)
 
       stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start, _end, _opts ->
-        0.8
+        %{cacheable_targets_count: 100, local_cache_hits_count: 40, remote_cache_hits_count: 40}
+      end)
+
+      stub(Tuist.CommandEvents, :selective_testing_hit_rate, fn _project_id, _start, _end, _opts ->
+        nil
       end)
 
       stub(Tuist.Bundles, :last_project_bundle, fn _project, _opts ->
@@ -60,12 +64,12 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       {:ok, _project} =
         Projects.update_project(project, %{
-          slack_report_enabled: false,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel",
-          slack_report_frequency: :daily,
+          slack_report_frequency: :never,
           slack_report_days_of_week: [3],
-          slack_report_schedule_time: now
+          slack_report_schedule_time: now,
+          slack_report_timezone: "Etc/UTC"
         })
 
       stub(DateTime, :utc_now, fn -> now end)
@@ -82,12 +86,12 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       {:ok, _project} =
         Projects.update_project(project, %{
-          slack_report_enabled: true,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel",
           slack_report_frequency: :daily,
           slack_report_days_of_week: [different_day],
-          slack_report_schedule_time: now
+          slack_report_schedule_time: now,
+          slack_report_timezone: "Etc/UTC"
         })
 
       stub(DateTime, :utc_now, fn -> now end)
@@ -104,12 +108,12 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       {:ok, _project} =
         Projects.update_project(project, %{
-          slack_report_enabled: true,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel",
           slack_report_frequency: :daily,
           slack_report_days_of_week: [day_of_week],
-          slack_report_schedule_time: different_hour
+          slack_report_schedule_time: different_hour,
+          slack_report_timezone: "Etc/UTC"
         })
 
       stub(DateTime, :utc_now, fn -> now end)
@@ -125,11 +129,11 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       {:ok, _project} =
         Projects.update_project(project, %{
-          slack_report_enabled: true,
           slack_channel_id: nil,
           slack_report_frequency: :daily,
           slack_report_days_of_week: [day_of_week],
-          slack_report_schedule_time: now
+          slack_report_schedule_time: now,
+          slack_report_timezone: "Etc/UTC"
         })
 
       stub(DateTime, :utc_now, fn -> now end)

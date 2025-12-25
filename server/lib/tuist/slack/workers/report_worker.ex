@@ -45,7 +45,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   defp list_enabled_projects do
     Repo.all(
       from(p in Project,
-        where: p.slack_report_enabled == true,
+        where: p.slack_report_frequency == :daily,
         where: not is_nil(p.slack_channel_id),
         where: not is_nil(p.slack_report_schedule_time),
         where: not is_nil(p.slack_report_timezone)

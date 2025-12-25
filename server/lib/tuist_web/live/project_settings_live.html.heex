@@ -230,7 +230,7 @@
         </:footer>
       </.modal>
       <.button
-        :if={@selected_project.slack_report_enabled && @selected_project.slack_channel_id}
+        :if={@selected_project.slack_report_frequency == :daily && @selected_project.slack_channel_id}
         label={dgettext("dashboard_projects", "Send test report")}
         variant="secondary"
         size="medium"

@@ -8,9 +8,9 @@ defmodule Tuist.Repo.Migrations.AddSlackReportColumnsToProjects do
       add :slack_report_frequency, :integer
       add :slack_report_days_of_week, {:array, :integer}
       add :slack_report_schedule_time, :timestamptz
-      add :slack_report_enabled, :boolean
+      add :slack_report_timezone, :string
     end
 
-    create index(:projects, [:slack_report_enabled, :slack_report_frequency])
+    create index(:projects, [:slack_report_frequency])
   end
 end
