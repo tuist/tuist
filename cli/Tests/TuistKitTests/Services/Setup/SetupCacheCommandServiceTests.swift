@@ -477,6 +477,7 @@ struct SetupCacheCommandServiceTests {
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest
-            .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:")
+            .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
+            )
     }
 }
