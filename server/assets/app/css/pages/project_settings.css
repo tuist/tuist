@@ -151,6 +151,10 @@
           flex-direction: column;
           width: 220px;
           max-height: 300px;
+
+          & > #slack-channel-dropdown-content {
+            display: contents;
+          }
         }
 
         & [data-part="channel-search"] {
@@ -159,33 +163,26 @@
           padding: var(--noora-spacing-2);
           overflow: hidden;
 
-          & input {
-            box-sizing: border-box;
-            outline: none;
-            border: 1px solid var(--noora-border-light-default);
-            border-radius: var(--noora-radius-small);
-            background: var(--noora-surface-background-primary);
-            padding: var(--noora-spacing-2) var(--noora-spacing-3);
-            width: 100%;
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          & .noora-text-input {
+            min-width: 0;
 
-            &::placeholder {
-              color: var(--noora-surface-label-tertiary);
+            & [data-part="wrapper"] {
+              min-width: 0;
             }
 
-            &:focus {
-              border-color: var(--noora-border-light-focus);
+            & input {
+              min-width: 0;
+              width: 100%;
             }
           }
         }
 
         & [data-part="channel-list"] {
           flex: 1;
-          min-height: 200px;
           overflow-y: auto;
+          width: 100%;
 
-          & [data-phx-teleported-src] {
+          & > div {
             display: contents;
           }
         }

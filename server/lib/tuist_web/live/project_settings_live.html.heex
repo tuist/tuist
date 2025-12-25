@@ -195,19 +195,19 @@
                 </:right_icon>
               </.dropdown_item>
             </.portal>
-            <div id="slack-channel-dropdown-wrapper" phx-update="ignore">
-              <.dropdown
-                id="slack-channel-dropdown"
-                label={
-                  if @schedule_form_channel_id do
-                    "##{@schedule_form_channel_name}"
-                  else
-                    dgettext("dashboard_projects", "Select channel")
-                  end
-                }
-              >
+            <.dropdown
+              id="slack-channel-dropdown"
+              label={
+                if @schedule_form_channel_id do
+                  "##{@schedule_form_channel_name}"
+                else
+                  dgettext("dashboard_projects", "Select channel")
+                end
+              }
+            >
+              <div id="slack-channel-dropdown-content" phx-update="ignore">
                 <div data-part="channel-search">
-                  <input
+                  <.text_input
                     type="search"
                     id="channel-search-input"
                     name="channel_search"
@@ -215,11 +215,12 @@
                     phx-keyup="update_channel_search"
                     phx-debounce="300"
                     autocomplete="off"
+                    show_suffix={false}
                   />
                 </div>
                 <div data-part="channel-list" id="channel-list-target"></div>
-              </.dropdown>
-            </div>
+              </div>
+            </.dropdown>
           </div>
         </div>
         <.line_divider />

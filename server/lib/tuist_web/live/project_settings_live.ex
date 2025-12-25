@@ -226,6 +226,8 @@ defmodule TuistWeb.ProjectSettingsLive do
       socket
       |> assign(schedule_form_channel_id: channel_id)
       |> assign(schedule_form_channel_name: channel_name)
+      |> push_event("close-dropdown", %{id: "slack-channel-dropdown"})
+      # |> push_event("js-exec", %{to: "#slack-channel-dropdown", attr: "data-close"})
 
     {:noreply, socket}
   end
