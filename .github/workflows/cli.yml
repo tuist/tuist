@@ -301,6 +301,8 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
+      - name: Run Xcode First Launch
+        run: sudo xcodebuild -runFirstLaunch
       - name: Run TuistGeneratorAcceptanceTests
         run: mise x -- tuist test TuistGeneratorAcceptanceTests
       - name: Save cache
