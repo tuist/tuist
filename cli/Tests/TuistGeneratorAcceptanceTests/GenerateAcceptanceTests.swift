@@ -961,9 +961,9 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
         let sdkPkgPath = sourceRootPath
             .appending(
                 components: [
-                    "cli",
-                    "Fixtures",
-                    "resources",
+                    "examples",
+                    "xcode",
+                    "generated_resources",
                     "WorkflowExtensionsSDK.pkg",
                 ]
             )
