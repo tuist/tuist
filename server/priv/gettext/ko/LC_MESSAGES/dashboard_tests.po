@@ -1,0 +1,1106 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:30+0000\n"
+"PO-Revision-Date: 2025-12-24 20:48+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
+"dashboard_tests/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/test_run_live.html.heex:253
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{duration}s"
+msgstr "기간}s"
+
+#: lib/tuist_web/live/test_run_live.html.heex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{run_duration}s"
+msgstr "%{run_duration}s"
+
+#: lib/tuist_web/live/tests_live.html.heex:537
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{선택적_테스트_효과}%"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1296
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All tests passed!"
+msgstr "모든 테스트 통과!"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:2
+#: lib/tuist_web/live/test_runs_live.html.heex:2
+#: lib/tuist_web/live/tests_live.html.heex:2
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Analytics"
+msgstr "분석"
+
+#: lib/tuist_web/live/test_cases_live.ex:293
+#: lib/tuist_web/live/test_runs_live.ex:326
+#: lib/tuist_web/live/tests_live.ex:284
+#: lib/tuist_web/live/tests_live.html.heex:11
+#: lib/tuist_web/live/tests_live.html.heex:454
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "모든"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:324
+#: lib/tuist_web/live/test_runs_live.html.heex:319
+#: lib/tuist_web/live/tests_live.html.heex:254
+#: lib/tuist_web/live/tests_live.html.heex:616
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average"
+msgstr "평균"
+
+#: lib/tuist_web/live/test_run_live.html.heex:216
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of all test cases."
+msgstr "모든 테스트 케이스의 평균 기간."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of individual test case executions during a given period."
+msgstr "주어진 기간 동안 개별 테스트 케이스 실행의 평균 기간입니다."
+
+#: lib/tuist_web/live/test_runs_live.html.heex:138
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of test runs during a given period."
+msgstr "주어진 기간 동안 테스트 실행의 평균 기간입니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of this test case across the last 50 runs."
+msgstr "지난 50회 실행에 걸친 이 테스트 사례의 평균 지속 시간입니다."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:402
+#: lib/tuist_web/live/test_cases_live.html.heex:426
+#: lib/tuist_web/live/test_cases_live.html.heex:486
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. duration"
+msgstr "평균 지속 시간"
+
+#: lib/tuist_web/live/test_run_live.ex:737
+#: lib/tuist_web/live/test_run_live.ex:788
+#: lib/tuist_web/live/test_run_live.html.heex:215
+#: lib/tuist_web/live/test_run_live.html.heex:574
+#: lib/tuist_web/live/test_run_live.html.heex:603
+#: lib/tuist_web/live/test_run_live.html.heex:659
+#: lib/tuist_web/live/test_run_live.html.heex:773
+#: lib/tuist_web/live/test_run_live.html.heex:810
+#: lib/tuist_web/live/test_run_live.html.heex:880
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case duration"
+msgstr "평균 테스트 케이스 기간"
+
+#: lib/tuist_web/live/test_case_live.html.heex:140
+#: lib/tuist_web/live/test_cases_live.ex:261
+#: lib/tuist_web/live/test_cases_live.html.heex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case run duration"
+msgstr "평균 테스트 케이스 실행 시간"
+
+#: lib/tuist_web/live/test_runs_live.ex:294
+#: lib/tuist_web/live/test_runs_live.html.heex:123
+#: lib/tuist_web/live/tests_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test run duration"
+msgstr "평균 테스트 실행 시간"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1131
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary Cache"
+msgstr "바이너리 캐시"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1093
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache hits"
+msgstr "바이너리 캐시 히트"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1107
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache misses"
+msgstr "바이너리 캐시 누락"
+
+#: lib/tuist_web/live/test_run_live.html.heex:167
+#: lib/tuist_web/live/test_runs_live.ex:52
+#: lib/tuist_web/live/test_runs_live.html.heex:437
+#: lib/tuist_web/live/tests_live.html.heex:796
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "Branch"
+
+#: lib/tuist_web/live/test_run_live.html.heex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build: %{scheme}"
+msgstr "빌드: %{체계}"
+
+#: lib/tuist_web/live/test_case_live.ex:90
+#: lib/tuist_web/live/test_cases_live.ex:295
+#: lib/tuist_web/live/test_runs_live.ex:328
+#: lib/tuist_web/live/tests_live.ex:286
+#: lib/tuist_web/live/tests_live.html.heex:27
+#: lib/tuist_web/live/tests_live.html.heex:470
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/test_run_live.html.heex:68
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI Run"
+msgstr "CI 실행"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hit rate"
+msgstr "캐시 적중률"
+
+#: lib/tuist_web/live/test_run_live.ex:828
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error"
+msgstr "오류 발견"
+
+#: lib/tuist_web/live/test_run_live.ex:856
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}"
+msgstr "위치}에서 오류가 발생했습니다."
+
+#: lib/tuist_web/live/test_run_live.ex:859
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}: %{message}"
+msgstr "위치}에서 오류가 발생했습니다: %{메시지}"
+
+#: lib/tuist_web/live/test_run_live.ex:831
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error: %{message}"
+msgstr "오류 발생: %{메시지}"
+
+#: lib/tuist_web/live/test_run_live.html.heex:230
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command"
+msgstr "명령"
+
+#: lib/tuist_web/live/test_run_live.html.heex:250
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command duration"
+msgstr "명령 지속 시간"
+
+#: lib/tuist_web/live/test_run_live.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit"
+msgstr "커밋"
+
+#: lib/tuist_web/live/test_run_live.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compilation Optimizations"
+msgstr "컴파일 최적화"
+
+#: lib/tuist_web/live/test_run_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download result"
+msgstr "결과 다운로드"
+
+#: lib/tuist_web/live/test_case_live.ex:69
+#: lib/tuist_web/live/test_case_live.html.heex:182
+#: lib/tuist_web/live/test_case_live.html.heex:198
+#: lib/tuist_web/live/test_case_live.html.heex:246
+#: lib/tuist_web/live/test_run_live.ex:702
+#: lib/tuist_web/live/test_run_live.ex:745
+#: lib/tuist_web/live/test_run_live.ex:796
+#: lib/tuist_web/live/test_run_live.html.heex:150
+#: lib/tuist_web/live/test_run_live.html.heex:409
+#: lib/tuist_web/live/test_run_live.html.heex:424
+#: lib/tuist_web/live/test_run_live.html.heex:484
+#: lib/tuist_web/live/test_run_live.html.heex:577
+#: lib/tuist_web/live/test_run_live.html.heex:611
+#: lib/tuist_web/live/test_run_live.html.heex:699
+#: lib/tuist_web/live/test_run_live.html.heex:776
+#: lib/tuist_web/live/test_run_live.html.heex:818
+#: lib/tuist_web/live/test_run_live.html.heex:915
+#: lib/tuist_web/live/test_runs_live.html.heex:450
+#: lib/tuist_web/live/tests_live.html.heex:809
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "기간"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:7
+#: lib/tuist_web/live/test_runs_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:450
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "환경:"
+
+#: lib/tuist_web/live/test_run_live.ex:822
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed"
+msgstr "예상 실패"
+
+#: lib/tuist_web/live/test_run_live.ex:847
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}"
+msgstr "위치 %{위치}에서 기대하지 못했습니다."
+
+#: lib/tuist_web/live/test_run_live.ex:850
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}: %{message}"
+msgstr "위치}에서 기대하지 못했습니다: %{메시지}"
+
+#: lib/tuist_web/live/test_run_live.ex:825
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed: %{message}"
+msgstr "예상 실패: %{메시지}"
+
+#: lib/tuist_web/live/test_case_live.ex:60
+#: lib/tuist_web/live/test_case_live.html.heex:75
+#: lib/tuist_web/live/test_case_live.html.heex:236
+#: lib/tuist_web/live/test_cases_live.ex:41
+#: lib/tuist_web/live/test_cases_live.html.heex:513
+#: lib/tuist_web/live/test_run_live.ex:715
+#: lib/tuist_web/live/test_run_live.ex:758
+#: lib/tuist_web/live/test_run_live.ex:809
+#: lib/tuist_web/live/test_run_live.html.heex:129
+#: lib/tuist_web/live/test_run_live.html.heex:512
+#: lib/tuist_web/live/test_run_live.html.heex:687
+#: lib/tuist_web/live/test_run_live.html.heex:908
+#: lib/tuist_web/live/test_runs_live.ex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:428
+#: lib/tuist_web/live/tests_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/test_runs_live.ex:277
+#: lib/tuist_web/live/test_runs_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count"
+msgstr "실패한 실행 횟수"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"실패한 실행 횟수는 주어진 기간 동안 테스트 실행에 실패한 횟수를 나타냅니다. "
+"테스트 실행은 'tuist test' 또는 'tuist xcodebuild test'를 실행하여 "
+"실행됩니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:709
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed runs"
+msgstr "실패한 실행"
+
+#: lib/tuist_web/live/test_case_live.html.heex:133
+#: lib/tuist_web/live/test_cases_live.ex:244
+#: lib/tuist_web/live/test_cases_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs"
+msgstr "실패한 테스트 케이스 실행"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
+msgstr ""
+"실패한 테스트 케이스 실행은 지정된 기간 동안 실패한 개별 테스트 케이스 실행 "
+"횟수를 나타냅니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:209
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test cases"
+msgstr "실패한 테스트 사례"
+
+#: lib/tuist_web/live/tests_live.html.heex:102
+#: lib/tuist_web/live/tests_live.html.heex:421
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test runs"
+msgstr "실패한 테스트 실행"
+
+#: lib/tuist_web/live/test_run_live.html.heex:101
+#: lib/tuist_web/live/test_run_live.html.heex:275
+#: lib/tuist_web/live/test_run_live.html.heex:282
+#: lib/tuist_web/live/test_run_live.html.heex:1215
+#: lib/tuist_web/live/test_run_live.html.heex:1222
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failures"
+msgstr "실패"
+
+#: lib/tuist_web/live/test_case_live.html.heex:207
+#: lib/tuist_web/live/test_cases_live.html.heex:435
+#: lib/tuist_web/live/test_run_live.html.heex:433
+#: lib/tuist_web/live/test_run_live.html.heex:620
+#: lib/tuist_web/live/test_run_live.html.heex:827
+#: lib/tuist_web/live/test_runs_live.html.heex:394
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "필터"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1058
+#: lib/tuist_web/live/test_run_live.html.heex:1186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hash"
+msgstr "해시"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1036
+#: lib/tuist_web/live/test_run_live.html.heex:1164
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit"
+msgstr "히트"
+
+#: lib/tuist_web/live/test_run_live.ex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded"
+msgstr "이슈 기록"
+
+#: lib/tuist_web/live/test_run_live.ex:865
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}"
+msgstr "위치}에 기록된 문제"
+
+#: lib/tuist_web/live/test_run_live.ex:868
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}: %{message}"
+msgstr "위치}에서 문제가 기록되었습니다: %{메시지}"
+
+#: lib/tuist_web/live/test_run_live.ex:837
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded: %{message}"
+msgstr "기록된 문제: %{메시지}"
+
+#: lib/tuist_web/live/test_case_live.html.heex:65
+#: lib/tuist_web/live/test_cases_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last Status"
+msgstr "마지막 상태"
+
+#: lib/tuist_web/live/test_case_live.html.heex:98
+#: lib/tuist_web/live/test_cases_live.html.heex:403
+#: lib/tuist_web/live/test_cases_live.html.heex:410
+#: lib/tuist_web/live/test_cases_live.html.heex:523
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last ran at"
+msgstr "마지막 실행"
+
+#: lib/tuist_web/live/test_case_live.html.heex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last run duration"
+msgstr "마지막 실행 시간"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:505
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last status"
+msgstr "마지막 상태"
+
+#: lib/tuist_web/live/test_cases_live.ex:294
+#: lib/tuist_web/live/test_run_live.html.heex:1046
+#: lib/tuist_web/live/test_run_live.html.heex:1174
+#: lib/tuist_web/live/test_runs_live.ex:327
+#: lib/tuist_web/live/tests_live.ex:285
+#: lib/tuist_web/live/tests_live.html.heex:19
+#: lib/tuist_web/live/tests_live.html.heex:462
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "로컬"
+
+#: lib/tuist_web/live/test_run_live.html.heex:184
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mac device"
+msgstr "Mac 장치"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1052
+#: lib/tuist_web/live/test_run_live.html.heex:1180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Missed"
+msgstr "누락됨"
+
+#: lib/tuist_web/live/test_case_live.html.heex:41
+#: lib/tuist_web/live/test_cases_live.ex:50
+#: lib/tuist_web/live/test_run_live.html.heex:764
+#: lib/tuist_web/live/test_run_live.html.heex:779
+#: lib/tuist_web/live/test_run_live.html.heex:786
+#: lib/tuist_web/live/test_run_live.html.heex:838
+#: lib/tuist_web/live/test_run_live.html.heex:1022
+#: lib/tuist_web/live/test_run_live.html.heex:1150
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module"
+msgstr "모듈"
+
+#: lib/tuist_web/live/test_run_live.html.heex:379
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Modules"
+msgstr "모듈"
+
+#: lib/tuist_web/live/test_case_live.html.heex:121
+#: lib/tuist_web/live/test_case_live.html.heex:154
+#: lib/tuist_web/live/test_cases_live.html.heex:184
+#: lib/tuist_web/live/test_runs_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data"
+msgstr "데이터 없음"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:375
+#: lib/tuist_web/live/test_cases_live.html.heex:550
+#: lib/tuist_web/live/test_runs_live.html.heex:370
+#: lib/tuist_web/live/test_runs_live.html.heex:473
+#: lib/tuist_web/live/tests_live.html.heex:432
+#: lib/tuist_web/live/tests_live.html.heex:824
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "아직 데이터 없음"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1295
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No failures detected"
+msgstr "감지된 장애 없음"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1066
+#: lib/tuist_web/live/test_run_live.html.heex:1194
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No modules found"
+msgstr "모듈을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test case runs found"
+msgstr "테스트 케이스 실행이 없습니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:525
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases found"
+msgstr "테스트 사례를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:881
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases yet"
+msgstr "아직 테스트 사례 없음"
+
+#: lib/tuist_web/live/test_run_live.html.heex:937
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test modules found"
+msgstr "테스트 모듈을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:721
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test suites found"
+msgstr "테스트 스위트를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of test cases that failed."
+msgstr "실패한 테스트 케이스 수입니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of times this test case has failed."
+msgstr "이 테스트 케이스가 실패한 횟수입니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:959
+#: lib/tuist_web/live/test_run_live.html.heex:1087
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Optimization Summary"
+msgstr "최적화 요약"
+
+#: lib/tuist_web/live/test_run_live.html.heex:80
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "개요"
+
+#: lib/tuist_web/live/test_case_live.ex:59
+#: lib/tuist_web/live/test_case_live.html.heex:68
+#: lib/tuist_web/live/test_case_live.html.heex:234
+#: lib/tuist_web/live/test_cases_live.ex:40
+#: lib/tuist_web/live/test_cases_live.html.heex:509
+#: lib/tuist_web/live/test_run_live.ex:714
+#: lib/tuist_web/live/test_run_live.ex:757
+#: lib/tuist_web/live/test_run_live.ex:808
+#: lib/tuist_web/live/test_run_live.html.heex:122
+#: lib/tuist_web/live/test_run_live.html.heex:507
+#: lib/tuist_web/live/test_run_live.html.heex:682
+#: lib/tuist_web/live/test_run_live.html.heex:903
+#: lib/tuist_web/live/test_runs_live.ex:42
+#: lib/tuist_web/live/test_runs_live.html.heex:423
+#: lib/tuist_web/live/tests_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed"
+msgstr "합격"
+
+#: lib/tuist_web/live/tests_live.html.heex:704
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed runs"
+msgstr "통과된 실행"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Percentage of modules that were successfully retrieved from the cache."
+msgstr "캐시에서 성공적으로 검색된 모듈의 백분율입니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:183
+#: lib/tuist_web/live/test_case_live.html.heex:190
+#: lib/tuist_web/live/test_case_live.html.heex:267
+#: lib/tuist_web/live/test_run_live.html.heex:159
+#: lib/tuist_web/live/test_run_live.html.heex:260
+#: lib/tuist_web/live/test_runs_live.html.heex:458
+#: lib/tuist_web/live/tests_live.html.heex:817
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "실행 위치"
+
+#: lib/tuist_web/live/test_case_live.ex:85
+#: lib/tuist_web/live/test_case_live.html.heex:241
+#: lib/tuist_web/live/test_run_live.html.heex:144
+#: lib/tuist_web/live/test_runs_live.ex:68
+#: lib/tuist_web/live/test_runs_live.html.heex:447
+#: lib/tuist_web/live/tests_live.html.heex:806
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "운영자"
+
+#: lib/tuist_web/live/tests_live.html.heex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent Test Runs"
+msgstr "최근 테스트 실행"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1040
+#: lib/tuist_web/live/test_run_live.html.heex:1168
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote"
+msgstr "원격"
+
+#: lib/tuist_web/live/test_case_live.html.heex:226
+#: lib/tuist_web/live/test_runs_live.html.heex:415
+#: lib/tuist_web/live/tests_live.html.heex:774
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme"
+msgstr "계획"
+
+#: lib/tuist_web/live/test_case_live.html.heex:172
+#: lib/tuist_web/live/test_cases_live.html.heex:391
+#: lib/tuist_web/live/test_run_live.html.heex:398
+#: lib/tuist_web/live/test_run_live.html.heex:557
+#: lib/tuist_web/live/test_run_live.html.heex:753
+#: lib/tuist_web/live/test_run_live.html.heex:1013
+#: lib/tuist_web/live/test_run_live.html.heex:1141
+#: lib/tuist_web/live/test_runs_live.html.heex:386
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "검색..."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1003
+#: lib/tuist_web/live/tests_live.html.heex:442
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective Testing"
+msgstr "선택적 테스트"
+
+#: lib/tuist_web/live/tests_live.html.heex:535
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test effectiveness"
+msgstr "선택적 테스트 효과"
+
+#: lib/tuist_web/live/test_run_live.html.heex:976
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits"
+msgstr "선택적 테스트 히트"
+
+#: lib/tuist_web/live/test_run_live.html.heex:978
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr ""
+"선택적 테스트 히트는 선택적 테스트 덕분에 건너뛴 테스트 모듈의 수를 "
+"나타냅니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:990
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses"
+msgstr "선택적 테스트 누락"
+
+#: lib/tuist_web/live/test_run_live.html.heex:992
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr ""
+"선택적 테스트 실패는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈의 "
+"수를 나타냅니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:676
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective testing: no data yet"
+msgstr "선택적 테스트: 아직 데이터 없음"
+
+#: lib/tuist_web/live/test_case_live.ex:61
+#: lib/tuist_web/live/test_case_live.html.heex:82
+#: lib/tuist_web/live/test_case_live.html.heex:238
+#: lib/tuist_web/live/test_cases_live.ex:42
+#: lib/tuist_web/live/test_cases_live.html.heex:516
+#: lib/tuist_web/live/test_run_live.ex:716
+#: lib/tuist_web/live/test_run_live.ex:759
+#: lib/tuist_web/live/test_run_live.html.heex:136
+#: lib/tuist_web/live/test_run_live.html.heex:517
+#: lib/tuist_web/live/test_run_live.html.heex:692
+#: lib/tuist_web/live/test_runs_live.ex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:433
+#: lib/tuist_web/live/tests_live.html.heex:792
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Skipped"
+msgstr "건너뛰기"
+
+#: lib/tuist_web/live/tests_live.html.heex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Slowest test cases"
+msgstr "가장 느린 테스트 사례"
+
+#: lib/tuist_web/live/test_case_live.html.heex:186
+#: lib/tuist_web/live/test_cases_live.html.heex:406
+#: lib/tuist_web/live/test_run_live.html.heex:412
+#: lib/tuist_web/live/test_run_live.html.heex:583
+#: lib/tuist_web/live/test_run_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sort by:"
+msgstr "정렬 기준:"
+
+#: lib/tuist_web/live/test_case_live.ex:55
+#: lib/tuist_web/live/test_case_live.html.heex:231
+#: lib/tuist_web/live/test_run_live.ex:710
+#: lib/tuist_web/live/test_run_live.ex:753
+#: lib/tuist_web/live/test_run_live.ex:804
+#: lib/tuist_web/live/test_run_live.html.heex:118
+#: lib/tuist_web/live/test_run_live.html.heex:678
+#: lib/tuist_web/live/test_run_live.html.heex:899
+#: lib/tuist_web/live/test_runs_live.ex:38
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist_web/live/test_case_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
+msgstr ""
+"브랜치} 브랜치에서 실행을 기준으로 한 성공률입니다. 브랜치}에 실행이 없는 "
+"경우 모든 브랜치로 폴백합니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:48
+#: lib/tuist_web/live/test_cases_live.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Suite"
+msgstr "Suite"
+
+#: lib/tuist_web/live/test_case_live.html.heex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Summary"
+msgstr "요약"
+
+#: lib/tuist_web/live/test_cases_live.ex:66
+#: lib/tuist_web/live/test_cases_live.html.heex:401
+#: lib/tuist_web/live/test_cases_live.html.heex:418
+#: lib/tuist_web/live/test_cases_live.html.heex:458
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case"
+msgstr "테스트 시나리오"
+
+#: lib/tuist_web/live/test_case_live.html.heex:161
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case Runs"
+msgstr "테스트 케이스 실행"
+
+#: lib/tuist_web/live/test_case_live.html.heex:3
+#: lib/tuist_web/live/test_cases_live.ex:21
+#: lib/tuist_web/live/test_cases_live.html.heex:383
+#: lib/tuist_web/live/test_run_live.html.heex:369
+#: lib/tuist_web/live/test_run_live.html.heex:387
+#: lib/tuist_web/live/tests_live.html.heex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Cases"
+msgstr "테스트 시나리오"
+
+#: lib/tuist_web/live/test_run_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Details"
+msgstr "테스트 세부 정보"
+
+#: lib/tuist_web/live/test_run_live.html.heex:742
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Modules"
+msgstr "테스트 모듈"
+
+#: lib/tuist_web/live/test_run_live.html.heex:87
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Optimizations"
+msgstr "테스트 최적화"
+
+#: lib/tuist_web/live/test_run_live.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Run"
+msgstr "테스트 실행 내역"
+
+#: lib/tuist_web/live/test_run_live.html.heex:3
+#: lib/tuist_web/live/test_runs_live.ex:23
+#: lib/tuist_web/live/test_runs_live.html.heex:378
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "테스트 실행 내역"
+
+#: lib/tuist_web/live/test_run_live.html.heex:374
+#: lib/tuist_web/live/test_run_live.html.heex:546
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Suites"
+msgstr "테스트 스위트"
+
+#: lib/tuist_web/live/test_run_live.html.heex:408
+#: lib/tuist_web/live/test_run_live.html.heex:416
+#: lib/tuist_web/live/test_run_live.html.heex:456
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case"
+msgstr "테스트 사례"
+
+#: lib/tuist_web/live/test_case_live.ex:26
+#: lib/tuist_web/live/test_case_live.ex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case not found."
+msgstr "테스트 사례를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:124
+#: lib/tuist_web/live/test_cases_live.ex:236
+#: lib/tuist_web/live/test_cases_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs"
+msgstr "테스트 케이스 실행"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs represents the total number of individual test case executions during a given period."
+msgstr ""
+"테스트 케이스 실행 횟수는 지정된 기간 동안 개별 테스트 케이스의 총 실행 "
+"횟수를 나타냅니다."
+
+#: lib/tuist_web/live/test_run_live.ex:729
+#: lib/tuist_web/live/test_run_live.ex:780
+#: lib/tuist_web/live/test_run_live.html.heex:203
+#: lib/tuist_web/live/test_run_live.html.heex:571
+#: lib/tuist_web/live/test_run_live.html.heex:595
+#: lib/tuist_web/live/test_run_live.html.heex:645
+#: lib/tuist_web/live/test_run_live.html.heex:770
+#: lib/tuist_web/live/test_run_live.html.heex:802
+#: lib/tuist_web/live/test_run_live.html.heex:866
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test cases"
+msgstr "테스트 사례"
+
+#: lib/tuist_web/live/test_case_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test reliability"
+msgstr "신뢰성 테스트"
+
+#: lib/tuist_web/live/test_runs_live.ex:269
+#: lib/tuist_web/live/test_runs_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count"
+msgstr "테스트 실행 횟수"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"테스트 실행 횟수는 주어진 기간 동안 실행된 테스트 실행 횟수를 나타냅니다. "
+"테스트 실행은 'tuist test' 또는 'tuist xcodebuild test'를 실행하여 "
+"실행합니다."
+
+#: lib/tuist_web/live/test_run_live.ex:25
+#: lib/tuist_web/live/test_run_live.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run not found."
+msgstr "테스트 실행을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:88
+#: lib/tuist_web/live/tests_live.html.heex:357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test runs"
+msgstr "테스트 실행"
+
+#: lib/tuist_web/live/test_run_live.html.heex:568
+#: lib/tuist_web/live/test_run_live.html.heex:580
+#: lib/tuist_web/live/test_run_live.html.heex:587
+#: lib/tuist_web/live/test_run_live.html.heex:631
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suite"
+msgstr "테스트 제품군"
+
+#: lib/tuist_web/live/test_run_live.ex:772
+#: lib/tuist_web/live/test_run_live.html.heex:767
+#: lib/tuist_web/live/test_run_live.html.heex:794
+#: lib/tuist_web/live/test_run_live.html.heex:852
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suites"
+msgstr "테스트 제품군"
+
+#: lib/tuist_web/live/tests_live.ex:20
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tests"
+msgstr "테스트"
+
+#: lib/tuist_web/live/tests_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The average test run duration with individual percentile intervals."
+msgstr "개별 백분위수 간격의 평균 테스트 실행 시간입니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The number of test runs that failed."
+msgstr "실패한 테스트 실행 횟수입니다."
+
+#: lib/tuist_web/live/tests_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The total number of test runs."
+msgstr "총 테스트 실행 횟수입니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:965
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules"
+msgstr "총 모듈"
+
+#: lib/tuist_web/live/test_run_live.html.heex:967
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules represents the total number of testable modules."
+msgstr "총 모듈은 테스트 가능한 모듈의 총 개수를 나타냅니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1095
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules taken from either the local or the remote cache."
+msgstr "로컬 또는 원격 캐시에서 가져온 모듈의 총 개수입니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules that could have been taken from the cache if it was fully populated."
+msgstr "캐시가 완전히 채워졌을 경우 캐시에서 가져올 수 있었던 모듈의 총 개수입니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:204
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of test cases executed."
+msgstr "실행된 테스트 케이스의 총 개수입니다."
+
+#: lib/tuist_web/live/test_case_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of times this test case has been executed."
+msgstr "이 테스트 케이스가 실행된 총 횟수입니다."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1067
+#: lib/tuist_web/live/test_run_live.html.heex:1195
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "검색어를 변경해 보세요"
+
+#: lib/tuist_web/live/test_case_live.html.heex:283
+#: lib/tuist_web/live/test_run_live.html.heex:526
+#: lib/tuist_web/live/test_run_live.html.heex:722
+#: lib/tuist_web/live/test_run_live.html.heex:938
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try updating your search"
+msgstr "검색을 업데이트해 보세요."
+
+#: lib/tuist_web/live/test_run_live.html.heex:243
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist version"
+msgstr "Tuist 버전"
+
+#: lib/tuist_web/live/test_case_live.html.heex:228
+#: lib/tuist_web/live/test_run_live.html.heex:33
+#: lib/tuist_web/live/test_run_live.html.heex:44
+#: lib/tuist_web/live/test_run_live.html.heex:171
+#: lib/tuist_web/live/test_run_live.html.heex:179
+#: lib/tuist_web/live/test_run_live.html.heex:188
+#: lib/tuist_web/live/test_run_live.html.heex:1060
+#: lib/tuist_web/live/test_run_live.html.heex:1188
+#: lib/tuist_web/live/test_runs_live.html.heex:442
+#: lib/tuist_web/live/tests_live.html.heex:776
+#: lib/tuist_web/live/tests_live.html.heex:801
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/live/test_run_live.ex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown error"
+msgstr "알 수 없는 오류"
+
+#: lib/tuist_web/live/test_run_live.html.heex:292
+#: lib/tuist_web/live/tests_live.html.heex:694
+#: lib/tuist_web/live/tests_live.html.heex:843
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "자세히 보기"
+
+#: lib/tuist_web/live/test_run_live.html.heex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "macOS version"
+msgstr "macOS 버전"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:363
+#: lib/tuist_web/live/test_runs_live.html.heex:358
+#: lib/tuist_web/live/tests_live.html.heex:293
+#: lib/tuist_web/live/tests_live.html.heex:664
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/test_cases_live.ex:258
+#: lib/tuist_web/live/test_cases_live.html.heex:128
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test case run duration"
+msgstr "P50 테스트 케이스 실행 기간"
+
+#: lib/tuist_web/live/test_runs_live.ex:291
+#: lib/tuist_web/live/test_runs_live.html.heex:126
+#: lib/tuist_web/live/tests_live.html.heex:121
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test run duration"
+msgstr "P50 테스트 실행 기간"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:350
+#: lib/tuist_web/live/test_runs_live.html.heex:345
+#: lib/tuist_web/live/tests_live.html.heex:280
+#: lib/tuist_web/live/tests_live.html.heex:648
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/test_cases_live.ex:255
+#: lib/tuist_web/live/test_cases_live.html.heex:127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test case run duration"
+msgstr "P90 테스트 케이스 실행 기간"
+
+#: lib/tuist_web/live/test_runs_live.ex:288
+#: lib/tuist_web/live/test_runs_live.html.heex:125
+#: lib/tuist_web/live/tests_live.html.heex:120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test run duration"
+msgstr "P90 테스트 실행 기간"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:337
+#: lib/tuist_web/live/test_runs_live.html.heex:332
+#: lib/tuist_web/live/tests_live.html.heex:267
+#: lib/tuist_web/live/tests_live.html.heex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/test_cases_live.ex:252
+#: lib/tuist_web/live/test_cases_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test case run duration"
+msgstr "P99 테스트 케이스 실행 기간"
+
+#: lib/tuist_web/live/test_runs_live.ex:285
+#: lib/tuist_web/live/test_runs_live.html.heex:124
+#: lib/tuist_web/live/tests_live.html.heex:119
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test run duration"
+msgstr "P99 테스트 실행 기간"
+
+#: lib/tuist_web/live/test_cases_live.ex:291
+#: lib/tuist_web/live/test_runs_live.ex:324
+#: lib/tuist_web/live/tests_live.ex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "지난달부터"
+
+#: lib/tuist_web/live/test_cases_live.ex:288
+#: lib/tuist_web/live/test_runs_live.ex:321
+#: lib/tuist_web/live/tests_live.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "지난 주부터"
+
+#: lib/tuist_web/live/test_cases_live.ex:289
+#: lib/tuist_web/live/test_runs_live.ex:322
+#: lib/tuist_web/live/tests_live.ex:280
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "작년부터"
+
+#: lib/tuist_web/live/test_run_live.html.heex:285
+#: lib/tuist_web/live/test_run_live.html.heex:1225
+#, elixir-autogen, elixir-format, fuzzy
+msgid "•"
+msgstr "-"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:74
+#: lib/tuist_web/live/test_runs_live.html.heex:74
+#: lib/tuist_web/live/tests_live.html.heex:76
+#: lib/tuist_web/live/tests_live.html.heex:519
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "신청하기"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:67
+#: lib/tuist_web/live/test_runs_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:510
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:58
+#: lib/tuist_web/live/test_runs_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:501
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "맞춤형"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:55
+#: lib/tuist_web/live/test_runs_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:498
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "지난 12개월"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:40
+#: lib/tuist_web/live/test_runs_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:483
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "지난 24시간"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:50
+#: lib/tuist_web/live/test_runs_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:493
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "지난 30일"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:45
+#: lib/tuist_web/live/test_runs_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:488
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "지난 7일"
+
+#: lib/tuist_web/live/test_cases_live.ex:290
+#: lib/tuist_web/live/test_runs_live.ex:323
+#: lib/tuist_web/live/tests_live.ex:281
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "지난 기간 이후"
+
+#: lib/tuist_web/live/test_cases_live.ex:287
+#: lib/tuist_web/live/test_runs_live.ex:320
+#: lib/tuist_web/live/tests_live.ex:278
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "어제부터"

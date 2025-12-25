@@ -1,0 +1,112 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:49+0000\n"
+"PO-Revision-Date: 2025-12-24 20:45+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
+"dashboard_integrations/tr/>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/integrations_live.html.heex:50
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add new project connection"
+msgstr "Yeni proje bağlantısı ekleme"
+
+#: lib/tuist_web/live/integrations_live.html.heex:113
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "İptal"
+
+#: lib/tuist_web/live/integrations_live.html.heex:65
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose Tuist project"
+msgstr "Tuist projesini seçin"
+
+#: lib/tuist_web/live/integrations_live.html.heex:92
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose a repository"
+msgstr "Bir depo seçin"
+
+#: lib/tuist_web/live/integrations_live.html.heex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose repository to connect to"
+msgstr "Bağlanılacak depoyu seçin"
+
+#: lib/tuist_web/live/integrations_live.html.heex:9
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connect any of your GitHub repositories to a project"
+msgstr "GitHub depolarınızdan herhangi birini bir projeye bağlayın"
+
+#: lib/tuist_web/live/integrations_live.ex:147
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connected %{time_ago}"
+msgstr "Bağlandı %{time_ago}"
+
+#: lib/tuist_web/live/integrations_live.ex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connected %{time_ago} by %{name}"
+msgstr "name} tarafından %{time_ago} bağlandı"
+
+#: lib/tuist_web/live/integrations_live.html.heex:120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create Connection"
+msgstr "Bağlantı Oluştur"
+
+#: lib/tuist_web/live/integrations_live.html.heex:6
+#, elixir-autogen, elixir-format, fuzzy
+msgid "GitHub"
+msgstr "GitHub"
+
+#: lib/tuist_web/live/integrations_live.html.heex:19
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Install GitHub App"
+msgstr "GitHub Uygulamasını Yükleme"
+
+#: lib/tuist_web/live/integrations_live.ex:30
+#: lib/tuist_web/live/integrations_live.html.heex:2
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Integrations"
+msgstr "Entegrasyonlar"
+
+#: lib/tuist_web/live/integrations_live.html.heex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage"
+msgstr "Yönetmek"
+
+#: lib/tuist_web/live/integrations_live.html.heex:27
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage integration"
+msgstr "Entegrasyonu yönetin"
+
+#: lib/tuist_web/live/integrations_live.html.heex:162
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remove connection"
+msgstr "Bağlantıyı kaldırın"
+
+#: lib/tuist_web/live/integrations_live.ex:15
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are not authorized to perform this action."
+msgstr "Bu işlemi gerçekleştirme yetkiniz yoktur."
+
+#: lib/tuist_web/live/integrations_live.html.heex:38
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
+msgstr "Depolara erişiminiz GitHub ve Tuist entegrasyon kurulumunuza bağlıdır."

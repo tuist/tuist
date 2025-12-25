@@ -1,0 +1,455 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:51+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
+"dashboard_auth/ar/>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/user_confirmation_live.ex:25
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account confirmed!"
+msgstr "تم تأكيد الحساب!"
+
+#: lib/tuist_web/live/user_registration_live.ex:292
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account created successfully! Please log in."
+msgstr "تم إنشاء الحساب بنجاح! يرجى تسجيل الدخول"
+
+#: lib/tuist_web/live/user_registration_live.ex:304
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account name is already taken"
+msgstr "اسم الحساب مأخوذ بالفعل"
+
+#: lib/tuist_web/live/user_registration_live.ex:187
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Already have an account?"
+msgstr "هل لديك حساب بالفعل؟"
+
+#: lib/tuist_web/live/connect_live.ex:97
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
+msgstr ""
+"هل قمت بالفعل بإعداد مشروع تويست الخاص بك؟ تخطى الإعداد وانتقل إلى لوحة "
+"التحكم."
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Back to log in"
+msgstr "العودة إلى تسجيل الدخول"
+
+#: lib/tuist_web/live/user_registration_live.ex:39
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary caching"
+msgstr "التخزين المؤقت الثنائي"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:30
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Change your password"
+msgstr "تغيير كلمة المرور الخاصة بك"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:40
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Check your email"
+msgstr "تحقق من بريدك الإلكتروني"
+
+#: lib/tuist_web/live/user_registration_live.ex:219
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Check your inbox for a confirmation email and click the link to continue."
+msgstr ""
+"تحقق من صندوق الوارد الخاص بك للحصول على رسالة تأكيد بالبريد الإلكتروني وانقر "
+"على الرابط للمتابعة."
+
+#: lib/tuist_web/live/choose_username_live.ex:48
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose a username"
+msgstr "اختر اسم مستخدم"
+
+#: lib/tuist_web/live/choose_username_live.ex:50
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose a username for your personal account"
+msgstr "اختر اسم مستخدم لحسابك الشخصي"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:50
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Confirm password"
+msgstr "تأكيد كلمة المرور"
+
+#: lib/tuist_web/live/user_registration_live.ex:217
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Confirm your account"
+msgstr "تأكيد حسابك"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Confirmation failed"
+msgstr "فشل التأكيد"
+
+#: lib/tuist_web/live/connect_live.ex:12
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connect"
+msgstr "الاتصال"
+
+#: lib/tuist_web/live/connect_live.ex:55
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connect your project"
+msgstr "قم بتوصيل مشروعك"
+
+#: lib/tuist_web/live/connect_live.ex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connect your project to the dashboard"
+msgstr "ربط مشروعك بلوحة التحكم"
+
+#: lib/tuist_web/live/connect_live.ex:33
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Connection successful"
+msgstr "تم الاتصال بنجاح"
+
+#: lib/tuist_web/live/sso_login_live.ex:86
+#: lib/tuist_web/live/user_okta_login_live.ex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Contact us"
+msgstr "اتصل بنا"
+
+#: lib/tuist_web/live/choose_username_live.ex:73
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Continue"
+msgstr "تابع"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dashboard"
+msgstr "لوحة التحكم"
+
+#: lib/tuist_web/live/user_registration_live.ex:30
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Discover how selective testing is reducing your test time."
+msgstr "اكتشف كيف يقلل الاختبار الانتقائي من وقت الاختبار."
+
+#: lib/tuist_web/live/user_login_live.ex:178
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Don't have an account?"
+msgstr "ليس لديك حساب؟"
+
+#: lib/tuist_web/live/sso_login_live.ex:69
+#: lib/tuist_web/live/user_forgot_password_live.ex:52
+#: lib/tuist_web/live/user_login_live.ex:135
+#: lib/tuist_web/live/user_okta_login_live.ex:72
+#: lib/tuist_web/live/user_registration_live.ex:148
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email address"
+msgstr "عنوان البريد الإلكتروني"
+
+#: lib/tuist_web/live/user_registration_live.ex:307
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email is already taken"
+msgstr "البريد الإلكتروني مأخوذ بالفعل"
+
+#: lib/tuist_web/live/connect_live.ex:75
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
+msgstr ""
+"استكشف ميزات تويست مثل التخزين المؤقت الثنائي والاختبار الانتقائي لتسريع عملية "
+"التطوير."
+
+#: lib/tuist_web/live/user_registration_live.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Explore how binary caching is enhancing your build times."
+msgstr "استكشف كيفية تحسين التخزين المؤقت الثنائي لأوقات الإنشاء لديك."
+
+#: lib/tuist_web/live/user_login_live.ex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Forgot password?"
+msgstr "هل نسيت كلمة المرور؟"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Forgot your password?"
+msgstr "هل نسيت كلمة المرور الخاصة بك؟"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "If your email exists in our records, you'll receive reset instructions shortly."
+msgstr ""
+"إذا كان بريدك الإلكتروني موجودًا في سجلاتنا، فستتلقى تعليمات إعادة التعيين "
+"قريبًا."
+
+#: lib/tuist_web/live/connect_live.ex:41
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Install Tuist CLI"
+msgstr "تثبيت تويست CLI"
+
+#: lib/tuist_web/live/user_registration_live.ex:54
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Instantly share your app using a URL."
+msgstr "شارك تطبيقك على الفور باستخدام عنوان URL."
+
+#: lib/tuist_web/live/sso_login_live.ex:81
+#: lib/tuist_web/live/user_okta_login_live.ex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Interested in SSO?"
+msgstr "هل أنت مهتم بـ SSO؟"
+
+#: lib/tuist_web/live/user_login_live.ex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Keep me logged in"
+msgstr "ابقني مسجلاً الدخول"
+
+#: lib/tuist_web/live/sso_login_live.ex:77
+#: lib/tuist_web/live/user_login_live.ex:15
+#: lib/tuist_web/live/user_login_live.ex:172
+#: lib/tuist_web/live/user_okta_login_live.ex:80
+#: lib/tuist_web/live/user_registration_live.ex:192
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log in"
+msgstr "تسجيل الدخول"
+
+#: lib/tuist_web/live/sso_login_live.ex:52
+#: lib/tuist_web/live/user_login_live.ex:45
+#: lib/tuist_web/live/user_okta_login_live.ex:55
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log in to Tuist"
+msgstr "تسجيل الدخول إلى تويست"
+
+#: lib/tuist_web/live/sso_login_live.ex:54
+#: lib/tuist_web/live/user_okta_login_live.ex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log in to your enterprise account via Okta"
+msgstr "سجّل الدخول إلى حساب مؤسستك عبر Okta"
+
+#: lib/tuist_web/live/user_okta_login_live.ex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Logging in via Okta failed"
+msgstr "فشل تسجيل الدخول عبر Okta"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "New password"
+msgstr "كلمة مرور جديدة"
+
+#: lib/tuist_web/live/connect_live.ex:73
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Next steps"
+msgstr "الخطوات التالية"
+
+#: lib/tuist_web/live/sso_login_live.ex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No SSO organization found for this email"
+msgstr "لم يتم العثور على منظمة SSO لهذا البريد الإلكتروني"
+
+#: lib/tuist_web/live/connect_live.ex:91
+#, elixir-autogen, elixir-format, fuzzy
+msgid "OR"
+msgstr "أو"
+
+#: lib/tuist_web/live/user_okta_login_live.ex:15
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Okta log in"
+msgstr "تسجيل الدخول إلى أوكتا"
+
+#: lib/tuist_web/live/user_login_live.ex:146
+#: lib/tuist_web/live/user_registration_live.ex:158
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Password"
+msgstr "كلمة المرور"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Password reset successfully."
+msgstr "تمت إعادة تعيين كلمة المرور بنجاح."
+
+#: lib/tuist_web/live/user_registration_live.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previews"
+msgstr "المعاينات"
+
+#: lib/tuist_web/live/connect_live.ex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project Ready? Proceed to dashboard"
+msgstr "هل المشروع جاهز؟ المتابعة إلى لوحة التحكم"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:61
+#: lib/tuist_web/live/user_reset_password_live.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Reset password"
+msgstr "إعادة تعيين كلمة المرور"
+
+#: lib/tuist_web/live/connect_live.ex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run the following command to install Tuist CLI."
+msgstr "قم بتشغيل الأمر التالي لتثبيت Tuist CLI."
+
+#: lib/tuist_web/live/connect_live.ex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run this command to link your project to the dashboard."
+msgstr "قم بتشغيل هذا الأمر لربط مشروعك بلوحة التحكم."
+
+#: lib/tuist_web/live/user_registration_live.ex:27
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective testing"
+msgstr "الاختبار الانتقائي"
+
+#: lib/tuist_web/live/user_login_live.ex:183
+#: lib/tuist_web/live/user_registration_live.ex:181
+#: lib/tuist_web/live/user_registration_live.ex:262
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sign up"
+msgstr "التسجيل"
+
+#: lib/tuist_web/live/user_registration_live.ex:75
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sign up for Tuist"
+msgstr "اشترك في تويست"
+
+#: lib/tuist_web/live/choose_username_live.ex:114
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This username has already been taken"
+msgstr "تم أخذ اسم المستخدم هذا بالفعل"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:39
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist CLI is connected!"
+msgstr "تويست CLI متصل!"
+
+#: lib/tuist_web/live/choose_username_live.ex:40
+#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/sso_login_live.ex:44
+#: lib/tuist_web/live/user_confirmation_live.ex:16
+#: lib/tuist_web/live/user_forgot_password_live.ex:21
+#: lib/tuist_web/live/user_login_live.ex:37
+#: lib/tuist_web/live/user_okta_login_live.ex:47
+#: lib/tuist_web/live/user_registration_live.ex:67
+#: lib/tuist_web/live/user_registration_live.ex:209
+#: lib/tuist_web/live/user_reset_password_live.ex:22
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist Logo"
+msgstr "شعار تويست"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist app is connected!"
+msgstr "تطبيق تويست متصل!"
+
+#: lib/tuist_web/live/connect_live.ex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist dashboard"
+msgstr "لوحة معلومات تويست"
+
+#: lib/tuist_web/live/connect_live.ex:82
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist documentation"
+msgstr "وثائق تويست"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:41
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist is connected!"
+msgstr "تويست متصل!"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:55
+#, elixir-autogen, elixir-format, fuzzy
+msgid "User confirmation link is invalid or it has expired."
+msgstr "رابط تأكيد المستخدم غير صالح أو انتهت صلاحيته."
+
+#: lib/tuist_web/live/choose_username_live.ex:63
+#: lib/tuist_web/live/user_registration_live.ex:169
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Username"
+msgstr "اسم المستخدم"
+
+#: lib/tuist_web/live/choose_username_live.ex:64
+#: lib/tuist_web/live/user_registration_live.ex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Username may only contain alphanumeric characters"
+msgstr "يجوز أن يحتوي اسم المستخدم على أحرف أبجدية رقمية فقط"
+
+#: lib/tuist_web/live/connect_live.ex:28
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Waiting for connection"
+msgstr "في انتظار الاتصال"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "We'll send a password reset link to your inbox"
+msgstr "سنرسل رابط إعادة تعيين كلمة المرور إلى صندوق الوارد الخاص بك"
+
+#: lib/tuist_web/live/user_login_live.ex:47
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Welcome back! Please log in to continue"
+msgstr "مرحباً بعودتك! يرجى تسجيل الدخول للمتابعة"
+
+#: lib/tuist_web/live/user_registration_live.ex:77
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Welcome! Create an account to continue"
+msgstr "أهلاً وسهلاً بك! إنشاء حساب للمتابعة"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You can close the tab and continue"
+msgstr "يمكنك إغلاق علامة التبويب والمتابعة"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:47
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You can close the tab and continue in the app"
+msgstr "يمكنك إغلاق علامة التبويب والمتابعة في التطبيق"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:49
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You can close the tab and continue in the terminal"
+msgstr "يمكنك إغلاق علامة التبويب والمتابعة في المحطة الطرفية"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:46
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Your account could not be confirmed."
+msgstr "تعذر تأكيد حسابك."
+
+#: lib/tuist_web/live/user_confirmation_live.ex:27
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Your account has been confirmed."
+msgstr "تم تأكيد حسابك."
+
+#: lib/tuist_web/live/user_confirmation_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Your account has been confirmed. You will be redirected shortly..."
+msgstr "تم تأكيد حسابك. ستتم إعادة توجيهك بعد قليل..."
+
+#: lib/tuist_web/live/user_reset_password_live.ex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Your new password must be different to previously used passwords."
+msgstr ""
+"يجب أن تكون كلمة المرور الجديدة مختلفة عن كلمات المرور المستخدمة سابقاً."
+
+#: lib/tuist_web/live/connect_live.ex:49
+#: lib/tuist_web/live/connect_live.ex:67
+#, elixir-autogen, elixir-format, fuzzy
+msgid "homebrew"
+msgstr "البيرة المنزلية"
+
+#: lib/tuist_web/live/connect_live.ex:46
+#: lib/tuist_web/live/connect_live.ex:62
+#, elixir-autogen, elixir-format, fuzzy
+msgid "mise"
+msgstr "متاهة"
+
+#: lib/tuist_web/live/connect_live.ex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "using CLI"
+msgstr "باستخدام CLI"
