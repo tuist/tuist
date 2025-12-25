@@ -1029,6 +1029,8 @@ final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptan
 final class GenerateAcceptanceTestiOSAppWithCatalyst: TuistAcceptanceTestCase {
     func test_ios_app_with_catalyst() async throws {
         try await setUpFixture("generated_ios_app_with_catalyst")
+        // Run Xcode first launch to ensure Mac Catalyst support is initialized
+        try System.shared.run(["sudo", "xcodebuild", "-runFirstLaunch"])
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
         try await run(BuildCommand.self, "App", "--platform", "ios")
