@@ -6,10 +6,11 @@ defmodule Tuist.Slack.Reports do
   alias Tuist.Bundles
   alias Tuist.Cache
   alias Tuist.Runs.Analytics
+  alias Tuist.Utilities.DateFormatter
 
   def report(project, opts \\ []) do
     last_report_at = Keyword.get(opts, :last_report_at)
-    {current_start, current_end} = compute_date_range(last_report_at)
+    {current_start, current_end} = get_date_range(last_report_at)
 
     base_opts = [project_id: project.id, start_datetime: current_start, end_datetime: current_end]
     ci_opts = Keyword.put(base_opts, :is_ci, true)
@@ -32,7 +33,7 @@ defmodule Tuist.Slack.Reports do
 
     cache_hit_rate = %{current: cache_analytics.cache_hit_rate, trend: cache_analytics.trend}
     selective_test_effectiveness = %{current: selective_analytics.hit_rate, trend: selective_analytics.trend}
-    bundle_size = compute_bundle_size_metrics(project)
+    bundle_size = get_bundle_size_metrics(project)
 
     metric_blocks =
       duration_blocks(build_duration, ":hammer_and_wrench:", "Build Duration") ++
@@ -62,16 +63,16 @@ defmodule Tuist.Slack.Reports do
     end
   end
 
-  defp compute_date_range(last_report_at) when not is_nil(last_report_at) do
+  defp get_date_range(last_report_at) when not is_nil(last_report_at) do
     {last_report_at, DateTime.utc_now()}
   end
 
-  defp compute_date_range(_last_report_at) do
+  defp get_date_range(_last_report_at) do
     now = DateTime.utc_now()
     {DateTime.add(now, -1, :day), now}
   end
 
-  defp compute_bundle_size_metrics(project) do
+  defp get_bundle_size_metrics(project) do
     latest_bundle = Bundles.last_project_bundle(project, git_branch: project.default_branch)
 
     if latest_bundle do
@@ -230,16 +231,10 @@ defmodule Tuist.Slack.Reports do
   defp maybe_duration_line(_label, %{total_average_duration: 0}), do: nil
 
   defp maybe_duration_line(label, %{total_average_duration: duration, trend: trend}) do
-    duration_text = format_duration(duration)
+    duration_text = DateFormatter.format_duration_from_milliseconds(duration)
     change_text = format_change(trend)
     "#{label}: #{duration_text} #{change_text}\n"
   end
-
-  defp format_duration(nil), do: "N/A"
-  defp format_duration(0), do: "N/A"
-  defp format_duration(ms) when ms < 1000, do: "#{ms}ms"
-  defp format_duration(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)}s"
-  defp format_duration(ms), do: "#{Float.round(ms / 60_000, 1)}m"
 
   defp format_change(nil), do: ""
 
