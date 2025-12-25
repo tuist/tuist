@@ -193,7 +193,11 @@
         />
         <.button
           :if={not is_nil(@slack_installation)}
-          label={dgettext("dashboard_integrations", "Disconnect from %{team_name}", team_name: @slack_installation.team_name)}
+          label={
+            dgettext("dashboard_integrations", "Disconnect from %{team_name}",
+              team_name: @slack_installation.team_name
+            )
+          }
           variant="secondary"
           phx-click="disconnect-slack"
         />

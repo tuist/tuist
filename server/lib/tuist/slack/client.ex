@@ -29,7 +29,8 @@ defmodule Tuist.Slack.Client do
   end
 
   @doc """
-  Lists channels available to the bot in the workspace.
+  Lists a page of channels available to the bot in the workspace.
+  Returns {:ok, channels, next_cursor} or {:error, reason}.
   """
   def list_channels(access_token, opts \\ []) do
     cursor = Keyword.get(opts, :cursor)
@@ -42,6 +43,32 @@ defmodule Tuist.Slack.Client do
     @conversations_list_url
     |> Req.get(headers: headers, params: params)
     |> handle_channels_response()
+  end
+
+  @doc """
+  Lists all channels available to the bot in the workspace by fetching all pages.
+  Returns {:ok, channels} or {:error, reason}.
+  """
+  def list_all_channels(access_token) do
+    list_all_channels_recursively(access_token, [], nil)
+  end
+
+  defp list_all_channels_recursively(access_token, accumulated_channels, cursor) do
+    opts = if cursor, do: [cursor: cursor], else: []
+
+    case list_channels(access_token, opts) do
+      {:ok, channels, next_cursor} ->
+        all_channels = accumulated_channels ++ channels
+
+        case next_cursor do
+          nil -> {:ok, all_channels}
+          "" -> {:ok, all_channels}
+          _ -> list_all_channels_recursively(access_token, all_channels, next_cursor)
+        end
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
   @doc """

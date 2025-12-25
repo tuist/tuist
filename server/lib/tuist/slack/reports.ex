@@ -243,12 +243,10 @@ defmodule Tuist.Slack.Reports do
 
   defp build_duration_blocks(%{ci: ci, local: local, overall: overall}) do
     lines =
-      [
-        maybe_duration_line("Overall", overall),
-        maybe_duration_line("CI", ci),
-        maybe_duration_line("Local", local)
-      ]
-      |> Enum.reject(&is_nil/1)
+      Enum.reject(
+        [maybe_duration_line("Overall", overall), maybe_duration_line("CI", ci), maybe_duration_line("Local", local)],
+        &is_nil/1
+      )
 
     if Enum.empty?(lines) do
       []
@@ -267,12 +265,10 @@ defmodule Tuist.Slack.Reports do
 
   defp test_duration_blocks(%{ci: ci, local: local, overall: overall}) do
     lines =
-      [
-        maybe_duration_line("Overall", overall),
-        maybe_duration_line("CI", ci),
-        maybe_duration_line("Local", local)
-      ]
-      |> Enum.reject(&is_nil/1)
+      Enum.reject(
+        [maybe_duration_line("Overall", overall), maybe_duration_line("CI", ci), maybe_duration_line("Local", local)],
+        &is_nil/1
+      )
 
     if Enum.empty?(lines) do
       []

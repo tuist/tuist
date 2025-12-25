@@ -88,16 +88,15 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     worker_name = inspect(__MODULE__)
     project_id_string = to_string(project_id)
 
-    Repo.one(
-      from(j in "oban_jobs",
-        where: j.worker == ^worker_name,
-        where: j.state == "completed",
-        where: fragment("?->>'project_id' = ?", j.args, ^project_id_string),
-        order_by: [desc: j.completed_at],
-        limit: 1,
-        select: j.completed_at
-      )
+    from(j in "oban_jobs",
+      where: j.worker == ^worker_name,
+      where: j.state == "completed",
+      where: fragment("?->>'project_id' = ?", j.args, ^project_id_string),
+      order_by: [desc: j.completed_at],
+      limit: 1,
+      select: j.completed_at
     )
+    |> Repo.one()
     |> case do
       nil -> nil
       naive_dt -> DateTime.from_naive!(naive_dt, "Etc/UTC")

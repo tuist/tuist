@@ -4,6 +4,7 @@ defmodule Tuist.SlackTest do
 
   alias Tuist.Environment
   alias Tuist.Slack
+  alias Tuist.Slack.Client
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures
 
@@ -123,6 +124,55 @@ defmodule Tuist.SlackTest do
       # Then
       assert {:ok, _deleted} = result
       assert Repo.get(Tuist.Slack.Installation, installation.id) == nil
+    end
+  end
+
+  describe "get_installation_channels/1" do
+    test "returns channels from the Slack API" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id, team_id: "T-test-channels")
+
+      channels = [
+        %{id: "C123", name: "general", is_private: false},
+        %{id: "C456", name: "random", is_private: false}
+      ]
+
+      # Stub KeyValueStore to bypass cache and call the function directly
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func ->
+        func.()
+      end)
+
+      expect(Client, :list_all_channels, fn _access_token ->
+        {:ok, channels}
+      end)
+
+      # When
+      result = Slack.get_installation_channels(installation)
+
+      # Then
+      assert {:ok, ^channels} = result
+    end
+
+    test "returns error when Slack API fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id, team_id: "T-error-team")
+
+      # Stub KeyValueStore to bypass cache and call the function directly
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func ->
+        func.()
+      end)
+
+      expect(Client, :list_all_channels, fn _access_token ->
+        {:error, "API error"}
+      end)
+
+      # When
+      result = Slack.get_installation_channels(installation)
+
+      # Then
+      assert {:error, "API error"} = result
     end
   end
 

@@ -180,16 +180,7 @@
             <label data-part="schedule-label">
               {dgettext("dashboard_projects", "Channel")}
             </label>
-            <.dropdown
-              id="slack-channel-dropdown"
-              label={
-                if @schedule_form_channel_id do
-                  "##{@schedule_form_channel_name}"
-                else
-                  dgettext("dashboard_projects", "Select channel")
-                end
-              }
-            >
+            <.portal id="channel-list-portal" target="#channel-list-target">
               <.dropdown_item
                 :for={channel <- get_slack_channels(assigns)}
                 value={channel.id}
@@ -203,7 +194,32 @@
                   <.icon name="check" />
                 </:right_icon>
               </.dropdown_item>
-            </.dropdown>
+            </.portal>
+            <div id="slack-channel-dropdown-wrapper" phx-update="ignore">
+              <.dropdown
+                id="slack-channel-dropdown"
+                label={
+                  if @schedule_form_channel_id do
+                    "##{@schedule_form_channel_name}"
+                  else
+                    dgettext("dashboard_projects", "Select channel")
+                  end
+                }
+              >
+                <div data-part="channel-search">
+                  <input
+                    type="search"
+                    id="channel-search-input"
+                    name="channel_search"
+                    placeholder={dgettext("dashboard_projects", "Search...")}
+                    phx-keyup="update_channel_search"
+                    phx-debounce="300"
+                    autocomplete="off"
+                  />
+                </div>
+                <div data-part="channel-list" id="channel-list-target"></div>
+              </.dropdown>
+            </div>
           </div>
         </div>
         <.line_divider />
@@ -230,7 +246,9 @@
         </:footer>
       </.modal>
       <.button
-        :if={@selected_project.slack_report_frequency == :daily && @selected_project.slack_channel_id}
+        :if={
+          @selected_project.slack_report_frequency == :daily && @selected_project.slack_channel_id
+        }
         label={dgettext("dashboard_projects", "Send test report")}
         variant="secondary"
         size="medium"

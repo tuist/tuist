@@ -126,8 +126,8 @@
     & [data-part="schedule-row"] {
       display: flex;
       flex-direction: row;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
       gap: var(--noora-spacing-4);
 
       & [data-part="schedule-label"] {
@@ -143,6 +143,54 @@
         }
       }
 
+      & #slack-channel-dropdown {
+        width: 220px;
+
+        & .noora-dropdown-content {
+          display: flex;
+          flex-direction: column;
+          width: 220px;
+          max-height: 300px;
+        }
+
+        & [data-part="channel-search"] {
+          flex-shrink: 0;
+          border-bottom: 1px solid var(--noora-border-light-default);
+          padding: var(--noora-spacing-2);
+          overflow: hidden;
+
+          & input {
+            box-sizing: border-box;
+            outline: none;
+            border: 1px solid var(--noora-border-light-default);
+            border-radius: var(--noora-radius-small);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-2) var(--noora-spacing-3);
+            width: 100%;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+            &::placeholder {
+              color: var(--noora-surface-label-tertiary);
+            }
+
+            &:focus {
+              border-color: var(--noora-border-light-focus);
+            }
+          }
+        }
+
+        & [data-part="channel-list"] {
+          flex: 1;
+          min-height: 200px;
+          overflow-y: auto;
+
+          & [data-phx-teleported-src] {
+            display: contents;
+          }
+        }
+      }
+
       & [data-part="day-toggles"] {
         display: flex;
         flex-direction: row;
@@ -152,6 +200,8 @@
           display: flex;
           justify-content: center;
           align-items: center;
+          transition: all 0.15s ease;
+          cursor: pointer;
           box-shadow: var(--noora-border-light-default);
           border: none;
           border-radius: var(--noora-radius-small);
@@ -159,8 +209,6 @@
           padding: var(--noora-spacing-2) var(--noora-spacing-3);
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-          cursor: pointer;
-          transition: all 0.15s ease;
 
           &:hover:not([data-selected]) {
             background: var(--noora-surface-background-secondary);

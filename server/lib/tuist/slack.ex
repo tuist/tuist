@@ -3,7 +3,9 @@ defmodule Tuist.Slack do
   This module provides an API to interact with the Slack API
   """
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Repo
+  alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
 
   @api_url "https://slack.com/api/chat.postMessage"
@@ -22,6 +24,20 @@ defmodule Tuist.Slack do
 
   def delete_installation(installation) do
     Repo.delete(installation)
+  end
+
+  @doc """
+  Gets all channels available to a Slack installation.
+  Results are cached for 15 minutes.
+  """
+  def get_installation_channels(%Installation{team_id: team_id, access_token: access_token}) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "channels", team_id],
+      [ttl: to_timeout(minute: 15)],
+      fn ->
+        Client.list_all_channels(access_token)
+      end
+    )
   end
 
   def generate_state_token(account_id) do

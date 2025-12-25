@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports, as: SlackReports
 
@@ -61,16 +62,20 @@ defmodule TuistWeb.ProjectSettingsLive do
   end
 
   defp assign_slack_channels(socket, nil) do
-    assign(socket, slack_channels: %{ok?: true, result: [], loading: false})
+    socket
+    |> assign(slack_channels: %{ok?: true, result: [], loading: false})
+    |> assign(channel_search_query: "")
   end
 
   defp assign_slack_channels(socket, slack_installation) do
-    assign_async(socket, :slack_channels, fn ->
-      case SlackClient.list_channels(slack_installation.access_token) do
-        {:ok, channels, _cursor} -> {:ok, %{slack_channels: channels}}
+    socket
+    |> assign_async(:slack_channels, fn ->
+      case Slack.get_installation_channels(slack_installation) do
+        {:ok, channels} -> {:ok, %{slack_channels: channels}}
         {:error, _} -> {:ok, %{slack_channels: []}}
       end
     end)
+    |> assign(channel_search_query: "")
   end
 
   @impl true
@@ -164,6 +169,7 @@ defmodule TuistWeb.ProjectSettingsLive do
 
       {:error, reason} ->
         require Logger
+
         Logger.error("Failed to send Slack test report: #{inspect(reason)}")
         socket = put_flash(socket, :error, dgettext("dashboard_projects", "Failed to send test report"))
         {:noreply, socket}
@@ -171,6 +177,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   rescue
     e ->
       require Logger
+
       Logger.error("Exception sending Slack test report: #{inspect(e)}")
       socket = put_flash(socket, :error, dgettext("dashboard_projects", "Failed to send test report"))
       {:noreply, socket}
@@ -214,11 +221,7 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, assign(socket, schedule_form_hour: String.to_integer(hour_str))}
   end
 
-  def handle_event(
-        "update_schedule_form_channel",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
+  def handle_event("update_schedule_form_channel", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
     socket =
       socket
       |> assign(schedule_form_channel_id: channel_id)
@@ -227,11 +230,16 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
+  def handle_event("update_channel_search", %{"value" => query}, socket) do
+    {:noreply, assign(socket, channel_search_query: query)}
+  end
+
   def handle_event("close_slack_schedule_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
       |> push_event("close-modal", %{id: "slack-schedule-modal"})
       |> assign_schedule_form_defaults(selected_project)
+      |> assign(channel_search_query: "")
 
     {:noreply, socket}
   end
@@ -273,18 +281,31 @@ defmodule TuistWeb.ProjectSettingsLive do
     socket =
       socket
       |> assign(selected_project: updated_project)
+      |> assign(channel_search_query: "")
       |> push_event("close-modal", %{id: "slack-schedule-modal"})
 
     {:noreply, socket}
   end
 
-  defp get_slack_channels(%{slack_channels: slack_channels_async}) do
-    if slack_channels_async.ok? do
-      slack_channels_async.result
-      |> Enum.sort_by(& &1.name)
-    else
-      []
-    end
+  defp get_slack_channels(%{slack_channels: slack_channels_async, channel_search_query: query}) do
+    channels =
+      if slack_channels_async.ok? do
+        slack_channels_async.result
+      else
+        []
+      end
+
+    channels
+    |> filter_channels_by_query(query)
+    |> Enum.sort_by(& &1.name)
+  end
+
+  defp filter_channels_by_query(channels, nil), do: channels
+  defp filter_channels_by_query(channels, ""), do: channels
+
+  defp filter_channels_by_query(channels, query) do
+    query_downcase = String.downcase(query)
+    Enum.filter(channels, fn channel -> String.contains?(String.downcase(channel.name), query_downcase) end)
   end
 
   defp day_name(1), do: dgettext("dashboard_projects", "Mon")
@@ -314,8 +335,7 @@ defmodule TuistWeb.ProjectSettingsLive do
       end,
       fn acc -> {:cont, Enum.reverse(acc), []} end
     )
-    |> Enum.map(&format_day_group/1)
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &format_day_group/1)
   end
 
   defp format_day_group([single]), do: day_name(single)
