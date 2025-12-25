@@ -87,7 +87,7 @@ let tuist = Tuist(
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
-For authentication, you can use either <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> (recommended for supported CI providers) or a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+For authentication, you can use either <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> (recommended for supported CI providers) or an <LocalizedLink href="/guides/server/authentication#account-tokens">account token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
 An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
