@@ -73,11 +73,11 @@ struct SetupCacheCommandService {
             if let generationOptions = config.project.generatedProject?.generationOptions,
                generationOptions.enableCaching == true
             {
-                Logger.current.info("Tuist Cache has been enabled 🎉", metadata: .success)
+                Logger.current.info("Xcode Cache has been enabled 🎉", metadata: .success)
             } else {
                 Logger.current.info(
                     """
-                    Tuist Cache setup is almost complete!
+                    Xcode Cache setup is almost complete!
 
                     To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:
 
@@ -95,7 +95,7 @@ struct SetupCacheCommandService {
         } else {
             Logger.current.info(
                 """
-                Tuist Cache setup is almost complete!
+                Xcode Cache setup is almost complete!
 
                 To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
                 COMPILATION_CACHE_ENABLE_CACHING=YES

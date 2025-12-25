@@ -83,7 +83,7 @@ struct SetupCacheCommandServiceTests {
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
         #expect(plistContent.contains("<string>tuist.cache.organization_project</string>"))
 
-        TuistTest.expectLogs("Tuist Cache has been enabled 🎉")
+        TuistTest.expectLogs("Xcode Cache has been enabled 🎉")
     }
 
     @Test(
@@ -113,7 +113,7 @@ struct SetupCacheCommandServiceTests {
             .load(plistPath: .any)
             .called(1)
 
-        TuistTest.expectLogs("Tuist Cache setup is almost complete!")
+        TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest.expectLogs("COMPILATION_CACHE_REMOTE_SERVICE_PATH=")
     }
 
@@ -475,7 +475,7 @@ struct SetupCacheCommandServiceTests {
             .load(plistPath: .any)
             .called(1)
 
-        TuistTest.expectLogs("Tuist Cache setup is almost complete!")
+        TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:")
     }
