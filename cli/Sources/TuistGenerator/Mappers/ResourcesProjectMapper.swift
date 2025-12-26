@@ -150,12 +150,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     private func containsSynthesizedFilesInBuildableFolders(target: Target, project: Project) -> Bool {
         let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
-        for folder in target.buildableFolders {
-            if folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") }) {
-                return true
-            }
-        }
-        return false
+        return target.buildableFolders.contains(where: { folder in
+            folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
+        })
     }
 
     private func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
