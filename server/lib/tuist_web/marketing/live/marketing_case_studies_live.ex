@@ -28,7 +28,7 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
   end
 
   def handle_params(params, _url, socket) do
-    all_cases = CaseStudies.get_cases()
+    all_cases = CaseStudies.get_case_studies()
     search_query = Map.get(params, "search", "")
     page = params |> Map.get("page", "1") |> String.to_integer()
 

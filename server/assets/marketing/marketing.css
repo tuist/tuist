@@ -51,6 +51,7 @@ p {
   margin-block-end: 0;
 }
 
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
 .sr-only {
   position: absolute;
   overflow: hidden;

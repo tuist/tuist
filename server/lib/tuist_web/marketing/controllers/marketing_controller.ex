@@ -550,13 +550,13 @@ defmodule TuistWeb.Marketing.MarketingController do
     request_path = Localization.path_without_locale(request_path)
 
     case_study =
-      Enum.find(CaseStudies.get_cases(), &(&1.slug == String.trim_trailing(request_path, "/")))
+      Enum.find(CaseStudies.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
     if is_nil(case_study) do
       raise NotFoundError
     else
       related_case_studies =
-        CaseStudies.get_cases()
+        CaseStudies.get_case_studies()
         |> Enum.reject(&(&1.slug == case_study.slug))
         |> Enum.take_random(3)
 

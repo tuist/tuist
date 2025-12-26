@@ -6,7 +6,7 @@ defmodule Tuist.Marketing.CaseStudies do
   use NimblePublisher,
     build: Tuist.Marketing.CaseStudies.CaseStudy,
     from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
-    as: :cases,
+    as: :case_studies,
     parser: Tuist.Marketing.CaseStudies.CaseParser,
     highlighters: [],
     earmark_options: [
@@ -14,7 +14,7 @@ defmodule Tuist.Marketing.CaseStudies do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  @cases Enum.sort_by(@cases, & &1.date, {:desc, Date})
+  @case_studies Enum.sort_by(@case_studies, & &1.date, {:desc, Date})
 
-  def get_cases, do: @cases
+  def get_case_studies, do: @case_studies
 end
