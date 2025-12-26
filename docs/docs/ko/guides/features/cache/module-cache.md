@@ -64,16 +64,16 @@ tuist test
 <!-- -->
 :::
 
-## 캐시 프로필 {#cache-profiles}
+## 캐시 프로파일 {#cache-profiles}
 
-Tuist는 캐시 프로필을 지원하여 프로젝트 생성 시 타깃을 캐시된 바이너리로 얼마나 적극적으로 대체할지 제어할 수 있습니다.
+Tuist는 프로젝트 생성 시 Target을 캐시된 바이너리로 얼마나 적극적으로 대체할지 제어하기 위해 캐시 프로파일을 지원합니다.
 
-- 빌트인:
+- 내장 기능:
   - `only-external`: 외부 종속성만 대체(시스템 기본값)
   - `all-possible`: 가능한 한 많은 대상(내부 대상 포함)을 교체합니다
   - `none`: 캐시된 바이너리로 대체하지 않습니다
 
-`tuist 생성` 에서 `--cache-profile` 을 사용하여 프로필을 선택합니다:
+`tuist generate`에 `--cache-profile` 을 사용하여 프로파일을 선택합니다:
 
 ```bash
 # Built-in profiles
@@ -94,11 +94,11 @@ tuist generate --no-binary-cache  # equivalent to --cache-profile none
 
 효과적인 동작을 해결할 때의 우선 순위(가장 높은 것부터 가장 낮은 것까지):
 
-1. `--바이너리 캐시 없음` → 프로필 `없음`
-2. 타겟 포커스( `에 타겟 전달` 생성 ) → 프로필 `모두 가능`
-3. `--캐시-프로필 &lt;값&gt;`
-4. 구성 기본값(설정된 경우)
-5. 시스템 기본값 (`전용-외부`)
+1. `--no-binary-cache` → 프로파일 `none`
+2. Target 집중 (Target들을 `generate`에 넘기기) → 프로파일 `all-possible`
+3. `--cache-profile <value>`</value>
+4. 환경 설정 기본값(설정된 경우)
+5. System 기본값 (`only-external`)
 
 ## 지원되는 제품 {#supported-products}
 
@@ -107,28 +107,28 @@ tuist generate --no-binary-cache  # equivalent to --cache-profile none
 - XCTest](https://developer.apple.com/documentation/xctest)에 의존하지 않는 프레임워크(정적 및
   동적)
 - 번들
-- 스위프트 매크로
+- Swift 매크로
 
-XCTest에 의존하는 라이브러리 및 대상을 지원하기 위해 노력하고 있습니다.
+저희는 XCTest에 의존하는 라이브러리 및 Target을 지원하기 위해 노력하고 있습니다.
 
-::: info UPSTREAM DEPENDENCIES
+::: info 선행 의존성
 <!-- -->
-타깃이 캐싱할 수 없는 경우 업스트림 타깃도 캐싱할 수 없게 됩니다. 예를 들어, 종속성 그래프 `A &gt; B` 에서 A가 B에 종속되어
-있는 경우, B가 캐싱할 수 없는 경우 A도 캐싱할 수 없게 됩니다.
+Target이 캐싱할 수 없는 경우 상위 Target도 캐싱할 수 없게 됩니다. 예를 들어, 종속성 그래프 `A &gt; B`에서 A가 B에
+종속되어 있을 때, B를 캐싱할 수 없는 경우 A도 캐싱할 수 없게 됩니다.
 <!-- -->
 :::
 
 ## 효율성 {#efficiency}
 
-바이너리 캐싱으로 달성할 수 있는 효율성은 그래프 구조에 따라 크게 달라집니다. 최상의 결과를 얻으려면 다음을 권장합니다:
+바이너리 캐싱으로 달성할 수 있는 효율성은 그래프 구조에 따라 크게 달라집니다. 최상의 결과를 얻기 위해 다음을 권장합니다:
 
 1. 종속성 그래프가 너무 중첩되는 것은 피하세요. 그래프는 얕을수록 좋습니다.
-2. 구현 대상 대신 프로토콜/인터페이스 대상으로 종속성을 정의하고, 최상위 대상에서 구현을 종속성 주입하세요.
-3. 자주 수정하는 타깃은 변경 가능성이 낮은 작은 타깃으로 분할하세요.
+2. 구현 대상 대신 프로토콜/인터페이스 대상으로 의존성을 정의하고, 최상위 Target으로부터 의존성을 주입하세요.
+3. 자주 수정하는 Target은 변경 가능성이 낮은 작은 Target으로 분할하세요.
 
 위의 제안은 <LocalizedLink href="/guides/features/projects/tma-architecture">모듈식
-아키텍처</LocalizedLink>의 일부로, 바이너리 캐싱뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있도록 프로젝트를 구성하는
-방법으로 제안합니다.
+아키텍처</LocalizedLink>의 일부로, 바이너리 캐싱뿐만 아니라 Xcode의 기능도 최대한 활용할 수 있도록 프로젝트를 구성하는 한
+가지 방법으로 제안합니다.
 
 ## 권장 설정 {#recommended-setup}
 
