@@ -41,12 +41,12 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:147
+#: lib/tuist_web/live/integrations_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:149
+#: lib/tuist_web/live/integrations_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
@@ -66,7 +66,7 @@ msgstr ""
 msgid "Install GitHub App"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:30
+#: lib/tuist_web/live/integrations_live.ex:33
 #: lib/tuist_web/live/integrations_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Integrations"
@@ -87,7 +87,7 @@ msgstr ""
 msgid "Remove connection"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:15
+#: lib/tuist_web/live/integrations_live.ex:16
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -95,4 +95,24 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "Connect Slack"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Connect Slack to receive project analytics reports"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "Disconnect from %{team_name}"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Slack"
 msgstr ""
