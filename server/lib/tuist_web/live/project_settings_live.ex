@@ -284,7 +284,8 @@ defmodule TuistWeb.ProjectSettingsLive do
   end
 
   defp format_hour(hour) do
-    Time.new!(hour, 0, 0)
+    hour
+    |> Time.new!(0, 0)
     |> Timex.format!("{h12}{AM}")
   end
 
