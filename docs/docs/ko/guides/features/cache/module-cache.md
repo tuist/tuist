@@ -96,7 +96,7 @@ tuist generate --no-binary-cache  # equivalent to --cache-profile none
 
 1. `--no-binary-cache` → 프로파일 `none`
 2. Target 집중 (Target들을 `generate`에 넘기기) → 프로파일 `all-possible`
-3. `--캐시-프로필 &lt;값&gt;`
+3. `--cache-profile <value>`</value>
 4. 환경 설정 기본값(설정된 경우)
 5. System 기본값 (`only-external`)
 
