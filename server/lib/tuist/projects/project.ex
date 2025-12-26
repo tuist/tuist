@@ -30,8 +30,8 @@ defmodule Tuist.Projects.Project do
 
     field :slack_channel_id, :string
     field :slack_channel_name, :string
-    field :slack_report_frequency, Ecto.Enum, values: [never: 0, daily: 1]
-    field :slack_report_days_of_week, {:array, :integer}
+    field :slack_report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never
+    field :slack_report_days_of_week, {:array, :integer}, default: []
     field :slack_report_schedule_time, :utc_datetime
     field :slack_report_timezone, :string
 

@@ -45,10 +45,9 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp assign_schedule_form_defaults(socket, project) do
     user_timezone = socket.assigns[:user_timezone] || "Etc/UTC"
 
-    frequency = project.slack_report_frequency || :never
+    frequency = project.slack_report_frequency
 
-    days = project.slack_report_days_of_week || [1, 2, 3, 4, 5]
-    days = if days == [], do: [1, 2, 3, 4, 5], else: days
+    days = if project.slack_report_days_of_week == [], do: [1, 2, 3, 4, 5], else: project.slack_report_days_of_week
 
     # Get local hour from UTC time
     hour = get_local_hour(project.slack_report_schedule_time, user_timezone) || 9
@@ -352,7 +351,7 @@ defmodule TuistWeb.ProjectSettingsLive do
           dgettext("dashboard_projects", "No channel")
         end
 
-      days = project.slack_report_days_of_week || []
+      days = project.slack_report_days_of_week
       hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
 
       time_str = if hour, do: format_hour(hour), else: ""
