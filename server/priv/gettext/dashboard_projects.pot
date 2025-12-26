@@ -541,7 +541,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:362
+#: lib/tuist_web/live/project_settings_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "%{days} at %{time}"
 msgstr ""
@@ -572,30 +572,14 @@ msgstr ""
 msgid "Days"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:366
+#: lib/tuist_web/live/project_settings_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Disabled"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:172
-#: lib/tuist_web/live/project_settings_live.ex:180
-#, elixir-autogen, elixir-format
-msgid "Failed to send test report"
 msgstr ""
 
 #: lib/tuist_web/live/project_settings_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Frequency"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:316
-#, elixir-autogen, elixir-format
-msgid "Fri"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:312
-#, elixir-autogen, elixir-format
-msgid "Mon"
 msgstr ""
 
 #: lib/tuist_web/live/project_settings_live.html.heex:111
@@ -604,14 +588,9 @@ msgstr ""
 msgid "Never"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:352
+#: lib/tuist_web/live/project_settings_live.ex:318
 #, elixir-autogen, elixir-format
 msgid "No channel"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:317
-#, elixir-autogen, elixir-format
-msgid "Sat"
 msgstr ""
 
 #: lib/tuist_web/live/project_settings_live.html.heex:236
@@ -634,42 +613,12 @@ msgstr ""
 msgid "Send test report"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:185
-#, elixir-autogen, elixir-format
-msgid "Slack is not configured"
-msgstr ""
-
 #: lib/tuist_web/live/project_settings_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:318
-#, elixir-autogen, elixir-format
-msgid "Sun"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:165
-#, elixir-autogen, elixir-format
-msgid "Test report sent successfully"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:315
-#, elixir-autogen, elixir-format
-msgid "Thu"
-msgstr ""
-
 #: lib/tuist_web/live/project_settings_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Time"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:313
-#, elixir-autogen, elixir-format
-msgid "Tue"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.ex:314
-#, elixir-autogen, elixir-format
-msgid "Wed"
 msgstr ""
