@@ -43,7 +43,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   test "returns the connection when the authenticated account with project:bundles:read scope can read bundles" do
     # Given
     project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
     opts = AuthorizationPlug.init(:bundle)
 
@@ -67,7 +67,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   test "returns the connection when the authenticated account with project:bundles:write scope can read bundles (write implies read)" do
     # Given
     project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
     opts = AuthorizationPlug.init(:bundle)
 
@@ -91,7 +91,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   test "returns 403 when the authenticated account lacks the required scope" do
     # Given
     project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
     opts = AuthorizationPlug.init(:bundle)
 
@@ -116,7 +116,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   test "returns the connection when all_projects is false and token has access to the specific project" do
     # Given
     project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
     opts = AuthorizationPlug.init(:bundle)
 
@@ -142,7 +142,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     # Given
     project = ProjectsFixtures.project_fixture()
     other_project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
     opts = AuthorizationPlug.init(:bundle)
 
@@ -171,7 +171,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     user = Repo.preload(AccountsFixtures.user_fixture(), :account)
 
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
     opts = AuthorizationPlug.init(:cache)
 
     conn =
@@ -194,7 +194,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   test "returns the connection when the authenticated project is trying to access itself" do
     # Given
     project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
     opts = AuthorizationPlug.init(:cache)
 
     conn =

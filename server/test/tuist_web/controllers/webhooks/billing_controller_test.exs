@@ -22,7 +22,7 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
 
       assert :ok = BillingController.handle_event(event)
 
-      updated_account = Accounts.get_account_by_id(account.id)
+      {:ok, updated_account} = Accounts.get_account_by_id(account.id)
       assert updated_account.billing_email == "new-billing-email@example.com"
     end
   end

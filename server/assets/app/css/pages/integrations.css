@@ -106,6 +106,38 @@
     }
   }
 
+  & > [data-part="slack-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      & > [data-part="actions"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+      }
+    }
+  }
+
   & #add-connection-modal {
     & [data-part="content"] {
       & [data-part="create-connection"] {
