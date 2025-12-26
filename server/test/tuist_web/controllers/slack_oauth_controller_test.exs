@@ -7,7 +7,6 @@ defmodule TuistWeb.SlackOAuthControllerTest do
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.SlackFixtures
   alias TuistWeb.Errors.BadRequestError
 
   describe "GET /integrations/slack/callback" do
@@ -38,35 +37,6 @@ defmodule TuistWeb.SlackOAuthControllerTest do
       assert updated_account.slack_installation.team_id == "T12345"
       assert updated_account.slack_installation.team_name == "Test Workspace"
       assert updated_account.slack_installation.bot_user_id == "U12345"
-    end
-
-    test "updates existing installation on successful OAuth flow", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      account = user.account
-      SlackFixtures.slack_installation_fixture(account_id: account.id, team_id: "T_OLD", team_name: "Old Workspace")
-      state_token = Slack.generate_state_token(account.id)
-
-      token_data = %{
-        access_token: "xoxb-new-token",
-        team_id: "T_NEW",
-        team_name: "New Workspace",
-        bot_user_id: "U_NEW"
-      }
-
-      stub(SlackClient, :exchange_code_for_token, fn _code, _redirect_uri ->
-        {:ok, token_data}
-      end)
-
-      # When
-      conn = get(conn, "/integrations/slack/callback", %{"code" => "valid_code", "state" => state_token})
-
-      # Then
-      assert redirected_to(conn) == "/#{account.name}/integrations"
-
-      {:ok, updated_account} = Accounts.get_account_by_id(account.id, preload: [:slack_installation])
-      assert updated_account.slack_installation.team_id == "T_NEW"
-      assert updated_account.slack_installation.team_name == "New Workspace"
     end
 
     test "raises BadRequestError when state token is invalid", %{conn: conn} do

@@ -16,9 +16,9 @@ defmodule TuistWeb.SlackOAuthController do
   def callback(conn, %{"code" => code, "state" => state_token})
       when is_binary(code) and code != "" and is_binary(state_token) do
     with {:ok, account_id} <- verify_state_token(state_token),
-         {:ok, account} <- Accounts.get_account_by_id(account_id, preload: [:slack_installation]),
+         {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
-         {:ok, _installation} <- create_or_update_installation(account, token_data) do
+         {:ok, _installation} <- create_installation(account, token_data) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :invalid_state_token} ->
@@ -60,19 +60,14 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp create_or_update_installation(account, token_data) do
-    attrs = %{
+  defp create_installation(account, token_data) do
+    Slack.create_installation(%{
       account_id: account.id,
       team_id: token_data.team_id,
       team_name: token_data.team_name,
       access_token: token_data.access_token,
       bot_user_id: token_data.bot_user_id
-    }
-
-    case account.slack_installation do
-      nil -> Slack.create_installation(attrs)
-      installation -> Slack.update_installation(installation, attrs)
-    end
+    })
   end
 
   defp slack_redirect_uri do
