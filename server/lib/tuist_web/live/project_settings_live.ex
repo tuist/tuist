@@ -161,27 +161,21 @@ defmodule TuistWeb.ProjectSettingsLive do
 
     case SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks) do
       :ok ->
-        socket = put_flash(socket, :info, dgettext("dashboard_projects", "Test report sent successfully"))
         {:noreply, socket}
 
       {:error, reason} ->
         require Logger
-
         Logger.error("Failed to send Slack test report: #{inspect(reason)}")
-        socket = put_flash(socket, :error, dgettext("dashboard_projects", "Failed to send test report"))
         {:noreply, socket}
     end
   rescue
     e ->
       require Logger
-
       Logger.error("Exception sending Slack test report: #{inspect(e)}")
-      socket = put_flash(socket, :error, dgettext("dashboard_projects", "Failed to send test report"))
       {:noreply, socket}
   end
 
   def handle_event("send_test_slack_report", _params, socket) do
-    socket = put_flash(socket, :error, dgettext("dashboard_projects", "Slack is not configured"))
     {:noreply, socket}
   end
 
