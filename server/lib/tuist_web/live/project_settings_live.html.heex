@@ -144,7 +144,7 @@
             <.button_group size="small">
               <.button_group_item
                 :for={day <- 1..7}
-                label={day_name(day)}
+                label={Timex.day_shortname(day)}
                 data-selected={Enum.member?(@schedule_form_days, day)}
                 phx-click="toggle_schedule_form_day"
                 phx-value-day={day}

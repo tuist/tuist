@@ -155,27 +155,10 @@ defmodule TuistWeb.ProjectSettingsLive do
         "send_test_slack_report",
         _params,
         %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
-      )
-      when not is_nil(slack_installation) do
+      ) do
     blocks = Reports.report(selected_project)
 
-    case SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks) do
-      :ok ->
-        {:noreply, socket}
-
-      {:error, reason} ->
-        require Logger
-        Logger.error("Failed to send Slack test report: #{inspect(reason)}")
-        {:noreply, socket}
-    end
-  rescue
-    e ->
-      require Logger
-      Logger.error("Exception sending Slack test report: #{inspect(e)}")
-      {:noreply, socket}
-  end
-
-  def handle_event("send_test_slack_report", _params, socket) do
+    :ok = SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks)
     {:noreply, socket}
   end
 
@@ -218,8 +201,6 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(schedule_form_channel_id: channel_id)
       |> assign(schedule_form_channel_name: channel_name)
       |> push_event("close-dropdown", %{id: "slack-channel-dropdown"})
-
-    # |> push_event("js-exec", %{to: "#slack-channel-dropdown", attr: "data-close"})
 
     {:noreply, socket}
   end
@@ -302,18 +283,10 @@ defmodule TuistWeb.ProjectSettingsLive do
     Enum.filter(channels, fn channel -> String.contains?(String.downcase(channel.name), query_downcase) end)
   end
 
-  defp day_name(1), do: dgettext("dashboard_projects", "Mon")
-  defp day_name(2), do: dgettext("dashboard_projects", "Tue")
-  defp day_name(3), do: dgettext("dashboard_projects", "Wed")
-  defp day_name(4), do: dgettext("dashboard_projects", "Thu")
-  defp day_name(5), do: dgettext("dashboard_projects", "Fri")
-  defp day_name(6), do: dgettext("dashboard_projects", "Sat")
-  defp day_name(7), do: dgettext("dashboard_projects", "Sun")
-
-  defp format_hour(hour) when hour == 0, do: "12AM"
-  defp format_hour(hour) when hour < 12, do: "#{hour}AM"
-  defp format_hour(hour) when hour == 12, do: "12PM"
-  defp format_hour(hour), do: "#{hour - 12}PM"
+  defp format_hour(hour) do
+    Time.new!(hour, 0, 0)
+    |> Timex.format!("{h12}{AM}")
+  end
 
   defp format_days_range(days) do
     days
@@ -332,9 +305,9 @@ defmodule TuistWeb.ProjectSettingsLive do
     |> Enum.map_join(", ", &format_day_group/1)
   end
 
-  defp format_day_group([single]), do: day_name(single)
-  defp format_day_group([first, last]), do: "#{day_name(first)}, #{day_name(last)}"
-  defp format_day_group([first | rest]), do: "#{day_name(first)}-#{day_name(List.last(rest))}"
+  defp format_day_group([single]), do: Timex.day_shortname(single)
+  defp format_day_group([first, last]), do: "#{Timex.day_shortname(first)}, #{Timex.day_shortname(last)}"
+  defp format_day_group([first | rest]), do: "#{Timex.day_shortname(first)}-#{Timex.day_shortname(List.last(rest))}"
 
   defp format_slack_reports_description(%{selected_project: project, user_timezone: user_timezone}) do
     if project.slack_report_frequency == :daily do
