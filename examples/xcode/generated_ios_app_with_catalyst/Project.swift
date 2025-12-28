@@ -17,7 +17,21 @@ let project = Project(
                 ]
             ),
             sources: ["App/Sources/**"],
-            dependencies: []
+            dependencies: [
+                .target(name: "Framework"),
+            ]
+        ),
+        .target(
+            name: "Framework",
+            destinations: [.iPhone, .iPad, .macCatalyst],
+            product: .framework,
+            bundleId: "dev.tuist.Framework",
+            infoPlist: .extendingDefault(
+                with: [
+                    "CFBundleShortVersionString": "1.0",
+                ]
+            ),
+            sources: ["Framework/Sources/**"]
         ),
     ]
 )
