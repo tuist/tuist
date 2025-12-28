@@ -15,7 +15,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
@@ -31,7 +31,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   workflow_dispatch:
