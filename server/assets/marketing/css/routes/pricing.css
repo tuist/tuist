@@ -30,6 +30,16 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-large);
       text-align: center;
+
+      & > [data-part="case-studies-link"] {
+        color: var(--noora-icon-primary-label);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+
+        &:hover {
+          text-decoration-thickness: 2px;
+        }
+      }
     }
   }
 
