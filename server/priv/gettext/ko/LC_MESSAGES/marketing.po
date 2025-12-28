@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-28 20:02+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-28 20:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -919,44 +919,58 @@ msgstr "언어"
 msgid "Read story"
 msgstr "스토리 읽기"
 
+#, fuzzy
 msgid "%{company} case study"
-msgstr ""
+msgstr "회사} 사례 연구"
 
+#, fuzzy
 msgid "(opens in new tab)"
-msgstr ""
+msgstr "(새 탭에서 열기)"
 
+#, fuzzy
 msgid "Case Studies"
-msgstr ""
+msgstr "사례 연구"
 
+#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
-msgstr ""
+msgstr "전 세계 팀에서 Tuist를 사용하여 고품질 앱을 더 빠르게 빌드하고 워크플로를 간소화하며 수많은 엔지니어링 시간을 절약하는 방법을 알아보세요."
 
+#, fuzzy
 msgid "Founded"
-msgstr ""
+msgstr "설립"
 
+#, fuzzy
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr ""
+msgstr "팀이 Tuist를 사용하여 iOS 개발을 확장하는 방법을 알아보세요."
 
+#, fuzzy
 msgid "Onboarded"
-msgstr ""
+msgstr "온보딩"
 
+#, fuzzy
 msgid "Read next"
-msgstr ""
+msgstr "다음 읽기"
 
+#, fuzzy
 msgid "Tuist Case Studies"
-msgstr ""
+msgstr "튜이스트 사례 연구"
 
+#, fuzzy
 msgid "Case studies"
-msgstr ""
+msgstr "사례 연구"
 
+#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
-msgstr ""
+msgstr "공개 대시보드에서 Tuist의 기능 살펴보기"
 
+#, fuzzy
 msgid "Public dashboard"
-msgstr ""
+msgstr "공개 대시보드"
 
+#, fuzzy
 msgid "See how leading teams scale with Tuist"
-msgstr ""
+msgstr "선도적인 팀이 Tuist로 확장하는 방법 알아보기"
 
+#, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
-msgstr ""
+msgstr "선도적인 기술 기업이 Tuist를 통해 개발을 확장하는 방법을 알아보세요."
