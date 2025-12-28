@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2025-12-24 11:48+0000\n"
-"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
-"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
-"Language: es\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-28 20:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -927,50 +915,65 @@ msgstr "en vivo en nuestro panel"
 msgid "Language"
 msgstr "Idioma"
 
+#, fuzzy
 msgid "Read story"
-msgstr ""
+msgstr "Leer el artículo"
 
+#, fuzzy
 msgid "%{company} case study"
-msgstr ""
+msgstr "Estudio de caso %{empresa"
 
+#, fuzzy
 msgid "(opens in new tab)"
-msgstr ""
+msgstr "(se abre en una nueva pestaña)"
 
+#, fuzzy
 msgid "Case Studies"
-msgstr ""
+msgstr "Casos prácticos"
 
+#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
-msgstr ""
+msgstr "Descubre cómo equipos de todo el mundo utilizan Tuist para crear aplicaciones de alta calidad más rápidamente, agilizar los flujos de trabajo y ahorrar incontables horas de tiempo de ingeniería."
 
+#, fuzzy
 msgid "Founded"
-msgstr ""
+msgstr "Fundada"
 
+#, fuzzy
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr ""
+msgstr "Descubre cómo los equipos utilizan Tuist para escalar su desarrollo iOS."
 
+#, fuzzy
 msgid "Onboarded"
-msgstr ""
+msgstr "A bordo"
 
+#, fuzzy
 msgid "Read next"
-msgstr ""
+msgstr "Leer más"
 
+#, fuzzy
 msgid "Tuist Case Studies"
-msgstr ""
+msgstr "Casos prácticos Tuist"
 
+#, fuzzy
 msgid "Case studies"
-msgstr ""
+msgstr "Casos prácticos"
 
+#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
-msgstr ""
+msgstr "Explora las funciones de Tuist en el panel de control público"
 
+#, fuzzy
 msgid "Public dashboard"
-msgstr ""
+msgstr "Cuadro de mandos público"
 
+#, fuzzy
 msgid "See how leading teams scale with Tuist"
-msgstr ""
+msgstr "Vea cómo los equipos líderes escalan con Tuist"
 
+#, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
-msgstr ""
+msgstr "Descubre cómo las principales empresas tecnológicas están escalando su desarrollo con Tuist."
 
 #~ msgid "$0"
 #~ msgstr "$0"
