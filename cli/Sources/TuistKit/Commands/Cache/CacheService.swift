@@ -326,10 +326,14 @@ final class EmptyCacheService: CacheServicing {
         private func productsDirectory(
             platform: Platform,
             configuration: String,
-            destination: Destination = .simulator
+            destination: Destination = .simulator,
+            isMacCatalystVariant: Bool = false
         ) -> String {
             guard platform != .macOS else {
                 return configuration
+            }
+            if isMacCatalystVariant {
+                return "\(configuration)-maccatalyst"
             }
             switch destination {
             case .simulator:
@@ -626,7 +630,7 @@ final class EmptyCacheService: CacheServicing {
                     .appending(
                         // swiftlint:disable:next force_try
                         try RelativePath(
-                            validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .device))"
+                            validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .device, isMacCatalystVariant: true))"
                         )
                     )
                 try await copyDerivedDataArtifacts(
