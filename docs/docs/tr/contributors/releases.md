@@ -18,7 +18,7 @@ Sürekli olarak üç ana bileşeni piyasaya sürüyoruz:
 - **Tuist CLI** - Komut satırı aracı
 - **Tuist Sunucusu** - Arka uç hizmetleri
 - **Tuist Uygulaması** - macOS ve iOS uygulamaları (iOS uygulaması yalnızca
-  TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakın}
+  TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakınız}
 
 Her bileşenin, ana dala yapılan her gönderimde otomatik olarak çalışan kendi
 sürüm işlem hattı vardır.
@@ -65,7 +65,7 @@ Users will need to clear their old cache directory.
 Her bileşen [git cliff](https://git-cliff.org/) kullanır:
 - Son sürümden bu yana yapılan değişiklikleri analiz edin
 - İşlemleri kapsama göre filtreleme (CLI, app, server)
-- Serbest bırakılabilir değişiklikler olup olmadığını belirleyin
+- Yayınlanabilir değişiklikler olup olmadığını belirleyin
 - Değişiklik günlüklerini otomatik olarak oluşturun
 
 ### 3. Boru hattını serbest bırakın
@@ -128,7 +128,7 @@ Her iş akışı:
 - Ana şebekeye itme ile çalışır
 - Manuel olarak tetiklenebilir
 - Değişiklik tespiti için git cliff kullanır
-- Tüm sürüm sürecini yönetir
+- Tüm serbest bırakma sürecini yönetir
 
 ## Salımların izlenmesi
 
