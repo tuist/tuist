@@ -59,7 +59,8 @@ proporcionado por CI por un token de acceso de Tuist.
    detectará automáticamente el entorno CI y se autenticará utilizando OIDC.
 
 Consulte la
-<LocalizedLink href="/guides/integrations/continuous-integration">Guía de integración continua</LocalizedLink> para ver ejemplos de configuración
+<LocalizedLink href="/guides/integrations/continuous-integration">Guía de
+integración continua</LocalizedLink> para ver ejemplos de configuración
 específicos de cada proveedor.
 
 ### Ámbitos de token OIDC {#oidc-token-scopes}
