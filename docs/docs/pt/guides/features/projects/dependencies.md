@@ -97,7 +97,8 @@ integrate Swift Packages in your project using XcodeProj's targets. Thanks to
 that, we can not only give you more control over the integration but also make
 it compatible with workflows like
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and
-<LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink>.
+<LocalizedLink href="/guides/features/test/selective-testing">selective test
+runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift
 Package features or handle more package configurations. However, the mapping
@@ -382,9 +383,11 @@ Previews that rely on the compilation graph to become unreliable.
 
 Luckily, Tuist conceptually compresses the complexity associated with changing
 between static and dynamic and synthesizes
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> that are standard across linking types. In combination
 with
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic
+configurations via environment variables</LocalizedLink>, you can pass the
 linking type at invocation time, and use the value in your manifests to set the
 product type of your targets.
 
@@ -400,7 +403,9 @@ func productType() -> Product {
 ```
 
 Note that Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">does not
+default to convenience through implicit configuration due to its
+costs</LocalizedLink>. What this means is that we rely on you setting the
 linking type and any additional build settings that are sometimes required, like
 the [`-ObjC` linker
 flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -602,9 +607,11 @@ Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
 When a dynamic framework or library depends on static ones through `import
 StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the
 dynamic framework or library, potentially
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing
+the compilation to fail</LocalizedLink>. To prevent that, you'll have to import
 the static dependency using
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule
