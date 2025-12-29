@@ -8,15 +8,15 @@
 # Hesaplar ve projeler {#accounts-and-projects}
 
 Bazı Tuist özellikleri, verilerin kalıcılığını sağlayan ve diğer hizmetlerle
-etkileşime girebilen bir sunucu gerektirir. Sunucu ile etkileşime geçmek için
-bir hesaba ve yerel projenize bağladığınız bir projeye ihtiyacınız vardır.
+etkileşime girebilen bir sunucu gerektirir. Sunucu ile etkileşim kurmak için bir
+hesaba ve yerel projenize bağladığınız bir projeye ihtiyacınız vardır.
 
 ## Hesaplar {#accounts}
 
 Sunucuyu kullanmak için bir hesaba ihtiyacınız olacak. İki tür hesap vardır:
 
 - **Kişisel hesap:** Bu hesaplar, kaydolduğunuzda otomatik olarak oluşturulur ve
-  kimlik sağlayıcısından (örneğin GitHub) veya e-posta adresinin ilk bölümünden
+  kimlik sağlayıcısından (örn. GitHub) veya e-posta adresinin ilk bölümünden
   elde edilen bir tanıtıcı ile tanımlanır.
 - **Organizasyon hesabı:** Bu hesaplar manuel olarak oluşturulur ve geliştirici
   tarafından tanımlanan bir tanıtıcı ile tanımlanır. Organizasyonlar, diğer
@@ -50,8 +50,8 @@ sahip olmak gibidir. Projeleri oluşturmak ve yönetmek için
 <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> adresini
 kullanabilirsiniz.
 
-Projeler, kuruluş tanıtıcısı ve proje tanıtıcısının birleştirilmesinin sonucu
-olan tam tanıtıcı ile tanımlanır. Örneğin, `tuist` tanıtıcısına sahip bir
+Projeler, kuruluş tanıtıcısı ile proje tanıtıcısının birleştirilmesinin sonucu
+olan bir tam tanıtıcı ile tanımlanır. Örneğin, `tuist` tanıtıcısına sahip bir
 kuruluşunuz ve `tuist` tanıtıcısına sahip bir projeniz varsa, tam tanıtıcı
 `tuist/tuist` olacaktır.
 
