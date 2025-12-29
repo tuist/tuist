@@ -20,8 +20,8 @@ iletir.
 Her çalıştırmada, `$XDG_STATE_HOME/tuist/logs/{uuid}.log` adresinde bir günlük
 dosyası oluşturur; burada `$XDG_STATE_HOME`, ortam değişkeni ayarlanmamışsa
 `~/.local/state` değerini alır. Tuist'e özgü bir durum dizini ayarlamak için
-`$TUIST_XDG_STATE_HOME` adresini de kullanabilirsiniz; bu, `$XDG_STATE_HOME`
-adresinden önceliklidir.
+`$TUIST_XDG_STATE_HOME` adresini de kullanabilirsiniz; bu dizin
+`$XDG_STATE_HOME` adresinden önceliklidir.
 
 ::: tip
 <!-- -->
@@ -31,9 +31,9 @@ belgesinde</LocalizedLink> bulabilirsiniz.
 <!-- -->
 :::
 
-Varsayılan olarak CLI, yürütme beklenmedik bir şekilde sona erdiğinde günlük
-yolunun çıktısını verir. Çıkmazsa, günlükleri yukarıda belirtilen yolda
-bulabilirsiniz (yani, en son günlük dosyası).
+Varsayılan olarak, yürütme beklenmedik şekilde sona erdiğinde CLI günlük yolunu
+çıkarır. Çıkmazsa, günlükleri yukarıda belirtilen yolda bulabilirsiniz (yani, en
+son günlük dosyası).
 
 ::: warning
 <!-- -->
