@@ -92,13 +92,12 @@ let tuist = Tuist(
 
 若要在 CI 環境中啟用快取，您需要執行與本機環境相同的指令：`tuist setup cache` 。
 
-For authentication, you can use either
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> (recommended for supported CI providers) or an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+在驗證方面，您可以使用 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+驗證</LocalizedLink>（建議使用支援的 CI 供應商），或透過`TUIST_TOKEN` 環境變數使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">
+帳戶令牌</LocalizedLink>。
 
-An example workflow for GitHub Actions using OIDC authentication:
+使用 OIDC 認證的 GitHub Actions 工作流程範例：
 ```yaml
 name: Build
 
@@ -117,8 +116,7 @@ jobs:
       - # Your build steps
 ```
 
-See the
+更多範例請參閱
 <LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for more examples, including token-based
-authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
-Codemagic.
+Integration 指南</LocalizedLink>，包括基於令牌的驗證和其他 CI 平台，如 Xcode Cloud、CircleCI、Bitrise
+和 Codemagic。
