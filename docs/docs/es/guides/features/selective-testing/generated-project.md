@@ -11,7 +11,8 @@
 <!-- -->
 - Un proyecto generado por
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -19,7 +20,8 @@ Para ejecutar pruebas selectivamente con su proyecto generado, utilice el
 comando `tuist test`. El comando
 <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
 su proyecto Xcode de la misma manera que lo hace para
-<LocalizedLink href="/guides/features/cache#cache-warming">calentar la caché</LocalizedLink>, y en caso de éxito, persiste los hashes en para
+<LocalizedLink href="/guides/features/cache#cache-warming">calentar la
+caché</LocalizedLink>, y en caso de éxito, persiste los hashes en para
 determinar lo que ha cambiado en futuras ejecuciones.
 
 En futuras ejecuciones `tuist test` utiliza de forma transparente los hashes
