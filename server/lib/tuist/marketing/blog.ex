@@ -14,14 +14,13 @@ defmodule Tuist.Marketing.Blog do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  alias Tuist.Marketing.Blog.Post
-
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
 
   def get_posts, do: @posts
   def get_categories, do: @categories
   def get_post_author(post), do: get_authors()[post.author]
+
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
 
   @doc """
