@@ -94,4 +94,65 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
         XCTAssertTrue(sideEffects.isEmpty)
     }
+
+    func test_generate_catalyst_scheme_for_targets_that_support_catalyst() throws {
+        // Given
+        let targetWithCatalyst = Target.test(name: "WithCatalyst", destinations: [.iPhone, .macCatalyst], product: .framework)
+        let targetWithoutCatalyst = Target.test(name: "WithoutCatalyst", destinations: [.iPhone], product: .framework)
+
+        let subject = GenerateCacheableSchemesWorkspaceMapper(targets: [
+            .iOS: Set([.named(targetWithCatalyst.name), .named(targetWithoutCatalyst.name)]),
+        ])
+        let project = Project.test(name: "App", targets: [targetWithCatalyst, targetWithoutCatalyst])
+        let workspace = Workspace.test()
+        let workspaceWithProjects = WorkspaceWithProjects(
+            workspace: workspace, projects: [project]
+        )
+
+        // When
+        let (updatedWorkspace, _) = try subject.map(workspace: workspaceWithProjects)
+
+        // Then
+        XCTAssertTrue(updatedWorkspace.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+
+        XCTAssertEqual(
+            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
+                .buildAction?.targets
+                .map(\.name),
+            [
+                "WithCatalyst",
+            ]
+        )
+
+        XCTAssertEqual(
+            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+                .buildAction?.targets
+                .map(\.name),
+            [
+                "WithCatalyst",
+                "WithoutCatalyst",
+            ]
+        )
+    }
+
+    func test_does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() throws {
+        // Given
+        let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
+        let targetB = Target.test(name: "B", destinations: [.iPhone], product: .framework)
+
+        let subject = GenerateCacheableSchemesWorkspaceMapper(targets: [
+            .iOS: Set([.named(targetA.name), .named(targetB.name)]),
+        ])
+        let project = Project.test(name: "App", targets: [targetA, targetB])
+        let workspace = Workspace.test()
+        let workspaceWithProjects = WorkspaceWithProjects(
+            workspace: workspace, projects: [project]
+        )
+
+        // When
+        let (updatedWorkspace, _) = try subject.map(workspace: workspaceWithProjects)
+
+        // Then
+        XCTAssertFalse(updatedWorkspace.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+    }
 }
