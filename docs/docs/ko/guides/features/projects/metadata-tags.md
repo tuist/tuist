@@ -124,7 +124,7 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 ## 프로젝트 설명 도우미와 함께 태그 사용 {#using-tags-with-helpers}
 
-<LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 활용하여 프로젝트 전체에 태그가 적용되는 방식을 표준화할 수 있습니다:
+1}프로젝트 설명 도우미</LocalizedLink>를 활용하여 프로젝트 전체에 태그가 적용되는 방식을 표준화할 수 있습니다:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -188,7 +188,8 @@ let project = Project(
 
 ### 캐싱과 통합
 
-메타데이터 태그는 <LocalizedLink href="/guides/features/cache">Tuist의 캐싱 기능</LocalizedLink>과 원활하게 작동합니다:
+메타데이터 태그는 <LocalizedLink href="/guides/features/cache">Tuist의 캐싱
+기능</LocalizedLink>과 원활하게 작동합니다:
 
 ```bash
 # Cache all targets
@@ -208,7 +209,9 @@ tuist generate tag:feature:payment
 
 ## 관련 기능 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">코드 공유</LocalizedLink> - 프로젝트 설명 도우미를 사용하여 태그 사용 표준화하기
+- <LocalizedLink href="/guides/features/projects/code-sharing">코드
+  공유</LocalizedLink> - 프로젝트 설명 도우미를 사용하여 태그 사용 표준화하기
 - <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink> - 최적의 빌드 성능을
   위해 태그와 캐싱을 결합하세요.
-- <LocalizedLink href="/guides/features/selective-testing">선택적 테스트</LocalizedLink> - 변경된 대상에 대해서만 테스트 실행
+- <LocalizedLink href="/guides/features/selective-testing">선택적
+  테스트</LocalizedLink> - 변경된 대상에 대해서만 테스트 실행
