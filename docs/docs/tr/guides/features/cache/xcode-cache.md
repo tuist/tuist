@@ -108,24 +108,33 @@ let tuist = Tuist(
 CI ortamınızda önbelleğe almayı etkinleştirmek için yerel ortamlarda olduğu gibi
 aynı komutu çalıştırmanız gerekir: `tuist setup cache`.
 
-Ayrıca, `TUIST_TOKEN` ortam değişkeninin ayarlandığından emin olmanız gerekir.
-Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project">
-belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>. `
-TUIST_TOKEN` ortam değişkeni _derleme adımınız için_ mevcut olmalıdır, ancak
-bunu tüm CI iş akışı için ayarlamanızı öneririz.
+For authentication, you can use either
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+authentication</LocalizedLink> (recommended for supported CI providers) or an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
-GitHub Eylemleri için örnek bir iş akışı şu şekilde olabilir:
+An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for more examples, including token-based
+authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
+Codemagic.

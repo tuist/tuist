@@ -93,22 +93,33 @@ let tuist = Tuist(
 
 要在 CI 环境中启用缓存，需要运行与本地环境相同的命令：`tuist setup cache` 。
 
-此外，您还需要确保`TUIST_TOKEN` 环境变量已设置。您可以根据此处的文档
-<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>
-创建一个环境变量。`_ TUIST_TOKEN` 环境变量_必须在构建步骤中存在，但我们建议在整个 CI 工作流程中都设置它。
+For authentication, you can use either
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+authentication</LocalizedLink> (recommended for supported CI providers) or an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
-GitHub 操作的工作流程示例如下：
+An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for more examples, including token-based
+authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
+Codemagic.

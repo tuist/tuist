@@ -104,24 +104,33 @@ let tuist = Tuist(
 Чтобы включить кэширование в среде CI, нужно выполнить ту же команду, что и в
 локальных средах: `tuist setup cache`.
 
-Кроме того, необходимо убедиться, что переменная окружения `TUIST_TOKEN`
-установлена. Вы можете создать ее, следуя документации
-<LocalizedLink href="/guides/server/authentication#as-a-project">здесь</LocalizedLink>.
-Переменная окружения `TUIST_TOKEN` _ должна_ присутствовать на вашем шаге
-сборки, но мы рекомендуем установить ее для всего рабочего процесса CI.
+For authentication, you can use either
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+authentication</LocalizedLink> (recommended for supported CI providers) or an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
-Пример рабочего процесса для GitHub Actions может выглядеть следующим образом:
+An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for more examples, including token-based
+authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
+Codemagic.
