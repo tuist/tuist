@@ -22,8 +22,10 @@ sino que también minimiza la necesidad de cambiar de contexto, lo que en últim
 instancia aumenta la productividad.
 
 Ofrecemos dos tipos de caché:
-- <LocalizedLink href="/guides/features/cache/module-cache">Módulo caché</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Caché de Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">Módulo
+  caché</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Caché de
+  Xcode</LocalizedLink>
 
 ## Caché de módulos {#module-cache}
 
@@ -40,7 +42,8 @@ embargo, la decisión de qué solución de almacenamiento en caché utilizar dep
 de sus necesidades y preferencias específicas. También puede combinar ambas
 soluciones de almacenamiento en caché para obtener los mejores resultados.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Más información sobre la caché del módulo →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Más información sobre
+la caché del módulo →</LocalizedLink>
 
 ## Caché de Xcode {#xcode-cache}
 
@@ -59,6 +62,8 @@ nivel de compilación, similar a otros sistemas de compilación como Bazel y Buc
 La nueva capacidad de almacenamiento en caché está disponible desde Xcode 26 y
 Tuist ahora se integra perfectamente con él - independientemente de si usted
 está utilizando Tuist's
-<LocalizedLink href="/guides/features/projects">generación de proyectos</LocalizedLink> capacidades o no.
+<LocalizedLink href="/guides/features/projects">generación de
+proyectos</LocalizedLink> capacidades o no.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Más información sobre la caché de Xcode →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Más información sobre
+la caché de Xcode →</LocalizedLink>
