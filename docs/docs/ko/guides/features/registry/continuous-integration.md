@@ -35,7 +35,7 @@ registry login` 을 실행합니다.
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
 문서를 참조하여 만들 수 있습니다.
 
-그러면 GitHub 액션의 워크플로 예시는 다음과 같습니다:
+GitHub Action의 Workflow 예시는 다음과 같을 수 있습니다:
 ```yaml
 name: Build
 
