@@ -122,7 +122,7 @@ Azaltma](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targ
 fikrinden esinlenmiştir.
 
 Arayüzlere bağlı olmak, uygulamaların çalışma zamanında uygulama grafiğini
-oluşturmasını ve buna ihtiyaç duyan modüllere bağımlılık enjekte etmesini
+oluşturmasını ve bunu ihtiyaç duyan modüllere bağımlılık enjekte etmesini
 gerektirir. TMA bunun nasıl yapılacağı konusunda görüş bildirmese de, bağımlılık
 enjekte etme çözümlerinin veya kalıplarının ya da inşa zamanı dolaylamaları
 eklemeyen veya bu amaç için tasarlanmamış platform API'lerini kullanmayan
@@ -180,7 +180,7 @@ beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
 
 ## Kod {#code}
 
-TMA, modülleriniz için kod mimarisi ve kalıpları hakkında görüş bildirmez.
+TMA, modülleriniz için kod mimarisi ve kalıpları konusunda görüş bildirmez.
 Ancak, deneyimlerimize dayanarak bazı ipuçlarını paylaşmak istiyoruz:
 
 - **Derleyiciden yararlanmak harikadır.** Derleyiciden fazla yararlanmak
