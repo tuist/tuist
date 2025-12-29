@@ -84,7 +84,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ### `튜이스트_런_지속시간_밀리초` (히스토그램) {#tuist_runs_duration_milliseconds-histogram}
@@ -96,7 +96,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 | 태그      | 설명                                           |
 | ------- | -------------------------------------------- |
 | `이름`    | `build`, `test` 등과 같이 실행한 `tuist` 명령의 이름입니다. |
-| `is_ci` | 실행자가 CI인지 개발자 머신인지를 나타내는 부울입니다.              |
+| `is_ci` | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.            |
 | `상태`    | `0` ` 성공의 경우`, `1` ` 실패의 경우`.                |
 
 ## 캐시 메트릭 {#cache-metrics}
@@ -263,7 +263,7 @@ PostHog를 활성화하면 Tuist가 자동으로 추적합니다:
 
 ### `tuist_storage_check_object_existence_count` (개수) {#tuist_storage_check_object_existence_count-count}
 
-원격 스토리지에서 개체의 존재가 확인된 횟수입니다.
+원격 스토리지에서 개체의 존재를 확인한 횟수입니다.
 
 #### 태그 {#tuist-storage-check-object-existence-count-tags}
 
@@ -471,7 +471,7 @@ HTTP를 통해 다른 서비스와 Tuist의 상호작용과 관련된 일련의 
 
 ### `튜이스트_http_수신_기간_나노초_버킷` (배포) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-응답 수신에 소요된 시간의 분포입니다.
+응답을 받는 데 소요된 시간의 분포입니다.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
