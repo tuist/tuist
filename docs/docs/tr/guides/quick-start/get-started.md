@@ -35,7 +35,7 @@ test</LocalizedLink>,
 <!-- -->
 Geliştirici deneyimini iyileştirmek ve
 <LocalizedLink href="/guides/features/cache">önbelleğimizden</LocalizedLink>
-yararlanmak için mevcut bir projeyi oluşturulan projele'ye taşımak istiyorsanız,
+yararlanmak için mevcut bir projeyi oluşturulan projele taşımak istiyorsanız,
 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">göç
 kılavuzumuza</LocalizedLink> göz atın.
 <!-- -->
