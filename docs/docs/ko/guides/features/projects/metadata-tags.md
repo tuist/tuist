@@ -62,7 +62,7 @@ let project = Project(
 )
 ```
 
-## 태그된 타겟에 집중 {#focusing-on-tagged-targets}
+## 태그된 대상에 집중하기 {#focusing-on-tagged-targets}
 
 대상에 태그를 지정한 후에는 `tuist generate` 명령을 사용하여 특정 대상만 포함된 집중 프로젝트를 만들 수 있습니다:
 
