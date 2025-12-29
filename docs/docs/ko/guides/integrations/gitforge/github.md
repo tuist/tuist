@@ -20,13 +20,13 @@ Git 리포지토리는 대부분의 소프트웨어 프로젝트의 중심입니
 ![프로젝트 연결 추가를 보여주는
 이미지](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## 요청 댓글 풀/병합 {#pull-merge-request-comments}
+## Pull/병합 요청 댓글 {#pullmerge-request-comments}
 
 GitHub 앱은 최신
 <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
 또는
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>에
-대한 링크를 포함하여 PR 요약이 포함된 Tuist 실행 보고서를 게시합니다:
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>
+링크를 포함한 PR 요약이 포함된 Tuist 실행 보고서를 게시합니다:
 
 ![풀 리퀘스트 댓글을 표시하는
 이미지](/images/guides/integrations/gitforge/github/pull-request-comment.png)
