@@ -105,13 +105,13 @@ let tuist = Tuist(
 Aby włączyć buforowanie w środowisku CI, należy uruchomić to samo polecenie, co
 w środowisku lokalnym: `tuist setup cache`.
 
-For authentication, you can use either
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> (recommended for supported CI providers) or an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+Do uwierzytelniania można użyć uwierzytelniania
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
+(zalecane dla obsługiwanych dostawców CI) lub tokenu
+<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>
+za pośrednictwem zmiennej środowiskowej `TUIST_TOKEN`.
 
-An example workflow for GitHub Actions using OIDC authentication:
+Przykładowy przepływ pracy dla GitHub Actions przy użyciu uwierzytelniania OIDC:
 ```yaml
 name: Build
 
@@ -130,8 +130,8 @@ jobs:
       - # Your build steps
 ```
 
-See the
+Więcej przykładów, w tym uwierzytelnianie oparte na tokenach i inne platformy
+CI, takie jak Xcode Cloud, CircleCI, Bitrise i Codemagic, można znaleźć w
+przewodniku
 <LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for more examples, including token-based
-authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
-Codemagic.
+Integration</LocalizedLink>.
