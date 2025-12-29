@@ -106,13 +106,14 @@ let tuist = Tuist(
 Para habilitar el almacenamiento en caché en su entorno CI, debe ejecutar el
 mismo comando que en los entornos locales: `tuist setup cache`.
 
-For authentication, you can use either
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> (recommended for supported CI providers) or an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+Para la autenticación, puede utilizar
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">la autenticación
+OIDC</LocalizedLink> (recomendada para los proveedores de CI compatibles) o un
+<LocalizedLink href="/guides/server/authentication#account-tokens">token de
+cuenta</LocalizedLink> a través de la variable de entorno `TUIST_TOKEN`.
 
-An example workflow for GitHub Actions using OIDC authentication:
+Un ejemplo de flujo de trabajo para Acciones de GitHub utilizando autenticación
+OIDC:
 ```yaml
 name: Build
 
@@ -131,8 +132,7 @@ jobs:
       - # Your build steps
 ```
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for more examples, including token-based
-authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
-Codemagic.
+Consulte la guía
+<LocalizedLink href="/guides/integrations/continuous-integration">Integración
+continua</LocalizedLink> para ver más ejemplos, incluida la autenticación basada
+en token y otras plataformas CI como Xcode Cloud, CircleCI, Bitrise y Codemagic.
