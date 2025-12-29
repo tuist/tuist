@@ -36,11 +36,13 @@ tuist inspect bundle App.app
 
 `tuist inspect bundle` 指令會分析 bundle，並提供連結讓您查看 bundle 的詳細概觀，包括掃描 bundle 的內容或模組明細：
 
-![分析束](/images/guides/features/bundle-size/analyzed-bundle.png)
+！[分析束](/images/guides/features/bundle-size/analyzed-bundle.png)
 
 ## 持續整合{#continuous-integration}
 
-若要隨時間追蹤 bundle 大小，您需要分析 CI 上的 bundle。首先，您需要確保您的 CI 已經<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>：
+若要隨時間追蹤 bundle 大小，您需要分析 CI 上的 bundle。首先，您需要確保您的 CI 已經
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證
+</LocalizedLink>：
 
 GitHub Actions 的示例工作流程如下：
 
@@ -65,10 +67,14 @@ jobs:
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+若要取得自動的 pull/merge 請求註解，請將您的
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>整合。
 <!-- -->
 :::
 
-一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，每當您執行 `tuist inspect bundle` 時，Tuist 會直接在您的 pull/merge request 中發佈註解：
-
-![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，每當您執行`tuist inspect
+bundle`: ![GitHub app comment with inspected
+bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+時，Tuist 會直接在您的 pull/merge request 中發佈註解。
