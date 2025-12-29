@@ -39,7 +39,8 @@ saklayacaktır. _ ` tuist kayıt login` çalıştırılmadan önce varsayılan a
 zincirinizin oluşturulduğundan ve _kilidinin açıldığından emin olun.
 
 Ayrıca, `TUIST_TOKEN` ortam değişkeninin ayarlandığından emin olmanız gerekir.
-Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project"> belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>.
+Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project">
+belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>.
 
 GitHub Eylemleri için örnek bir iş akışı şu şekilde olabilir:
 ```yaml
