@@ -30,7 +30,8 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
   defp validate_url(changeset, field) do
     validate_change(changeset, field, fn _, url ->
       case URI.parse(url) do
-        %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) ->
+        %URI{scheme: scheme, host: host}
+        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
           []
 
         _ ->
