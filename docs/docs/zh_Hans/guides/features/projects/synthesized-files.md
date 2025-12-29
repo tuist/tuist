@@ -120,9 +120,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 信息参考
 <!-- -->
-You can check out [this
-example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
-to see an example of how to use custom templates to synthesize accessors to
-resources.
+您可以查看 [this
+fixture](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
+以了解如何使用自定义模板合成资源访问器的示例。
 <!-- -->
 :::
