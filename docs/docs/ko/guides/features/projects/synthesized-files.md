@@ -135,8 +135,9 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-사용자 지정 템플릿을 사용하여 리소스에 대한 액세스자를 합성하는 방법의 예는 [이 수정
-사항](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)에서
-확인할 수 있습니다.
+You can check out [this
+example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
+to see an example of how to use custom templates to synthesize accessors to
+resources.
 <!-- -->
 :::
