@@ -117,12 +117,12 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
-저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id-token: write` 권한이
-필요합니다. 또는 `TUIST_TOKEN` 시크릿과 함께
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
+write` is required for OIDC to work. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` secret.
 <!-- -->
 :::
 
@@ -165,8 +165,10 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
-설정합니다.
+Use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
+Xcode Cloud workflow settings.
 <!-- -->
 :::
 
@@ -227,12 +229,13 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
@@ -295,12 +298,13 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-<LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
@@ -347,6 +351,9 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-1}프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+Create an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> and add it as a secret environment variable named
+`TUIST_TOKEN`.
 <!-- -->
 :::

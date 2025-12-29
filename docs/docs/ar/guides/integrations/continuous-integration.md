@@ -119,12 +119,12 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف:
-الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز
-المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
+write` is required for OIDC to work. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` secret.
 <!-- -->
 :::
 
@@ -169,10 +169,10 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-استخدم رمزًا مميزًا
-<LocalizedLink href="/guides/server/authentication#project-tokens"> للمشروع
-</LocalizedLink> عن طريق تعيين متغير البيئة `TUIST_TOKEN` في إعدادات سير عمل
-Xcode Cloud الخاص بك.
+Use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
+Xcode Cloud workflow settings.
 <!-- -->
 :::
 
@@ -233,13 +233,13 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
-رموز CircleCI OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والتي يستخدمها
-Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
-المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
@@ -302,13 +302,13 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
-رموز Bitrise OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والذي يستخدمه
-Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
-المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+Before using OIDC authentication, you need to
+<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
+repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
+your connected GitHub repository, which Tuist uses to authorize access to your
+projects. Alternatively, you can use an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
 <!-- -->
 :::
 
@@ -356,7 +356,9 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز
-مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
+Create an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> and add it as a secret environment variable named
+`TUIST_TOKEN`.
 <!-- -->
 :::
