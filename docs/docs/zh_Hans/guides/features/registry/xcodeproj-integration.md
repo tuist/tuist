@@ -8,7 +8,8 @@
 # 使用基于 XcodeProj 的软件包集成生成项目{#generated-project-with-xcodeproj-based-integration}
 
 在使用基于
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj 的集成</LocalizedLink>时，您可以使用``--replace-scm-with-registry``
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj
+的集成</LocalizedLink>时，您可以使用``--replace-scm-with-registry``
 标志来解析注册表中的依赖项（如果有的话）。将其添加到`Tuist.swift` 文件中的`installOptions` ：
 ```swift
 import ProjectDescription
