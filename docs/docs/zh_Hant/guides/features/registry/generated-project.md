@@ -8,7 +8,8 @@
 # 使用 Xcode 套件整合產生專案{#generated-project-with-xcode-based-integration}
 
 如果您正在使用
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode 的預設套件與 Tuist Projects 整合</LocalizedLink>，則在新增套件時，您需要使用註冊表識別符，而非 URL：
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode
+的預設套件與 Tuist Projects 整合</LocalizedLink>，則在新增套件時，您需要使用註冊表識別符，而非 URL：
 ```swift
 import ProjectDescription
 
