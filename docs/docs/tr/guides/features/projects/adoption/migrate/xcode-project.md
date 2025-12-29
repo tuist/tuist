@@ -86,8 +86,8 @@ tanımlayabileceğiniz yerdir.
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` son ekini
-eklemenizi öneririz. Projenizi Tuist'e tam olarak geçirdikten sonra bunu
-bırakabilirsiniz.
+eklemenizi öneririz. Projenizi Tuist'e tamamen geçirdikten sonra bu eki
+kaldırabilirsiniz.
 <!-- -->
 :::
 
@@ -106,8 +106,8 @@ xcodebuild build {xcodebuild flags} # or tuist test
 ## Proje derleme ayarlarını `.xcconfig` dosyalarına çıkarın {#extract-the-project-build-settings-into-xcconfig-files}
 
 Projeyi daha yalın hale getirmek ve taşımayı kolaylaştırmak için derleme
-ayarlarını projeden bir `.xcconfig` dosyasına çıkarın. Projedeki derleme
-ayarlarını bir `.xcconfig` dosyasına çıkarmak için aşağıdaki komutu
+ayarlarını projeden bir `.xcconfig` dosyasına çıkarın. Derleme ayarlarını
+projeden bir `.xcconfig` dosyasına çıkarmak için aşağıdaki komutu
 kullanabilirsiniz:
 
 
@@ -191,7 +191,7 @@ aşağıdaki komutu kullanabilirsiniz:
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Hedefleri taşımaya listenin en üstünden başlayın, çünkü en çok bağlı olanlar
+Hedefleri taşımaya listenin en üstünden başlayın, çünkü en çok bağımlı olanlar
 bunlardır.
 
 
