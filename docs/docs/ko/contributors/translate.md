@@ -5,7 +5,7 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# 번역 {#translate}
+# 번역 {#번역}
 
 언어는 이해의 장벽이 될 수 있습니다. 저희는 가능한 한 많은 사람들이 Tuist에 접근할 수 있도록 하고 싶습니다. 튜이스트가 지원하지 않는
 언어를 사용한다면 튜이스트의 다양한 표면을 번역하여 튜이스트를 도울 수 있습니다.
@@ -28,7 +28,7 @@ Tuist가 새로운 언어를 지원하면 도움이 될 것이라고 생각되�
 <!-- -->
 :::
 
-## 번역 방법 {#how-to-translate}
+## 번역 방법 {#번역 방법}
 
 번역하다](https://weblate.org/en-gb/)의 인스턴스가
 [translate.tuist.dev](https://translate.tuist.dev)에서 실행되고 있습니다.
