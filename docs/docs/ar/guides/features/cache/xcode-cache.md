@@ -104,13 +104,13 @@ let tuist = Tuist(
 لتمكين التخزين المؤقت في بيئة CI الخاصة بك، تحتاج إلى تشغيل نفس الأمر كما هو
 الحال في البيئات المحلية: `tuist إعداد ذاكرة التخزين المؤقت`.
 
-For authentication, you can use either
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> (recommended for supported CI providers) or an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+للمصادقة، يمكنك استخدام إما
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">
+مصادقةOIDC</LocalizedLink> (موصى به لموفري CI المدعومين) أو
+<LocalizedLink href="/guides/server/authentication#account-tokens"> رمز حساب
+مميز</LocalizedLink> عبر متغير البيئة `TUIST_TOKEN`.
 
-An example workflow for GitHub Actions using OIDC authentication:
+مثال على سير عمل إجراءات GitHub باستخدام مصادقة OIDC:
 ```yaml
 name: Build
 
@@ -129,8 +129,8 @@ jobs:
       - # Your build steps
 ```
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for more examples, including token-based
-authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
-Codemagic.
+راجع دليل
+<LocalizedLink href="/guides/integrations/continuous-integration">التكامل
+المستمر</LocalizedLink> للاطلاع على المزيد من الأمثلة، بما في ذلك المصادقة
+المستندة إلى الرمز المميز ومنصات CI الأخرى مثل Xcode Cloud و CircleCI و Bitrise
+و Codemagic.
