@@ -10,11 +10,13 @@
 Los plugins son una herramienta para compartir y reutilizar artefactos Tuist en
 varios proyectos. Los siguientes artefactos son compatibles:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Ayudantes de descripción de proyectos</LocalizedLink> en varios proyectos.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Ayudantes de
+  descripción de proyectos</LocalizedLink> en varios proyectos.
 - <LocalizedLink href="/guides/features/projects/templates">Plantillas</LocalizedLink>
   en varios proyectos.
 - Tareas en varios proyectos.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Plantilla de acceso a recursos</LocalizedLink> en varios proyectos
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Plantilla de
+  acceso a recursos</LocalizedLink> en varios proyectos
 
 Ten en cuenta que los plugins están diseñados para ser una forma sencilla de
 ampliar la funcionalidad de Tuist. Por lo tanto, hay **algunas limitaciones a
@@ -57,7 +59,8 @@ let plugin = Plugin(name: "MyPlugin")
 ### Plugin de plantillas de acceso a recursos {#resource-accessor-templates-plugin}
 
 Si necesita compartir
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">accesores de recursos sintetizados</LocalizedLink> puede utilizar este tipo de plugin. El
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">accesores
+de recursos sintetizados</LocalizedLink> puede utilizar este tipo de plugin. El
 plugin está representado por un directorio que contiene un archivo de manifiesto
 `Plugin.swift` que declara el nombre del plugin y un directorio
 `ResourceSynthesizers` que contiene los archivos de plantilla de accesores de
@@ -120,7 +123,7 @@ versiones anteriores, Tuist proporcionaba algunas convenciones y herramientas
 débiles bajo `tuist plugin` para `construir`, `ejecutar`, `probar` y `archivar`
 tareas representadas por ejecutables en paquetes Swift, pero hemos desaprobado
 esta característica ya que aumenta la carga de mantenimiento y la complejidad de
-la herramienta.
+la herramienta.</task-name>
 
 Si estabas utilizando Tuist para distribuir tareas, te recomendamos que
 construyas tu
