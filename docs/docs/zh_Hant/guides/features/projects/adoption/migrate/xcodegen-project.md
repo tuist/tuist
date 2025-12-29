@@ -76,7 +76,8 @@ XcodeGen 和 Tuist 都接受 Xcode 的語言和概念。然而，Tuist 基於 Sw
 YAML 作為專案設定語言的缺點之一，就是它不支援 YAML 檔案之間的重複使用。這是描述專案時的一個普遍需求，XcodeGen
 不得不使用他們自己專屬的解決方案來解決這個問題，該解決方案命名為*"templates"* 。Tuist 的重複使用功能內建於 Swift
 語言本身，並透過一個名為
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> 的 Swift 模組，讓程式碼能夠在所有的清單檔案中重複使用。
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> 的 Swift 模組，讓程式碼能夠在所有的清單檔案中重複使用。
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
