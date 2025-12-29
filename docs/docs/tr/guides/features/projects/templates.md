@@ -27,7 +27,8 @@ sahibi değildir. Sadece belirli bir dizinde olmaları gerekmektedir.
 ## Bir şablon tanımlama {#defining-a-template}
 
 Şablonları tanımlamak için,
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> çalıştırabilir ve ardından şablonunuzu temsil eden
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> çalıştırabilir ve ardından şablonunuzu temsil eden
 `Tuist/Templates` altında `name_of_template` adlı bir dizin oluşturabilirsiniz.
 Şablonlar, şablonu tanımlayan `name_of_template.swift` adında bir manifesto
 dosyasına ihtiyaç duyar. Dolayısıyla, `framework` adında bir şablon
@@ -96,6 +97,7 @@ adresini de kullanabilirsiniz.
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Şablonlar, kodun şablonlar arasında yeniden kullanılması için
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarının</LocalizedLink> kullanımını destekler.
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcılarının</LocalizedLink> kullanımını destekler.
 <!-- -->
 :::
