@@ -46,9 +46,11 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-`.ipa` ファイルを共有する場合、プレビューリンクを使用してモバイルデバイスからアプリを直接ダウンロードできます。`.ipa`
-プレビューへのリンクは、デフォルトでは_公開_
-となっています。将来的には非公開にするオプションが追加され、リンクの受信者はアプリをダウンロードするためにTuistアカウントで認証する必要があります。
+When sharing an `.ipa` file, you can download the app directly from the mobile
+device using the Preview link. The links to `.ipa` previews are by default
+_private_, meaning the recipient needs to authenticate with their Tuist account
+to download the app. You can change this to public in the project settings if
+you want to share the app with anyone.
 
 `tuist run` は、`latest` 、ブランチ名、特定のコミットハッシュなどの指定子に基づいて最新のプレビューを実行することもできます：
 
@@ -137,7 +139,8 @@ macOSアプリと同様に、Tuist iOSアプリはプレビューへのアクセ
 新しい機能のテストは、あらゆるコードレビューの一部であるべきだ。しかし、アプリをローカルでビルドしなければならないことは、不必要な摩擦を増やし、開発者が自分のデバイスで機能をテストすることをスキップしてしまうことになりがちだ。しかし、*、各プルリクエストに、Tuist
 macOSアプリで選択したデバイス上でアプリを自動的に実行するビルドへのリンクが含まれていたらどうだろう？*
 
-Tuistプロジェクトが[GitHub](https://github.com)などのGitプラットフォームと接続されたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>を追加します。するとTuistはプルリクエストに直接プレビューリンクを投稿します: ![GitHub
+Tuistプロジェクトが[GitHub](https://github.com)などのGitプラットフォームと接続されたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink>を追加します。するとTuistはプルリクエストに直接プレビューリンクを投稿します: ![GitHub
 app comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png).
 

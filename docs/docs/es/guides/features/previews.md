@@ -9,7 +9,8 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -56,11 +57,11 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Al compartir un archivo `.ipa`, puedes descargar la aplicación directamente
-desde el dispositivo móvil utilizando el enlace Vista previa. Los enlaces a las
-vistas previas de `.ipa` son por defecto _públicos_. En el futuro, tendrás la
-opción de hacerlos privados, de modo que el destinatario del enlace tenga que
-autenticarse con su cuenta de Tuist para descargar la app.
+When sharing an `.ipa` file, you can download the app directly from the mobile
+device using the Preview link. The links to `.ipa` previews are by default
+_private_, meaning the recipient needs to authenticate with their Tuist account
+to download the app. You can change this to public in the project settings if
+you want to share the app with anyone.
 
 `tuist run` también le permite ejecutar una última vista previa basada en un
 especificador como `latest`, nombre de rama o un hash de confirmación
@@ -159,8 +160,10 @@ agilizan el acceso y la ejecución de tus previsualizaciones.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu
-<LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
-<LocalizedLink href="/guides/server/authentication">plataforma Git</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">proyecto
+remoto</LocalizedLink> con una
+<LocalizedLink href="/guides/server/authentication">plataforma
+Git</LocalizedLink>.
 <!-- -->
 :::
 
@@ -172,7 +175,8 @@ enlace a la compilación que ejecutaría automáticamente la aplicación en un
 dispositivo seleccionado en la aplicación macOS de Tuist?*
 
 Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
-[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
+[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist publicará entonces
 un enlace de Vista Previa directamente en tus pull requests: ![GitHub app
 comment with a Tuist Preview
 link](/images/guides/features/github-app-with-preview.png)
