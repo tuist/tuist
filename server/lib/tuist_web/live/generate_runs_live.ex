@@ -292,7 +292,7 @@ defmodule TuistWeb.GenerateRunsLive do
         display_name: dgettext("dashboard_builds", "Cache Endpoint"),
         type: :option,
         options: cache_endpoint_options(),
-        options_display_names: cache_endpoint_display_names(dgettext("dashboard_builds", "None (Legacy)")),
+        options_display_names: cache_endpoint_display_names("tuist.dev"),
         operator: :==,
         value: nil
       }

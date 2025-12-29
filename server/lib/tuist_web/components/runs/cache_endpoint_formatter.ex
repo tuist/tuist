@@ -5,7 +5,7 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
 
   @doc """
   Returns a list of cache endpoint options for use in filters.
-  Includes an empty string option for "None (Legacy)" at the beginning.
+  Includes an empty string option for "tuist.dev" at the beginning.
   """
   def cache_endpoint_options do
     ["" | Tuist.Environment.cache_endpoints()]
@@ -32,11 +32,11 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
       "US East"
 
       iex> format_cache_endpoint("")
-      nil
+      "tuist.dev"
 
   """
-  def format_cache_endpoint(""), do: nil
-  def format_cache_endpoint(nil), do: nil
+  def format_cache_endpoint(""), do: "tuist.dev"
+  def format_cache_endpoint(nil), do: "tuist.dev"
 
   def format_cache_endpoint(endpoint) do
     case Regex.run(~r/cache-([a-z-]+)\.tuist\.dev/, endpoint) do

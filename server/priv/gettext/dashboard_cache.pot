@@ -818,8 +818,3 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
 msgstr ""
-
-#: lib/tuist_web/live/cache_runs_live.ex:76
-#, elixir-autogen, elixir-format
-msgid "None (Legacy)"
-msgstr ""
