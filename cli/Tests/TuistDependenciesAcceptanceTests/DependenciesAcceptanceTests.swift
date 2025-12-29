@@ -225,8 +225,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: Tuis
 
 final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
     func test_app_with_alamofire() async throws {
-        try await setUpFixture("generated_app_with_registry_and_alamofire")
-        try await run(RegistrySetupCommand.self)
+        try await setUpFixture("generated_app_with_alamofire")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
