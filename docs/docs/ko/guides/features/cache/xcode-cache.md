@@ -95,23 +95,33 @@ let tuist = Tuist(
 
 CI 환경에서 캐싱을 활성화하려면, 로컬 환경과 동일한 명령을 실행해야 합니다: `tuist setup cache`.
 
-또한 `TUIST_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
-<LocalizedLink href="/guides/server/authentication#as-a-project">여기</LocalizedLink>
-문서를 참조하여 생성할 수 있습니다. ` TUIST_TOKEN` 환경 변수는 빌드 단계에 _반드시_ 존재해야 하지만, 전체 CI 워크플로에
-설정하는 것이 좋습니다.
+For authentication, you can use either
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+authentication</LocalizedLink> (recommended for supported CI providers) or an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
-GitHub Action의 Workflow 예시는 다음과 같을 수 있습니다:
+An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for more examples, including token-based
+authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
+Codemagic.
