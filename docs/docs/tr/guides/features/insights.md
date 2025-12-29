@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -56,7 +57,8 @@ ayarlamanızı öneririz.
 
 ::: info
 <!-- -->
-<LocalizedLink href="/guides/features/projects">oluşturulmuş projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
+<LocalizedLink href="/guides/features/projects">oluşturulmuş
+projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
 eylem yürütülmez.
 <!-- -->
 :::
@@ -243,7 +245,8 @@ olduğundan emin olmanız gerekir.
 
 Ek olarak, aşağıdakilerden birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> komutunu kullanın.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> komutunu kullanın.
 - `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
 `xcodebuild` projenizi `-resultBundlePath` olmadan derlediğinde veya test
