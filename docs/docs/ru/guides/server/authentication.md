@@ -51,7 +51,8 @@ Tuist.
 ### Настройка аутентификации OIDC {#setting-up-oidc-authentication}
 
 1. **Подключите свой репозиторий к Tuist**: Следуйте руководству
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration guide</LocalizedLink>, чтобы подключить свой репозиторий GitHub к проекту
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
+   guide</LocalizedLink>, чтобы подключить свой репозиторий GitHub к проекту
    Tuist.
 
 2. **Выполните команду `tuist auth login`**: В рабочем процессе CI выполните
@@ -59,7 +60,8 @@ Tuist.
    автоматически определит среду CI и выполнит аутентификацию с помощью OIDC.
 
 Примеры конфигурации для конкретного поставщика см. в руководстве
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink>.
 
 ### Области применения токенов OIDC {#oidc-token-scopes}
 
