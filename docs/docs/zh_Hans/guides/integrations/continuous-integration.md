@@ -14,7 +14,7 @@
 
 以下各节将举例说明如何在不同的 CI 平台上实现这一功能。
 
-## 实例{#examples}
+## 示例{#example}
 
 ### GitHub 操作{#github-actions}
 
