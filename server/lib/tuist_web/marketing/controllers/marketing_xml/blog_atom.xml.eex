@@ -7,24 +7,24 @@
   <id><%= Tuist.Environment.app_url(path: ~p"/blog") %></id>
   <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
 
-  <%= for post <- @posts do %>
+  <%= for entry <- @entries do %>
     <entry>
-      <title><![CDATA[ <%= post.title %> ]]></title>
-      <% author = Tuist.Marketing.Blog.get_post_author(post) %>
-      <%= if not is_nil(author) do %>
+      <title><![CDATA[ <%= Tuist.Marketing.Blog.get_entry_title(entry) %> ]]></title>
+      <% author_name = Tuist.Marketing.Blog.get_entry_author_name(entry) %>
+      <%= if not is_nil(author_name) do %>
       <author>
-        <name><![CDATA[ <%= author["name"] %> ]]></name>
+        <name><![CDATA[ <%= author_name %> ]]></name>
       </author>
       <% else %>
       <author>
         <name>Tuist</name>
       </author>
       <% end %>
-      <summary type="html"><![CDATA[ <%= post.excerpt %> ]]></summary>
-      <link href="<%= Tuist.Environment.app_url(path: post.slug) %>"/>
-      <id><%= Tuist.Environment.app_url(path: post.slug) %></id>
-      <updated><%= post.date |> Timex.format!("{RFC1123}") %></updated>
-      <content type="html"><![CDATA[ <%= post.body %> ]]></content>
+      <summary type="html"><![CDATA[ <%= Tuist.Marketing.Blog.get_entry_excerpt(entry) %> ]]></summary>
+      <link href="<%= Tuist.Environment.app_url(path: Tuist.Marketing.Blog.get_entry_slug(entry)) %>"/>
+      <id><%= Tuist.Environment.app_url(path: Tuist.Marketing.Blog.get_entry_slug(entry)) %></id>
+      <updated><%= entry |> Tuist.Marketing.Blog.get_entry_date() |> Timex.format!("{RFC1123}") %></updated>
+      <content type="html"><![CDATA[ <%= Tuist.Marketing.Blog.get_entry_body(entry) %> ]]></content>
     </entry>
   <% end %>
 </feed>

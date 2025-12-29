@@ -3,8 +3,11 @@ defmodule Tuist.Marketing.Blog do
   This module loads the blog posts and authors to be used in the blog section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
+  alias Tuist.Marketing.CaseStudies
+  alias Tuist.Marketing.Blog.Post
+
   use NimblePublisher,
-    build: Tuist.Marketing.Blog.Post,
+    build: Post,
     from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
@@ -20,6 +23,60 @@ defmodule Tuist.Marketing.Blog do
   def get_posts, do: @posts
   def get_categories, do: @categories
   def get_post_author(post), do: get_authors()[post.author]
+  def get_post_author_name(post), do: get_post_author(post) |> author_name_or_fallback(post.author)
+
+  def get_entry_author_name({:post, post}) do
+    get_post_author(post) |> author_name_or_fallback(post.author)
+  end
+
+  def get_entry_author_name({:case_study, case_study}) do
+    author_name_or_fallback(%{"name" => case_study.company}, case_study.company)
+  end
+
+  def get_entries do
+    post_entries = Enum.map(@posts, &{:post, &1})
+    case_study_entries = CaseStudies.get_case_studies() |> Enum.map(&{:case_study, &1})
+
+    post_entries ++ case_study_entries
+    |> Enum.sort_by(&entry_date/1, {:desc, DateTime})
+  end
+
+  def get_entry_categories do
+    get_entries()
+    |> Enum.map(&entry_category/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  def get_entry_title({:post, post}), do: post.title
+  def get_entry_title({:case_study, case_study}), do: case_study.title
+
+  def get_entry_excerpt({:post, post}), do: post.excerpt
+  def get_entry_excerpt({:case_study, case_study}), do: case_study.excerpt
+
+  def get_entry_body({:post, post}), do: post.body
+  def get_entry_body({:case_study, case_study}), do: case_study.body
+
+  def get_entry_slug({:post, post}), do: post.slug
+  def get_entry_slug({:case_study, case_study}), do: case_study.slug
+
+  def get_entry_image_url({:post, post}), do: get_post_image_url(post)
+
+  def get_entry_image_url({:case_study, case_study}) do
+    Tuist.Environment.app_url(path: case_study.og_image_path, marketing: true)
+  end
+
+  def get_entry_date({:post, post}), do: post.date
+
+  def get_entry_date({:case_study, case_study}) do
+    DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC")
+  end
+
+  def get_entry_category({:post, post}), do: post.category
+  def get_entry_category({:case_study, _case_study}), do: "case-studies"
+
+  def get_entry_type({:post, _post}), do: :post
+  def get_entry_type({:case_study, _case_study}), do: :case_study
 
   @doc """
   Returns the image URL for a blog post, using the og_image_path if available,
@@ -135,4 +192,11 @@ defmodule Tuist.Marketing.Blog do
       }
     }
   end
+
+  defp author_name_or_fallback(nil, fallback), do: fallback || "Tuist"
+  defp author_name_or_fallback(author, _fallback), do: author["name"]
+
+  defp entry_date(entry), do: get_entry_date(entry)
+  defp entry_category(entry), do: get_entry_category(entry)
+
 end

@@ -9,13 +9,13 @@
     <ttl>1800</ttl>
     <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/blog/rss.xml") %>" rel="self" type="application/rss+xml"/>
 
-    <%= for post <- @posts do %>
+    <%= for entry <- @entries do %>
       <item>
-        <title><![CDATA[ <%= post.title %> ]]></title>
-        <description><![CDATA[ <%= post.body %> ]]></description>
-        <link><%= Tuist.Environment.app_url(path: post.slug) %></link>
-        <guid isPermaLink="false"><%= post.slug %></guid>
-        <pubDate><%= post.date |> Timex.format!("{RFC1123}")  %></pubDate>
+        <title><![CDATA[ <%= Tuist.Marketing.Blog.get_entry_title(entry) %> ]]></title>
+        <description><![CDATA[ <%= Tuist.Marketing.Blog.get_entry_body(entry) %> ]]></description>
+        <link><%= Tuist.Environment.app_url(path: Tuist.Marketing.Blog.get_entry_slug(entry)) %></link>
+        <guid isPermaLink="false"><%= Tuist.Marketing.Blog.get_entry_slug(entry) %></guid>
+        <pubDate><%= entry |> Tuist.Marketing.Blog.get_entry_date() |> Timex.format!("{RFC1123}")  %></pubDate>
       </item>
     <% end %>
   </channel>

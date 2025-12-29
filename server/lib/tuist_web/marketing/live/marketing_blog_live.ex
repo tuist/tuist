@@ -12,17 +12,19 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   @posts_per_page 9
 
   def mount(_params, _session, socket) do
-    all_posts = Blog.get_posts()
+    all_entries = Blog.get_entries()
+    structured_posts = Blog.get_posts()
 
     socket =
       socket
-      |> assign(:categories, Blog.get_categories())
+      |> assign(:categories, Blog.get_entry_categories())
       |> assign(:search_query, "")
       |> assign(:selected_category, nil)
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)
-      |> assign(:highlighted_post, List.first(all_posts))
+      |> assign(:highlighted_post, List.first(all_entries))
       |> assign(:filtered_posts, [])
+      |> assign(:structured_posts, structured_posts)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -33,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   end
 
   def handle_params(params, _url, socket) do
-    all_posts = Blog.get_posts()
+    all_entries = Blog.get_entries()
     search_query = Map.get(params, "search", "")
     category = Map.get(params, "category")
     page = params |> Map.get("page", "1") |> String.to_integer()
@@ -42,19 +44,23 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     previous_page = Map.get(socket.assigns, :current_page, 1)
     page_changed = page != previous_page
 
-    highlighted_post = List.first(all_posts)
+    highlighted_post = List.first(all_entries)
 
     # Filter by search query (search across title, excerpt, and content)
     filtered_posts =
       if search_query == "" do
-        all_posts
+        all_entries
       else
         query_lower = String.downcase(search_query)
 
-        Enum.filter(all_posts, fn post ->
-          String.contains?(String.downcase(post.title), query_lower) ||
-            String.contains?(String.downcase(post.excerpt), query_lower) ||
-            String.contains?(String.downcase(post.body), query_lower)
+        Enum.filter(all_entries, fn entry ->
+          entry_title = entry |> Blog.get_entry_title() |> String.downcase()
+          entry_excerpt = entry |> Blog.get_entry_excerpt() |> String.downcase()
+          entry_body = entry |> Blog.get_entry_body() |> String.downcase()
+
+          String.contains?(entry_title, query_lower) ||
+            String.contains?(entry_excerpt, query_lower) ||
+            String.contains?(entry_body, query_lower)
         end)
       end
 
@@ -63,10 +69,13 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       if is_nil(category) or category == "" do
         filtered_posts
       else
-        Enum.filter(filtered_posts, &(&1.category == category))
+        Enum.filter(filtered_posts, &(Blog.get_entry_category(&1) == category))
       end
 
-    filtered_posts = Enum.reject(filtered_posts, fn post -> post.slug == highlighted_post.slug end)
+    filtered_posts =
+      Enum.reject(filtered_posts, fn post ->
+        Blog.get_entry_slug(post) == Blog.get_entry_slug(highlighted_post)
+      end)
 
     # Calculate pagination
     total_posts = length(filtered_posts)
@@ -91,7 +100,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(:head_include_blog_rss_and_atom, true)
       |> assign(:head_include_changelog_rss_and_atom, false)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_blog_structured_markup_data(all_posts))
+      |> assign_structured_data(get_blog_structured_markup_data(socket.assigns.structured_posts))
       |> assign(
         :head_description,
         dgettext("marketing", "Read engaging stories and expert insights.")
