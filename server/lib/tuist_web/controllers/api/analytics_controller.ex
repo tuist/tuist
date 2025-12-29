@@ -186,6 +186,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The git branch."
            },
+           cache_endpoint: %Schema{
+             type: :string,
+             description: "The cache endpoint URL used for this command (regional module cache)."
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -439,6 +443,7 @@ defmodule TuistWeb.API.AnalyticsController do
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
+        cache_endpoint: Map.get(body_params, :cache_endpoint, ""),
         ran_at: date(body_params),
         build_run_id: build_run_id,
         test_run_id: test_run_id

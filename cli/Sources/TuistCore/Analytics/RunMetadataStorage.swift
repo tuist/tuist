@@ -65,4 +65,10 @@ public actor RunMetadataStorage {
     public func update(testRunId: String?) {
         self.testRunId = testRunId
     }
+
+    /// Cache endpoint used for the current run (regional module cache)
+    public private(set) var cacheEndpoint: String = ""
+    public func update(cacheEndpoint: String) {
+        self.cacheEndpoint = cacheEndpoint
+    }
 }

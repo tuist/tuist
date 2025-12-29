@@ -57,6 +57,7 @@
                     body: .json(
                         .init(
                             build_run_id: commandEvent.buildRunId,
+                            cache_endpoint: commandEvent.cacheEndpoint.isEmpty ? nil : commandEvent.cacheEndpoint,
                             client_id: commandEvent.clientId,
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,
