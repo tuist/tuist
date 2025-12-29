@@ -48,11 +48,8 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile
-device using the Preview link. The links to `.ipa` previews are by default
-_private_, meaning the recipient needs to authenticate with their Tuist account
-to download the app. You can change this to public in the project settings if
-you want to share the app with anyone.
+分享`.ipa` 檔案時，您可以使用預覽連結直接從行動裝置下載應用程式。`.ipa` 預覽的連結預設為_private_ ，意即接收者需要用他們的 Tuist
+帳戶驗證才能下載應用程式。如果您想與任何人分享應用程式，可以在專案設定中將其變更為公開。
 
 `tuist run` 也可讓您根據指定符號執行最新預覽，例如`latest` 、分支名稱或特定的提交雜湊：
 
