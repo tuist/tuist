@@ -86,7 +86,10 @@
     <div data-part="content">
       <div data-part="content-column">
         <.tag
-          :if={@selected_project.slack_report_frequency == :daily && @selected_project.slack_channel_id}
+          :if={
+            @selected_project.slack_report_frequency == :daily &&
+              @selected_project.slack_channel_id
+          }
           label={format_slack_reports_tag(assigns)}
         />
         <div data-part="actions">
@@ -241,7 +244,9 @@
                     type="button"
                     label={dgettext("dashboard_projects", "Save")}
                     variant="primary"
-                    disabled={@schedule_form_frequency != :never && is_nil(@schedule_form_channel_id)}
+                    disabled={
+                      @schedule_form_frequency != :never && is_nil(@schedule_form_channel_id)
+                    }
                     phx-click="save_slack_schedule"
                   />
                 </:action>
@@ -250,7 +255,8 @@
           </.modal>
           <.button
             :if={
-              @selected_project.slack_report_frequency == :daily && @selected_project.slack_channel_id
+              @selected_project.slack_report_frequency == :daily &&
+                @selected_project.slack_channel_id
             }
             label={dgettext("dashboard_projects", "Send test report")}
             variant="secondary"
