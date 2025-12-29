@@ -12,7 +12,11 @@
       </div>
       <.link
         data-part="main"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_slug(@highlighted_post))}
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            Content.get_entry_slug(@highlighted_post)
+          )
+        }
       >
         <img data-part="image" src={Content.get_entry_image_url(@highlighted_post)} />
         <div data-part="content">

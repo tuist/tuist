@@ -3,10 +3,8 @@ defmodule Tuist.Marketing.Blog do
   This module loads the blog posts and authors to be used in the blog section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
-  alias Tuist.Marketing.Blog.Post
-
   use NimblePublisher,
-    build: Post,
+    build: Tuist.Marketing.Blog.Post,
     from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
@@ -16,13 +14,15 @@ defmodule Tuist.Marketing.Blog do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
+  alias Tuist.Marketing.Blog.Post
+
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
 
   def get_posts, do: @posts
   def get_categories, do: @categories
   def get_post_author(post), do: get_authors()[post.author]
-  def get_post_author_name(post), do: get_post_author(post) |> author_name_or_fallback(post.author)
+  def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
 
   @doc """
   Returns the image URL for a blog post, using the og_image_path if available,
@@ -141,5 +141,4 @@ defmodule Tuist.Marketing.Blog do
 
   defp author_name_or_fallback(nil, fallback), do: fallback || "Tuist"
   defp author_name_or_fallback(author, _fallback), do: author["name"]
-
 end

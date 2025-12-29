@@ -9,8 +9,7 @@ defmodule Tuist.Marketing.Content do
     posts = Enum.map(Blog.get_posts(), &{:post, &1})
     case_studies = Enum.map(CaseStudies.get_case_studies(), &{:case_study, &1})
 
-    posts ++ case_studies
-    |> Enum.sort_by(&get_entry_date/1, {:desc, DateTime})
+    Enum.sort_by(posts ++ case_studies, &get_entry_date/1, {:desc, DateTime})
   end
 
   def get_entry_categories do
