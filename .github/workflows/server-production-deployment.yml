@@ -62,7 +62,7 @@ jobs:
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
       - name: Trigger canary deploy with Render CLI
         run: |
-          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -131,7 +131,7 @@ jobs:
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
       - name: Trigger canary deploy with Render CLI
         run: |
-          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
   production-hotfix:
     environment: server-production
     name: Hotfix Production Deployment
@@ -164,4 +164,4 @@ jobs:
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
       - name: Trigger canary deploy with Render CLI
         run: |
-          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
