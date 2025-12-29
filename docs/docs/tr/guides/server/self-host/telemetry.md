@@ -32,8 +32,8 @@ görüntülemelerini ve kullanıcı yolculuklarını otomatik olarak izleyecekti
 
 | Ortam değişkeni         | Açıklama                        | Gerekli | Varsayılan | Örnekler                                          |
 | ----------------------- | ------------------------------- | ------- | ---------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | PostHog projesi API anahtarınız | Hayır   |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | PostHog API uç noktası URL'si   | Hayır   |            | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | PostHog projesi API anahtarınız | No      |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API uç noktası URL'si   | No      |            | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
