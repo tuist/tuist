@@ -118,7 +118,7 @@ Etkili davranışı çözerken öncelik (en yüksekten en düşüğe):
 
 Sadece aşağıdaki hedef ürünler Tuist tarafından önbelleğe alınabilir:
 
-- XCTest](https://developer.apple.com/documentation/xctest)'e bağlı olmayan
+- XCTest](https://developer.apple.com/documentation/xctest)'e bağımlı olmayan
   çerçeveler (statik ve dinamik)
 - Paketler
 - Swift Makroları
@@ -223,7 +223,7 @@ Kaynakları kullanırken, Xcode'un derleme sistemi, Türetilmiş Veriler
 aracılığıyla, açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak, ikili
 önbelleğe güvendiğinizde, bağımlılıklar açıkça bildirilmelidir; aksi takdirde,
 semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bu hatayı
-ayıklamak için,
+ayıklamak için
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
 inspect implicit-imports`</LocalizedLink> komutunu kullanmanızı ve örtük
 bağlamadaki gerilemeleri önlemek için CI'da ayarlamanızı öneririz.
