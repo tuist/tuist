@@ -72,7 +72,8 @@ por Tuist para probar la herramienta.
 
 Si necesitas editar el proyecto, por ejemplo para añadir dependencias o ajustar
 objetivos, puedes usar el comando
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit` </LocalizedLink>. Esto apenas se utiliza, pero es bueno saber que existe.
+<LocalizedLink href="/guides/features/projects/editing">`tuist edit`
+</LocalizedLink>. Esto apenas se utiliza, pero es bueno saber que existe.
 
 ## Corre Tuist {#run-tuist}
 
