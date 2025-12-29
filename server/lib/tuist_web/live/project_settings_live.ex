@@ -310,28 +310,14 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_day_group([first, last]), do: "#{Timex.day_shortname(first)}, #{Timex.day_shortname(last)}"
   defp format_day_group([first | rest]), do: "#{Timex.day_shortname(first)}-#{Timex.day_shortname(List.last(rest))}"
 
-  defp format_slack_reports_description(%{selected_project: project, user_timezone: user_timezone}) do
-    if project.slack_report_frequency == :daily do
-      channel_str =
-        if project.slack_channel_name do
-          "##{project.slack_channel_name}"
-        else
-          dgettext("dashboard_projects", "No channel")
-        end
+  defp format_slack_reports_tag(%{selected_project: project, user_timezone: user_timezone}) do
+    channel_str = "##{project.slack_channel_name}"
+    days = project.slack_report_days_of_week
+    hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
+    time_str = if hour, do: format_hour(hour), else: ""
+    day_str = format_days_range(days)
 
-      days = project.slack_report_days_of_week
-      hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
-
-      time_str = if hour, do: format_hour(hour), else: ""
-
-      day_str = format_days_range(days)
-
-      schedule_str = dgettext("dashboard_projects", "%{days} at %{time}", days: day_str, time: time_str)
-
-      "#{channel_str} · #{schedule_str}"
-    else
-      dgettext("dashboard_projects", "Disabled")
-    end
+    "#{channel_str} • #{day_str} • #{time_str}"
   end
 
   defp local_hour_to_utc(local_hour, timezone) do
