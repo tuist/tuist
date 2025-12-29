@@ -21,7 +21,8 @@ Tuist 对模板的内容和用途没有任何意见。它们只被要求放在�
 
 ## 定义模板{#defining-a-template}
 
-要定义模板，可以运行 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>，然后在`Tuist/Templates` 下创建一个名为`name_of_template`
+要定义模板，可以运行 <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>，然后在`Tuist/Templates` 下创建一个名为`name_of_template`
 的目录，代表你的模板。模板需要一个清单文件`name_of_template.swift` 来描述模板。因此，如果您要创建一个名为`framework`
 的模板，则应在`Tuist/Templates` 下创建一个新目录`framework` ，并创建一个名为`framework.swift`
 的清单文件，该文件可以如下所示：
@@ -80,6 +81,7 @@ tuist scaffold name_of_template --name Name --platform macos
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
+模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing">
+项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
 <!-- -->
 :::
