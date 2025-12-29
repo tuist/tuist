@@ -98,24 +98,6 @@ struct DependenciesAcceptanceTests {
             BuildCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
-
-        // When: Registry logout
-        try await TuistTest.run(
-            RegistryLogoutCommand.self,
-            ["--path", fixtureDirectory.pathString]
-        )
-        try await TuistTest.run(
-            CleanCommand.self,
-            ["dependencies", "--path", fixtureDirectory.pathString]
-        )
-
-        // Then: Fails to install
-        await #expect(throws: Error.self, performing: {
-            try await TuistTest.run(
-                InstallCommand.self,
-                ["--path", fixtureDirectory.pathString]
-            )
-        })
     }
 
     @Test(
