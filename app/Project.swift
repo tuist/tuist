@@ -26,7 +26,11 @@ func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect build",
         scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        if [ -f "$HOME/.local/bin/mise" ]; then
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        elif [ -f "$HOME/.local/share/mise/bin/mise" ]; then
+            eval "$($HOME/.local/share/mise/bin/mise activate -C $SRCROOT bash --shims)"
+        fi
 
         tuist inspect build
         """,
@@ -38,7 +42,11 @@ func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect test",
         scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        if [ -f "$HOME/.local/bin/mise" ]; then
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        elif [ -f "$HOME/.local/share/mise/bin/mise" ]; then
+            eval "$($HOME/.local/share/mise/bin/mise activate -C $SRCROOT bash --shims)"
+        fi
 
         tuist inspect test
         """,

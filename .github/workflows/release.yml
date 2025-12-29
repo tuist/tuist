@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: "true"
 
 jobs:
   check-releases:
@@ -338,9 +338,7 @@ jobs:
       - name: Bundle CLI
         run: mise run cli:bundle
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-          BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Update mise.toml
         run: |
@@ -376,6 +374,7 @@ jobs:
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
@@ -393,6 +392,8 @@ jobs:
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
+      - name: Install dependencies
+        run: tuist install
 
       - name: Get release notes
         id: release-notes
@@ -432,14 +433,10 @@ jobs:
       - name: Bundle macOS app
         run: mise run app:bundle
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
-          BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
-        env:
-          TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
-        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+        run: op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
 
       - name: Upload App artifacts
         id: upload
@@ -496,11 +493,7 @@ jobs:
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-          BASE_64_CERTIFICATE: ${{ secrets.BASE_64_CERTIFICATE }}
-          BASE_64_PROVISIONING_PROFILE: ${{ secrets.BASE_64_PROVISIONING_PROFILE }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
   release-server:
     name: Release Server
@@ -679,7 +672,14 @@ jobs:
   commit-and-release:
     name: Commit and Release
     needs:
-      [check-releases, release-cli, release-app, release-ios, release-server, release-cache]
+      [
+        check-releases,
+        release-cli,
+        release-app,
+        release-ios,
+        release-server,
+        release-cache,
+      ]
     if: |
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'

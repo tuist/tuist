@@ -12,7 +12,6 @@
     postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
-    _.file = { path = ".env.json", redact = true }
     TUIST_EXPERIMENTAL_MODULE_CACHE="1"
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
@@ -24,6 +23,8 @@
     TUIST_S3_TIGRIS_BUCKET_AS_HOST = "0"
     TUIST_S3_TIGRIS_VIRTUAL_HOST = "0"
     ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
+    # Only used in a local, development environment
+    TUIST_CACHE_API_KEY = "7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6"
 
 [tasks.cla-sign]
     description = "Sign the CLA by adding current user to signatures.json"
