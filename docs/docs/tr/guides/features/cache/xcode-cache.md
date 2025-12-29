@@ -29,7 +29,7 @@ tuist init
 ```
 
 Bir `Tuist.swift` dosyanız olduğunda, `fullHandle` dosyanızı referans alarak,
-projeniz için önbelleğe almayı çalıştırarak ayarlayabilirsiniz:
+projeniz için önbelleğe alma işlemini çalıştırarak ayarlayabilirsiniz:
 
 ```bash
 tuist setup cache
