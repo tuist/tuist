@@ -121,7 +121,8 @@ jobs:
 ::: info OIDC SETUP
 <!-- -->
 Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. Разрешение `: id-token:
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. Разрешение `: id-token:
 write` необходимо для работы OIDC. В качестве альтернативы можно использовать
 токен
 <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
@@ -235,7 +236,8 @@ jobs:
 ::: info AUTHENTICATION
 <!-- -->
 Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены CircleCI
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены CircleCI
 включают подключенный репозиторий GitHub, который Tuist использует для
 авторизации доступа к вашим проектам. В качестве альтернативы вы можете
 использовать токен
@@ -304,7 +306,8 @@ workflows:
 ::: info AUTHENTICATION
 <!-- -->
 Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены Bitrise включают
+<LocalizedLink href="/guides/integrations/gitforge/github">подключить
+репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены Bitrise включают
 подключенный репозиторий GitHub, который Tuist использует для авторизации
 доступа к вашим проектам. В качестве альтернативы вы можете использовать токен
 <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
