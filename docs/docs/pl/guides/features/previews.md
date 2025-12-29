@@ -56,11 +56,11 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile
-device using the Preview link. The links to `.ipa` previews are by default
-_private_, meaning the recipient needs to authenticate with their Tuist account
-to download the app. You can change this to public in the project settings if
-you want to share the app with anyone.
+Udostępniając plik `.ipa`, można pobrać aplikację bezpośrednio z urządzenia
+mobilnego za pomocą łącza Podgląd. Łącza do podglądów `.ipa` są domyślnie
+_prywatne_, co oznacza, że odbiorca musi uwierzytelnić się za pomocą swojego
+konta Tuist, aby pobrać aplikację. Możesz zmienić tę opcję na publiczną w
+ustawieniach projektu, jeśli chcesz udostępnić aplikację każdemu.
 
 `tuist run` umożliwia również uruchomienie najnowszego podglądu na podstawie
 specyfikatora, takiego jak `latest`, nazwy gałęzi lub określonego skrótu
