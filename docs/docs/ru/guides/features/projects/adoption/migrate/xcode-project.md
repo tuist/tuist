@@ -8,7 +8,8 @@
 # Миграция Xcode-проекта {#migrate-an-xcode-project}
 
 Если вы не
-<LocalizedLink href="/guides/features/projects/adoption/new-project">создаёте новый проект с помощью Tuist</LocalizedLink>, где всё настраивается
+<LocalizedLink href="/guides/features/projects/adoption/new-project">создаёте
+новый проект с помощью Tuist</LocalizedLink>, где всё настраивается
 автоматически, вам придётся описать свои Xcode-проекты, используя примитивы
 Tuist. Насколько утомительным будет этот процесс, зависит от сложности ваших
 проектов.
