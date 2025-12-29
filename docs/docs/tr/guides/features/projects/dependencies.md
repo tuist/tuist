@@ -9,9 +9,8 @@
 
 Bir proje büyüdüğünde, kodu paylaşmak, sınırları tanımlamak ve derleme
 sürelerini iyileştirmek için birden fazla hedefe bölmek yaygındır. Birden fazla
-hedef, aralarında bir **bağımlılık grafiği** oluşturan bağımlılıkların
-tanımlanması anlamına gelir ve bu bağımlılıklar harici bağımlılıkları da
-içerebilir.
+hedef, aralarında dış bağımlılıkları da içerebilecek bir **bağımlılık grafiği**
+oluşturan bağımlılıkların tanımlanması anlamına gelir.
 
 ## XcodeProj kodlu grafikler {#xcodeprojcodified-graphs}
 
@@ -37,7 +36,7 @@ bazı örnekler verilmiştir:
 
 Yukarıdakiler sadece birkaç örnek, ancak yıllar içinde karşılaştığımız daha pek
 çok örnek var. Bir bağımlılık grafiğini korumak ve geçerliliğini sağlamak için
-bir mühendis ekibine ihtiyacınız olduğunu düşünün. Ya da daha da kötüsü,
+bir mühendis ekibine ihtiyacınız olduğunu düşünün. Daha da kötüsü,
 karmaşıklıkların derleme zamanında kontrol edemediğiniz veya
 özelleştiremediğiniz kapalı kaynaklı bir derleme sistemi tarafından çözüldüğünü.
 Tanıdık geliyor mu? Apple'ın Xcode ve XcodeProj ile benimsediği ve Swift paketi
@@ -192,7 +191,7 @@ tuist install
 ```
 
 Fark etmiş olabileceğiniz gibi, bağımlılıkların çözümlenmesinin kendi komutu
-olduğu [CocoaPods](https://cocoapods.org)' benzeri bir yaklaşım benimsiyoruz.
+olduğu [CocoaPods](https://cocoapods.org) 'e benzer bir yaklaşım benimsiyoruz.
 Bu, kullanıcılara bağımlılıkların ne zaman çözülmesini ve güncellenmesini
 istedikleri konusunda kontrol sağlar ve projede Xcode'un açılmasına ve derlemeye
 hazır olmasına izin verir. Bu, Apple'ın Swift paketi ile entegrasyonunun
@@ -413,7 +412,7 @@ func productType() -> Product {
 Tuist'in <LocalizedLink href="/guides/features/projects/cost-of-convenience">
 maliyetleri nedeniyle örtük yapılandırma yoluyla varsayılan olarak kolaylık
 sağlamadığını unutmayın</LocalizedLink>. Bunun anlamı, ortaya çıkan ikili
-dosyaların doğru olmasını sağlamak için bağlama türünü ve [`-ObjC` bağlayıcı
+dosyaların doğru olduğundan emin olmak için bağlama türünü ve [`-ObjC` bağlayıcı
 bayrağı](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
 gibi bazen gerekli olan ek derleme ayarlarını yapmanıza güvendiğimizdir. Bu
 nedenle, doğru kararları verebilmeniz için size genellikle dokümantasyon
@@ -439,7 +438,7 @@ bulunmaktadır:
   takdirde, aynı kodu hem uygulamada hem de uzantıda çoğaltarak ikili boyutun
   artmasına neden olursunuz.
 - **Önceden derlenmiş harici bağımlılıklar:** Bazen size statik veya dinamik
-  önceden derlenmiş ikili dosyalar sağlanır. Statik ikililer dinamik olarak
+  olan önceden derlenmiş ikili dosyalar sağlanır. Statik ikililer dinamik olarak
   bağlanmak üzere dinamik çerçevelere veya kütüphanelere sarılabilir.
 
 Grafikte değişiklik yaparken, Tuist grafiği analiz edecek ve bir "statik yan
