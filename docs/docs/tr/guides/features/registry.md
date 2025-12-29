@@ -75,7 +75,7 @@ Paket kayıt defteri tanımlayıcılarını bir `Package.swift` veya `Project.sw
 dosyasında kullandığınızda, paketin URL'sini kayıt defteri kuralına
 dönüştürmeniz gerekir. Kayıt tanımlayıcısı her zaman
 `{organizasyon}.{repository}` biçimindedir. Örneğin,
-`https://github.com/pointfreeco/swift-composable-architecture` Swift paketi için
+`https://github.com/pointfreeco/swift-composable-architecture` Swift paketi'nin
 kayıt defterini kullanmak için, paket kayıt defteri tanımlayıcısı
 `pointfreeco.swift-composable-architecture` şeklinde olacaktır.
 
