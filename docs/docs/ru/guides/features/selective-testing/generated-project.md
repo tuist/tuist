@@ -11,7 +11,8 @@
 <!-- -->
 - Проект, созданный
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -19,7 +20,8 @@
 `tuist test`. Команда
 <LocalizedLink href="/guides/features/projects/hashing">хеширует</LocalizedLink>
 ваш проект Xcode так же, как это делается для
-<LocalizedLink href="/guides/features/cache#cache-warming">прогрева кэша</LocalizedLink>, и в случае успеха сохраняет хеши, чтобы определить, что
+<LocalizedLink href="/guides/features/cache#cache-warming">прогрева
+кэша</LocalizedLink>, и в случае успеха сохраняет хеши, чтобы определить, что
 изменилось в последующих запусках.
 
 В последующих запусках `tuist test` прозрачно использует хэши для фильтрации
