@@ -13,7 +13,8 @@ través de la configuración de tu proyecto. Cuando se te pregunte, asegúrate d
 seleccionar la opción de crear un "proyecto generado".
 
 A continuación, puede
-<LocalizedLink href="/guides/features/projects/editing">editar el proyecto</LocalizedLink> ejecutando `tuist edit`, y Xcode abrirá un proyecto en
+<LocalizedLink href="/guides/features/projects/editing">editar el
+proyecto</LocalizedLink> ejecutando `tuist edit`, y Xcode abrirá un proyecto en
 el que podrá editar el proyecto. Uno de los archivos que se generan es el
 `Project.swift`, que contiene la definición de tu proyecto. Si estás
 familiarizado con el Gestor de Paquetes Swift, piensa en él como el
