@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Tuist'i bir Swift paketi ile Kullanma <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Tuist'i Swift paketi ile Kullanma <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist, `Package.swift` adresini projeleriniz için bir DSL olarak kullanmayı
 destekler ve paket hedeflerinizi yerel bir Xcode projesine ve hedeflerine
