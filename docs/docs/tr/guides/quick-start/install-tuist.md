@@ -8,10 +8,10 @@
 # Tuist'i kurun {#install-tuist}
 
 Tuist CLI bir çalıştırılabilir dosyadan, dinamik çerçevelerden ve bir dizi
-kaynaktan (örneğin şablonlar) oluşur. Tuist'i
-[kaynaklar](https://github.com/tuist/tuist)'dan manuel olarak derleyebilmenize
-rağmen, **geçerli bir kurulum sağlamak için aşağıdaki kurulum yöntemlerinden
-birini kullanmanızı öneririz.**
+kaynaktan (örneğin şablonlar) oluşur. Tuist'i [the
+sources](https://github.com/tuist/tuist) adresinden manuel olarak
+derleyebilmenize rağmen, **geçerli bir kurulum sağlamak için aşağıdaki kurulum
+yöntemlerinden birini kullanmanızı öneririz.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
