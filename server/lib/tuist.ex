@@ -14,6 +14,7 @@ defmodule Tuist do
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
       Marketing.Blog,
+      Marketing.Content,
       Marketing.Pages,
       Marketing.Changelog,
       Marketing.OpenGraph,

@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.CaseStudies
   alias Tuist.Marketing.Changelog
+  alias Tuist.Marketing.Content
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
   alias TuistWeb.Errors.NotFoundError
@@ -430,21 +431,21 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def blog_rss(conn, _params) do
-    posts = Blog.get_posts()
-    last_build_date = posts |> List.last() |> Map.get(:date)
+    entries = blog_entries()
+    last_build_date = entries |> List.last() |> Content.get_entry_date()
 
     conn
-    |> assign(:posts, posts)
+    |> assign(:entries, entries)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_rss, layout: false)
   end
 
   def blog_atom(conn, _params) do
-    posts = Blog.get_posts()
-    last_build_date = posts |> List.last() |> Map.get(:date)
+    entries = blog_entries()
+    last_build_date = entries |> List.last() |> Content.get_entry_date()
 
     conn
-    |> assign(:posts, posts)
+    |> assign(:entries, entries)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_atom, layout: false)
   end
@@ -495,6 +496,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn
     |> assign(:entries, entries)
     |> render(:sitemap, layout: false)
+  end
+
+  defp blog_entries do
+    Content.get_entries()
   end
 
   def blog_post(%{request_path: request_path} = conn, _params) do

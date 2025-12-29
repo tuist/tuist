@@ -21,6 +21,8 @@ defmodule Tuist.Marketing.Blog do
   def get_categories, do: @categories
   def get_post_author(post), do: get_authors()[post.author]
 
+  def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
+
   @doc """
   Returns the image URL for a blog post, using the og_image_path if available,
   otherwise falling back to the generated OG image.
@@ -135,4 +137,7 @@ defmodule Tuist.Marketing.Blog do
       }
     }
   end
+
+  defp author_name_or_fallback(nil, fallback), do: fallback || "Tuist"
+  defp author_name_or_fallback(author, _fallback), do: author["name"]
 end
