@@ -216,9 +216,12 @@ final class EmptyCacheService: CacheServicing {
             isReleaseConfiguration: Bool
         ) async throws {
             let binariesSchemes = graph.workspace.schemes
-                .filter { $0.name.contains("Binaries-Cache") }
+                .filter { $0.name.contains("Binaries-Cache") && $0.name != "Binaries-Cache-Catalyst" }
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
+
+            let catalystScheme = graph.workspace.schemes
+                .first { $0.name == "Binaries-Cache-Catalyst" && !($0.buildAction?.targets ?? []).isEmpty }
 
             let bundlesSchemes = graph.workspace.schemes
                 .filter { $0.name.contains("Bundles-Cache") }
@@ -248,6 +251,18 @@ final class EmptyCacheService: CacheServicing {
                         configuration: configuration,
                         xcodebuildTarget: xcodebuildTarget,
                         graph: graph,
+                        binaryArtifactDirectories: &binaryArtifactDirectories,
+                        temporaryDirectory: temporaryDirectory,
+                        derivedDataPath: derivedDataPath,
+                        isReleaseConfiguration: isReleaseConfiguration
+                    )
+                }
+
+                if let catalystScheme {
+                    try await buildCatalystScheme(
+                        catalystScheme,
+                        configuration: configuration,
+                        xcodebuildTarget: xcodebuildTarget,
                         binaryArtifactDirectories: &binaryArtifactDirectories,
                         temporaryDirectory: temporaryDirectory,
                         derivedDataPath: derivedDataPath,
@@ -326,10 +341,14 @@ final class EmptyCacheService: CacheServicing {
         private func productsDirectory(
             platform: Platform,
             configuration: String,
-            destination: Destination = .simulator
+            destination: Destination = .simulator,
+            isMacCatalystVariant: Bool = false
         ) -> String {
             guard platform != .macOS else {
                 return configuration
+            }
+            if isMacCatalystVariant {
+                return "\(configuration)-maccatalyst"
             }
             switch destination {
             case .simulator:
@@ -521,15 +540,13 @@ final class EmptyCacheService: CacheServicing {
             _ scheme: Scheme,
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
-            graph: Graph,
+            graph _: Graph,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
             temporaryDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
-            let macCatalystSupportedTargets = macCatalystTargets(graph: graph, scheme: scheme)
-            let buildsForMacCatalyst = buildsForMacCatalyst(graph: graph, scheme: scheme)
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
 
             try fileHandler.createFolder(platformArtifactsDirectory)
@@ -579,58 +596,6 @@ final class EmptyCacheService: CacheServicing {
                     )
                 try await copyDerivedDataArtifacts(
                     into: simulatorArtifactsDirectory,
-                    productsDirectory: productsDirectory,
-                    platform: platform,
-                    binaryArtifactDirectories: &binaryArtifactDirectories
-                )
-            }
-
-            // Catalyst
-            if platform == .iOS, !macCatalystSupportedTargets.isEmpty, buildsForMacCatalyst {
-                Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
-
-                let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
-                try fileHandler.createFolder(macCatalystArtifactsDirectory)
-
-                try await xcodeBuildController.build(
-                    xcodebuildTarget,
-                    scheme: scheme.name,
-                    destination: nil,
-                    rosetta: false,
-                    derivedDataPath: derivedDataPath,
-                    clean: false,
-                    arguments: [
-                        .destination("platform=macOS,variant=Mac Catalyst"),
-                        .xcarg("SKIP_INSTALL", "NO"),
-                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
-                        .xcarg("ONLY_ACTIVE_ARCH", "NO"),
-                        .xcarg("CODE_SIGN_IDENTITY", ""),
-                        .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
-                        .xcarg("CODE_SIGNING_ALLOWED", "NO"),
-                        .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                        .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
-                        .configuration(configuration),
-                        // To prevent the rejection when publishing on the App Store
-                        // https://developer.apple.com/library/archive/qa/qa1964/_index.html
-                    ] + (isReleaseConfiguration ? [
-                        .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
-                        .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []),
-                    passthroughXcodeBuildArguments: [
-                        "-resultBundlePath",
-                        derivedDataPath.appending(component: UUID().uuidString).pathString,
-                    ]
-                )
-
-                let productsDirectory = derivedDataPath
-                    .appending(
-                        // swiftlint:disable:next force_try
-                        try RelativePath(
-                            validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration, destination: .device))"
-                        )
-                    )
-                try await copyDerivedDataArtifacts(
-                    into: macCatalystArtifactsDirectory,
                     productsDirectory: productsDirectory,
                     platform: platform,
                     binaryArtifactDirectories: &binaryArtifactDirectories
@@ -697,6 +662,65 @@ final class EmptyCacheService: CacheServicing {
             )
         }
 
+        private func buildCatalystScheme(
+            _ scheme: Scheme,
+            configuration: String,
+            xcodebuildTarget: XcodeBuildTarget,
+            binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
+            temporaryDirectory: AbsolutePath,
+            derivedDataPath: AbsolutePath,
+            isReleaseConfiguration: Bool
+        ) async throws {
+            let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
+            try fileHandler.createFolder(platformArtifactsDirectory)
+
+            Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
+
+            let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
+            try fileHandler.createFolder(macCatalystArtifactsDirectory)
+
+            try await xcodeBuildController.build(
+                xcodebuildTarget,
+                scheme: scheme.name,
+                destination: nil,
+                rosetta: false,
+                derivedDataPath: derivedDataPath,
+                clean: false,
+                arguments: [
+                    .destination("platform=macOS,variant=Mac Catalyst"),
+                    .xcarg("SKIP_INSTALL", "NO"),
+                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("ONLY_ACTIVE_ARCH", "NO"),
+                    .xcarg("CODE_SIGN_IDENTITY", ""),
+                    .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+                    .xcarg("CODE_SIGNING_ALLOWED", "NO"),
+                    .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                    .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
+                    .configuration(configuration),
+                ] + (isReleaseConfiguration ? [
+                    .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
+                    .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
+                ] : []),
+                passthroughXcodeBuildArguments: [
+                    "-resultBundlePath",
+                    derivedDataPath.appending(component: UUID().uuidString).pathString,
+                ]
+            )
+
+            let productsDirectory = derivedDataPath
+                .appending(
+                    try RelativePath(
+                        validating: "Build/Products/\(productsDirectory(platform: .iOS, configuration: configuration, destination: .device, isMacCatalystVariant: true))"
+                    )
+                )
+            try await copyDerivedDataArtifacts(
+                into: macCatalystArtifactsDirectory,
+                productsDirectory: productsDirectory,
+                platform: .iOS,
+                binaryArtifactDirectories: &binaryArtifactDirectories
+            )
+        }
+
         private func artifactsWithBuildTimes(
             artifacts: [CacheGraphTargetBuiltArtifact],
             projectDerivedDataDirectory _: AbsolutePath,
@@ -738,26 +762,6 @@ final class EmptyCacheService: CacheServicing {
             var platformDirectories = binaryArtifactDirectories[platform, default: Set()]
             platformDirectories.insert(into)
             binaryArtifactDirectories[platform] = platformDirectories
-        }
-
-        private func macCatalystTargets(graph: Graph, scheme: Scheme) -> [Target] {
-            guard let buildTargets = scheme.buildAction?.targets else { return [] }
-            let buildTargetsSet = Set(buildTargets.map(\.name))
-            return graph.projects.values.flatMap(\.targets)
-                .filter { buildTargetsSet.contains($0.key) }
-                .map(\.value)
-                .filter(\.supportsCatalyst)
-        }
-
-        private func buildsForMacCatalyst(
-            graph: Graph,
-            scheme: Scheme
-        ) -> Bool {
-            guard let buildTargets = scheme.buildAction?.targets else { return false }
-            let graphTraverser = GraphTraverser(graph: graph)
-            return buildTargets.allSatisfy { target in
-                graphTraverser.buildsForMacCatalyst(path: target.projectPath, name: target.name)
-            }
         }
 
         private func store(

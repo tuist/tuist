@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Perspectivas del paquete {#bundle-size}
+# Información sobre el paquete {#bundle-size}
 
 ::: advertencia REQUISITOS
 <!-- -->
@@ -63,7 +63,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 Una vez configurado, podrá ver cómo evoluciona el tamaño de su paquete con el
@@ -72,9 +72,9 @@ tiempo:
 [Gráfico de tamaño de
 paquete](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Comentarios de solicitudes pull/merge {#pullmerge-request-comments}
+## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: aviso SE REQUIERE INTEGRACIÓN CON LA PLATAFORMA GIT
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>

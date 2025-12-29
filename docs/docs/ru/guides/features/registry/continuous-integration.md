@@ -37,7 +37,7 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 Убедитесь, что связка ключей по умолчанию создана и разблокирована _перед
 запуском_ `tuist registry login`.
 
-Кроме того, необходимо убедиться, что переменная окружения `TUIST_CONFIG_TOKEN`
+Кроме того, необходимо убедиться, что переменная окружения `TUIST_TOKEN`
 установлена. Вы можете создать ее, следуя документации
 <LocalizedLink href="/guides/server/authentication#as-a-project">здесь</LocalizedLink>.
 
@@ -60,7 +60,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```

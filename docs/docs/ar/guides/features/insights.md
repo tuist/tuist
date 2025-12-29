@@ -5,9 +5,9 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# رؤى {#insights}
+# رؤى وأفكار {#insights}
 
-::: warning متطلبات
+::: warning REQUIREMENTS
 <!-- -->
 - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
 <!-- -->
@@ -52,7 +52,8 @@ build` من خلال إضافته إلى الإجراء اللاحق لمخطط�
 
 ::: info
 <!-- -->
-إذا كنت لا تستخدم <LocalizedLink href="/guides/features/projects">المشاريع التي تم إنشاؤها </LocalizedLink>، فلن يتم تنفيذ إجراء ما بعد المخطط في حالة فشل
+إذا كنت لا تستخدم <LocalizedLink href="/guides/features/projects">المشاريع التي
+تم إنشاؤها </LocalizedLink>، فلن يتم تنفيذ إجراء ما بعد المخطط في حالة فشل
 الإنشاء.
 <!-- -->
 :::
@@ -140,7 +141,7 @@ Tuist. يمكنك الوصول إلى رؤى الاختبارات الخاصة �
 
 ![تفاصيل الاختبار] (/images/guides/features/insights/test-detail.png)
 
-## المشاريع المُنشأة {#generated-projects}
+## المشاريع التي تم إنشاؤها {#generated-projects}
 
 ::: info
 <!-- -->
@@ -151,8 +152,10 @@ Tuist. يمكنك الوصول إلى رؤى الاختبارات الخاصة �
 > 
 > إذا لم تكن مهتمًا بتتبع الرؤى في المخططات التي يتم إنشاؤها تلقائيًا، فعليك
 > تعطيلها باستخدام خيارات الإنشاء
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">إنشاء > الرؤى معطلة</LocalizedLink> و
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">اختبار > الرؤى معطلة</LocalizedLink>.
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">إنشاء
+> الرؤى معطلة</LocalizedLink> و
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">اختبار
+> الرؤى معطلة</LocalizedLink>.
 
 إذا كنت تستخدم المشاريع المُنشأة ذات المخططات المخصصة، يمكنك إعداد الإجراءات
 اللاحقة لكل من رؤى الإنشاء والاختبار:
@@ -229,10 +232,12 @@ testAction: .testAction(
 ## التكامل المستمر {#continuous-integration}
 
 لتتبع رؤى الإنشاء والاختبار على CI، ستحتاج إلى التأكد من أن CI الخاص بك هو
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> مصادق عليه</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+مصادق عليه</LocalizedLink>.
 
 بالإضافة إلى ذلك، ستحتاج إما إلى
-- استخدم الأمر <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> عند استدعاء `xcodebuild` الإجراءات.
+- استخدم الأمر <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> عند استدعاء `xcodebuild` الإجراءات.
 - أضف `-resultBundleBundlePath` إلى استدعاء `xcodebuild`.
 
 عندما `xcodebuild` يبني أو يختبر مشروعك بدون `-resultBundlePath` ، لا يتم إنشاء

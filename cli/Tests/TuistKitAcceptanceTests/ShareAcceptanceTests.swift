@@ -18,7 +18,7 @@ struct ShareAcceptanceTests {
         .withMockedEnvironment(),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks"),
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks"),
         .withTestingSimulator("iPhone 16 Pro")
     )
     func share_ios_app_with_frameworks() async throws {
@@ -83,7 +83,7 @@ struct ShareAcceptanceTests {
         .withMockedEnvironment(),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_appclip"),
+        .withFixtureConnectedToCanary("generated_ios_app_with_appclip"),
         .withTestingSimulator("iPhone 16")
     )
     func share_and_run_ios_app_with_appclip() async throws {

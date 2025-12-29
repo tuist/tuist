@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Usando Tuist con un Paquete Swift <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Uso de Tuist con un paquete Swift <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist soporta el uso de `Package.swift` como DSL para tus proyectos y convierte
 tus objetivos de paquete en un proyecto y objetivos nativos de Xcode.
@@ -20,7 +20,7 @@ Gestor de Paquetes Swift ni traer todas las características únicas de Tuist co
 <!-- -->
 :::
 
-::: info DIRECTORIO RAIZ
+::: info ROOT DIRECTORY
 <!-- -->
 Los comandos Tuist esperan una cierta estructura
 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">de directorios</LocalizedLink> cuya raíz esté identificada por un directorio
@@ -28,7 +28,7 @@ Los comandos Tuist esperan una cierta estructura
 <!-- -->
 :::
 
-## Usar Tuist con un paquete Swift {#using-tuist-with-a-swift-package}
+## Uso de Tuist con un paquete Swift {#using-tuist-with-a-swift-package}
 
 Vamos a utilizar Tuist con el repositorio [TootSDK
 Package](https://github.com/TootSDK/TootSDK), que contiene un paquete Swift. Lo

@@ -11,7 +11,7 @@ Si tienes Tuist **instalado globalmente** (por ejemplo, a través de Homebrew),
 puedes instalar completions de shell para Bash y Zsh para autocompletar comandos
 y opciones.
 
-::: advertencia ¿QUÉ ES UNA INSTALACIÓN GLOBAL?
+::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
 Una instalación global es una instalación que está disponible en la variable de
 entorno `$PATH` de su shell. Esto significa que puedes ejecutar `tuist` desde
@@ -66,7 +66,7 @@ línea a `~/.bash_profile` o `~/.bashrc`:
 source ~/.bash_completions/example.bash
 ```
 
-#### Fish {#fish}
+#### Pescado {#fish}
 
 Si utiliza [fish shell](https://fishshell.com), puede copiar su nuevo script de
 finalización en `~/.config/fish/completions/tuist.fish`:

@@ -27,8 +27,9 @@ When building for device, it is currently your responsibility to ensure the app 
 
 ::: code-group
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
@@ -48,7 +49,7 @@ tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
 When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
-The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
+The links to `.ipa` previews are by default _private_, meaning the recipient needs to authenticate with their Tuist account to download the app. You can change this to public in the project settings if you want to share the app with anyone.
 
 `tuist run` also enables you to run a latest preview based on a specifier such as `latest`, branch name, or a specific commit hash:
 

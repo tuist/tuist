@@ -41,10 +41,11 @@ tuist registry setup
 tuist registry login
 ```
 
-::: info
+:::: المعلومات
 <!-- -->
 تتطلب المصادقة حساب
-<LocalizedLink href="/guides/server/accounts-and-projects">تويست ومشروع</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">تويست
+ومشروع</LocalizedLink>.
 <!-- -->
 :::
 
@@ -52,13 +53,18 @@ tuist registry login
 
 لحل التبعيات من السجل بدلاً من التحكم في المصدر، تابع القراءة بناءً على إعداد
 مشروعك:
-- <LocalizedLink href="/guides/features/registry/xcode-project">مشروع Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">مشروع تم إنشاؤه مع تكامل حزمة Xcode</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">مشروع تم إنشاؤه باستخدام تكامل الحزمة المستند إلى XcodeProj</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">الحزمة السريعة</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">مشروع
+  Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">مشروع تم
+  إنشاؤه مع تكامل حزمة Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">مشروع تم
+  إنشاؤه باستخدام تكامل الحزمة المستند إلى XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">الحزمة
+  السريعة</LocalizedLink>
 
 لإعداد السجل على CI، اتبع هذا الدليل:
-<LocalizedLink href="/guides/features/registry/continuous-integration">التكامل المستمر</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">التكامل
+المستمر</LocalizedLink>.
 
 ### معرّفات سجل الحزمة {#package-registry-identifiers}
 
@@ -68,7 +74,7 @@ tuist registry login
 `https://github.com/pointfreeco/swift-composable-architecture` ، سيكون معرّف سجل
 الحزمة `pointfreeco.swift-composable-architecture`.
 
-::: info
+:::: المعلومات
 <!-- -->
 لا يمكن أن يحتوي المعرف على أكثر من نقطة واحدة. إذا كان اسم المستودع يحتوي على
 نقطة، يتم استبداله بشرطة سفلية. على سبيل المثال، سيكون للحزمة

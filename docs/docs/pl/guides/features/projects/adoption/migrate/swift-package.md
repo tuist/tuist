@@ -31,12 +31,12 @@ zindeksować. 15 sekund!
 projektów na dużą skalę.** Nie widzimy jednak żadnych oznak, że tak się stanie.
 W rzeczywistości widzimy coś wręcz przeciwnego. Podejmują decyzje inspirowane
 Xcode, takie jak osiągnięcie wygody poprzez niejawne konfiguracje, które
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">jak być może wiesz,</LocalizedLink> są źródłem komplikacji na dużą skalę. Uważamy, że
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> jak być może wiesz,</LocalizedLink> są źródłem komplikacji na dużą skalę. Uważamy, że
 Apple musiałoby przejść do pierwszych zasad i zrewidować niektóre decyzje, które
 miały sens jako menedżer zależności, ale nie jako menedżer projektów, na
 przykład użycie skompilowanego języka jako interfejsu do definiowania projektów.
 
-::: tip SPM JAKO ZALEŻNY MENEDŻER
+::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
 Tuist traktuje Swift Package Manager jako menedżer zależności i jest to świetny
 menedżer. Używamy go do rozwiązywania zależności i ich budowania. Nie używamy go
@@ -44,7 +44,7 @@ do definiowania projektów, ponieważ nie jest do tego przeznaczony.
 <!-- -->
 :::
 
-## Migracja ze Swift Package Manager do Tuist {#migrating-from-swift-package-manager-to-tuist}
+## Migracja z menedżera pakietów Swift do Tuist {#migrating-from-swift-package-manager-to-tuist}
 
 Podobieństwa między Swift Package Manager i Tuist sprawiają, że proces migracji
 jest prosty. Główna różnica polega na tym, że projekty będą definiowane przy

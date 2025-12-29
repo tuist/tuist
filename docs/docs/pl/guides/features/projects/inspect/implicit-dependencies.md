@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Import niejawny {#implicit-imports}
+# Import domyślny {#implicit-imports}
 
 Aby złagodzić złożoność utrzymywania wykresu projektu Xcode z surowym projektem
 Xcode, Apple zaprojektował system kompilacji w sposób, który umożliwia niejawne
@@ -37,7 +37,7 @@ strumienia.
 <!-- -->
 :::
 
-::: warning NIE WSZYSTKIE PRZYPADKI NIEPRAWIDŁOWOŚCI SĄ WYKRYWANE
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
 Ponieważ Tuist opiera się na statycznej analizie kodu w celu wykrycia ukrytych
 zależności, może nie wychwycić wszystkich przypadków. Na przykład, Tuist nie

@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-19 17:01+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -62,7 +62,7 @@ msgid "Agentic testing of your app completed"
 msgstr "에이전트 기반 앱 테스트 완료"
 
 msgid "Air"
-msgstr "에어"
+msgstr "Air"
 
 msgid "All"
 msgstr "전체"
@@ -194,7 +194,7 @@ msgid "Cookie policy"
 msgstr "쿠키 정책"
 
 msgid "Create your plan or self-host your instance."
-msgstr "계획을 만들거나 자체 호스팅하세요."
+msgstr "계획을 만들거나 자체 구축하세요."
 
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
 msgstr "귀사의 요구에 맞게 법적 계약서 및 사용 약관을 수정하세요."
@@ -245,7 +245,7 @@ msgid "Enhance your development environment with actionable insights."
 msgstr "활용 가능한 분석 결과로 개발 환경을 개선하세요."
 
 msgid "Enterprise"
-msgstr "기업"
+msgstr "기업용"
 
 msgid "Explore our documentation—your go-to guide for mastering all things."
 msgstr "처음부터 끝까지 숙련하기 위한 모든 사용 방법이 있는 설명서를 보세요."
@@ -293,7 +293,7 @@ msgid "Get started with no credit card required."
 msgstr "신용카드 없이 시작해 보세요."
 
 msgid "GitHub"
-msgstr "Github"
+msgstr "GitHub"
 
 msgid "Got ideas or questions? Join the conversation in our community forum."
 msgstr "의견이나 질문이 있나요? 온라인 커뮤니티 대화에 참여해보세요."
@@ -482,7 +482,7 @@ msgid "Pull requests merged"
 msgstr "병합된 PR 수"
 
 msgid "QA"
-msgstr "QA"
+msgstr "자주하는 질문"
 
 msgid "Read engaging stories and expert insights."
 msgstr "매력적인 스토리와 전문가의 견해를 읽어보세요."

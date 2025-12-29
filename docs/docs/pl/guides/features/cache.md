@@ -43,7 +43,7 @@ rozwiązania buforowania, aby osiągnąć najlepsze wyniki.
 
 ## Pamięć podręczna Xcode {#xcode-cache}
 
-::: warning STAN CACHE W XCODE
+::: warning XCODE CACHE STATE
 <!-- -->
 Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
 przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od

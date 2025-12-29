@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# 暗黙のインポート{#implicit-imports}
+# 暗黙の輸入{#implicit-imports}
 
 生のXcodeプロジェクトでXcodeプロジェクトグラフを維持する複雑さを軽減するために、Appleは依存関係を暗黙的に定義できるようにビルドシステムを設計した。これは、ある製品、例えばアプリが、明示的に依存関係を宣言しなくても、フレームワークに依存できることを意味する。小規模であれば、これは問題ないが、プロジェクトグラフが複雑になるにつれて、暗黙的な依存関係は、信頼できないインクリメンタルビルドや、プレビューやコード補完のようなエディタベースの機能として現れるかもしれない。
 
@@ -18,13 +18,13 @@ tuist inspect implicit-imports
 
 コマンドが暗黙のインポートを検出した場合、0以外の終了コードで終了する。
 
-::: 先端 CIで検証
+::: tip VALIDATE IN CI
 <!-- -->
 新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/features/automate/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨する。
 <!-- -->
 :::
 
-::: warning すべての暗示的なケースを検出しない
+::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
 Tuistは暗黙の依存関係を検出するために静的コード解析に依存しているため、すべてのケースを検出できるわけではない。例えば、Tuistはコード中のコンパイラ指令による条件付きインポートを理解することができない。
 <!-- -->

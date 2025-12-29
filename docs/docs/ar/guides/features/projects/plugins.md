@@ -29,13 +29,13 @@
 
 ## أنواع المكونات الإضافية {#plugin-types}
 
-### المكوّن الإضافي المساعد لوصف المشروع {#project-description-helper-plugin}
+### البرنامج المساعد المساعد لوصف المشروع {#project-description-helper-plugin}
 
 يتم تمثيل المكوّن الإضافي المساعد لوصف المشروع بدليل يحتوي على `Plugin.swift`
 ملف بيان يوضح اسم المكوّن الإضافي ودليل `ProjectDescriptionHelpers` يحتوي على
 ملفات Swift المساعدة.
 
-::: code-group
+:::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -48,19 +48,16 @@ let plugin = Plugin(name: "MyPlugin")
 ├── ProjectDescriptionHelpers
 └── ...
 ```
-<!-- -->
-:::
+::::
 
-### المكون الإضافي لقوالب ملحق الموارد {#resource-accessor-templates-plugin}
+### المكون الإضافي لقوالب ملحقات الموارد {#resource-accessor-templates-plugin}
 
-إذا كنت بحاجة إلى مشاركة
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors"> ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات
-الإضافية. يُمثّل المكوّن الإضافي بدليل يحتوي على `Plugin.swift` ملف بيان يُعلن
+إذا كنت بحاجة إلى مشاركة <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات الإضافية. يُمثّل المكوّن الإضافي بدليل يحتوي على `Plugin.swift` ملف بيان يُعلن
 اسم المكوّن الإضافي ودليل `ResourceSynthesizizizers` يحتوي على ملفات قالب قالب
 ملحق الموارد.
 
 
-::: code-group
+:::: code-group
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -76,8 +73,7 @@ let plugin = Plugin(name: "MyPlugin")
 ├───── CustomTemplate.stencil
 └── ...
 ```
-<!-- -->
-:::
+::::
 
 اسم القالب هو إصدار [حالة الجمل] (https://en.wikipedia.org/wiki/Camel_case) من
 نوع المورد:
@@ -111,11 +107,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 :::
 
 المهام هي `$ PATH`-المسار -المسارات التنفيذية المكشوفة التي يمكن استدعاؤها من
-خلال الأمر `tuist` إذا كانت تتبع اصطلاح التسمية `tuist-<task-name>`. في
-الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin`
-إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية
-في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد
-الأداة.
+خلال الأمر `tuist` إذا كانت تتبع اصطلاح التسمية `tuist-<task-name>`. في الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin` إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد الأداة.
 
 إذا كنت تستخدم تويست لتوزيع المهام، فإننا نوصي ببناء
 - يمكنك الاستمرار في استخدام `ProjectAutomation.xcframework` الموزعة مع كل إصدار
@@ -129,7 +121,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - إذا قمت بتسمية أداتك `tuist-{xxx}` ويمكن للمستخدمين تثبيتها عن طريق تشغيل
   `mise install` ، يمكنهم تشغيلها إما باستدعائها مباشرة، أو من خلال `tuist xxx`.
 
-::: info عن مستقبل المشروع
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 نحن نخطط لدمج نماذج `ProjectAutomation` و `XcodeGraph` في إطار عمل واحد متوافق
 مع الإصدارات السابقة يعرض جوهر الرسم البياني للمشروع للمستخدم. علاوة على ذلك،
@@ -138,7 +130,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 <!-- -->
 :::
 
-## استخدام الإضافات {#using-plugins}
+## استخدام المكونات الإضافية {#using-plugins}
 
 لاستخدام مكون إضافي، يجب عليك إضافته إلى ملف
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift.swift`</LocalizedLink>
@@ -174,14 +166,14 @@ let tuist = Tuist(
 بعد إضافة الإضافات، سيقوم `tuist install` بجلب الإضافات في دليل ذاكرة التخزين
 المؤقت العامة.
 
-::: info لا يوجد حل للإصدار
+::: info NO VERSION RESOLUTION
 <!-- -->
 كما لاحظت، نحن لا نوفر دقة الإصدار للإضافات. نوصي باستخدام علامات Git أو SHAs
 لضمان إمكانية التكرار.
 <!-- -->
 :::
 
-::: tip وصف المشروع المساعدين المساعدين
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 عند استخدام المكون الإضافي لمساعدي وصف المشروع، يكون اسم الوحدة النمطية التي
 تحتوي على المساعدين هو اسم المكون الإضافي

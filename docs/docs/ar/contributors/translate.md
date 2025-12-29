@@ -22,14 +22,14 @@
 - الإسبانية
 - البرتغالية
 
-::: tip طلب لغة جديدة
+::: tip REQUEST A NEW LANGUAGE
 <!-- -->
 إذا كنت تعتقد أن تويست ستستفيد من دعم لغة جديدة، يرجى إنشاء [موضوع جديد في منتدى
 المجتمع] (https://community.tuist.io/c/general/4) لمناقشته مع المجتمع.
 <!-- -->
 :::
 
-## كيف تترجم {#how-to-translate}
+## كيفية الترجمة {#how-to-translate}
 
 لدينا نسخة من [Weblate] (https://weblate.org/en-gb/) تعمل على
 [translate.tuist.dev] (https://translate.tuist.dev). يمكنك التوجه إلى
@@ -38,18 +38,18 @@
 تتم مزامنة الترجمات مرة أخرى إلى المستودع المصدر باستخدام طلبات سحب GitHub التي
 سيقوم المشرفون بمراجعتها ودمجها.
 
-::: warning عدم تعديل الموارد في اللغة المستهدفة
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 <!-- -->
 يقوم Weblate بتقسيم الملفات لربط اللغة المصدر واللغة الهدف. إذا قمت بتعديل اللغة
 المصدر، فسوف تكسر الربط، وقد تسفر التسوية عن نتائج غير متوقعة.
 <!-- -->
 :::
 
-## إرشادات {#guidelines}
+## الإرشادات {#guidelines}
 
 فيما يلي الإرشادات التي نتبعها عند الترجمة.
 
-### تنبيهات الحاويات المخصصة وتنبيهات GitHub {#custom-containers-and-github-alerts}
+### الحاويات المخصصة وتنبيهات GitHub {#custom-containers-and-github-alerts}
 
 عند ترجمة [الحاويات المخصصة]
 (https://vitepress.dev/guide/markdown#custom-containers) فقط ترجمة العنوان

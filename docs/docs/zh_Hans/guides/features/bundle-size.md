@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# 捆绑洞察力 {#bundle-size}
+# 捆绑见解{#bundle-size}
 
 警告要求
 <!-- -->
@@ -37,7 +37,7 @@ tuist inspect bundle App.app
 
 [分析捆绑](/images/guides/features/bundle-size/analyzed-bundle.png)。
 
-## 持续集成 {#continuous-integration｝
+## 持续集成{#continuous-integration}
 
 要跟踪随时间变化的捆绑包大小，您需要分析 CI 上的捆绑包。首先，您需要确保您的 CI 经过
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>：
@@ -54,18 +54,19 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 设置完成后，您就可以查看捆绑包大小随时间的变化情况：
 
 ![捆扎尺寸图](/images/guides/features/bundle-size/bundle-size-graph.png)!
 
-## 拉取/合并请求注释 {#pullmerge-request-comments}
+## 拉取/合并请求注释{#pullmerge-request-comments}
 
-警告 需要与 GIT 平台集成
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>集成。
+要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>集成。
 <!-- -->
 :::
 

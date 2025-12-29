@@ -5,7 +5,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CaseStudies
   alias Tuist.Marketing.Changelog
+  alias Tuist.Marketing.Content
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
   alias TuistWeb.Errors.NotFoundError
@@ -429,21 +431,21 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def blog_rss(conn, _params) do
-    posts = Blog.get_posts()
-    last_build_date = posts |> List.last() |> Map.get(:date)
+    entries = blog_entries()
+    last_build_date = entries |> List.last() |> Content.get_entry_date()
 
     conn
-    |> assign(:posts, posts)
+    |> assign(:entries, entries)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_rss, layout: false)
   end
 
   def blog_atom(conn, _params) do
-    posts = Blog.get_posts()
-    last_build_date = posts |> List.last() |> Map.get(:date)
+    entries = blog_entries()
+    last_build_date = entries |> List.last() |> Content.get_entry_date()
 
     conn
-    |> assign(:posts, posts)
+    |> assign(:entries, entries)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_atom, layout: false)
   end
@@ -479,7 +481,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
       )
 
-    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog"]
+    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/case-studies"]
 
     # Generate URLs for all locales
     localized_entries =
@@ -494,6 +496,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn
     |> assign(:entries, entries)
     |> render(:sitemap, layout: false)
+  end
+
+  defp blog_entries do
+    Content.get_entries()
   end
 
   def blog_post(%{request_path: request_path} = conn, _params) do
@@ -542,6 +548,42 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:related_posts, related_posts)
       |> assign(:processed_content, processed_content)
       |> render(:blog_post, layout: false)
+    end
+  end
+
+  def case_study(%{request_path: request_path} = conn, _params) do
+    request_path = Localization.path_without_locale(request_path)
+
+    case_study =
+      Enum.find(CaseStudies.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
+
+    if is_nil(case_study) do
+      raise NotFoundError
+    else
+      related_case_studies =
+        CaseStudies.get_case_studies()
+        |> Enum.reject(&(&1.slug == case_study.slug))
+        |> Enum.take_random(3)
+
+      conn
+      |> assign(:head_title, case_study.title)
+      |> assign(:head_description, case_study.excerpt)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: case_study.og_image_path)
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Case Studies"), Tuist.Environment.app_url(path: ~p"/case-studies")},
+          {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
+        ])
+      )
+      |> assign_structured_data(get_case_study_article_structured_data(case_study))
+      |> assign(:case_study, case_study)
+      |> assign(:related_case_studies, related_case_studies)
+      |> render(:case_study, layout: false)
     end
   end
 

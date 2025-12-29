@@ -5,7 +5,7 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# 创建一个新项目 {#create-a-new-project}
+# 创建新项目{#create-a-new-project}
 
 使用 Tuist 启动新项目的最直接方法是使用`tuist init` 命令。该命令会启动一个交互式 CLI，引导您完成项目设置。出现提示时，请确保选择创建
 "生成项目 "选项。
@@ -61,7 +61,7 @@ let project = Project(
 <!-- -->
 :::
 
-## 手动创建项目 {#manually-creating-a-project}
+## 手动创建项目{#manually-creating-a-project}
 
 或者，您也可以手动创建项目。我们建议您在已经熟悉 Tuist 及其概念的情况下才这样做。首先需要为项目结构创建附加目录：
 

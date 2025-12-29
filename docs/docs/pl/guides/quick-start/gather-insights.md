@@ -5,7 +5,7 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Zbieraj spostrzeżenia {#gather-insights}.
+# Zbieranie informacji {#gather-insights}
 
 Tuist może integrować się z serwerem w celu rozszerzenia jego możliwości. Jedną
 z tych możliwości jest gromadzenie informacji o projekcie i kompilacjach.

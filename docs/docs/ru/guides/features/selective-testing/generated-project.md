@@ -7,7 +7,7 @@
 ---
 # Сгенерированные проекты {#generated-projects}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 - Проект, созданный
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>

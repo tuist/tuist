@@ -61,7 +61,7 @@ następującą treść:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning FUNKCJE TYLKO DLA PROJEKTU TUIST
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
 Należy pamiętać, że niektóre funkcje, takie jak
 <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>,

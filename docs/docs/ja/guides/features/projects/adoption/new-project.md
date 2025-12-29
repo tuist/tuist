@@ -5,16 +5,17 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# 新しいプロジェクトを作成する {#create-a-new-project}
+# 新しいプロジェクトを作成する {#create-a-new-project}。
 
 Tuistで新しいプロジェクトを始める最も簡単な方法は、`tuist init`
 コマンドを使うことである。このコマンドは対話型CLIを起動し、プロジェクトのセットアップをガイドする。プロンプトが表示されたら、必ず "generated
 project "を作成するオプションを選択してください。
 
-<LocalizedLink href="/guides/features/projects/editing">プロジェクトを編集する</LocalizedLink>`tuist edit` を実行すると、Xcodeがプロジェクトを開き、そこでプロジェクトを編集することができます。生成されるファイルの一つは、`Project.swift` で、プロジェクトの定義を含んでいます。Swift
+プロジェクトを編集する`tuist edit` を実行すると、Xcodeがプロジェクトを開き、そこでプロジェ
+クトを編集することができます。生成されるファイルの一つは、`Project.swift` で、プロジェクトの定義を含んでいます。Swift
 のパッケージマネージャに慣れているなら、`Package.swift` のように、しかし Xcode プロジェクトの専門用語で考えてください。
 
-::: code-group
+コードグループ
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -54,14 +55,14 @@ let project = Project(
 <!-- -->
 :::
 
-::: 情報
+::: info
 <!-- -->
 メンテナンスのオーバーヘッドを最小限にするため、利用可能なテンプレートのリストは意図的に短くしています。アプリケーションを表さないプロジェクト、たとえばフレームワークを作りたい場合、`tuist
 init` を出発点として使い、生成されたプロジェクトをあなたのニーズに合うように修正することができます。
 <!-- -->
 :::
 
-## プロジェクトの手動作成{#manually-creating-a-project}
+## プロジェクトの手動作成{#manually-creating-a-project}。
 
 あるいは、手動でプロジェクトを作成することもできます。Tuistとその概念にすでに精通している場合のみ、この方法をお勧めします。最初に必要なことは、プロジェクト構造用に追加のディレクトリを作成することです：
 
@@ -74,7 +75,7 @@ cd MyFramework
 ファイルを作成します。これはTuistを設定し、Tuistがプロジェクトのルート・ディレクトリを決定するために使用します。また、`Project.swift`
 を作成します。ここにはプロジェクトが宣言されます：
 
-::: code-group
+コードグループ
 ```swift [Project.swift]
 import ProjectDescription
 

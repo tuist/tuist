@@ -1665,6 +1665,83 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["message"] ==
                "tuist is not authorized to read preview"
     end
+
+    test "returns latest preview that has an app build matching the platform of the binary_id", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440003"
+      build_version = "123"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_one,
+          binary_id: binary_id,
+          build_version: build_version,
+          supported_platforms: [:ios]
+        )
+
+      # This preview has no iOS app build, so it should be skipped
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_macos_only =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_two,
+          supported_platforms: [:macos]
+        )
+
+      # This is the latest preview with an iOS app build
+      preview_three =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_ios =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_three,
+          supported_platforms: [:ios]
+        )
+
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}&build_version=#{build_version}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      # Should return preview_three (latest with iOS build), skipping preview_two (no iOS build)
+      assert response["preview"]["id"] == preview_three.id
+    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/previews/:preview_id/icons" do

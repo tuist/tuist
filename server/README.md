@@ -36,7 +36,7 @@ Pass: tuistrocks
 
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
-1. Go to `tuist/fixtures/ios_app_with_frameworks`.
+1. Go to `tuist/examples/xcode/generated_ios_app_with_frameworks`.
 1. Change the url in `Tuist/Config.swift` to `http://localhost:8080`.
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.

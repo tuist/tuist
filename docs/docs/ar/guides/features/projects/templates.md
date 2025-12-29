@@ -15,21 +15,16 @@
 - قم بإنشاء ميزة جديدة تتبع بنية معينة: `tuist سقالة الأفعى - الاسم MyFeature`.
 - إنشاء مشاريع جديدة: `تويست سقالة ميزة المشروع - اسم المشروع الرئيسي`
 
-::: info غير متاحة على الإنترنت
+::: info NON-OPINIONATED
 <!-- -->
 تويست ليس له رأي في محتوى القوالب الخاصة بك، وما تستخدمها من أجله. فهي مطلوبة
 فقط لتكون في دليل محدد.
 <!-- -->
 :::
 
-## تعريف قالب {#defining-a-template}
+## تعريف القالب {#defining-a-template}
 
-ولتعريف القوالب، يمكنك تشغيل
-<LocalizedLink href="/guides/features/projects/editing">`tuist تحرير`</LocalizedLink> ثم إنشاء دليل يسمى `name_of_of_template` ضمن
-`Tuist/Templates` الذي يمثل القالب الخاص بك. تحتاج القوالب إلى ملف بيان،
-`name_of_of_template.swift.` الذي يصف القالب. لذلك إذا كنت تقوم بإنشاء قالب يسمى
-`إطار العمل` ، يجب عليك إنشاء دليل جديد `إطار العمل` في `Tuist/Templates` مع ملف
-بيان يسمى `framework.swift` والذي يمكن أن يبدو هكذا:
+ولتعريف القوالب، يمكنك تشغيل <LocalizedLink href="/guides/features/projects/editing">`tuist تحرير`</LocalizedLink> ثم إنشاء دليل يسمى `name_of_of_template` ضمن `Tuist/Templates` الذي يمثل القالب الخاص بك. تحتاج القوالب إلى ملف بيان، `name_of_of_template.swift.` الذي يصف القالب. لذلك إذا كنت تقوم بإنشاء قالب يسمى `إطار العمل` ، يجب عليك إنشاء دليل جديد `إطار العمل` في `Tuist/Templates` مع ملف بيان يسمى `framework.swift` والذي يمكن أن يبدو هكذا:
 
 
 ```swift
@@ -69,10 +64,7 @@ tuist scaffold name_of_template --name Name --platform macos
 ```
 
 ::: info
-<!-- -->
-نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون
-الوسيطة `-- النظام الأساسي macos`.
-<!-- -->
+نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون الوسيطة `-- النظام الأساسي macos`.
 :::
 
 إذا لم يوفر لك `.string` و `.files` مرونة كافية، يمكنك الاستفادة من لغة النمذجة
@@ -88,9 +80,6 @@ tuist scaffold name_of_template --name Name --platform macos
 يمكنك أيضًا استخدام `.directory` الذي يتيح إمكانية نسخ مجلدات كاملة إلى مسار
 معين.
 
-::: tip مساعدو وصف المشروع
-<!-- -->
-تدعم القوالب استخدام
-<LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
-<!-- -->
+::: tip PROJECT DESCRIPTION HELPERS
+تدعم القوالب استخدام <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
 :::

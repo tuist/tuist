@@ -7,7 +7,7 @@
 ---
 # Projekt Xcode {#xcode-project}
 
-::: warning WYMAGANIA
+::: ostrzeżenie WYMAGANIA
 <!-- -->
 - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
 <!-- -->

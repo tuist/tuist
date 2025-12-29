@@ -5,7 +5,7 @@
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# テンプレート {#templates}
+# テンプレート{#templates}
 
 確立されたアーキテクチャを持つプロジェクトでは、開発者はプロジェクトと一貫性のある新しいコンポーネントや機能をブートストラップしたいかもしれません。`tuist
 scaffold`
@@ -14,13 +14,13 @@ scaffold`
 - `tuist scaffold viper --name MyFeature`.
 - 新規プロジェクトの作成:`tuist scaffold feature-project --name Home`
 
-::: 情報 非観測的
+::: info NON-OPINIONATED
 <!-- -->
 Tuistはテンプレートの内容や使用目的については一切関知しません。特定のディレクトリにあることが要求されるだけです。
 <!-- -->
 :::
 
-## テンプレートの定義 {#defining-a-template}
+## テンプレートの定義{#defining-a-template}
 
 テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
 という、テンプレートを表すディレクトリを作成します。テンプレートには、`name_of_template.swift`
@@ -57,7 +57,7 @@ let template = Template(
 )
 ```
 
-## テンプレートを使う{#using-a-template}
+## テンプレートの使用{#using-a-template}
 
 テンプレートを定義したら、`scaffold` コマンドから使用することができます：
 
@@ -65,7 +65,7 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: 情報
+::: info
 <!-- -->
 プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
 <!-- -->
@@ -82,7 +82,7 @@ tuist scaffold name_of_template --name Name --platform macos
 
 また、`.directory` を使えば、指定したパスにフォルダ全体をコピーすることもできる。
 
-プロジェクト説明ヘルパー
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 テンプレートは<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>の使用をサポートし、テンプレート間でコードを再利用します。
 <!-- -->

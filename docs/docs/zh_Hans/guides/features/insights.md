@@ -5,7 +5,7 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 见解 {#insights｝
+# 洞察力{#insights}
 
 警告要求
 <!-- -->
@@ -26,7 +26,7 @@ Tuist Insights 处于早期开发阶段。
 <!-- -->
 :::
 
-## 构建 {#builds｝
+## 构建{#builds}
 
 虽然您可能对 CI 工作流的性能有一定的衡量标准，但对本地开发环境的可视性可能不尽相同。然而，本地构建时间是影响开发人员体验的最重要因素之一。
 
@@ -63,7 +63,7 @@ Tuist Insights 处于早期开发阶段。
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-提示 MISE 和项目路径
+::: tip MISE & PROJECT PATHS
 <!-- -->
 方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
 $SRCROOT 指向的目录运行 Mise。
@@ -97,7 +97,7 @@ $SRCROOT 指向的目录运行 Mise。
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-提示 MISE 和项目路径
+::: tip MISE & PROJECT PATHS
 <!-- -->
 方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
 $SRCROOT 指向的目录运行 Mise。
@@ -197,7 +197,7 @@ testAction: .testAction(
 )
 ```
 
-## 持续集成 {#continuous-integration｝
+## 持续集成{#continuous-integration}
 
 要跟踪 CI 上的构建和测试洞察，您需要确保您的 CI 已通过
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>。

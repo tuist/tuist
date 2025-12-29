@@ -8,10 +8,9 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# 為出貨的開發人員提供虛擬平台團隊
+# A virtual platform team for developers who ship
 
-**Tuist 擴展 Apple 的工具鏈，協助團隊擴充規模，並專注於建立應用程式** - 將 Apple
-平台開發從令人沮喪的複雜性轉變為順暢、高效的體驗，並與您的團隊一同成長。
+**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -64,16 +63,14 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 加入成千上萬的開發人員行列。
+## Join thousands of developers who've made the switch
 
-**Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
-Spoons](https://bendingspoons.com/)以及其他 100 多家公司** 的團隊已經使用 Tuist
-改變了他們的蘋果平台開發。以下是他們的經驗：
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
-- **透過智慧型快取功能，建置速度提升 65%**
-- **Xcode 專案中的零合併衝突**
-- **分鐘至秒** 封裝解析度
-- **開心的開發人員** ，他們可以專注於建立功能
+- **65% faster builds** with intelligent caching
+- **Zero merge conflicts** in Xcode projects
+- **Minutes to seconds** package resolution
+- **Happy developers** who can focus on building features
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -96,15 +93,15 @@ Spoons](https://bendingspoons.com/)以及其他 100 多家公司** 的團隊已�
 </HomeCards>
 
 
-## 觀看 Tuist 運作
+## See Tuist in action
 
-**從真實的實作中學習** ，並從工具鏈運作的可能性中得到啟發。
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
 
 <HomeVideos/>
 
-## 加入蓬勃發展的社群
+## Join a thriving community
 
-**與成千上萬的 Apple 平台開發人員聯繫** ，他們正在使用 Tuist 推出更好的應用程式。獲取協助、分享勝利、塑造 Apple 平台開發的未來。
+**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

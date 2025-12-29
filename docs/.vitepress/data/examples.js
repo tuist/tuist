@@ -4,7 +4,7 @@ import fs from "node:fs";
 
 const glob = path.join(
   import.meta.dirname,
-  "../../../cli/Fixtures/*/README.md",
+  "../../../examples/xcode/*/README.md",
 );
 
 export async function loadData(files) {
@@ -23,7 +23,7 @@ export async function loadData(files) {
       title: titleMatch[1],
       name: path.basename(path.dirname(file)).toLowerCase(),
       content: content,
-      url: `https://github.com/tuist/tuist/tree/main/cli/Fixtures/${path.basename(
+      url: `https://github.com/tuist/tuist/tree/main/examples/xcode/${path.basename(
         path.dirname(file),
       )}`,
     };

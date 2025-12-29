@@ -5,9 +5,9 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Проницательность пучка {#bundle-size}
+# Познавательная информация о пакетах {#bundle-size}
 
-::: warning РЕКВИЗИТЫ
+::: предупреждение РЕКВИЗИТЫ
 <!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
 <!-- -->
@@ -62,7 +62,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 После настройки вы сможете увидеть, как изменяется размер вашего пакета с
@@ -70,9 +70,9 @@ jobs:
 
 ![Граф размера пучка](/images/guides/features/bundle-size/bundle-size-graph.png)
 
-## Комментарии к Pull/merge-запросам {#pullmerge-request-comments}
+## Комментарии к запросам на перетяжку/слияние {#pullmerge-request-comments}
 
-::: warning ИНТЕГРАЦИЯ С ПЛАТФОРМОЙ GIT ОБЯЗАТЕЛЬНА
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш

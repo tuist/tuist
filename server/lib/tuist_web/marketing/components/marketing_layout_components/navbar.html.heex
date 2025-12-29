@@ -99,6 +99,12 @@ resources_items = [
     href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")
   },
   %{
+    icon: :news,
+    title: dgettext("marketing", "Newsletter"),
+    subtitle: dgettext("marketing", "Stay updated—subscribe to our newsletter"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
+  },
+  %{
     icon: :brand_slack,
     title: dgettext("marketing", "Slack"),
     subtitle: dgettext("marketing", "Join the community on Slack"),
@@ -117,10 +123,16 @@ resources_items = [
     href: "https://github.com/tuist"
   },
   %{
-    icon: :news,
-    title: dgettext("marketing", "Newsletter"),
-    subtitle: dgettext("marketing", "Stay updated—subscribe to our newsletter"),
-    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
+    icon: :dashboard,
+    title: dgettext("marketing", "Public dashboard"),
+    subtitle: dgettext("marketing", "Explore Tuist's features on the public dashboard"),
+    href: "/tuist/tuist"
+  },
+  %{
+    icon: :building,
+    title: dgettext("marketing", "Case studies"),
+    subtitle: dgettext("marketing", "See how leading teams scale with Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/case-studies")
   }
 ] %>
 <header id="marketing-navbar">

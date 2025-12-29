@@ -50,7 +50,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### 리소스 접근자 템플릿 플러그인 {#resource-accessor-templates-plugin}
 
-<LocalizedLink href="/guides/features/projects/code-sharing">합성된 리소스 접근자</LocalizedLink>를 공유해야 하는 경우 이 유형의 플러그인을 사용할 수 있습니다. 플러그인은 플러그인 이름을
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">합성된 리소스 접근자</LocalizedLink>를 공유해야 하는 경우 이 유형의 플러그인을 사용할 수 있습니다. 플러그인은 플러그인 이름을
 선언하는 `Plugin.swift` 매니페스트 파일과 리소스 접근자 템플릿 파일이 포함된 `ResourceSynthesizers` 디렉터리가
 포함된 디렉터리로 표현됩니다.
 
@@ -95,7 +95,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### 작업 플러그인 <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning 디펙티드
+::: warning DEPRECATED
 <!-- -->
 [!WARNING] 사용 중단된 작업 플러그인은 더 이상 사용되지 않습니다. 프로젝트를 위한 자동화 솔루션을 찾고 있다면 [이 블로그
 게시물](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)을 확인하세요.
@@ -114,10 +114,10 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
   [Mise](https://mise.jdx.dev)를 설치 도구로 사용하는 것이 좋습니다. Mise에 도구 설치 방법을 지시하려면 플러그인
   리포지토리가 필요합니다. Tuist's](https://github.com/asdf-community/asdf-tuist)를 참조로 사용할
   수 있습니다.
-- 도구 이름을 `tuist-{xxx}` 로 지정하고 사용자가 `mise install` 을 실행하여 설치하면 직접 실행하거나 `tuist
-  xxx` 를 통해 실행할 수 있습니다.
+- 도구의 이름을 `tuist-{xxx}` 로 지정하고 사용자가 `mise install` 을 실행하여 설치하면 직접 실행하거나 `tuist
+  xxx` 을 통해 실행할 수 있습니다.
 
-::: info 프로젝트 자동화의 미래
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 저희는 프로젝트 그래프의 실체를 사용자에게 노출하는 단일 하위 호환 프레임워크에 `ProjectAutomation` 및 `XcodeGraph`
 모델을 통합할 계획입니다. 또한 생성 로직을 새로운 레이어인 `XcodeGraph` 로 추출하여 자체 CLI에서도 사용할 수 있습니다. 나만의
@@ -158,14 +158,14 @@ let tuist = Tuist(
 
 플러그인을 추가한 후 `tuist install` 을 입력하면 글로벌 캐시 디렉터리에서 플러그인을 가져옵니다.
 
-::: info 버전 해상도 없음
+::: info NO VERSION RESOLUTION
 <!-- -->
 아시다시피 워드프레스닷컴은 플러그인에 대한 버전 확인 기능을 제공하지 않습니다. 재현성을 보장하기 위해 Git 태그 또는 SHA를 사용하는 것이
 좋습니다.
 <!-- -->
 :::
 
-::: tip 프로젝트 설명이 플러그인을 도와줍니다.
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 프로젝트 설명 헬퍼 플러그인을 사용하는 경우 헬퍼가 포함된 모듈의 이름은 플러그인의 이름입니다.
 ```swift

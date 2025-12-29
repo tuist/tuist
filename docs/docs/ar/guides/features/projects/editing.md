@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# تحرير {#editing}
+# التحرير {#editing}
 
 على عكس مشاريع Xcode التقليدية أو حزم سويفت، حيث تتم التغييرات من خلال واجهة
 مستخدم Xcode، يتم تعريف المشاريع التي تدار بواسطة تويست في كود سويفت الموجود في
@@ -29,7 +29,7 @@ tuist edit
 ينشئ الأمر مشروع Xcode في دليل عام ويفتحه في Xcode. يتضمن المشروع دليل
 `Manifests` الذي يمكنك إنشاؤه للتأكد من صلاحية جميع بياناتك.
 
-::: info عن المنظومات التي تم حلها عالمياً
+::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
 `تحرير تويست` يحل المظاهر المراد تضمينها باستخدام glob `**/{Manifest}.swift` من
 الدليل الجذر للمشروع (الذي يحتوي على ملف `Tuist.swift.` ). تأكد من وجود

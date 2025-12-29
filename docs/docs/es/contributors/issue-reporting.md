@@ -5,7 +5,7 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# Informe de incidencias {#issue-reporting}
+# Emisión de informes {#issue-reporting}
 
 Como usuario de Tuist, es posible que te encuentres con errores o
 comportamientos inesperados. Si lo haces, te animamos a que nos informes de
@@ -38,14 +38,14 @@ También le pedimos que nos proporcione un proyecto mínimo reproducible **** .
 
 ## Proyecto reproducible {#reproducible-project}
 
-### ¿Qué es un proyecto reproducible? {#qué-es-un-proyecto-reproducible}
+### ¿Qué es un proyecto reproducible? {#what-is-a-reproducible-project}
 
 Un proyecto reproducible es un pequeño proyecto Tuist para demostrar un problema
 - a menudo este problema es causado por un bug en Tuist. Tu proyecto
 reproducible debe contener las características mínimas necesarias para demostrar
 claramente el error.
 
-### ¿Por qué debería crear un caso de prueba reproducible? {#por-que-debe-crear-un-caso-de-prueba-reproducible}
+### ¿Por qué crear un caso de prueba reproducible? {#why-should-you-create-a-reproducible-test-case}
 
 Un proyecto reproducible nos permite aislar la causa de un problema, ¡que es el
 primer paso para solucionarlo! La parte más importante de cualquier informe de

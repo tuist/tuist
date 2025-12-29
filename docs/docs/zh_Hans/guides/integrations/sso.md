@@ -5,9 +5,9 @@
   "description": "Learn how to set up Single Sign-On (SSO) with your organization."
 }
 ---
-# SSO {#sso｝
+# SSO{#sso}
 
-## 谷歌 {#google｝
+## 谷歌{#google}
 
 如果您有一个 Google Workspace 组织，并希望使用相同的 Google 托管域登录的开发人员添加到您的 Tuist
 组织中，您可以使用以下方法进行设置：
@@ -21,7 +21,7 @@ tuist organization update sso my-organization --provider google --organization-i
 <!-- -->
 :::
 
-## Okta {#okta}
+## Okta{#okta}
 
 使用 Okta 进行 SSO 仅适用于企业客户。如果您有兴趣设置，请通过
 [contact@tuist.dev](mailto:contact@tuist.dev) 联系我们。

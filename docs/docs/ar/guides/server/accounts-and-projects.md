@@ -5,7 +5,7 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# الحسابات والمشروعات {#accounts-and-projects}
+# الحسابات والمشاريع {#accounts-and-projects}
 
 تتطلب بعض ميزات Tuist خادمًا يضيف ثباتًا للبيانات ويمكنه التفاعل مع الخدمات
 الأخرى. للتفاعل مع الخادم، تحتاج إلى حساب ومشروع تتصل به بمشروعك المحلي.
@@ -39,7 +39,7 @@
 tuist organization create {account-handle}
 ```
 
-## مشاريع {#projects}
+## المشاريع {#projects}
 
 يجب أن تتكامل مشاريعك، سواء كانت مشاريع تويست أو Xcode الخام، مع حسابك من خلال
 مشروع بعيد. بالاستمرار في المقارنة مع GitHub، فإن الأمر يشبه وجود مستودع محلي
@@ -58,9 +58,10 @@ tuist organization create {account-handle}
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning ميزات مشروع TUIST-فقط
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-لاحظ أن هناك بعض الميزات مثل <LocalizedLink href="/guides/features/cache"> التخزين المؤقت الثنائي</LocalizedLink> التي تتطلب أن يكون لديك مشروع تويست. إذا
+لاحظ أن هناك بعض الميزات مثل <LocalizedLink href="/guides/features/cache">
+التخزين المؤقت الثنائي</LocalizedLink> التي تتطلب أن يكون لديك مشروع تويست. إذا
 كنت تستخدم مشاريع Xcode الخام، فلن تتمكن من استخدام هذه الميزات.
 <!-- -->
 :::

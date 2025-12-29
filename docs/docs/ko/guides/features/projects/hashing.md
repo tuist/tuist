@@ -24,7 +24,7 @@ Tuist는 종속성 그래프에서 각 대상에 대한 해시를 계산하여 �
 대상과 바이너리 간의 Swift 버전 불일치로 인한 컴파일 오류를 방지하기 위해 `/usr/bin/xcrun swift --version`
 명령을 실행하여 얻은 Swift 버전을 해시화합니다.
 
-::: info 모듈 안정성
+::: info MODULE STABILITY
 <!-- -->
 이전 버전의 바이너리 캐싱은 `BUILD_LIBRARY_FOR_DISTRIBUTION` 빌드 설정에 의존하여 [모듈
 안정성](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)을
@@ -59,7 +59,7 @@ Tuist는 종속성 그래프에서 각 대상에 대한 해시를 계산하여 �
 해시가 여전히 결정적이지 않은 경우 알려주시면 디버깅을 도와드리겠습니다.
 
 
-::: info 더 나은 디버깅 경험 계획하기
+::: info BETTER DEBUGGING EXPERIENCE PLANNED
 <!-- -->
 디버깅 환경을 개선하는 것은 저희의 로드맵에 포함되어 있습니다. 차이점을 이해하기 위한 컨텍스트가 부족한 print-hashes 명령은 트리와
 같은 구조를 사용하여 해시 간의 차이점을 표시하는 보다 사용자 친화적인 명령으로 대체될 예정입니다.

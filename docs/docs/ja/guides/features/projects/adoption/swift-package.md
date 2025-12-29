@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# SwiftパッケージでTuistを使う<Badge type="warning" text="beta" />。{#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}.
+# SwiftパッケージでTuistを使う<Badge type="warning" text="beta" />.{#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuistは、`Package.swift`
 をプロジェクトのDSLとして使用することをサポートしており、パッケージターゲットをネイティブのXcodeプロジェクトとターゲットに変換します。

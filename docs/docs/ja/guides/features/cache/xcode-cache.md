@@ -9,9 +9,9 @@
 
 TuistはXcodeコンパイルキャッシュのサポートを提供し、ビルドシステムのキャッシュ機能を活用することで、チームがコンパイル成果物を共有することを可能にする。
 
-## セットアップ {#setup}
+## セットアップ{#setup}
 
-::: warning 要件
+警告 要件
 <!-- -->
 - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 - Xcode 26.0以降
@@ -51,7 +51,7 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` と`COMPILATION_CACHE_ENABLE_PLUGIN`
 は、Xcodeのビルド設定UIで直接公開されていないため、**ユーザー定義のビルド設定** として追加する必要があることに注意してください：
 
-::情報 SOCKET PATH
+::: info SOCKET PATH
 <!-- -->
 `tuist setup cache`
 を実行すると、ソケットパスが表示されます。スラッシュをアンダースコアに置き換えたプロジェクトの完全なハンドルに基づいています。
@@ -68,7 +68,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info ジェネレイテッド・プロジェクト
+::: info GENERATED PROJECTS
 <!-- -->
 プロジェクトがTuistによって生成されている場合は、手動で設定する必要はない。
 
@@ -92,8 +92,8 @@ let tuist = Tuist(
 
 CI環境でキャッシュを有効にするには、ローカル環境と同じコマンドを実行する必要がある：`tuist setup cache`.
 
-さらに、`TUIST_CONFIG_TOKEN`
-環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。`TUIST_CONFIG_TOKEN`
+さらに、`TUIST_TOKEN`
+環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。`TUIST_TOKEN`
 環境変数__ がビルドステップに存在する必要がありますが、CIワークフロー全体に設定することをお勧めします。
 
 GitHub Actions のワークフローの例は次のようになります：
@@ -101,7 +101,7 @@ GitHub Actions のワークフローの例は次のようになります：
 name: Build
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
 jobs:
   build:

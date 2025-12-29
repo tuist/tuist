@@ -5,7 +5,7 @@
   "description": "Learn about Tuist's DSL for defining Xcode projects."
 }
 ---
-# 生成されたプロジェクト{#generated-projects}
+# 生成されたプロジェクト{#generated-projects}。
 
 Generatedは、複雑さとコストを許容可能なレベルに保ちながら、これらの課題を克服するのに役立つ実行可能な代替手段です。それは、Xcodeプロジェクトを基本要素として考慮し、将来のXcodeアップデートに対する弾力性を確保し、Xcodeプロジェクト生成を活用して、モジュール化に焦点を当てた宣言的APIをチームに提供する。Tuistは、プロジェクト宣言を使用して、モジュール化の複雑さ**を簡素化し、さまざまな環境でのビルドやテストのようなワークフローを最適化し、Xcodeプロジェクトの進化を促進し、民主化します。
 
@@ -23,7 +23,7 @@ Generatedは、複雑さとコストを許容可能なレベルに保ちなが�
 - **<LocalizedLink href="/guides/features/test">テスト</LocalizedLink>：**
   ビルド・ワークフローのように動作し、Xcodeプロジェクトを生成するだけでなく、`xcodebuild` を利用してテストします。
 
-## Xcodeプロジェクトの課題 {#challenges-with-xcode-projects}
+## Xcodeプロジェクトの課題 {#challenges-with-xcode-projects}。
 
 Xcode プロジェクトが成長するにつれて、**組織は、信頼性の低いインクリメンタルビルド、問題に遭遇した開発者による Xcode
 のグローバルキャッシュの頻繁なクリア、および脆弱なプロジェクト構成を含むいくつかの要因のために、生産性の低下**

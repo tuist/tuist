@@ -195,7 +195,8 @@ defmodule TuistWeb.UserLoginLive do
 
   defp oauth_configured? do
     Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
+      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?() ||
+      Environment.tuist_hosted?()
   end
 
   defp all_oauth_providers_configured?(assigns) do

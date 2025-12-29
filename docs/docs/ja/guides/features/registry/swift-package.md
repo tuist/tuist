@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# Swiftパッケージ {#swift-package}
+# スウィフトパッケージ{#swift-package}
 
 Swift パッケージで作業している場合、`--replace-scm-with-registry`
 フラグを使用すると、利用可能な場合はレジストリから依存関係を解決できます：

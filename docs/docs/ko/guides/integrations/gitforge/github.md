@@ -25,13 +25,13 @@ Git 리포지토리는 대부분의 소프트웨어 프로젝트의 중심입니
 GitHub 앱은 최신
 <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
 또는
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>
-링크를 포함한 PR 요약이 포함된 Tuist 실행 보고서를 게시합니다:
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>에
+대한 링크를 포함하여 PR 요약이 포함된 Tuist 실행 보고서를 게시합니다:
 
 ![풀 리퀘스트 댓글을 표시하는
 이미지](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-정보 요구 사항 ::: info 요구 사항
+::: info REQUIREMENTS
 <!-- -->
 댓글은 CI 실행이
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>된

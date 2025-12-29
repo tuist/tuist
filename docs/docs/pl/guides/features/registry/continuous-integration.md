@@ -5,12 +5,12 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Ciągła integracja (CI) {#ciągła-integracja-ci}
+# Ciągła integracja (CI) {#continuous-integration-ci}
 
 Aby korzystać z rejestru w CI, należy upewnić się, że zalogowano się do
 rejestru, uruchamiając `tuist registry login` jako część przepływu pracy.
 
-::: info TYLKO INTEGRACJA XCODE
+::: info ONLY XCODE INTEGRATION
 <!-- -->
 Utworzenie nowego wstępnie odblokowanego pęku kluczy jest wymagane tylko w
 przypadku korzystania z integracji pakietów w Xcode.
@@ -37,7 +37,7 @@ Upewnij się, że domyślny keychain został utworzony i odblokowany _przed
 uruchomieniem_ `tuist registry login`.
 
 Dodatkowo należy upewnić się, że ustawiona jest zmienna środowiskowa
-`TUIST_CONFIG_TOKEN`. Można ją utworzyć, postępując zgodnie z dokumentacją
+`TUIST_TOKEN`. Można ją utworzyć postępując zgodnie z dokumentacją
 <LocalizedLink href="/guides/server/authentication#as-a-project">tutaj</LocalizedLink>.
 
 Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:
@@ -59,7 +59,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```

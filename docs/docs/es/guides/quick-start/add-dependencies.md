@@ -89,7 +89,7 @@ A continuación, ejecute `tuist install` para resolver y extraer las dependencia
 mediante el [Gestor de paquetes
 Swift](https://www.swift.org/documentation/package-manager/).
 
-::: info SPM COMO RESOLVEDOR DE DEPENDENCIAS
+::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 El enfoque recomendado por Tuist para las dependencias utiliza el Gestor de
 Paquetes Swift (SPM) sólo para resolver las dependencias. A continuación, Tuist
@@ -98,7 +98,7 @@ configurabilidad y control.
 <!-- -->
 :::
 
-## Visualice el proyecto {#visualize-the-project}
+## Visualizar el proyecto {#visualize-the-project}
 
 Puede visualizar la estructura del proyecto ejecutando:
 

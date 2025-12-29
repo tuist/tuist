@@ -26,7 +26,7 @@ principios que la sustentan.
 <!-- -->
 :::
 
-## Principio básico {#principio básico}
+## Principio básico {#core-principle}
 
 Los desarrolladores deben ser capaces de **construir, probar y probar** sus
 características de forma rápida, independientemente de la aplicación principal,

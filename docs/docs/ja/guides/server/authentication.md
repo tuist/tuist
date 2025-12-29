@@ -5,7 +5,7 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# 認証 {#authentication}
+# 認証{#authentication}
 
 サーバーと対話するために、CLIは[ベアラ認証](https://swagger.io/docs/specification/authentication/bearer-authentication/)を使用してリクエストを認証
 する必要がある。CLIはユーザー認証、アカウント認証、OIDCトークン認証をサポートしている。
@@ -30,13 +30,13 @@ CLI は、サーバへのリクエスト時に自動的に認証情報を検索�
 OpenID Connect
 (OIDC)をサポートするCI環境では、Tuistは長期間のシークレットを管理することなく自動的に認証を行うことができます。サポートされているCI環境で実行すると、CLIは自動的にOIDCトークンプロバイダを検出し、CIが提供するトークンをTuistのアクセストークンと交換する。
 
-### サポートされるCIプロバイダー{#supported-CI-providers}
+### CIプロバイダー{#supported-ci-providers}
 
 - GitHub アクション
 - サークルCI
 - ビットライズ
 
-### OIDC認証の設定 {#setting-up-oidc-authentication}.
+### OIDC認証の設定{#setting-up-oidc-authentication}
 
 1. **リポジトリをTuistに接続する**:
    <LocalizedLink href="/guides/integrations/gitforge/github">GitHub統合ガイド</LocalizedLink>に従って、GitHubリポジトリをTuistプロジェクトに接続します。
@@ -46,12 +46,12 @@ OpenID Connect
 
 プロバイダー固有の設定例については、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integrationガイド</LocalizedLink>を参照してください。
 
-### OIDC トークンのスコープ {#oidc-token-scopes}.
+### OIDCトークンのスコープ{#oidc-token-scopes}
 
 OIDC トークンは`ci` スコープグループに付与され、リポジトリに接続されているすべてのプロジェクトへのアクセスを提供します。`ci`
 スコープに含まれるものの詳細については、[スコープグループ](#scope-groups) を参照してください。
 
-::チップ セキュリティー・ベネフィット
+::: tip SECURITY BENEFITS
 <!-- -->
 OIDC認証は、長期間のトークンよりも安全である：
 - ローテーションや管理に秘密はない
@@ -60,11 +60,11 @@ OIDC認証は、長期間のトークンよりも安全である：
 <!-- -->
 :::
 
-## アカウント・トークン {#account-tokens}
+## アカウント・トークン{#account-tokens}
 
 OIDCをサポートしていないCI環境や、パーミッションのきめ細かな制御が必要な場合は、アカウントトークンを使うことができます。アカウントトークンでは、トークンがアクセスできるスコープやプロジェクトを厳密に指定することができます。
 
-### アカウント・トークンの作成 {#creating-an-account-token}
+### アカウント・トークンの作成{#creating-an-account-token}
 
 ```bash
 tuist account tokens create my-account \
@@ -82,7 +82,7 @@ tuist account tokens create my-account \
 | `--期限切れ`   | オプション。トークンの有効期限。`30d` (日)、`6m` (月)、`1y` (年)のようなフォーマットを使用します。指定しない場合、トークンの有効期限はありません。 |
 | `--プロジェクト` | トークンを特定のプロジェクト・ハンドルに限定します。指定しない場合は、トークンはすべてのプロジェクトにアクセスできます。                         |
 
-### 利用可能なスコープ {#available-scopes}
+### 使用可能なスコープ{#available-scopes}
 
 | スコープ                                   | 説明                     |
 | -------------------------------------- | ---------------------- |
@@ -124,7 +124,7 @@ tuist account tokens create my-account --scopes ci --name ci
 これにより、典型的なCI操作（キャッシュ、プレビュー、バンドル、テスト、ビルド、実行）に必要なすべてのスコープを持つトークンが生成されます。生成されたトークンを
 CI 環境のシークレットとして保存し、`TUIST_TOKEN` 環境変数として設定します。
 
-### アカウント・トークンの管理 {#managing-account-tokens}
+### アカウントトークンの管理{#managing-account-tokens}
 
 アカウントのすべてのトークンを一覧表示する：
 
@@ -138,7 +138,7 @@ tuist account tokens list my-account
 tuist account tokens revoke my-account ci-cache-token
 ```
 
-### アカウントトークンの使用 {#using-account-tokens}
+### アカウントトークンの使用{#using-account-tokens}
 
 アカウント・トークンは環境変数`TUIST_TOKEN` として定義されることが期待される：
 
@@ -146,7 +146,7 @@ tuist account tokens revoke my-account ci-cache-token
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip アカウント・トークンを使うタイミング
+::: tip WHEN TO USE ACCOUNT TOKENS
 <!-- -->
 必要なときにアカウントトークンを使う：
 - OIDCをサポートしないCI環境での認証

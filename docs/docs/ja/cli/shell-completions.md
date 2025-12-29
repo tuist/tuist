@@ -10,14 +10,14 @@
 Tuist****
 をグローバルにインストールしている場合（Homebrew経由など）、BashとZsh用のシェル補完機能をインストールして、コマンドとオプションをオートコンプリートすることができる。
 
-グローバル・インストールとは？
+::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
 グローバルインストールとは、シェルの`$PATH` 環境変数で利用可能なインストールのことです。つまり、ターミナル内のどのディレクトリからでも`tuist`
 を実行できます。これが Homebrew のデフォルトのインストール方法です。
 <!-- -->
 :::
 
-#### Zsh {#zsh}
+#### ジーエスエイチ{#zsh}
 
 oh-my-zsh](https://ohmyz.sh/)がインストールされている場合、自動的にロードされる補完スクリプトのディレクトリ
 -`.oh-my-zsh/completions` が既にあります。新しい補完スクリプトをそのディレクトリの`_tuist`
@@ -44,7 +44,7 @@ compinit
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### バッシュ {#bash}
+#### バッシュ{#bash}
 
 bash-completion](https://github.com/scop/bash-completion)
 がインストールされていれば、新しい補完スクリプトをファイル`/usr/local/etc/bash_completion.d/_tuist`
@@ -61,7 +61,7 @@ bash-completion がない場合、補完スクリプトを直接ソースする�
 source ~/.bash_completions/example.bash
 ```
 
-#### 魚
+#### 魚{#fish}
 
 fish
 shell](https://fishshell.com)を使用する場合は、新しい補完スクリプトを`~/.config/fish/completions/tuist.fish`

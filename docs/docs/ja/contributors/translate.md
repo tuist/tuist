@@ -25,26 +25,25 @@ Tuistが新しい言語をサポートすることが有益だと思われる場
 <!-- -->
 :::
 
-## どのように翻訳するか{#how-to-translate}
+## 翻訳方法 {#how-to-translate}
 
-Weblate](https://weblate.org/en-gb/)のインスタンスが[translate.tuist.dev](https://translate.tuist.dev)で動いています。プロジェクト](https://translate.tuist.dev/engage/tuist/)にアクセスしてアカウントを作成し、翻訳を始めることができます。
+[Weblate](https://weblate.org/en-gb/)のインスタンスが[translate.tuist.dev](https://translate.tuist.dev)で動いています。[プロジェクト](https://translate.tuist.dev/engage/tuist/)にアクセスしてアカウントを作成し、翻訳を始めることができます。
 
 翻訳はGitHubのプルリクエストを使ってソースリポジトリに同期され、メンテナがレビューしてマージする。
 
-::: 警告 対象言語のリソースを変更しないでください。
+::: warning 対象言語のリソースを変更しないでください
 <!-- -->
 Weblateは、ソース言語とターゲット言語をバインドするためにファイルをセグメント化します。ソース言語を変更すると、バインディングが壊れ、リコンシリエーションが予期せぬ結果をもたらすかもしれません。
 <!-- -->
 :::
 
-## ガイドライン
+## ガイドライン {#guidelines}
 
 以下は、私たちが翻訳を行う際のガイドラインです。
 
-### カスタムコンテナとGitHubアラート{#custom-containers-and-github-alerts}
+### カスタムコンテナとGitHubアラート {#custom-containers-and-github-alerts}
 
-カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers)を翻訳する場合、タイトルとコンテンツ**のみを翻訳しますが、アラートのタイプ**
-は翻訳しません。
+[カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers)を翻訳する場合、タイトルとコンテンツのみを翻訳しますが、**アラートのタイプは翻訳しません**。
 
 ```markdown
 <!-- -->
@@ -63,7 +62,7 @@ Weblateは、ソース言語とターゲット言語をバインドするため�
 # Add dependencies {#add-dependencies}
 ```
 
-と訳すべきである（idは訳されていないことに注意）：
+以下のように訳すべきである（idは訳されていないことに注意）：
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

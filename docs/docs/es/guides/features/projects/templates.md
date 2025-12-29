@@ -17,7 +17,7 @@ con Tuist. Estos son algunos escenarios en los que el andamiaje puede ser útil:
   scaffold viper --name MyFeature`.
 - Crear nuevos proyectos: `tuist scaffold feature-project --name Home`
 
-::: info SIN OPINIÓN
+::: info NON-OPINIONATED
 <!-- -->
 Tuist no opina sobre el contenido de tus plantillas, ni para qué las utilizas.
 Sólo se requiere que estén en un directorio específico.
@@ -93,7 +93,7 @@ nombre.
 También puede utilizar `.directory`, que ofrece la posibilidad de copiar
 carpetas enteras en una ruta determinada.
 
-::: tip DESCRIPCIÓN DEL PROYECTO AYUDANTES
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Las plantillas admiten el uso de
 <LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para reutilizar código entre

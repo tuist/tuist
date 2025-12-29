@@ -87,10 +87,5 @@
       align-self: center;
       max-width: 650px;
     }
-
-    @media (min-width: 1024px) {
-      /*padding-right: var(--noora-spacing-14);
-      padding-left: var(--noora-spacing-14);*/
-    }
   }
 }

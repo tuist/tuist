@@ -5,12 +5,12 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# 动态配置 {#dynamic-configuration}
+# 动态配置{#dynamic-configuration}
 
 在某些情况下，您可能需要在生成时动态配置项目。例如，您可能想根据生成项目的环境更改应用程序名称、捆绑标识符或部署目标。Tuist
 支持通过环境变量来实现这一点，这些变量可以从清单文件中访问。
 
-## 通过环境变量进行配置 {#configuration-through-environment-variables}
+## 通过环境变量进行配置{#configuration-through-environment-variables}
 
 Tuist 允许通过可从清单文件访问的环境变量传递配置。例如
 
@@ -24,7 +24,7 @@ TUIST_APP_NAME=MyApp tuist generate
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## 从清单读取环境变量 {#reading-the-environment-variables-from-manifests}
+## 从清单中读取环境变量{#reading-the-environment-variables-from-manifests}
 
 可以使用
 <LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>

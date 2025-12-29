@@ -42,7 +42,7 @@ defmodule TuistWeb.Helpers.DatePicker do
     preset = params[range_key] || default_preset
 
     if preset == "custom" do
-      now = DateTime.utc_now()
+      now = DateTime.truncate(DateTime.utc_now(), :second)
       start_datetime = parse_custom_datetime(params[start_key]) || DateTime.add(now, -default_days, :day)
       end_datetime = parse_custom_datetime(params[end_key]) || now
 
@@ -53,7 +53,7 @@ defmodule TuistWeb.Helpers.DatePicker do
   end
 
   defp period_for_preset(preset) do
-    now = DateTime.utc_now()
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     start_datetime =
       case preset do
@@ -71,7 +71,7 @@ defmodule TuistWeb.Helpers.DatePicker do
 
   defp parse_custom_datetime(datetime_string) when is_binary(datetime_string) do
     case DateTime.from_iso8601(datetime_string) do
-      {:ok, datetime, _offset} -> datetime
+      {:ok, datetime, _offset} -> DateTime.truncate(datetime, :second)
       {:error, _} -> nil
     end
   end

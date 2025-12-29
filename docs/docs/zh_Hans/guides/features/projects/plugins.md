@@ -5,7 +5,7 @@
   "description": "Learn how to create and use plugins in Tuist to extend its functionality."
 }
 ---
-# 插件 {#plugins｝
+# 插件{#plugins}
 
 插件是在多个项目中共享和重用 Tuist 工具的工具。支持以下工件：
 
@@ -24,9 +24,9 @@
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)
 上构建自己的解决方案。
 
-## 插件类型 {#plugin-types}
+## 插件类型{#plugin-types}
 
-### 项目描述辅助插件 {#project-description-helper-plugin}
+### 项目描述辅助插件{#project-description-helper-plugin}
 
 项目描述辅助插件由一个目录表示，该目录包含一个`Plugin.swift` manifest
 文件，其中声明了插件的名称，以及一个`ProjectDescriptionHelpers` 目录，其中包含辅助 Swift 文件。
@@ -47,7 +47,7 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### 资源访问器模板插件 {#resource-accessor-templates-plugin}
+### 资源访问器模板插件{#resource-accessor-templates-plugin}
 
 如果需要共享<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成的资源访问器</LocalizedLink>，可以使用这种类型的插件。插件由一个包含`Plugin.swift`
 manifest 文件（声明插件名称）和`ResourceSynthesizers` 目录（包含资源访问器模板文件）的目录表示。
@@ -91,9 +91,9 @@ let plugin = Plugin(name: "MyPlugin")
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### 任务插件 <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-} 任务插件-徽标-类型警告-文本已废弃
+### 任务插件 <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-}
 
-警告已删除
+::: warning DEPRECATED
 <!-- -->
 任务插件已过时。如果您正在为您的项目寻找自动化解决方案，请查看
 [本博文](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
@@ -114,7 +114,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - 如果将工具命名为`tuist-{xxx}` ，用户可以通过运行`mise install` 来安装它，他们可以直接调用它，也可以通过`tuist xxx`
   运行它。
 
-:: info 项目设计的未来
+::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 我们计划将`ProjectAutomation` 和`XcodeGraph`
 的模型合并为一个单一的向后兼容框架，向用户公开项目图的整体性。此外，我们还将把生成逻辑提取到一个新的层中，即`XcodeGraph` ，您也可以通过自己的
@@ -122,7 +122,7 @@ CLI 使用该层。将其视为构建您自己的 Tuist。
 <!-- -->
 :::
 
-## 使用插件 {#using-plugins}
+## 使用插件{#using-plugins}
 
 要使用插件，必须将其添加到项目的
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
@@ -155,13 +155,13 @@ let tuist = Tuist(
 
 添加插件后，`tuist install` 将从全局缓存目录中获取插件。
 
-信息无版本分辨率
+::: info NO VERSION RESOLUTION
 <!-- -->
 您可能已经注意到，我们不提供插件的版本解析。我们建议使用 Git 标签或 SHA 以确保可重复性。
 <!-- -->
 :::
 
-提示 项目说明 帮助程序 插件
+::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
 使用项目描述帮助插件时，包含帮助程序的模块名称就是插件名称
 ```swift

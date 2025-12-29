@@ -5,7 +5,7 @@
   "description": "Learn how to migrate an Xcode project to a Tuist project."
 }
 ---
-# 迁移 Xcode 项目 {#migrate-an-xcode-project}
+# 迁移 Xcode 项目{#migrate-an-xcode-project}
 
 除非您使用 Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> 创建一个新项目</LocalizedLink>，在这种情况下，您将自动获得所有配置，否则您必须使用 Tuist 的基元来定义您的 Xcode
 项目。这个过程有多繁琐，取决于您的项目有多复杂。
@@ -18,7 +18,7 @@ Tuist，它将确保项目定义的一致性，并保持项目的简洁性。
 
 为了简化这项工作，我们将根据从用户那里收到的反馈意见为您提供一些指导。
 
-## 创建项目脚手架 {#create-project-scaffold}
+## 创建项目脚手架{#create-project-scaffold}
 
 首先，用以下 Tuist 文件为项目创建一个脚手架：
 
@@ -71,23 +71,23 @@ let package = Package(
 `Project.swift` 是定义项目的清单文件，而`Package.swift` 则是定义依赖项的清单文件。`Tuist.swift`
 文件是为项目定义项目范围 Tuist 设置的文件。
 
-提示带有 -TUIST 后缀的项目名称
+::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 为防止与现有 Xcode 项目发生冲突，我们建议在项目名称中添加`-Tuist` 后缀。当您将项目完全迁移到 Tuist 后，就可以去掉后缀。
 <!-- -->
 :::
 
-## 在 CI 中构建并测试 Tuist 项目 {#build and-test-the-tuist-project-in-ci}
+## 在 CI 中构建和测试 Tuist 项目{#build-and-test-the-tuist-project-in-ci}
 
 为确保每次变更的迁移都是有效的，我们建议扩展持续集成，以构建和测试 Tuist 根据清单文件生成的项目：
 
 ```bash
 tuist install
 tuist generate
-tuist build -- ...{xcodebuild flags} # or tuist test
+xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## 将项目构建设置提取到`.xcconfig` 文件中 {#extract-the-project-build-settings-into-xcconfig-files}
+## 将项目构建设置提取到`.xcconfig` 文件中{#extract-the-project-build-settings-into-xcconfig-files}
 
 将项目中的构建设置提取到`.xcconfig` 文件中，使项目更精简、更易于迁移。可以使用以下命令将项目中的构建设置提取到`.xcconfig` 文件中：
 
@@ -120,7 +120,7 @@ let project = Project(
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## 提取软件包依赖关系 {#extract-package-dependencies}
+## 提取软件包依赖关系{#extract-package-dependencies}
 
 将项目的所有依赖项提取到`Tuist/Package.swift` 文件中：
 
@@ -150,7 +150,7 @@ let package = Package(
 )
 ```
 
-提示 产品类型
+::: tip PRODUCT TYPES
 <!-- -->
 您可以将特定软件包的产品类型添加到`PackageSettings` struct 中的`productTypes`
 字典，从而覆盖该类型。默认情况下，Tuist 假定所有软件包都是静态框架。
@@ -158,7 +158,7 @@ let package = Package(
 :::
 
 
-## 确定迁移顺序 {#determine-the-migration-order}
+## 确定迁移顺序{#determine-the-migration-order}
 
 我们建议从依赖程度最高的目标迁移到依赖程度最低的目标。您可以使用以下命令列出项目的目标，按依赖关系的数量排序：
 
@@ -169,11 +169,11 @@ tuist migration list-targets -p Project.xcodeproj
 从列表顶端的目标开始迁移，因为它们是最依赖的目标。
 
 
-## 迁移目标 {#migrate-targets}
+## 迁移目标{#migrate-targets}
 
 逐个迁移目标。我们建议为每个目标提交一个拉取请求，以确保在合并之前对更改进行审核和测试。
 
-### 将目标构建设置提取到`.xcconfig` 文件中 {#extract-the-target-build-settings-into-xcconfig-files}
+### 将目标构建设置提取到`.xcconfig` 文件中{#extract-the-target-build-settings-into-xcconfig-files}
 
 像处理项目构建设置一样，将目标构建设置提取到`.xcconfig`
 文件中，以使目标更精简，更易于迁移。可以使用以下命令将目标机的构建设置提取到`.xcconfig` 文件中：
@@ -182,7 +182,7 @@ tuist migration list-targets -p Project.xcodeproj
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### 在`Project.swift` 文件中定义目标 {#define-the-target-in-the-projectswift-file}
+### 在`Project.swift` 文件中定义目标{#define-the-target-in-the-projectswift-file}
 
 在`Project.targets` 中定义目标：
 
@@ -216,25 +216,26 @@ let project = Project(
 )
 ```
 
-信息 测试目标
+::: info TEST TARGETS
 <!-- -->
 如果目标有关联的测试目标，则应在`Project.swift` 文件中定义该目标，并重复相同的步骤。
 <!-- -->
 :::
 
-### 验证目标迁移 {#validate-the-target-migration}
+### 验证目标迁移{#validate-the-target-migration}
 
-运行`tuist build` 和`tuist test` 以确保项目构建和测试通过。此外，您还可以使用
-[xcdiff](https://github.com/bloomberg/xcdiff) 将生成的 Xcode 项目与现有项目进行比较，以确保更改正确无误。
+运行`tuist generate` ，然后运行`xcodebuild build` 以确保项目构建完成，并运行`tuist test`
+以确保测试通过。此外，您还可以使用 [xcdiff](https://github.com/bloomberg/xcdiff) 将生成的 Xcode
+项目与现有项目进行比较，以确保更改正确无误。
 
-### 重复 {#repeat}
+### 重复{#repeat}
 
-重复上述步骤，直到所有目标都迁移完毕。完成后，我们建议更新您的 CI 和 CD 管道，使用`tuist build` 和`tuist test`
-命令来构建和测试项目，以受益于 Tuist 提供的速度和可靠性。
+重复上述步骤，直到所有目标都迁移完毕。完成后，我们建议更新您的 CI 和 CD 管道，使用`tuist generate`
+来构建和测试项目，然后使用`xcodebuild build` 和`tuist test` 。
 
 ## 故障排除 {#troubleshooting}
 
-### 由于缺少文件而导致编译错误。{#compile-errors-due-to-missing-files} 由于缺少文件而导致编译错误。
+### 由于文件丢失导致编译错误。{#compilation-errors-due-to-missing-files}
 
 如果与您的 Xcode 项目目标相关联的文件没有全部包含在代表目标的文件系统目录中，您可能会得到一个无法编译的项目。请确保使用 Tuist
 生成项目后的文件列表与 Xcode 项目中的文件列表一致，并借此机会将文件结构与目标结构对齐。

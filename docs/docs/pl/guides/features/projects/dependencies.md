@@ -12,7 +12,7 @@ kod, definiować granice i skrócić czas kompilacji. Wiele celów oznacza
 definiowanie zależności między nimi, tworząc graf zależności **** , który może
 obejmować również zależności zewnętrzne.
 
-## Skodyfikowane wykresy XcodeProj {#xcodeproj-codified-graphs}
+## Wykresy zakodowane w XcodeProj {#xcodeprojcodified-graphs}
 
 Ze względu na konstrukcję Xcode i XcodeProj, utrzymanie wykresu zależności może
 być żmudnym i podatnym na błędy zadaniem. Oto kilka przykładów problemów, które
@@ -51,7 +51,7 @@ Zawiłości i szczegóły implementacji są abstrahowane od Ciebie.
 W poniższych sekcjach dowiesz się, jak zadeklarować zależności w swoim
 projekcie.
 
-::: końcówka WALIDACJA GRAFU
+::: tip GRAPH VALIDATION
 <!-- -->
 Tuist waliduje graf podczas generowania projektu, aby upewnić się, że nie ma
 cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół może
@@ -59,7 +59,7 @@ wziąć udział w ewolucji grafu zależności bez obawy o jego uszkodzenie.
 <!-- -->
 :::
 
-## Lokalne zależności {#local-dependencies}
+## Zależności lokalne {#local-dependencies}
 
 Obiekty docelowe mogą zależeć od innych obiektów docelowych w tym samym lub
 różnych projektach, a także od plików binarnych. Podczas tworzenia instancji
@@ -73,7 +73,7 @@ celu `` można przekazać argument `dependencies` z dowolną z poniższych opcji
 - `SDK`: Deklaruje zależność z systemowym SDK.
 - `XCTest`: Deklaruje zależność z XCTest.
 
-::: info WARUNKI ZALEŻNOŚCI
+::: info DEPENDENCY CONDITIONS
 <!-- -->
 Każdy typ zależności akceptuje `warunek` opcję warunkowego łączenia zależności w
 oparciu o platformę. Domyślnie łączy ona zależność dla wszystkich platform
@@ -145,7 +145,7 @@ let package = Package(
 <!-- -->
 :::
 
-:: tip USTAWIENIA PAKIETU
+::: tip PACKAGE SETTINGS
 <!-- -->
 Instancja `PackageSettings` opakowana w dyrektywę kompilatora pozwala
 skonfigurować sposób integracji pakietów. Na przykład w powyższym przykładzie
@@ -224,7 +224,7 @@ let project = Project(
 <!-- -->
 :::
 
-::: info BRAK SCHEMATÓW GENEROWANYCH DLA PAKIETÓW ZEWNĘTRZNYCH
+::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
 Schematy **** nie są automatycznie tworzone dla projektów Swift Package, aby
 zachować czystość listy schematów. Można je utworzyć za pomocą interfejsu
@@ -328,12 +328,12 @@ carthage update
 tuist generate
 ```
 
-::: warning BUDUJ I TESTUJ
+::: warning BUILD AND TEST
 <!-- -->
-Jeśli budujesz i testujesz swój projekt za pomocą `tuist build` i `tuist test`,
-musisz również upewnić się, że zależności rozwiązane przez Carthage są obecne,
-uruchamiając polecenie `carthage update` przed uruchomieniem `tuist build` lub
-`tuist test`.
+Jeśli budujesz i testujesz swój projekt za pomocą `xcodebuild build` i `tuist
+test`, musisz również upewnić się, że zależności rozwiązane przez Carthage są
+obecne, uruchamiając polecenie `carthage update` przed budowaniem lub
+testowaniem.
 <!-- -->
 :::
 
@@ -361,7 +361,7 @@ ponieważ logika fingerprintingu nie uwzględnia zależności Pods.
 <!-- -->
 :::
 
-## Statyczny lub dynamiczny {#static-or-dynamic}
+## Statyczne lub dynamiczne {#static-or-dynamic}
 
 Frameworki i biblioteki mogą być łączone statycznie lub dynamicznie, **wybór,
 który ma znaczący wpływ na takie aspekty jak rozmiar aplikacji i czas
@@ -405,7 +405,7 @@ func productType() -> Product {
 ```
 
 Należy pamiętać, że Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">nie jest domyślnie wygodny poprzez niejawną konfigurację ze względu na jego koszty </LocalizedLink>. Oznacza to, że polegamy na ustawieniu typu linkowania i
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> nie jest domyślnie wygodny poprzez niejawną konfigurację ze względu na jego koszty </LocalizedLink>. Oznacza to, że polegamy na ustawieniu typu linkowania i
 wszelkich dodatkowych ustawień kompilacji, które są czasami wymagane, takich jak
 flaga linkera [`-ObjC`
 ](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -413,7 +413,7 @@ aby zapewnić poprawność wynikowych plików binarnych. W związku z tym nasze
 stanowisko polega na dostarczaniu zasobów, zwykle w postaci dokumentacji, w celu
 podejmowania właściwych decyzji.
 
-::: tip PRZYKŁAD: ARCHITEKTURA KOMPOZYTOWA
+::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
 Pakiet Swift, który integruje wiele projektów, to [The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture).
@@ -473,7 +473,7 @@ sposobie ich tworzenia.
 Oto kilka wskazówek, które mogą być niezbędne do zintegrowania Firebase i innych
 bibliotek Google dla platformy Apple:
 
-#### Upewnij się, że `-ObjC` jest dodany do `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
+#### Upewnij się, że `-ObjC` jest dodane do `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
 Wiele bibliotek Google jest napisanych w Objective-C. Z tego powodu każdy
 zużywający się cel będzie musiał zawierać znacznik `-ObjC` w swoim
@@ -493,7 +493,7 @@ Target.target(
 Więcej szczegółów znajduje się w sekcji [Zależności
 Objective-C](#objective-c-dependencies) powyżej.
 
-#### Ustaw typ produktu dla `FBLPromises` na dynamiczny framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}.
+#### Ustaw typ produktu dla `FBLPromises` na dynamiczny framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
 Niektóre biblioteki Google zależą od `FBLPromises`, innej biblioteki Google.
 Możesz napotkać awarię, która wspomina o `FBLPromises`, wyglądającą mniej więcej
@@ -526,7 +526,7 @@ let package = Package(
 ...
 ```
 
-### Architektura komponowalna {#the-composable-architecture}
+### Architektura kompozytowa {#the-composable-architecture}
 
 Jak opisano
 [tutaj](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
@@ -544,7 +544,7 @@ konfiguracyjne](https://github.com/pointfreeco/swift-sharing/issues/150#issuecom
 Poniższa konfiguracja połączy wszystko dynamicznie - więc aplikacja + cele
 testowe i podglądy SwiftUI działają.
 
-::: końcówka STATYCZNA LUB DYNAMICZNA
+::: tip STATIC OR DYNAMIC
 <!-- -->
 Dynamiczne linkowanie nie zawsze jest zalecane. Więcej szczegółów można znaleźć
 w sekcji [Statyczne lub dynamiczne](#static-or-dynamic). W tym przykładzie
@@ -605,7 +605,7 @@ Zamiast `import Sharing` należy `import SwiftSharing`.
 <!-- -->
 :::
 
-### Przejściowe zależności statyczne przeciekające przez `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### Przejściowe zależności statyczne wyciekają przez `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
 Gdy dynamiczny framework lub biblioteka zależy od statycznych poprzez `import
 StaticSwiftModule`, symbole są zawarte w `.swiftmodule` dynamicznego frameworka

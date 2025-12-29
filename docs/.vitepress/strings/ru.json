@@ -91,7 +91,7 @@
                             "text": "Автозавершения Shell"
                         },
                         "directories": {
-                            "text": "Справочники"
+                            "text": "Директории"
                         }
                     }
                 },
@@ -387,7 +387,7 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Гит формирует",
+                            "text": "Git-сервисы",
                             "items": {
                                 "github": {
                                     "text": "GitHub"
@@ -421,7 +421,7 @@
                             "text": "Аккаунты и проекты"
                         },
                         "authentication": {
-                            "text": "Авторизация"
+                            "text": "Аутентификация"
                         }
                     },
                     "text": "Сервер"

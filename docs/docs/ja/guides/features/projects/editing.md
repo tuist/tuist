@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
 }
 ---
-# 編集
+# 編集{#editing}
 
 変更がXcodeのUIを通して行われる従来のXcodeプロジェクトやSwiftパッケージとは異なり、Tuist管理プロジェクトは、**マニフェストファイル**
 に含まれるSwiftコードで定義されます。もしあなたがSwift Packagesと`Package.swift`
@@ -15,7 +15,7 @@
 を使用することをお勧めします。このワークフローは、すべてのマニフェスト・ファイルを含むXcodeプロジェクトを作成し、それらの編集とコンパイルを可能にします。Xcodeを使用するおかげで、**コード補完、シンタックスハイライト、エラーチェックのすべての利点を得ることができます**
 。
 
-## プロジェクトを編集する {#edit-the-project}
+## プロジェクトの編集{#edit-the-project}
 
 プロジェクトを編集するには、Tuistプロジェクトのディレクトリまたはサブディレクトリで次のコマンドを実行します：
 
@@ -26,7 +26,7 @@ tuist edit
 コマンドは、グローバルディレクトリに Xcode プロジェクトを作成し、Xcode
 で開きます。プロジェクトには、すべてのマニフェストが有効であることを確認するためにビルドできる`Manifests` ディレクトリが含まれています。
 
-::: 情報 地球上で解決された遺物
+::: info GLOB-RESOLVED MANIFESTS
 <!-- -->
 `tuist edit` は、プロジェクトのルート・ディレクトリ（`Tuist.swift`
 ファイルを含むディレクトリ）から`**/{Manifest}.swift`
@@ -34,7 +34,7 @@ tuist edit
 <!-- -->
 :::
 
-### マニフェストファイルの無視 {#ignoring-manifest-files}
+### マニフェストファイルの無視{#ignoring-manifest-files}
 
 あなたのプロジェクトに、実際の Tuist マニフェストではない、マニフェストファイルと同じ名前の Swift ファイル（例:`Project.swift`
 ）がサブディレクトリに含まれている場合、`.tuistignore` ファイルをプロジェクトのルートに作成し、編集プロジェクトから除外することができます。

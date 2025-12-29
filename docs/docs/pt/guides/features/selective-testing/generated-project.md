@@ -9,7 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects">Generated project</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 <!-- -->
 :::
