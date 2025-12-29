@@ -59,7 +59,8 @@ Workspace.swift
     proyectos, espacios de trabajo y entornos. Por ejemplo, se puede utilizar
     para desactivar la generación automática de esquemas, o para definir el
     destino de despliegue de los proyectos.
-  - <LocalizedLink href="/guides/features/projects/manifests#workspace-swift"><bold>Espacio de trabajo.swift:</bold></LocalizedLink> Este manifiesto representa un
+  - <LocalizedLink href="/guides/features/projects/manifests#workspace-swift"><bold>Espacio
+    de trabajo.swift:</bold></LocalizedLink> Este manifiesto representa un
     espacio de trabajo de Xcode. Se utiliza para agrupar otros proyectos y
     también puede añadir archivos y esquemas adicionales.
   - <LocalizedLink href="/guides/features/projects/manifests#project-swift"><bold>Proyecto.swift:</bold></LocalizedLink>
