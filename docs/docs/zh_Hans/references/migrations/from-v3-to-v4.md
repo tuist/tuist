@@ -108,7 +108,7 @@ tuist generate Foo
 <!-- -->
 :::
 
-### [已删除的签名功能](https://github.com/tuist/tuist/pull/5716)。{#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [已删除的签名功能](https://github.com/tuist/tuist/pull/5716)。{#已删除的签名功能httpsgithubcomtuisttuistpull5716}(https://github.com/tuist/tuist/pull/5716)。
 
 社区工具（如 [Fastlane](https://fastlane.tools/) 和 Xcode
 本身）已经解决了签名问题，它们在这方面做得更好。我们认为签名只是 Tuist 的一个延伸目标，最好将重点放在项目的核心功能上。如果您正在使用 Tuist
