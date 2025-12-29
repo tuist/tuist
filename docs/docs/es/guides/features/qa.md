@@ -62,7 +62,8 @@ pueda inspeccionar cómo se produjo exactamente el problema:
 GC](/images/guides/features/qa/qa-timeline.png)
 
 Puede ver todas las ejecuciones de control de calidad que realizamos para
-nuestra <LocalizedLink href="/guides/features/previews#tuist-ios-app">aplicación iOS</LocalizedLink> en nuestro panel público: https://tuist.dev/tuist/tuist/qa
+nuestra <LocalizedLink href="/guides/features/previews#tuist-ios-app">aplicación
+iOS</LocalizedLink> en nuestro panel público: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->

@@ -25,7 +25,8 @@ QA 測試的開銷和維護負擔。
 要開始使用 Tuist QA，您需要
 - 設定從您的 PR CI 工作流程上傳
   <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink>，然後代理就可以使用它來進行測試
-- <LocalizedLink href="/guides/integrations/gitforge/github">與 GitHub 整合</LocalizedLink>，讓您可以直接從 PR 觸發代理程式
+- <LocalizedLink href="/guides/integrations/gitforge/github">與 GitHub
+  整合</LocalizedLink>，讓您可以直接從 PR 觸發代理程式
 
 ## 使用方式{#usage}
 
@@ -43,7 +44,8 @@ feature A` 來觸發 QA 代理：
 ![QA 時間線](/images/guides/features/qa/qa-timeline.png)!
 
 您可以在我們的公開儀表板中看到我們為
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS 應用程式</LocalizedLink>所執行的所有 QA 測試： https://tuist.dev/tuist/tuist/qa
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+應用程式</LocalizedLink>所執行的所有 QA 測試： https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
