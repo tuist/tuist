@@ -23,7 +23,8 @@ Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
 ::: tip
 <!-- -->
 Learn more about Tuist's directory organization and how to configure custom
-directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
+directories in the <LocalizedLink href="/cli/directories">Directories
+documentation</LocalizedLink>.
 <!-- -->
 :::
 
