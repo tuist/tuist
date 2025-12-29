@@ -13,7 +13,7 @@
 
 以下のセクションでは、異なるCIプラットフォームでこれを行う方法の例を示す。
 
-## 例{#examples}
+## 例{#example}
 
 ### GitHub アクション{#github-actions}
 
