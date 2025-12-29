@@ -24,8 +24,8 @@ PostHog 整合是可選的，可透過設定適當的環境變數來啟用。設
 
 | 環境變數                    | 說明                   | 必須  | 預設  | 範例                                                |
 | ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
-| `tuist_posthog_api_key` | 您的 PostHog 專案 API 金鑰 | 沒有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `tuist_posthog_url`     | PostHog API 端點 URL   | 沒有  |     | `https://eu.i.posthog.com`                        |
+| `tuist_posthog_api_key` | 您的 PostHog 專案 API 金鑰 | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `tuist_posthog_url`     | PostHog API 端點 URL   | No  |     | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
