@@ -2,12 +2,12 @@
 {
   "title": "Slack",
   "titleTemplate": ":title | Integrations | Guides | Tuist",
-  "description": "Learn how to integrate Tuist with Slack for automated project reports."
+  "description": "Learn how to integrate Tuist with Slack."
 }
 ---
 # Slack integration {#slack}
 
-Tuist integrates with Slack to deliver automated daily analytics reports directly to your team's channels. Stay informed about your project's build performance, cache efficiency, and bundle sizes without leaving Slack.
+Tuist integrates with Slack to deliver automated daily analytics reports directly to your team's channels. Stay informed about your project's build performance, cache hit rate, or bundle size without leaving Slack.
 
 ## Setup {#setup}
 
@@ -19,7 +19,7 @@ First, connect your Slack workspace to your Tuist account in the `Integrations` 
 
 Click **Connect Slack** to authorize Tuist to post messages to your workspace. This will redirect you to Slack's authorization page where you can approve the connection.
 
-### Configure project reports {#configure-reports}
+### Project reports {#project-reports}
 
 After connecting Slack, configure reports for each project in the project settings:
 
@@ -28,9 +28,7 @@ After connecting Slack, configure reports for each project in the project settin
 You can configure:
 - **Channel**: Select which Slack channel receives the reports
 - **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day in your local timezone
-
-## Daily reports {#daily-reports}
+- **Time**: Set the time of day
 
 Once configured, Tuist sends automated daily reports to your selected Slack channel:
 
