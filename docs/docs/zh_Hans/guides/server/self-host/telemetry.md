@@ -24,8 +24,8 @@ PostHog 集成是可选的，可以通过设置相应的环境变量来启用。
 
 | 环境变量                    | 描述                   | 必需  | 默认值 | 示例                                                |
 | ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | No  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | No  |     | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | 没有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | 没有  |     | `https://eu.i.posthog.com`                        |
 
 ::: info 分析功能启用
 <!-- -->
