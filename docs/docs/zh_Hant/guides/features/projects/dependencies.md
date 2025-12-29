@@ -311,8 +311,10 @@ Libraries](https://developer.apple.com/documentation/xcode/configuring-your-proj
 Swift 預覽等功能變得不可靠。
 
 幸運的是，Tuist 從概念上壓縮了在靜態與動態之間轉換的複雜性，並合成了跨連結類型的標準
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors"> 綑綁存取器</LocalizedLink>。結合
-<LocalizedLink href="/guides/features/projects/dynamic-configuration"> 透過環境變數進行的動態配置</LocalizedLink>，您可以在調用時傳遞連結類型，並在您的manifests中使用該值來設定目標的產品類型。
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">
+綑綁存取器</LocalizedLink>。結合
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">
+透過環境變數進行的動態配置</LocalizedLink>，您可以在調用時傳遞連結類型，並在您的manifests中使用該值來設定目標的產品類型。
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -326,7 +328,8 @@ func productType() -> Product {
 ```
 
 請注意，由於成本的關係，Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience"> 並不會透過隱含設定來預設方便性</LocalizedLink>。這表示我們需要您設定連結類型，以及有時需要的額外建置設定，例如 [`-ObjC` linker
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">
+並不會透過隱含設定來預設方便性</LocalizedLink>。這表示我們需要您設定連結類型，以及有時需要的額外建置設定，例如 [`-ObjC` linker
 flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
 ，以確保產生的二進位檔正確無誤。因此，我們的立場是提供您資源，通常是以文件的形式，讓您做出正確的決定。
 
@@ -496,7 +499,8 @@ let packageSettings = PackageSettings(
 當動態框架或函式庫透過`import StaticSwiftModule`
 依賴於靜態框架或函式庫時，這些符號會被包含在動態框架或函式庫的`.swiftmodule` 中，可能會
 <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">導致編譯失敗</LocalizedLink>。為了避免這種情況，您必須使用
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink> 來匯入靜態相依性：
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink> 來匯入靜態相依性：
 
 ```swift
 internal import StaticModule
