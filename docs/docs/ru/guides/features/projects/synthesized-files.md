@@ -161,9 +161,9 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-You can check out [this
-example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
-to see an example of how to use custom templates to synthesize accessors to
-resources.
+Вы можете посмотреть на [this
+fixture](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates),
+чтобы увидеть пример использования пользовательских шаблонов для синтеза
+аксессоров к ресурсам.
 <!-- -->
 :::
