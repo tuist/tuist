@@ -120,12 +120,13 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
-write` is required for OIDC to work. Alternatively, you can use an
+Antes de usar la autenticación OIDC, necesitas
+<LocalizedLink href="/guides/integrations/gitforge/github">conectar tu
+repositorio GitHub</LocalizedLink> a tu proyecto Tuist. Los permisos `:
+id-token: write` son necesarios para que OIDC funcione. Alternativamente, puedes
+usar un
 <LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> with the `TUIST_TOKEN` secret.
+token</LocalizedLink> con el `TUIST_TOKEN` secreto.
 <!-- -->
 :::
 
@@ -171,10 +172,10 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-Use an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
-Xcode Cloud workflow settings.
+Utilice un
+token<LocalizedLink href="/guides/server/authentication#account-tokens">de
+cuenta</LocalizedLink> estableciendo la variable de entorno `TUIST_TOKEN` en la
+configuración del flujo de trabajo de Xcode Cloud.
 <!-- -->
 :::
 
@@ -235,13 +236,13 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use an
+Antes de usar la autenticación OIDC, necesitas
+<LocalizedLink href="/guides/integrations/gitforge/github">conectar tu
+repositorio GitHub</LocalizedLink> a tu proyecto Tuist. Los tokens OIDC de
+CircleCI incluyen tu repositorio GitHub conectado, que Tuist utiliza para
+autorizar el acceso a tus proyectos. Alternativamente, puedes utilizar un
 <LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+token</LocalizedLink> con la variable de entorno `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -304,13 +305,13 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub
-repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use an
+Antes de usar la autenticación OIDC, necesitas
+<LocalizedLink href="/guides/integrations/gitforge/github">conectar tu
+repositorio GitHub</LocalizedLink> a tu proyecto Tuist. Los tokens OIDC de
+Bitrise incluyen tu repositorio GitHub conectado, que Tuist utiliza para
+autorizar el acceso a tus proyectos. Alternativamente, puedes usar un
 <LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+token</LocalizedLink> con la variable de entorno `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -358,9 +359,9 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Create an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> and add it as a secret environment variable named
+Cree un
+token<LocalizedLink href="/guides/server/authentication#account-tokens">de
+cuenta</LocalizedLink> y añádalo como variable de entorno secreta denominada
 `TUIST_TOKEN`.
 <!-- -->
 :::
