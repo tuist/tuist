@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -55,11 +56,11 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Bir `.ipa` dosyasını paylaşırken, Önizleme bağlantısını kullanarak uygulamayı
-doğrudan mobil cihazdan indirebilirsiniz. ` .ipa` önizleme bağlantıları
-varsayılan olarak _herkese açık_. Gelecekte, bunları özel yapma seçeneğiniz
-olacak, böylece bağlantının alıcısının uygulamayı indirmek için Tuist hesabıyla
-kimlik doğrulaması yapması gerekecektir.
+When sharing an `.ipa` file, you can download the app directly from the mobile
+device using the Preview link. The links to `.ipa` previews are by default
+_private_, meaning the recipient needs to authenticate with their Tuist account
+to download the app. You can change this to public in the project settings if
+you want to share the app with anyone.
 
 `tuist run` ayrıca `latest`, branch name veya belirli bir commit hash gibi bir
 belirticiye dayalı olarak en son önizlemeyi çalıştırmanızı sağlar:
@@ -156,8 +157,10 @@ erişmeyi ve çalıştırmayı kolaylaştırıyor.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">uzak projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformu</LocalizedLink> ile entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">uzak
+projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git
+platformu</LocalizedLink> ile entegre edin.
 <!-- -->
 :::
 
@@ -169,7 +172,8 @@ uygulamasında seçtiğiniz bir cihazda otomatik olarak çalıştıracak yapıya
 bağlantı içeriyor olsaydı ne olurdu?*
 
 Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandıktan
-sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
+sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share
+MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
 bir Önizleme bağlantısı yayınlayacaktır: ![Tuist Önizleme bağlantısı içeren
 GitHub uygulama yorumu](/images/guides/features/github-app-with-preview.png)
 
