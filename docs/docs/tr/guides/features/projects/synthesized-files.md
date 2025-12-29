@@ -160,9 +160,9 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
-dair bir örnek görmek için [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-sayfasına göz atabilirsiniz.
+You can check out [this
+example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
+to see an example of how to use custom templates to synthesize accessors to
+resources.
 <!-- -->
 :::
