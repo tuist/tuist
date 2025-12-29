@@ -24,7 +24,7 @@ Tuist:
 ![Obraz przedstawiający dodawanie połączenia
 projektu](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## Komentarze do żądań ściągnięcia/łączenia {#pull-merge-request-comments}
+## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
 Aplikacja GitHub publikuje raport z uruchomienia Tuist, który zawiera
 podsumowanie PR, w tym linki do najnowszych
