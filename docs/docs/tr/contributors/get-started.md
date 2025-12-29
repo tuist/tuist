@@ -14,7 +14,7 @@ bahsetmeye değer iki fark vardır:
 - **CLI'lar ile etkileşimler terminal üzerinden gerçekleşir.** Kullanıcı,
   istenen görevi yerine getiren Tuist'i çalıştırır ve ardından başarılı bir
   şekilde veya bir durum koduyla geri döner. Yürütme sırasında, standart çıktı
-  ve standart hataya çıktı bilgileri gönderilerek kullanıcı bilgilendirilebilir.
+  ve standart hataya çıktı bilgisi gönderilerek kullanıcı bilgilendirilebilir.
   Herhangi bir hareket ya da grafiksel etkileşim yoktur, sadece kullanıcının
   niyeti vardır.
 
