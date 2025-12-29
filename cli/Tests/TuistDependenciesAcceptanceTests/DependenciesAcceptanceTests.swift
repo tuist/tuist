@@ -17,7 +17,7 @@ struct DependenciesAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixture("generated_app_with_spm_dependencies"),
+        .withFixtureConnectedToCanary("generated_app_with_spm_dependencies"),
         .withTestingSimulator("iPhone 16 Pro")
     )
     func app_with_spm_dependencies() async throws {
