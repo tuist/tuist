@@ -36,7 +36,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
+### <a href="https://brew.sh">自製遊戲{1｝{#recommended-homebrew}
 
 您可以使用 [Homebrew](https://brew.sh) 和
 [我們的公式](https://github.com/tuist/homebrew-tuist) 安裝 Tuist：

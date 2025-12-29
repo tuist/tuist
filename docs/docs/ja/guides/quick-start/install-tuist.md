@@ -10,7 +10,7 @@
 Tuist
 CLIは実行ファイル、動的フレームワーク、およびリソース一式（たとえばテンプレート）から構成される。ソース](https://github.com/tuist/tuist)からTuistを手動でビルドすることもできますが、**、有効なインストールを保証するために以下のインストール方法のいずれかを使用することをお勧めします。**
 
-### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
+### <a href="https://github.com/jdx/mise">ミセ{おすすめミセ｝
 
 ::: info
 <!-- -->
@@ -36,7 +36,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
+### <a href="https://brew.sh">自作ビール</a>｜電子書籍で漫画(マンガ)を読むならコミック.jpおすすめ自家製ビール} {#recommended-homebrew}
 
 [Homebrew](https://brew.sh)と[公式
 fomula](https://github.com/tuist/homebrew-tuist)を使ってTuistをインストールできます：
