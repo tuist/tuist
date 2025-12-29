@@ -35,8 +35,8 @@ kaynakların ve kaynakların sık sık yer değiştirdiği modüler bir projeyle
   süresini artıracaktır.
 - **Çalışma zamanı hatalarına eğilimli**: Kaynaklar adları ve uzantıları
   (dizeler) ile tanımlanır. Bu nedenle, bunlardan herhangi birindeki bir yazım
-  hatası, kaynağa erişmeye çalışırken bir çalışma zamanı hatasına yol açacaktır.
-  Bu ideal değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere yol
+  hatası, kaynağa erişmeye çalışırken çalışma zamanı hatasına yol açacaktır. Bu
+  ideal değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere yol
   açabilir.
 
 Tuist yukarıdaki sorunları **demetlere ve kaynaklara erişmek için** uygulama
@@ -55,7 +55,7 @@ kolaylaştırdığı için bunu öneriyoruz.
 Tuist, `Info.plist` veya Swift'teki yetkilendirmeler gibi dosyaların içeriğini
 bildirmek için arayüzler sağlar. Bu, hedefler ve projeler arasında tutarlılığı
 sağlamak ve derleme zamanında sorunları yakalamak için derleyiciden yararlanmak
-için kullanışlıdır. Ayrıca içeriği modellemek ve hedefler ve projeler arasında
+için kullanışlıdır. İçeriği modellemek ve hedefler ve projeler arasında
 paylaşmak için kendi soyutlamalarınızı da oluşturabilirsiniz.
 
 Projeniz oluşturulduğunda, Tuist bu dosyaların içeriğini sentezleyecek ve
@@ -160,9 +160,9 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-You can check out [this
-example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
-to see an example of how to use custom templates to synthesize accessors to
-resources.
+Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
+dair bir örnek görmek için [bu
+örnek](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)'e
+göz atabilirsiniz.
 <!-- -->
 :::
