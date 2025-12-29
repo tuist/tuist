@@ -31,7 +31,8 @@ Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2), гд
 проектов. ** Однако мы не видим никаких признаков того, что это происходит. На
 самом деле, мы видим прямо противоположное. Они принимают решения, основанные на
 Xcode, например, добиваются удобства с помощью неявных конфигураций, которые
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">, как вы, наверное, знаете,</LocalizedLink> являются источником сложностей при
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">, как вы,
+наверное, знаете,</LocalizedLink> являются источником сложностей при
 масштабировании. Мы считаем, что Apple следовало бы вернуться к основополагающим
 принципам и пересмотреть некоторые решения, которые имели смысл для менеджера
 зависимостей, но не для менеджера проектов, например, использование
@@ -93,12 +94,14 @@ let tuist = Tuist()
 Файл `Tuist.swift` содержит конфигурацию вашего проекта, а путь к нему служит
 ссылкой для определения корня проекта. Подробнее о структуре проектов Tuist
 можно узнать в документе
-<LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink>.
+<LocalizedLink href="/guides/features/projects/directory-structure">directory
+structure</LocalizedLink>.
 
 ## Редактирование проекта {#editing-the-project}
 
 Вы можете использовать команду
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> для редактирования проекта в Xcode. Эта команда
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> для редактирования проекта в Xcode. Эта команда
 сгенерирует проект Xcode, который можно открыть и начать с ним работу.
 
 ```bash
