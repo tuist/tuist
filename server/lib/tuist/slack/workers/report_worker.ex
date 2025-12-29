@@ -67,7 +67,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   defp send_report(project) do
     slack_installation = project.account.slack_installation
 
-    if slack_installation do
+    if slack_installation && project.slack_channel_id do
       last_report_at = get_last_report_time(project.id)
       blocks = Reports.report(project, last_report_at: last_report_at)
       SlackClient.post_message(slack_installation.access_token, project.slack_channel_id, blocks)

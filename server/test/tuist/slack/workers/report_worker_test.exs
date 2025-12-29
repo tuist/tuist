@@ -33,16 +33,20 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       stub(DateTime, :utc_now, fn -> now end)
 
-      stub(Tuist.CommandEvents, :run_average_duration, fn _project_id, _start, _end, _opts ->
-        1000
+      stub(Tuist.Runs.Analytics, :build_duration_analytics, fn _project_id, _opts ->
+        %{total_average_duration: 1000, trend: nil}
       end)
 
-      stub(Tuist.CommandEvents, :cache_hit_rate, fn _project_id, _start, _end, _opts ->
-        %{cacheable_targets_count: 100, local_cache_hits_count: 40, remote_cache_hits_count: 40}
+      stub(Tuist.Runs.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
+        %{total_average_duration: 500, trend: nil}
       end)
 
-      stub(Tuist.CommandEvents, :selective_testing_hit_rate, fn _project_id, _start, _end, _opts ->
-        nil
+      stub(Tuist.Cache.Analytics, :cache_hit_rate_analytics, fn _opts ->
+        %{cache_hit_rate: 0.8, trend: nil}
+      end)
+
+      stub(Tuist.Runs.Analytics, :selective_testing_analytics, fn _opts ->
+        %{hit_rate: 0, trend: nil}
       end)
 
       stub(Tuist.Bundles, :last_project_bundle, fn _project, _opts ->
