@@ -12,20 +12,20 @@
       </div>
       <.link
         data-part="main"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(Blog.get_entry_slug(@highlighted_post))}
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_slug(@highlighted_post))}
       >
-        <img data-part="image" src={Blog.get_entry_image_url(@highlighted_post)} />
+        <img data-part="image" src={Content.get_entry_image_url(@highlighted_post)} />
         <div data-part="content">
           <h2 data-part="title">
-            {Blog.get_entry_title(@highlighted_post)}
+            {Content.get_entry_title(@highlighted_post)}
           </h2>
-          <p data-part="excerpt">{Blog.get_entry_excerpt(@highlighted_post)}</p>
+          <p data-part="excerpt">{Content.get_entry_excerpt(@highlighted_post)}</p>
           <div data-part="footer">
             <div data-part="metadata">
-              <div data-part="author">{Blog.get_entry_author_name(@highlighted_post)}</div>
+              <div data-part="author">{Content.get_entry_author_name(@highlighted_post)}</div>
               <div>•</div>
               <div data-part="date">
-                {Timex.format!(Blog.get_entry_date(@highlighted_post), "{Mfull} {D}, {YYYY}")}
+                {Timex.format!(Content.get_entry_date(@highlighted_post), "{Mfull} {D}, {YYYY}")}
               </div>
             </div>
             <.arrow_right data-part="icon" />
@@ -76,22 +76,22 @@
       <.link
         :for={post <- @filtered_posts}
         data-part="post"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(Blog.get_entry_slug(post))}
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_slug(post))}
       >
-        <img data-part="image" src={Blog.get_entry_image_url(post)} />
+        <img data-part="image" src={Content.get_entry_image_url(post)} />
         <div data-part="content">
           <header data-part="header">
             <div data-part="metadata">
-              <div data-part="author">{Blog.get_entry_author_name(post)}</div>
+              <div data-part="author">{Content.get_entry_author_name(post)}</div>
               <div>•</div>
               <div data-part="date">
-                {Timex.format!(Blog.get_entry_date(post), "{Mfull} {D}, {YYYY}")}
+                {Timex.format!(Content.get_entry_date(post), "{Mfull} {D}, {YYYY}")}
               </div>
             </div>
             <.arrow_right />
           </header>
-          <h3 data-part="title">{Blog.get_entry_title(post)}</h3>
-          <p data-part="excerpt">{Blog.get_entry_excerpt(post)}</p>
+          <h3 data-part="title">{Content.get_entry_title(post)}</h3>
+          <p data-part="excerpt">{Content.get_entry_excerpt(post)}</p>
         </div>
       </.link>
     </section>

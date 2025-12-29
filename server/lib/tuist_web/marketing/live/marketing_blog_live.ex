@@ -6,18 +6,19 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Content
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
   @posts_per_page 9
 
   def mount(_params, _session, socket) do
-    all_entries = Blog.get_entries()
+    all_entries = Content.get_entries()
     structured_posts = Blog.get_posts()
 
     socket =
       socket
-      |> assign(:categories, Blog.get_entry_categories())
+      |> assign(:categories, Content.get_entry_categories())
       |> assign(:search_query, "")
       |> assign(:selected_category, nil)
       |> assign(:current_page, 1)
@@ -35,7 +36,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   end
 
   def handle_params(params, _url, socket) do
-    all_entries = Blog.get_entries()
+    all_entries = Content.get_entries()
     search_query = Map.get(params, "search", "")
     category = Map.get(params, "category")
     page = params |> Map.get("page", "1") |> String.to_integer()
@@ -54,9 +55,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         query_lower = String.downcase(search_query)
 
         Enum.filter(all_entries, fn entry ->
-          entry_title = entry |> Blog.get_entry_title() |> String.downcase()
-          entry_excerpt = entry |> Blog.get_entry_excerpt() |> String.downcase()
-          entry_body = entry |> Blog.get_entry_body() |> String.downcase()
+          entry_title = entry |> Content.get_entry_title() |> String.downcase()
+          entry_excerpt = entry |> Content.get_entry_excerpt() |> String.downcase()
+          entry_body = entry |> Content.get_entry_body() |> String.downcase()
 
           String.contains?(entry_title, query_lower) ||
             String.contains?(entry_excerpt, query_lower) ||
@@ -69,12 +70,12 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       if is_nil(category) or category == "" do
         filtered_posts
       else
-        Enum.filter(filtered_posts, &(Blog.get_entry_category(&1) == category))
+        Enum.filter(filtered_posts, &(Content.get_entry_category(&1) == category))
       end
 
     filtered_posts =
       Enum.reject(filtered_posts, fn post ->
-        Blog.get_entry_slug(post) == Blog.get_entry_slug(highlighted_post)
+        Content.get_entry_slug(post) == Content.get_entry_slug(highlighted_post)
       end)
 
     # Calculate pagination
