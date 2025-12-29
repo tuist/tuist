@@ -93,13 +93,12 @@ let tuist = Tuist(
 
 要在 CI 环境中启用缓存，需要运行与本地环境相同的命令：`tuist setup cache` 。
 
-For authentication, you can use either
+要进行身份验证，可以使用
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-authentication</LocalizedLink> (recommended for supported CI providers) or an
-<LocalizedLink href="/guides/server/authentication#account-tokens">account
-token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
+身份验证</LocalizedLink>（建议使用受支持的 CI 提供商），或通过`TUIST_TOKEN` 环境变量使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">账户令牌</LocalizedLink>。
 
-An example workflow for GitHub Actions using OIDC authentication:
+使用 OIDC 身份验证的 GitHub 操作工作流程示例：
 ```yaml
 name: Build
 
@@ -118,8 +117,5 @@ jobs:
       - # Your build steps
 ```
 
-See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for more examples, including token-based
-authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
-Codemagic.
+有关更多示例，包括基于令牌的身份验证和其他 CI 平台（如 Xcode Cloud、CircleCI、Bitrise 和
+Codemagic），请参阅<LocalizedLink href="/guides/integrations/continuous-integration">持续集成指南</LocalizedLink>。
