@@ -14,14 +14,16 @@ Tuist는 프로젝트를 위한 DSL로 `Package.swift` 사용을 지원하며 �
 <!-- -->
 이 기능의 목적은 개발자가 Swift Package에 Tuist를 도입했을 때의 영향을 쉽게 파악할 수 있도록 하는 것입니다. 따라서 Swift
 Package Manager의 모든 기능을 제공할 계획은 없으며,
-<LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>와 같은 Tuist의 고유한 기능도 제공할 계획이 없습니다.
+<LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명
+도우미</LocalizedLink>와 같은 Tuist의 고유한 기능도 제공할 계획이 없습니다.
 <!-- -->
 :::
 
 ::: info 최상위 폴더
 <!-- -->
 Tuist 명령어는 `Tuist`나 `.git` 디렉토리로 루트가 식별되는 특정
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">디렉토리 구조</LocalizedLink>를 요구합니다.
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">디렉토리
+구조</LocalizedLink>를 요구합니다.
 <!-- -->
 :::
 

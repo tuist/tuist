@@ -16,7 +16,8 @@ dönüştürür.
 Bu özelliğin amacı, geliştiricilerin Swift paketi içinde Tuist'i benimsemenin
 etkisini değerlendirmeleri için kolay bir yol sağlamaktır. Bu nedenle, Swift
 paketi Paket Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
 getirmeyi planlamıyoruz.
 <!-- -->
 :::
@@ -25,7 +26,8 @@ getirmeyi planlamıyoruz.
 <!-- -->
 Tuist komutları, kökü bir `Tuist` veya bir `.git` dizini ile tanımlanan belirli
 bir
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</LocalizedLink> bekler.
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin
+yapısı</LocalizedLink> bekler.
 <!-- -->
 :::
 
