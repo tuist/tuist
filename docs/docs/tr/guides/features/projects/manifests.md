@@ -90,9 +90,9 @@ Sıklıkla gündeme gelen bir soru, bir çalışma alanında tek bir proje mi yo
 birden fazla proje mi kullanılacağıdır. Tek proje kurulumunun sık sık Git
 çakışmalarına yol açacağı Tuist'in olmadığı bir dünyada, çalışma alanlarının
 kullanımı teşvik edilir. Ancak, Tuist tarafından oluşturulan Xcode projelerinin
-Git deposuna dahil edilmesini önermediğimiz için, Git çakışmaları bir sorun
-değildir. Bu nedenle, bir çalışma alanında tek bir proje veya birden fazla proje
-kullanma kararı size kalmıştır.
+Git deposuna dahil edilmesini önermediğimiz için Git çakışmaları bir sorun
+teşkil etmemektedir. Bu nedenle, bir çalışma alanında tek bir proje veya birden
+fazla proje kullanma kararı size kalmıştır.
 
 Tuist projesinde, soğuk üretim süresi daha hızlı olduğu için (derlenecek daha az
 manifesto dosyası) ve bir kapsülleme birimi olarak
