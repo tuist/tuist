@@ -56,11 +56,12 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile
-device using the Preview link. The links to `.ipa` previews are by default
-_private_, meaning the recipient needs to authenticate with their Tuist account
-to download the app. You can change this to public in the project settings if
-you want to share the app with anyone.
+Bir `.ipa` dosyasını paylaşırken, Önizleme bağlantısını kullanarak uygulamayı
+doğrudan mobil cihazdan indirebilirsiniz. ` .ipa` önizlemelerinin bağlantıları
+varsayılan olarak _private_ şeklindedir, yani alıcının uygulamayı indirmek için
+Tuist hesabıyla kimlik doğrulaması yapması gerekir. Uygulamayı herkesle
+paylaşmak istiyorsanız proje ayarlarında bunu herkese açık olarak
+değiştirebilirsiniz.
 
 `tuist run` ayrıca `latest`, branch name veya belirli bir commit hash gibi bir
 belirticiye dayalı olarak en son önizlemeyi çalıştırmanızı sağlar:
@@ -160,13 +161,13 @@ Otomatik çekme/birleştirme isteği yorumları almak için
 <LocalizedLink href="/guides/server/accounts-and-projects">uzak
 projenizi</LocalizedLink> bir
 <LocalizedLink href="/guides/server/authentication">Git
-platformu</LocalizedLink> ile entegre edin.
+platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 
 Yeni işlevlerin test edilmesi, her kod incelemesinin bir parçası olmalıdır.
-Ancak bir uygulamayı yerel olarak derlemek zorunda kalmak gereksiz sürtüşmeler
-yaratır ve genellikle geliştiricilerin cihazlarındaki işlevselliği test etmeyi
+Ancak bir uygulamayı yerel olarak derlemek zorunda kalmak gereksiz sürtüşmelere
+yol açarak geliştiricilerin işlevselliği kendi cihazlarında test etmeyi
 atlamasına neden olur. Ancak *her çekme isteği, uygulamayı Tuist macOS
 uygulamasında seçtiğiniz bir cihazda otomatik olarak çalıştıracak yapıya bir
 bağlantı içeriyor olsaydı ne olurdu?*
