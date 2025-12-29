@@ -177,7 +177,7 @@ export TUIST_TOKEN=your-account-token
 İhtiyacınız olduğunda hesap jetonlarını kullanın:
 - OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
 - Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
-- Bir hesap içinde birden fazla projeye erişebilen bir token
+- Bir hesap içindeki birden fazla projeye erişebilen bir belirteç
 - Otomatik olarak sona eren zaman sınırlı tokenlar
 <!-- -->
 :::
