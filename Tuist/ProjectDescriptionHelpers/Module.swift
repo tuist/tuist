@@ -153,8 +153,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
-                    .external(name: "FileSystemTesting"),
-                    .external(name: "XcodeProj"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -672,7 +670,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .ci:
                 [
-                    .target(name: Module.support.targetName)
+                    .target(name: Module.support.targetName),
                 ]
             case .xcodeProjectOrWorkspacePathLocator:
                 [
@@ -709,7 +707,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .launchctl:
                 [
-                    .external(name: "Command")
+                    .external(name: "Command"),
                 ]
             case .oidc:
                 [
