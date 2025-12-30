@@ -11,6 +11,7 @@ defmodule Cache.Application do
 
     Cache.Telemetry.attach()
     Oban.Telemetry.attach_default_logger()
+    attach_appsignal_error_filter()
 
     children = [
       Cache.PromEx,
@@ -36,6 +37,13 @@ defmodule Cache.Application do
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
+  end
+
+  defp attach_appsignal_error_filter do
+    :logger.add_primary_filter(
+      :appsignal_error_filter,
+      {&Cache.Appsignal.ErrorFilter.filter/2, []}
+    )
   end
 
   @impl true
