@@ -7,6 +7,8 @@
 @import "css/routes/about.css";
 @import "css/routes/blog.css";
 @import "css/routes/blog-post.css";
+@import "css/routes/case-studies.css";
+@import "css/routes/case-study.css";
 @import "css/routes/changelog.css";
 @import "css/routes/pricing.css";
 @import "css/routes/newsletter.css";
@@ -47,4 +49,17 @@ h3,
 p {
   margin-block-start: 0;
   margin-block-end: 0;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
 }

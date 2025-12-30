@@ -234,7 +234,7 @@ defmodule Tuist.Bundles do
       if is_nil(inserted_before) do
         query
       else
-        where(query, [b], b.inserted_at < ^DateTime.new!(inserted_before, ~T[00:00:00]))
+        where(query, [b], b.inserted_at < ^inserted_before)
       end
 
     git_branch = Keyword.get(opts, :git_branch)
@@ -268,9 +268,9 @@ defmodule Tuist.Bundles do
   end
 
   def project_bundle_install_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     # Group bundles by date
     bundle_install_sizes =
       project
@@ -293,7 +293,7 @@ defmodule Tuist.Bundles do
       |> Map.new(fn %{date: date, install_size: install_size} -> {date, install_size} end)
 
     date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
       average = Map.get(bundle_install_sizes, date)
 
@@ -319,9 +319,9 @@ defmodule Tuist.Bundles do
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     # Group bundles by date
     bundle_download_sizes =
       project
@@ -344,7 +344,7 @@ defmodule Tuist.Bundles do
       |> Map.new(fn %{date: date, download_size: download_size} -> {date, download_size} end)
 
     date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
       average = Map.get(bundle_download_sizes, date)
 
@@ -361,13 +361,12 @@ defmodule Tuist.Bundles do
   end
 
   defp project_bundles_by_date(%Project{} = project, opts) do
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
 
-    # Get all bundles for the project with date truncated to day
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
@@ -375,38 +374,56 @@ defmodule Tuist.Bundles do
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
       |> select([b], %{
         id: b.id,
-        date: fragment("DATE(?) as date", b.inserted_at),
+        inserted_at: b.inserted_at,
         install_size: b.install_size,
-        download_size: b.download_size,
-        inserted_at: b.inserted_at
+        download_size: b.download_size
       })
 
     query
     |> Repo.all()
     |> Enum.map(fn bundle ->
-      case date_period do
-        :day -> bundle
-        :month -> Map.put(bundle, :date, Timex.beginning_of_month(bundle.date))
-      end
+      date =
+        case date_period do
+          :hour -> bundle.inserted_at |> DateTime.truncate(:second) |> truncate_to_hour()
+          :day -> DateTime.to_date(bundle.inserted_at)
+          :month -> bundle.inserted_at |> DateTime.to_date() |> Timex.beginning_of_month()
+        end
+
+      Map.put(bundle, :date, date)
     end)
     |> Enum.group_by(fn bundle -> bundle.date end)
   end
 
-  defp date_period(opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
-    days_delta = Date.diff(end_date, start_date)
+  defp truncate_to_hour(%DateTime{} = dt) do
+    %{dt | minute: 0, second: 0, microsecond: {0, 0}}
+  end
 
-    if days_delta >= 60 do
-      :month
-    else
-      :day
+  defp date_period(opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
     end
   end
 
+  defp date_range_for_date_period(:hour, opts) do
+    start_datetime = DateTime.truncate(Keyword.get(opts, :start_datetime), :second)
+    end_datetime = DateTime.truncate(Keyword.get(opts, :end_datetime), :second)
+
+    start_datetime
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
+  end
+
   defp date_range_for_date_period(date_period, opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
 
     start_date
     |> Date.range(end_date)

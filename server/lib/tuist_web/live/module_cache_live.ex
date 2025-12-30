@@ -10,6 +10,7 @@ defmodule TuistWeb.ModuleCacheLive do
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -30,9 +31,9 @@ defmodule TuistWeb.ModuleCacheLive do
         "?" <>
           URI.encode_query(
             Map.take(params, [
-              "analytics_selected_widget",
+              "analytics-selected-widget",
               "analytics-environment",
-              "analytics_date_range",
+              "analytics-date-range",
               "hit-rate-type"
             ])
           )
@@ -57,7 +58,7 @@ defmodule TuistWeb.ModuleCacheLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/module-cache?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+          "/#{selected_account.name}/#{selected_project.name}/module-cache?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
         replace: true
       )
 
@@ -80,6 +81,24 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/module-cache?#{query_params}")}
+  end
+
   def handle_info({:command_event_created, _event}, socket) do
     {:noreply,
      socket
@@ -93,14 +112,14 @@ defmodule TuistWeb.ModuleCacheLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    date_range = date_range(params)
-    start_date = start_date(date_range)
-    end_date = Date.utc_today()
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
     opts = [
       project_id: project.id,
-      start_date: start_date,
-      end_date: end_date
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
     ]
 
     opts =
@@ -114,7 +133,7 @@ defmodule TuistWeb.ModuleCacheLive do
     [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
       combined_module_cache_analytics(project.id, opts)
 
-    analytics_selected_widget = analytics_selected_widget(params)
+    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
 
     analytics_chart_data =
       case analytics_selected_widget do
@@ -144,8 +163,9 @@ defmodule TuistWeb.ModuleCacheLive do
       end
 
     socket
-    |> assign(:analytics_date_range, date_range)
-    |> assign(:analytics_trend_label, analytics_trend_label(date_range))
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:hit_rate_analytics, hit_rate_analytics)
@@ -223,33 +243,11 @@ defmodule TuistWeb.ModuleCacheLive do
     end
   end
 
-  defp start_date("last_12_months"), do: Date.add(Date.utc_today(), -365)
-  defp start_date("last_30_days"), do: Date.add(Date.utc_today(), -30)
-  defp start_date("last_7_days"), do: Date.add(Date.utc_today(), -7)
-
-  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_cache", "since last week")
-  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_cache", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
-
-  defp date_range(params) do
-    analytics_date_range = params["analytics_date_range"]
-
-    if is_nil(analytics_date_range) do
-      "last_30_days"
-    else
-      analytics_date_range
-    end
-  end
-
-  defp analytics_selected_widget(params) do
-    analytics_selected_widget = params["analytics_selected_widget"]
-
-    if is_nil(analytics_selected_widget) do
-      "cache_hit_rate"
-    else
-      analytics_selected_widget
-    end
-  end
 
   defp environment_label("any"), do: dgettext("dashboard_cache", "Any")
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")

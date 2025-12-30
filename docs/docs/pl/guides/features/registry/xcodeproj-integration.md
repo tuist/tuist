@@ -5,13 +5,13 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
+# Wygenerowany projekt z integracją pakietów opartą na XcodeProj {#generated-project-with-xcodeproj-based-integration}
 
-When using the
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based
-integration</LocalizedLink>, you can use the ``--replace-scm-with-registry``
-flag to resolve dependencies from the registry if they are available. Add it to
-the `installOptions` in your `Tuist.swift` file:
+Podczas korzystania z integracji opartej na
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj</LocalizedLink>
+można użyć flagi ``--replace-scm-with-registry``, aby rozwiązać zależności z
+rejestru, jeśli są one dostępne. Dodaj ją do pola `installOptions` w pliku
+`Tuist.swift`:
 ```swift
 import ProjectDescription
 
@@ -23,12 +23,12 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve
-dependencies, you will need to update `dependencies` in your
-`Tuist/Package.swift` file to use the registry identifier instead of a URL. The
-registry identifier is always in the form of `{organization}.{repository}`. For
-example, to use the registry for the `swift-composable-architecture` package, do
-the following:
+Jeśli chcesz upewnić się, że rejestr jest używany za każdym razem, gdy
+rozwiązujesz zależności, musisz zaktualizować zależności `` w pliku
+`Tuist/Package.swift`, aby używać identyfikatora rejestru zamiast adresu URL.
+Identyfikator rejestru ma zawsze postać `{organization}.{repository}`. Na
+przykład, aby użyć rejestru dla pakietu `swift-composable-architecture`, wykonaj
+następujące czynności:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")

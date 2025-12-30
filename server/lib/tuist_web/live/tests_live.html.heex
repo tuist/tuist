@@ -9,7 +9,7 @@
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_tests", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
           data-selected={@analytics_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -17,7 +17,7 @@
         <.dropdown_item
           value="local"
           label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
           data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -25,29 +25,63 @@
         <.dropdown_item
           value="ci"
           label={dgettext("dashboard_tests", "CI")}
-          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_tests", "7 days")}
-          data-selected={@analytics_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_tests", "30 days")}
-          data-selected={@analytics_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_tests", "12 months")}
-          data-selected={@analytics_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="tests-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "tests-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "tests-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <div data-part="widgets">
       <.widget
@@ -200,9 +234,12 @@
                 formatter: "fn:formatMilliseconds"
               }
             },
-            tooltip: %{
-              valueFormat: "fn:formatMilliseconds"
-            }
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatMilliseconds"}
+              end
           }
         }
         series={[
@@ -299,7 +336,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -357,7 +400,13 @@
             },
             legend: %{
               show: false
-            }
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
           }
         }
         series={[
@@ -396,7 +445,7 @@
   >
     <:actions>
       <.dropdown
-        id="selective-testing-environment-dropdown"
+        id="selective_testing_environment-dropdown"
         label={@selective_testing_environment_label}
         secondary_text={dgettext("dashboard_tests", "Environment:")}
       >
@@ -425,23 +474,57 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.button_group size="large">
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "selective_testing_date_range", "last_7_days")}"}
-          label={dgettext("dashboard_tests", "7 days")}
-          data-selected={@selective_testing_date_range == "last_7_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "selective_testing_date_range", "last_30_days")}"}
-          label={dgettext("dashboard_tests", "30 days")}
-          data-selected={@selective_testing_date_range == "last_30_days"}
-        />
-        <.button_group_item
-          patch={"?#{Query.put(@uri.query, "selective_testing_date_range", "last_12_months")}"}
-          label={dgettext("dashboard_tests", "12 months")}
-          data-selected={@selective_testing_date_range == "last_12_months"}
-        />
-      </.button_group>
+      <.date_picker
+        id="selective-testing-date-range-picker"
+        name="selective-testing-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@selective_testing_preset}
+        period={@selective_testing_period}
+        on_period_change="selective_testing_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "selective-testing-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "selective-testing-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <.card_section
       :if={@selective_testing_analytics.hit_rate != 0.0}
@@ -510,9 +593,12 @@
               },
               axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
             },
-            tooltip: %{
-              valueFormat: "{value}%"
-            }
+            tooltip:
+              if @selective_testing_preset == "last-24-hours" do
+                %{valueFormat: "{value}%", dateFormat: "hour"}
+              else
+                %{valueFormat: "{value}%"}
+              end
           }
         }
         series={[

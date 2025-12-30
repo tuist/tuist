@@ -28,7 +28,6 @@ env:
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
 
 defaults:
   run:
@@ -47,10 +46,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -110,10 +110,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -262,10 +263,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -294,12 +296,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -323,12 +326,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -353,10 +357,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -399,12 +404,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -427,16 +433,17 @@ jobs:
         with:
           submodules: false
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -543,10 +550,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache

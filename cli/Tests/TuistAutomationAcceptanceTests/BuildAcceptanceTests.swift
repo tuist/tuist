@@ -9,7 +9,7 @@ import XCTest
 
 struct BuildAcceptanceTests {
     @Test(
-        .withFixture("multiplatform_app_with_extension"),
+        .withFixture("generated_multiplatform_app_with_extension"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func multiplatform_app_with_extension() async throws {
@@ -34,7 +34,7 @@ struct BuildAcceptanceTests {
     }
 
     @Test(
-        .withFixture("ios_app_with_framework_buildable_folders_and_xcassets"),
+        .withFixture("generated_ios_app_with_framework_buildable_folders_and_xcassets"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func ios_app_with_framework_buildable_folders_and_xcassets() async throws {
@@ -57,7 +57,7 @@ struct BuildAcceptanceTests {
     }
 
     @Test(
-        .withFixture("app_with_buildable_folders"),
+        .withFixture("generated_app_with_buildable_folders"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func app_with_buildable_folders() async throws {
@@ -163,7 +163,7 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
     func test_with_previews() async throws {
-        try await setUpFixture(.appWithPreviews)
+        try await setUpFixture("generated_app_with_previews")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -172,7 +172,7 @@ final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
     func test_with_framework_and_tests() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture("generated_app_with_framework_and_tests")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App")
@@ -196,7 +196,7 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
 
 final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_and_build_to_custom_directory() async throws {
-        try await setUpFixture(.iosAppWithCustomConfiguration)
+        try await setUpFixture("generated_ios_app_with_custom_configuration")
         try await run(GenerateCommand.self)
         try await run(
             BuildCommand.self,
@@ -237,7 +237,7 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
-        try await setUpFixture(.frameworkWithSwiftMacro)
+        try await setUpFixture("generated_framework_with_swift_macro")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
     }
@@ -245,7 +245,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
-        try await setUpFixture(.frameworkWithNativeSwiftMacro)
+        try await setUpFixture("generated_framework_with_native_swift_macro")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework", "--platform", "macos")
@@ -255,7 +255,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
 
 final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformAppWithSdk)
+        try await setUpFixture("generated_multiplatform_app_with_sdk")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
@@ -265,7 +265,7 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
 
 final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
+        try await setUpFixture("generated_multiplatform_µFeature_unit_tests_with_explicit_dependencies")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
@@ -275,7 +275,7 @@ final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDepend
 
 final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
+        try await setUpFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
@@ -284,7 +284,7 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
 
 final class BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture("ios_app_with_cplusplus_interoperability")
+        try await setUpFixture("generated_ios_app_with_cplusplus_interoperability")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
@@ -293,7 +293,7 @@ final class BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability: TuistAccepta
 
 final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_build_command() async throws {
@@ -319,7 +319,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_test_command() async throws {
@@ -345,7 +345,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_build_for_testing_command() async throws {
@@ -371,7 +371,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_test_without_building_command() async throws {
@@ -414,7 +414,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_archive_command() async throws {
@@ -440,7 +440,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     @Test(
-        .withFixture("ios_app_with_tests"),
+        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func xcodebuild_unordered_build_command() async throws {

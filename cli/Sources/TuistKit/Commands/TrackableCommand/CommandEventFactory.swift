@@ -58,7 +58,8 @@ public final class CommandEventFactory {
             resultBundlePath: info.resultBundlePath,
             ranAt: info.ranAt,
             buildRunId: info.buildRunId,
-            testRunId: info.testRunId
+            testRunId: info.testRunId,
+            cacheEndpoint: info.cacheEndpoint
         )
         return commandEvent
     }

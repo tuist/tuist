@@ -5,21 +5,19 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# 收集见解{#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those
-capabilities is gathering insights about your project and builds. All you need
-is to have an account with a project in the server.
+Tuist 可以与服务器集成，以扩展其功能。其中一项功能就是收集有关项目和构建的信息。您只需在服务器上拥有一个项目账户。
 
-First of all, you'll need to authenticate by running:
+首先，您需要通过运行进行身份验证：
 
 ```bash
 tuist auth login
 ```
 
-## Create a project {#create-a-project}
+## 创建项目{#create-a-project}
 
-You can then create a project by running:
+然后运行
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,13 +25,11 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+复制`my-handle/MyApp` ，它代表项目的完整句柄。
 
-## Connect projects {#connect-projects}
+## 连接项目{#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your
-local project. Run `tuist edit` and edit the `Tuist.swift` file to include the
-full handle of the project:
+在服务器上创建项目后，必须将其连接到本地项目。运行`tuist edit` 并编辑`Tuist.swift` 文件，以包含项目的完整句柄：
 
 ```swift
 import ProjectDescription
@@ -41,21 +37,15 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run
-`tuist test` to run the tests reporting the results to the server.
+瞧！您现在可以收集有关项目和构建的信息了。运行`tuist test` 运行测试，向服务器报告结果。
 
-::: info
+信息
 <!-- -->
-Tuist enqueues the results locally and tries to send them without blocking the
-command. Therefore, they might not be sent immediately after the command
-finishes. In CI, the results are sent immediately.
+Tuist 会在本地查询结果，并尝试在不阻塞命令的情况下发送结果。因此，这些结果可能不会在命令结束后立即发送。在 CI 中，结果会立即发送。
 <!-- -->
 :::
 
 
-![An image that shows a list of runs in the
-server](/images/guides/quick-start/runs.png)
+显示服务器运行列表的图像](/images/guides/quick-start/runs.png)。
 
-Having data from your projects and builds is crucial in making informed
-decisions. Tuist will continue to extend its capabilities, and you'll benefit
-from them without having to change your project configuration. Magic, right? 🪄
+从您的项目和构建中获取数据对于做出明智的决策至关重要。Tuist 将继续扩展其功能，您无需更改项目配置即可从中受益。神奇吧？🪄

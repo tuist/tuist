@@ -13,7 +13,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
       - "Package.swift"
@@ -29,7 +29,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
       - "Package.swift"
@@ -40,8 +40,8 @@ permissions:
   contents: read
 
 env:
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
 
 concurrency:
   group: cli-${{ github.head_ref }}

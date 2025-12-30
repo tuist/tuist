@@ -1,0 +1,458 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:30+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
+"1/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/components/previews/app_preview.ex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{app_name} icon"
+msgstr "%{app_name} icon"
+
+#: lib/tuist_web/controllers/error_html.ex:22
+#, elixir-autogen, elixir-format, fuzzy
+msgid "400"
+msgstr "400"
+
+#: lib/tuist_web/controllers/error_html.ex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "401"
+msgstr "401"
+
+#: lib/tuist_web/controllers/error_html.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "404"
+msgstr "404"
+
+#: lib/tuist_web/controllers/error_html.ex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "429"
+msgstr "429"
+
+#: lib/tuist_web/controllers/error_html.ex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "500"
+msgstr "500"
+
+#: lib/tuist_web/components/account_dropdown.ex:60
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account settings"
+msgstr "계정 설정"
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:121
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg."
+msgstr "평균"
+
+#: lib/tuist_web/controllers/error_html.ex:16
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bad request"
+msgstr "잘못된 요청 입니다"
+
+#: lib/tuist_web/components/layouts/account.html.heex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Billing"
+msgstr "청구"
+
+#: lib/tuist_web/components/app_layout_components.ex:45
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Runs"
+msgstr "빌드 실행 내역"
+
+#: lib/tuist_web/components/app_layout_components.ex:28
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Builds"
+msgstr "빌드"
+
+#: lib/tuist_web/components/app_layout_components.ex:180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundles"
+msgstr "번들"
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:15
+#: lib/tuist_web/components/runs/ran_by_badge.ex:42
+#: lib/tuist_web/components/runs/ran_by_badge.ex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/components/app_layout_components.ex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache Runs"
+msgstr "캐시 실행 내역"
+
+#: lib/tuist_web/live/layout_live.ex:96
+#: lib/tuist_web/live/layout_live.ex:165
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create organization"
+msgstr "조직 생성"
+
+#: lib/tuist_web/components/account_dropdown.ex:75
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download macOS app"
+msgstr "macOS 앱 다운로드"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Emails"
+msgstr "이메일"
+
+#: lib/tuist_web/controllers/error_html.ex:121
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Error"
+msgstr "오류"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Errors"
+msgstr "오류"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Flags"
+msgstr "플래그"
+
+#: lib/tuist_web/components/app_layout_components.ex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generate Runs"
+msgstr "실행 생성"
+
+#: lib/tuist_web/components/empty_card_section.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Get started"
+msgstr "시작하기"
+
+#: lib/tuist_web/controllers/error_html.ex:143
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Go to dashboard"
+msgstr "상환판으로 이동"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Grafana"
+msgstr "Grafana"
+
+#: lib/tuist_web/components/layouts/account.html.heex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Integrations"
+msgstr "Integrations"
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:26
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invalid GitHub app installation. Please try again."
+msgstr "GitHub 앱 설치가 잘못 되었습니다. 다시 시도하세요."
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invalid installation request. Please try again."
+msgstr "잘못된 설치 요청입니다. 다시 시도해 주세요."
+
+#: lib/tuist_web/components/layouts/ops.html.heex:26
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Jobs"
+msgstr "채용"
+
+#: lib/tuist_web/components/empty_state.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Learn more"
+msgstr "자세히 알아보기"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:21
+#, elixir-autogen, elixir-format, fuzzy
+msgid "LiveDashboard"
+msgstr "실시간 상황판"
+
+#: lib/tuist_web/components/account_dropdown.ex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Log out"
+msgstr "로그아웃"
+
+#: lib/tuist_web/components/layouts/account.html.heex:20
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Members"
+msgstr "회원"
+
+#: lib/tuist_web/components/app_layout_components.ex:99
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Cache"
+msgstr "모듈 캐시"
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:115
+#, elixir-autogen, elixir-format, fuzzy
+msgid "N/A"
+msgstr "N/A"
+
+#: lib/tuist_web/components/app_components.ex:60
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Next"
+msgstr "다음"
+
+#: lib/tuist_web/components/widget.ex:144
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "아직 데이터 없음"
+
+#: lib/tuist_web/controllers/error_html.ex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Not found"
+msgstr "찾을 수 없음"
+
+#: lib/tuist_web/authorization.ex:27
+#: lib/tuist_web/authorization.ex:46
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Only operations roles can access this page."
+msgstr "운영 권한으로만 이 페이지에 액세스할 수 있습니다."
+
+#: lib/tuist_web/controllers/error_html.ex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Oops! Something went wrong"
+msgstr "죄송합니다! 문제가 발생했습니다"
+
+#: lib/tuist_web/controllers/error_html.ex:53
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Oops, we couldn't find that page"
+msgstr "해당 페이지를 찾을 수 없습니다"
+
+#: lib/tuist_web/components/account_dropdown.ex:68
+#: lib/tuist_web/components/layouts/ops.html.heex:11
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Operations"
+msgstr "운영"
+
+#: lib/tuist_web/components/app_layout_components.ex:21
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "개요"
+
+#: lib/tuist_web/controllers/error_html.ex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
+msgstr ""
+"올바른 리소스에 액세스하고 있는지, 해당 리소스에 액세스할 수 있는 권한이 "
+"있는지 확인하세요."
+
+#: lib/tuist_web/components/app_components.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Prev"
+msgstr "이전"
+
+#: lib/tuist_web/components/app_layout_components.ex:157
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previews"
+msgstr "미리보기"
+
+#: lib/tuist_web/components/layouts/account.html.heex:14
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Projects"
+msgstr "프로젝트"
+
+#: lib/tuist_web/components/app_layout_components.ex:169
+#: lib/tuist_web/components/layouts/ops.html.heex:16
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA"
+msgstr "자주하는 질문"
+
+#: lib/tuist_web/controllers/error_html.ex:85
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Server error"
+msgstr "서버 오류"
+
+#: lib/tuist_web/components/app_layout_components.ex:192
+#: lib/tuist_web/components/layouts/account.html.heex:56
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Settings"
+msgstr "설정"
+
+#: lib/tuist_web/controllers/error_html.ex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
+msgstr ""
+"죄송합니다. 저희 측에 문제가 발생했습니다. contact@tuist.dev 으로 문의해 "
+"주시면 조치하겠습니다."
+
+#: lib/tuist_web/controllers/error_html.ex:46
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sorry, the page you are looking for doesn't exist or has been moved."
+msgstr "찾고 계신 페이지가 존재하지 않거나 이동 되었습니다."
+
+#: lib/tuist_web/controllers/error_html.ex:67
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sorry, you made too many requests. Please try again later."
+msgstr "요청이 너무 많아서 죄송합니다. 나중에 다시 시도해 주세요."
+
+#: lib/tuist_web/components/layouts/ops.html.heex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Storage"
+msgstr "저장소"
+
+#: lib/tuist_web/components/account_dropdown.ex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Switch to your preferred theme"
+msgstr "원하는 테마로 전환"
+
+#: lib/tuist_web/components/app_layout_components.ex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Cases"
+msgstr "테스트 시나리오"
+
+#: lib/tuist_web/components/app_layout_components.ex:75
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "테스트 실행 내역"
+
+#: lib/tuist_web/components/app_layout_components.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tests"
+msgstr "테스트"
+
+#: lib/tuist_web/plugs/loader_plug.ex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The account %{account_handle} was not found."
+msgstr "%{account_handle} 계정을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/layout_live.ex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The account you are looking for doesn't exist or has been moved."
+msgstr "찾고자 하는 계정이 존재하지 않거나 이전 되었습니다."
+
+#: lib/tuist_web/controllers/auth_controller.ex:23
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The authentication URL is not supported"
+msgstr "인증 URL이 지원되지 않습니다"
+
+#: lib/tuist_web/authorization.ex:63
+#: lib/tuist_web/authorization.ex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr "찾고 계신 페이지가 존재하지 않거나 이동 되었습니다."
+
+#: lib/tuist_web/controllers/preview_controller.ex:132
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The preview ipa doesn't exist or has expired."
+msgstr "미리보기 IPA가 존재하지 않거나 만료되었습니다."
+
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:34
+#: lib/tuist_web/plugs/loader_plug.ex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The project %{project_slug} was not found."
+msgstr "%{project_slug} 프로젝트를 찾을 수 없습니다."
+
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:43
+#: lib/tuist_web/plugs/loader_plug.ex:116
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
+msgstr ""
+"프로젝트 Handle %{project_slug}가 유효하지 않습니다. 'account_handle/"
+"project_handle'의 형식을 따라야 합니다."
+
+#: lib/tuist_web/live/layout_live.ex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The project you are looking for doesn't exist or has been moved."
+msgstr "찾고 있는 프로젝트가 존재하지 않거나 이동 되었습니다."
+
+#: lib/tuist_web/plugs/loader_plug.ex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The run with ID %{run_id} was not found."
+msgstr "ID가 %{run_id}인 실행 내역을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/layout_live.ex:242
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The run you are looking for doesn't exist or has been moved."
+msgstr "찾고 있는 실행 내역이 존재하지 않거나 이동 되었습니다."
+
+#: lib/tuist_web/controllers/error_html.ex:73
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Too many requests"
+msgstr "너무 많은 요청"
+
+#: lib/tuist_web/controllers/error_html.ex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Too many requests."
+msgstr "요청이 너무 많습니다."
+
+#: lib/tuist_web/components/app_layout_components.ex:219
+#: lib/tuist_web/components/app_layout_components.ex:246
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist Icon"
+msgstr "Tuist 아이콘"
+
+#: lib/tuist_web/components/layout_components.ex:56
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
+msgstr "Tuist는 Apple의 도구를 확장하여 돋보이는 앱을 출시할 수 있도록 지원합니다."
+
+#: lib/tuist_web/controllers/error_html.ex:28
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unauthorized"
+msgstr "승인되지 않음"
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:29
+#: lib/tuist_web/components/runs/ran_by_badge.ex:77
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/components/app_layout_components.ex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Xcode Cache"
+msgstr "Xcode 캐시"
+
+#: lib/tuist_web/controllers/error_html.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are not authorized to view this page"
+msgstr "이 페이지를 볼 수 있는 권한이 없습니다"
+
+#: lib/tuist_web/authorization.ex:21
+#: lib/tuist_web/authorization.ex:40
+#: lib/tuist_web/authorization.ex:56
+#: lib/tuist_web/authorization.ex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You need to be authenticated to access this page."
+msgstr "이 페이지에 접근하려면 인증을 받아야 합니다."
+
+#: lib/tuist_web/controllers/user_session_controller.ex:28
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You've exceeded the rate limit. Try again later."
+msgstr "요금 한도를 초과했습니다. 나중에 다시 시도하세요."
+
+#: lib/tuist_web/components/terminal.ex:10
+#, elixir-autogen, elixir-format, fuzzy
+msgid "bash"
+msgstr "bash"
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"

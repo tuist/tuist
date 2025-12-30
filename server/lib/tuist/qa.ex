@@ -652,26 +652,28 @@ defmodule Tuist.QA do
   Returns QA runs analytics for a given project and time period.
   """
   def qa_runs_analytics(project_id, opts \\ []) do
-    {start_date, end_date} = date_range(opts)
+    {start_datetime, end_datetime} = datetime_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
 
-    current_count = count_qa_runs(project_id, start_date, end_date, app_name)
+    current_count = count_qa_runs(project_id, start_datetime, end_datetime, app_name)
 
     previous_count =
       count_qa_runs(
         project_id,
-        Date.add(start_date, -Date.diff(end_date, start_date)),
-        start_date,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
         app_name
       )
 
-    runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
+    runs_data = qa_runs_by_period(project_id, start_datetime, end_datetime, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(runs_data, & &1.count),
-      dates: Enum.map(runs_data, &Date.to_string(&1.date))
+      dates: Enum.map(runs_data, & &1.date)
     }
   end
 
@@ -679,26 +681,28 @@ defmodule Tuist.QA do
   Returns QA issues analytics for a given project and time period.
   """
   def qa_issues_analytics(project_id, opts \\ []) do
-    {start_date, end_date} = date_range(opts)
+    {start_datetime, end_datetime} = datetime_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
 
-    current_count = count_qa_issues(project_id, start_date, end_date, app_name)
+    current_count = count_qa_issues(project_id, start_datetime, end_datetime, app_name)
 
     previous_count =
       count_qa_issues(
         project_id,
-        Date.add(start_date, -Date.diff(end_date, start_date)),
-        start_date,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
         app_name
       )
 
-    issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
+    issues_data = qa_issues_by_period(project_id, start_datetime, end_datetime, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(issues_data, & &1.count),
-      dates: Enum.map(issues_data, &Date.to_string(&1.date))
+      dates: Enum.map(issues_data, & &1.date)
     }
   end
 
@@ -706,26 +710,28 @@ defmodule Tuist.QA do
   Returns QA duration analytics for a given project and time period.
   """
   def qa_duration_analytics(project_id, opts \\ []) do
-    {start_date, end_date} = date_range(opts)
+    {start_datetime, end_datetime} = datetime_range(opts)
     app_name = Keyword.get(opts, :app_name)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
 
-    current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
+    current_avg = average_qa_duration(project_id, start_datetime, end_datetime, app_name)
 
     previous_avg =
       average_qa_duration(
         project_id,
-        Date.add(start_date, -Date.diff(end_date, start_date)),
-        start_date,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
         app_name
       )
 
-    duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
+    duration_data = qa_duration_by_period(project_id, start_datetime, end_datetime, app_name, date_period)
 
     %{
       trend: calculate_trend(previous_avg, current_avg),
       total_average_duration: current_avg,
       values: Enum.map(duration_data, & &1.average_duration),
-      dates: Enum.map(duration_data, &Date.to_string(&1.date))
+      dates: Enum.map(duration_data, & &1.date)
     }
   end
 
@@ -746,10 +752,71 @@ defmodule Tuist.QA do
     Repo.all(query)
   end
 
-  defp date_range(opts) do
-    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -10))
-    end_date = Keyword.get(opts, :end_date, Date.utc_today())
-    {start_date, end_date}
+  defp datetime_range(opts) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -10, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {start_datetime, end_datetime}
+  end
+
+  defp date_period(start_datetime, end_datetime) do
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta <= 90 -> :day
+      true -> :month
+    end
+  end
+
+  defp date_range_for_date_period(:hour, start_datetime, end_datetime) do
+    start_datetime = DateTime.truncate(start_datetime, :second)
+    end_datetime = DateTime.truncate(end_datetime, :second)
+
+    start_datetime
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
+  end
+
+  defp date_range_for_date_period(:month, start_datetime, end_datetime) do
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(DateTime.to_date(end_datetime)))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_range_for_date_period(:day, start_datetime, end_datetime) do
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.range(DateTime.to_date(end_datetime))
+    |> Enum.to_list()
+  end
+
+  defp normalise_date(date_input, :hour) do
+    case date_input do
+      %DateTime{} = dt ->
+        Calendar.strftime(dt, "%Y-%m-%d %H:00")
+
+      %NaiveDateTime{} = dt ->
+        Calendar.strftime(dt, "%Y-%m-%d %H:00")
+
+      %Date{} = d ->
+        Date.to_string(d) <> " 00:00"
+    end
+  end
+
+  defp normalise_date(date_input, date_period) do
+    date =
+      case date_input do
+        %DateTime{} = dt -> DateTime.to_date(dt)
+        %NaiveDateTime{} = dt -> NaiveDateTime.to_date(dt)
+        %Date{} = d -> d
+      end
+
+    case date_period do
+      :day -> Date.to_string(date)
+      :month -> Date.to_string(Date.beginning_of_month(date))
+    end
   end
 
   defp calculate_trend(previous_value, current_value) do
@@ -760,15 +827,15 @@ defmodule Tuist.QA do
     end
   end
 
-  defp count_qa_runs(project_id, start_date, end_date, app_name) do
+  defp count_qa_runs(project_id, start_datetime, end_datetime, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime,
         select: count(qa.id)
       )
 
@@ -776,7 +843,7 @@ defmodule Tuist.QA do
     Repo.one(query) || 0
   end
 
-  defp count_qa_issues(project_id, start_date, end_date, app_name) do
+  defp count_qa_issues(project_id, start_datetime, end_datetime, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -784,8 +851,8 @@ defmodule Tuist.QA do
         join: step in assoc(qa, :run_steps),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime and
             fragment("array_length(?, 1)", step.issues) > 0,
         select: fragment("SUM(array_length(?, 1))", step.issues)
       )
@@ -794,15 +861,15 @@ defmodule Tuist.QA do
     Repo.one(query) || 0
   end
 
-  defp average_qa_duration(project_id, start_date, end_date, app_name) do
+  defp average_qa_duration(project_id, start_datetime, end_datetime, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime and
             qa.status in ["completed", "failed"] and
             not is_nil(qa.finished_at),
         select:
@@ -827,56 +894,85 @@ defmodule Tuist.QA do
     end
   end
 
-  defp qa_runs_by_day(project_id, start_date, end_date, app_name) do
+  defp qa_runs_by_period(project_id, start_datetime, end_datetime, app_name, date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
-        group_by: fragment("DATE(?)", qa.inserted_at),
-        select: %{
-          date: fragment("DATE(?)", qa.inserted_at),
-          count: count(qa.id)
-        },
-        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime
       )
 
-    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
-    results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+    query =
+      query
+      |> add_date_grouping(date_period)
+      |> apply_app_filter(app_name, [:qa, :ab, :pr])
 
-    # Fill in missing days with zero counts
-    start_date
-    |> Date.range(end_date)
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {normalise_date(result.date, date_period), result.count} end)
+
+    date_period
+    |> date_range_for_date_period(start_datetime, end_datetime)
     |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
+      key = normalise_date(date, date_period)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
     end)
   end
 
-  defp qa_duration_by_day(project_id, start_date, end_date, app_name) do
+  defp add_date_grouping(query, :hour) do
+    from(qa in query,
+      group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        count: count(qa.id)
+      },
+      order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_date_grouping(query, :day) do
+    from(qa in query,
+      group_by: fragment("DATE(?)", qa.inserted_at),
+      select: %{
+        date: fragment("DATE(?)", qa.inserted_at),
+        count: count(qa.id)
+      },
+      order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_date_grouping(query, :month) do
+    from(qa in query,
+      group_by: fragment("date_trunc('month', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('month', ?)", qa.inserted_at),
+        count: count(qa.id)
+      },
+      order_by: [asc: fragment("date_trunc('month', ?)", qa.inserted_at)]
+    )
+  end
+
+  defp qa_duration_by_period(project_id, start_datetime, end_datetime, app_name, date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime and
             qa.status in ["completed", "failed"] and
-            not is_nil(qa.finished_at),
-        group_by: fragment("DATE(?)", qa.inserted_at),
-        select: %{
-          date: fragment("DATE(?)", qa.inserted_at),
-          average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
-        },
-        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+            not is_nil(qa.finished_at)
       )
 
-    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    query =
+      query
+      |> add_duration_date_grouping(date_period)
+      |> apply_app_filter(app_name, [:qa, :ab, :pr])
+
     results = Repo.all(query)
 
     results_map =
@@ -889,19 +985,52 @@ defmodule Tuist.QA do
             _ -> 0
           end
 
-        {result.date, value}
+        {normalise_date(result.date, date_period), value}
       end)
 
-    # Fill in missing days with zero averages
-    start_date
-    |> Date.range(end_date)
+    date_period
+    |> date_range_for_date_period(start_datetime, end_datetime)
     |> Enum.map(fn date ->
-      value = Map.get(results_map, date, 0)
-      %{date: date, average_duration: value}
+      key = normalise_date(date, date_period)
+      value = Map.get(results_map, key, 0)
+      %{date: key, average_duration: value}
     end)
   end
 
-  defp qa_issues_by_day(project_id, start_date, end_date, app_name) do
+  defp add_duration_date_grouping(query, :hour) do
+    from(qa in query,
+      group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+      },
+      order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_duration_date_grouping(query, :day) do
+    from(qa in query,
+      group_by: fragment("DATE(?)", qa.inserted_at),
+      select: %{
+        date: fragment("DATE(?)", qa.inserted_at),
+        average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+      },
+      order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_duration_date_grouping(query, :month) do
+    from(qa in query,
+      group_by: fragment("date_trunc('month', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('month', ?)", qa.inserted_at),
+        average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+      },
+      order_by: [asc: fragment("date_trunc('month', ?)", qa.inserted_at)]
+    )
+  end
+
+  defp qa_issues_by_period(project_id, start_datetime, end_datetime, app_name, date_period) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -909,28 +1038,59 @@ defmodule Tuist.QA do
         join: step in assoc(qa, :run_steps),
         where:
           pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-            fragment("array_length(?, 1)", step.issues) > 0,
-        group_by: fragment("DATE(?)", qa.inserted_at),
-        select: %{
-          date: fragment("DATE(?)", qa.inserted_at),
-          count: fragment("SUM(array_length(?, 1))", step.issues)
-        },
-        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+            qa.inserted_at >= ^start_datetime and
+            qa.inserted_at < ^end_datetime and
+            fragment("array_length(?, 1)", step.issues) > 0
       )
 
-    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
-    results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+    query =
+      query
+      |> add_issues_date_grouping(date_period)
+      |> apply_app_filter(app_name, [:qa, :ab, :pr, :step])
 
-    # Fill in missing days with zero counts
-    start_date
-    |> Date.range(end_date)
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {normalise_date(result.date, date_period), result.count} end)
+
+    date_period
+    |> date_range_for_date_period(start_datetime, end_datetime)
     |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
+      key = normalise_date(date, date_period)
+      count = Map.get(results_map, key, 0)
+      %{date: key, count: count}
     end)
+  end
+
+  defp add_issues_date_grouping(query, :hour) do
+    from([qa, ab, pr, step] in query,
+      group_by: fragment("date_trunc('hour', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('hour', ?)", qa.inserted_at),
+        count: fragment("SUM(array_length(?, 1))", step.issues)
+      },
+      order_by: [asc: fragment("date_trunc('hour', ?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_issues_date_grouping(query, :day) do
+    from([qa, ab, pr, step] in query,
+      group_by: fragment("DATE(?)", qa.inserted_at),
+      select: %{
+        date: fragment("DATE(?)", qa.inserted_at),
+        count: fragment("SUM(array_length(?, 1))", step.issues)
+      },
+      order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+    )
+  end
+
+  defp add_issues_date_grouping(query, :month) do
+    from([qa, ab, pr, step] in query,
+      group_by: fragment("date_trunc('month', ?)", qa.inserted_at),
+      select: %{
+        date: fragment("date_trunc('month', ?)", qa.inserted_at),
+        count: fragment("SUM(array_length(?, 1))", step.issues)
+      },
+      order_by: [asc: fragment("date_trunc('month', ?)", qa.inserted_at)]
+    )
   end
 
   defp apply_app_filter(query, nil, _bindings), do: query

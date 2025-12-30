@@ -1,8 +1,12 @@
 #marketing-changelog {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-11);
+  gap: var(--noora-spacing-9);
   padding-bottom: var(--noora-spacing-12);
+
+  @media (min-width: 1024px) {
+    gap: var(--noora-spacing-11);
+  }
 
   & > [data-part="header"]:not(#marketing-navbar) {
     display: flex;
@@ -12,13 +16,13 @@
     align-items: flex-start;
     align-self: stretch;
     gap: var(--noora-spacing-7);
-    padding-top: var(--noora-spacing-12);
-    padding-bottom: var(--noora-spacing-8);
 
     @media (min-width: 1024px) {
       flex-direction: row;
       align-items: flex-end;
+      padding-top: var(--noora-spacing-12);
       padding-right: calc(var(--noora-spacing-6) + var(--noora-spacing-6));
+      padding-bottom: var(--noora-spacing-8);
       padding-left: calc(var(--noora-spacing-6) + var(--noora-spacing-6));
     }
 
@@ -92,11 +96,10 @@
     position: relative;
     flex-direction: column;
     gap: var(--noora-spacing-8);
-
-    @media (min-width: 1024px) {
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
-    }
+    box-sizing: border-box;
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+    max-width: 100%;
 
     @media (min-width: 1024px) {
       display: grid;
@@ -106,8 +109,6 @@
       align-items: start;
       margin-right: auto;
       margin-left: auto;
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
       width: 869px;
       max-width: 869px;
     }

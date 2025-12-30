@@ -14,11 +14,13 @@ defmodule Tuist do
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
       Marketing.Blog,
+      Marketing.Content,
       Marketing.Pages,
       Marketing.Changelog,
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
+      Marketing.CaseStudies,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -45,6 +47,7 @@ defmodule Tuist do
       API.Pipeline,
       Accounts,
       Accounts.Account,
+      Accounts.AccountCacheEndpoint,
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,

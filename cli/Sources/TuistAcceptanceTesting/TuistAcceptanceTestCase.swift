@@ -53,17 +53,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func setUpFixture(_ fixture: String) async throws {
-        try await setUpFixture(.custom(fixture))
-    }
-
-    public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
         let fixturesPath = sourceRootPath
-            .appending(components: ["cli", "Fixtures"])
+            .appending(components: ["examples", "xcode"])
 
-        fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
+        fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture)
 
         try await fileSystem.copy(
-            fixturesPath.appending(component: fixture.path),
+            fixturesPath.appending(component: fixture),
             to: fixturePath
         )
     }

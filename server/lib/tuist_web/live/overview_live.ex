@@ -10,6 +10,7 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Cache
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -25,16 +26,80 @@ defmodule TuistWeb.OverviewLive do
      )}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_event(
+        "bundle_size_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("bundle-size-date-range", "custom")
+        |> Query.put("bundle-size-start-date", start_date)
+        |> Query.put("bundle-size-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "bundle-size-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_event(
+        "builds_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("builds-date-range", "custom")
+        |> Query.put("builds-start-date", start_date)
+        |> Query.put("builds-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "builds-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_params(params, request_uri, %{assigns: %{selected_project: _project}} = socket) do
+    full_uri = URI.parse(request_uri)
+
     uri =
       URI.new!(
         "?" <>
           (params
            |> Map.take([
-             "analytics_environment",
-             "analytics_date_range",
-             "builds_environment",
-             "builds_date_range"
+             "analytics-environment",
+             "analytics-date-range",
+             "analytics-start-date",
+             "analytics-end-date",
+             "builds-environment",
+             "builds-date-range",
+             "builds-start-date",
+             "builds-end-date",
+             "bundle-size-date-range",
+             "bundle-size-start-date",
+             "bundle-size-end-date",
+             "bundle-size-app"
            ])
            |> URI.encode_query())
       )
@@ -45,10 +110,8 @@ defmodule TuistWeb.OverviewLive do
       |> assign_analytics(params)
       |> assign_builds(params)
       |> assign_bundles(params)
-      |> assign(
-        :uri,
-        uri
-      )
+      |> assign(:uri, uri)
+      |> assign(:uri_path, full_uri.path)
     }
   end
 
@@ -100,14 +163,15 @@ defmodule TuistWeb.OverviewLive do
   defp assign_bundles(%{assigns: %{selected_project: project}} = socket, params) do
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
-    bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "bundle-size")
+
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     bundle_size_analytics =
       project
-      |> Bundles.project_bundle_install_size_analytics(
-        project_id: project.id,
-        start_date: start_date(bundle_size_date_range)
-      )
+      |> Bundles.project_bundle_install_size_analytics(opts)
       |> Enum.map(
         &[
           &1.date,
@@ -118,29 +182,18 @@ defmodule TuistWeb.OverviewLive do
     socket
     |> assign(:bundle_size_selected_app, bundle_size_selected_app)
     |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-    |> assign(
-      :bundle_size_date_range,
-      bundle_size_date_range
-    )
+    |> assign(:bundle_size_preset, preset)
+    |> assign(:bundle_size_period, period)
     |> assign(:bundle_size_analytics, bundle_size_analytics)
   end
 
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
-    builds_date_range = params["builds_date_range"] || "last_30_days"
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "builds")
 
-    start_date =
-      case builds_date_range do
-        "last_12_months" -> Date.add(DateTime.utc_now(), -365)
-        "last_30_days" -> Date.add(DateTime.utc_now(), -30)
-        "last_7_days" -> Date.add(DateTime.utc_now(), -7)
-      end
+    builds_environment = params["builds-environment"] || "any"
 
-    builds_environment = params["builds_environment"] || "any"
-
-    opts = [
-      project_id: project.id,
-      start_date: start_date
-    ]
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       case builds_environment do
@@ -165,10 +218,8 @@ defmodule TuistWeb.OverviewLive do
       Runs.recent_build_status_counts(project.id, limit: 30)
 
     socket
-    |> assign(
-      :builds_date_range,
-      builds_date_range
-    )
+    |> assign(:builds_preset, preset)
+    |> assign(:builds_period, period)
     |> assign(
       :builds_environment,
       builds_environment
@@ -210,21 +261,12 @@ defmodule TuistWeb.OverviewLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    date_range = date_range(params)
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
-    start_date =
-      case date_range do
-        "last_12_months" -> Date.add(DateTime.utc_now(), -365)
-        "last_30_days" -> Date.add(DateTime.utc_now(), -30)
-        "last_7_days" -> Date.add(DateTime.utc_now(), -7)
-      end
+    analytics_environment = params["analytics-environment"] || "any"
 
-    analytics_environment = analytics_environment(params)
-
-    opts = [
-      project_id: project.id,
-      start_date: start_date
-    ]
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
       case analytics_environment do
@@ -234,13 +276,11 @@ defmodule TuistWeb.OverviewLive do
       end
 
     socket
-    |> assign(
-      :analytics_date_range,
-      date_range
-    )
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
     |> assign(
       :analytics_trend_label,
-      analytics_trend_label(date_range)
+      analytics_trend_label(preset)
     )
     |> assign(
       :analytics_environment,
@@ -275,8 +315,10 @@ defmodule TuistWeb.OverviewLive do
     )
   end
 
-  defp analytics_trend_label("last_7_days"), do: dgettext("dashboard_projects", "since last week")
-  defp analytics_trend_label("last_12_months"), do: dgettext("dashboard_projects", "since last year")
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_projects", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_projects", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_projects", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_projects", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
 
   defp environment_label("any") do
@@ -290,30 +332,6 @@ defmodule TuistWeb.OverviewLive do
   defp environment_label("ci") do
     dgettext("dashboard_projects", "CI")
   end
-
-  defp date_range(params) do
-    analytics_date_range = params["analytics_date_range"]
-
-    if is_nil(analytics_date_range) do
-      "last_30_days"
-    else
-      analytics_date_range
-    end
-  end
-
-  defp analytics_environment(params) do
-    analytics_environment = params["analytics_environment"]
-
-    if is_nil(analytics_environment) do
-      "any"
-    else
-      analytics_environment
-    end
-  end
-
-  defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
-  defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
-  defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
 
   defp combined_overview_analytics(project_id, opts) do
     queries = [

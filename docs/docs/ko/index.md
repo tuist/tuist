@@ -8,10 +8,9 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# 배포하는 개발자들을 위한 가상의 Platform 팀
+# A virtual platform team for developers who ship
 
-**Tuist는 팀이 확장과 앱 개발에 집중할 수 있도록 Apple의 toolchain을 확장 합니다** – .Apple 플랫폼 개발을 짜증
-나게 복잡한 작업 대신 팀을 성장 시키는 원활하고 생산적인 경험으로 전환합니다.
+**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -64,17 +63,14 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 이미 전환한 수 천 명의 개발자의 사례를 참고하세요
+## Join thousands of developers who've made the switch
 
-**[Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
-[Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
-Spoons](https://bendingspoons.com/), 그리고 100 여개 이상의 회사들의 팀들은** 이미 Apple 플랫폼 개발을
-Tuist로 전환했습니다. 아래는 그 팀들이 전환한 결과 입니다:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
-- 지능형 캐싱으로 **65% 빨라진 빌드**
-- Xcode 프로젝트 **병합 충돌 0건**
-- 패키지 다운로드가 **수 분에서 수 초로 단축**
-- 기능 개발에 집중할 수 있게되어 **행복한 개발자들**
+- **65% faster builds** with intelligent caching
+- **Zero merge conflicts** in Xcode projects
+- **Minutes to seconds** package resolution
+- **Happy developers** who can focus on building features
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -97,16 +93,15 @@ Tuist로 전환했습니다. 아래는 그 팀들이 전환한 결과 입니다:
 </HomeCards>
 
 
-## Tuist의 활약을 보세요
+## See Tuist in action
 
-**실제 구현 사례에서 배우고** 여러분의 toolchain으로 무엇이 가능할 지에 대해 영감을 얻으세요.
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
 
 <HomeVideos/>
 
-## 활발한 커뮤니티에 참여하세요
+## Join a thriving community
 
-Tuist로 더 나은 앱 배포를 하고 있는 **수 천 명의 Apple 플랫폼 개발자들과 소통하세요**. 도움 받고 성공을 공유하며 Apple
-플랫폼 개발의 미래를 만들어보세요.
+**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

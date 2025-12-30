@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
@@ -14,6 +15,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
+- `feat(cache): add new S3 transfer worker`
 - `docs(handbook): update project setup guide`
 
 # Tuist CLI (Swift)

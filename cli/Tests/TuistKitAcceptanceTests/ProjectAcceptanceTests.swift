@@ -12,7 +12,7 @@ struct ProjectAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func bundle() async throws {
         // Given
@@ -35,7 +35,7 @@ struct ProjectAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func revoke_project_token() async throws {
         // Given
@@ -75,7 +75,7 @@ struct ProjectAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func update_default_branch() async throws {
         // Given
@@ -110,7 +110,7 @@ struct ProjectAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func update_the_project_visibility() async throws {
         // Given
@@ -143,7 +143,7 @@ struct ProjectAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     )
     func update_the_project_repository() async throws {
         // Given

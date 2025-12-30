@@ -9,6 +9,9 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
   test "generates and sends the report" do
     # Given
     stub(Tuist.Time, :utc_now, fn -> ~U[2024-05-21 10:20:30Z] end)
+    stub(Tuist.CommandEvents, :count_events_in_period, fn _, _ -> 1 end)
+    stub(Tuist.CommandEvents, :count_all_events, fn -> 1 end)
+
     created_at = ~U[2024-05-20 10:20:30Z]
     user = [created_at: created_at] |> AccountsFixtures.user_fixture() |> Repo.preload(:account)
 

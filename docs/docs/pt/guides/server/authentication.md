@@ -49,8 +49,7 @@ provider and exchange the CI-provided token for a Tuist access token.
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
 
 1. **Connect your repository to Tuist**: Follow the
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
-   guide</LocalizedLink> to connect your GitHub repository to your Tuist
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration guide</LocalizedLink> to connect your GitHub repository to your Tuist
    project.
 
 2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
@@ -58,8 +57,7 @@ provider and exchange the CI-provided token for a Tuist access token.
    detect the CI environment and authenticate using OIDC.
 
 See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-Integration guide</LocalizedLink> for provider-specific configuration examples.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for provider-specific configuration examples.
 
 ### OIDC token scopes {#oidc-token-scopes}
 
@@ -93,7 +91,7 @@ tuist account tokens create my-account \
 
 The command accepts the following options:
 
-| Option       | Description                                                                                                                                      |
+| Option       | Descrição                                                                                                                                        |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `--scopes`   | Required. Comma-separated list of scopes to grant the token.                                                                                     |
 | `--name`     | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only).                                      |
@@ -102,7 +100,7 @@ The command accepts the following options:
 
 ### Available scopes {#available-scopes}
 
-| Scope                    | Description                           |
+| Scope                    | Descrição                             |
 | ------------------------ | ------------------------------------- |
 | `account:members:read`   | Read account members                  |
 | `account:members:write`  | Manage account members                |

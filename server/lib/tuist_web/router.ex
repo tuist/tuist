@@ -190,6 +190,11 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
+        live Path.join(locale_path_prefix, "/case-studies"),
+             TuistWeb.Marketing.MarketingCaseStudiesLive,
+             metadata: %{type: :marketing},
+             private: private
+
         live Path.join(locale_path_prefix, "/qa"),
              TuistWeb.Marketing.MarketingQALive,
              metadata: %{type: :marketing},
@@ -219,6 +224,14 @@ defmodule TuistWeb.Router do
         get iframe_path,
             TuistWeb.Marketing.MarketingBlogIframeController,
             :show,
+            metadata: %{type: :marketing},
+            private: private
+      end
+
+      for %{slug: case_study_slug} <- Tuist.Marketing.CaseStudies.get_case_studies() do
+        get Path.join(locale_path_prefix, case_study_slug),
+            MarketingController,
+            :case_study,
             metadata: %{type: :marketing},
             private: private
       end

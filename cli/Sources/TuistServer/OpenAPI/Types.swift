@@ -304,7 +304,7 @@ public protocol APIProtocol: Sendable {
     func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -1130,12 +1130,18 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
-    public func getCacheEndpoints(headers: Operations.getCacheEndpoints.Input.Headers = .init()) async throws -> Operations.getCacheEndpoints.Output {
-        try await getCacheEndpoints(Operations.getCacheEndpoints.Input(headers: headers))
+    public func getCacheEndpoints(
+        query: Operations.getCacheEndpoints.Input.Query = .init(),
+        headers: Operations.getCacheEndpoints.Input.Headers = .init()
+    ) async throws -> Operations.getCacheEndpoints.Output {
+        try await getCacheEndpoints(Operations.getCacheEndpoints.Input(
+            query: query,
+            headers: headers
+        ))
     }
     /// It completes a multi-part upload.
     ///
@@ -6714,6 +6720,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The cache endpoint URL used for this command (regional module cache).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/cache_endpoint`.
+                    public var cache_endpoint: Swift.String?
                     /// The client id of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/client_id`.
@@ -7287,6 +7297,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The build run identifier.
+                    ///   - cache_endpoint: The cache endpoint URL used for this command (regional module cache).
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
@@ -7309,6 +7320,7 @@ public enum Operations {
                     ///   - xcode_graph: The schema for the Xcode graph.
                     public init(
                         build_run_id: Swift.String? = nil,
+                        cache_endpoint: Swift.String? = nil,
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Int,
@@ -7331,6 +7343,7 @@ public enum Operations {
                         xcode_graph: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.cache_endpoint = cache_endpoint
                         self.client_id = client_id
                         self.command_arguments = command_arguments
                         self.duration = duration
@@ -7354,6 +7367,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case cache_endpoint
                         case client_id
                         case command_arguments
                         case duration
@@ -21517,13 +21531,28 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
     public enum getCacheEndpoints {
         public static let id: Swift.String = "getCacheEndpoints"
         public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The name of the account to get custom cache endpoints for.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/account_handle`.
+                public var account_handle: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The name of the account to get custom cache endpoints for.
+                public init(account_handle: Swift.String? = nil) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var query: Operations.getCacheEndpoints.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>]
@@ -21539,8 +21568,13 @@ public enum Operations {
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.getCacheEndpoints.Input.Headers = .init()) {
+            public init(
+                query: Operations.getCacheEndpoints.Input.Query = .init(),
+                headers: Operations.getCacheEndpoints.Input.Headers = .init()
+            ) {
+                self.query = query
                 self.headers = headers
             }
         }

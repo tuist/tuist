@@ -1,0 +1,1096 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:50+0000\n"
+"PO-Revision-Date: 2025-12-24 20:46+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
+"projects/tuist/dashboard_tests/zh_Hant/>\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/test_run_live.html.heex:253
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{duration}s"
+msgstr "%{duration}s"
+
+#: lib/tuist_web/live/test_run_live.html.heex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{run_duration}s"
+msgstr "%{run_duration}s"
+
+#: lib/tuist_web/live/tests_live.html.heex:537
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{選擇性測試效果}%。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1296
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All tests passed!"
+msgstr "所有測試均通過！"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:2
+#: lib/tuist_web/live/test_runs_live.html.heex:2
+#: lib/tuist_web/live/tests_live.html.heex:2
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Analytics"
+msgstr "分析"
+
+#: lib/tuist_web/live/test_cases_live.ex:293
+#: lib/tuist_web/live/test_runs_live.ex:326
+#: lib/tuist_web/live/tests_live.ex:284
+#: lib/tuist_web/live/tests_live.html.heex:11
+#: lib/tuist_web/live/tests_live.html.heex:454
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "任何"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:324
+#: lib/tuist_web/live/test_runs_live.html.heex:319
+#: lib/tuist_web/live/tests_live.html.heex:254
+#: lib/tuist_web/live/tests_live.html.heex:616
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average"
+msgstr "平均值"
+
+#: lib/tuist_web/live/test_run_live.html.heex:216
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of all test cases."
+msgstr "所有測試案例的平均持續時間。"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of individual test case executions during a given period."
+msgstr "特定期間內執行個別測試用例的平均持續時間。"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:138
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of test runs during a given period."
+msgstr "特定期間內測試運行的平均持續時間。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of this test case across the last 50 runs."
+msgstr "此測試用例在過去 50 次執行中的平均持續時間。"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:402
+#: lib/tuist_web/live/test_cases_live.html.heex:426
+#: lib/tuist_web/live/test_cases_live.html.heex:486
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. duration"
+msgstr "平均持續時間"
+
+#: lib/tuist_web/live/test_run_live.ex:737
+#: lib/tuist_web/live/test_run_live.ex:788
+#: lib/tuist_web/live/test_run_live.html.heex:215
+#: lib/tuist_web/live/test_run_live.html.heex:574
+#: lib/tuist_web/live/test_run_live.html.heex:603
+#: lib/tuist_web/live/test_run_live.html.heex:659
+#: lib/tuist_web/live/test_run_live.html.heex:773
+#: lib/tuist_web/live/test_run_live.html.heex:810
+#: lib/tuist_web/live/test_run_live.html.heex:880
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case duration"
+msgstr "平均測試案例持續時間"
+
+#: lib/tuist_web/live/test_case_live.html.heex:140
+#: lib/tuist_web/live/test_cases_live.ex:261
+#: lib/tuist_web/live/test_cases_live.html.heex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case run duration"
+msgstr "平均測試案例執行時間"
+
+#: lib/tuist_web/live/test_runs_live.ex:294
+#: lib/tuist_web/live/test_runs_live.html.heex:123
+#: lib/tuist_web/live/tests_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test run duration"
+msgstr "平均測試運行時間"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1131
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary Cache"
+msgstr "二進位快取記憶體"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1093
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache hits"
+msgstr "二進位快取記憶體命中率"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1107
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache misses"
+msgstr "二進位快取記憶體遺漏"
+
+#: lib/tuist_web/live/test_run_live.html.heex:167
+#: lib/tuist_web/live/test_runs_live.ex:52
+#: lib/tuist_web/live/test_runs_live.html.heex:437
+#: lib/tuist_web/live/tests_live.html.heex:796
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "分支機構"
+
+#: lib/tuist_web/live/test_run_live.html.heex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build: %{scheme}"
+msgstr "建立： %{scheme}"
+
+#: lib/tuist_web/live/test_case_live.ex:90
+#: lib/tuist_web/live/test_cases_live.ex:295
+#: lib/tuist_web/live/test_runs_live.ex:328
+#: lib/tuist_web/live/tests_live.ex:286
+#: lib/tuist_web/live/tests_live.html.heex:27
+#: lib/tuist_web/live/tests_live.html.heex:470
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/test_run_live.html.heex:68
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI Run"
+msgstr "CI 運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hit rate"
+msgstr "快取記憶體命中率"
+
+#: lib/tuist_web/live/test_run_live.ex:828
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error"
+msgstr "發現錯誤"
+
+#: lib/tuist_web/live/test_run_live.ex:856
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}"
+msgstr "在 %{location} 處發現錯誤"
+
+#: lib/tuist_web/live/test_run_live.ex:859
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}: %{message}"
+msgstr "在 %{location} 遇到錯誤：%{message}"
+
+#: lib/tuist_web/live/test_run_live.ex:831
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error: %{message}"
+msgstr "發現錯誤：%{message}。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:230
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command"
+msgstr "指令"
+
+#: lib/tuist_web/live/test_run_live.html.heex:250
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command duration"
+msgstr "指令持續時間"
+
+#: lib/tuist_web/live/test_run_live.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit"
+msgstr "承諾"
+
+#: lib/tuist_web/live/test_run_live.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compilation Optimizations"
+msgstr "編譯優化"
+
+#: lib/tuist_web/live/test_run_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download result"
+msgstr "下載結果"
+
+#: lib/tuist_web/live/test_case_live.ex:69
+#: lib/tuist_web/live/test_case_live.html.heex:182
+#: lib/tuist_web/live/test_case_live.html.heex:198
+#: lib/tuist_web/live/test_case_live.html.heex:246
+#: lib/tuist_web/live/test_run_live.ex:702
+#: lib/tuist_web/live/test_run_live.ex:745
+#: lib/tuist_web/live/test_run_live.ex:796
+#: lib/tuist_web/live/test_run_live.html.heex:150
+#: lib/tuist_web/live/test_run_live.html.heex:409
+#: lib/tuist_web/live/test_run_live.html.heex:424
+#: lib/tuist_web/live/test_run_live.html.heex:484
+#: lib/tuist_web/live/test_run_live.html.heex:577
+#: lib/tuist_web/live/test_run_live.html.heex:611
+#: lib/tuist_web/live/test_run_live.html.heex:699
+#: lib/tuist_web/live/test_run_live.html.heex:776
+#: lib/tuist_web/live/test_run_live.html.heex:818
+#: lib/tuist_web/live/test_run_live.html.heex:915
+#: lib/tuist_web/live/test_runs_live.html.heex:450
+#: lib/tuist_web/live/tests_live.html.heex:809
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "時間長度"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:7
+#: lib/tuist_web/live/test_runs_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:450
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "環境："
+
+#: lib/tuist_web/live/test_run_live.ex:822
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed"
+msgstr "期望落空"
+
+#: lib/tuist_web/live/test_run_live.ex:847
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}"
+msgstr "在 %{location} 的預期失敗"
+
+#: lib/tuist_web/live/test_run_live.ex:850
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}: %{message}"
+msgstr "在 %{location} 的預期失敗：%{message}"
+
+#: lib/tuist_web/live/test_run_live.ex:825
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed: %{message}"
+msgstr "預期失敗： %{message}"
+
+#: lib/tuist_web/live/test_case_live.ex:60
+#: lib/tuist_web/live/test_case_live.html.heex:75
+#: lib/tuist_web/live/test_case_live.html.heex:236
+#: lib/tuist_web/live/test_cases_live.ex:41
+#: lib/tuist_web/live/test_cases_live.html.heex:513
+#: lib/tuist_web/live/test_run_live.ex:715
+#: lib/tuist_web/live/test_run_live.ex:758
+#: lib/tuist_web/live/test_run_live.ex:809
+#: lib/tuist_web/live/test_run_live.html.heex:129
+#: lib/tuist_web/live/test_run_live.html.heex:512
+#: lib/tuist_web/live/test_run_live.html.heex:687
+#: lib/tuist_web/live/test_run_live.html.heex:908
+#: lib/tuist_web/live/test_runs_live.ex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:428
+#: lib/tuist_web/live/tests_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "失敗"
+
+#: lib/tuist_web/live/test_runs_live.ex:277
+#: lib/tuist_web/live/test_runs_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count"
+msgstr "失敗運行計數"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"Failed run count 表示在指定時間內有多少測試執行失敗。測試執行可透過執行「"
+"tuist test」或「tuist xcodebuild test」來執行。"
+
+#: lib/tuist_web/live/tests_live.html.heex:709
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed runs"
+msgstr "失敗的運行"
+
+#: lib/tuist_web/live/test_case_live.html.heex:133
+#: lib/tuist_web/live/test_cases_live.ex:244
+#: lib/tuist_web/live/test_cases_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs"
+msgstr "測試案例執行失敗"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
+msgstr "測試案例執行失敗代表在特定期間內執行失敗的個別測試案例數量。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:209
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test cases"
+msgstr "失敗的測試案例"
+
+#: lib/tuist_web/live/tests_live.html.heex:102
+#: lib/tuist_web/live/tests_live.html.heex:421
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test runs"
+msgstr "測試執行失敗"
+
+#: lib/tuist_web/live/test_run_live.html.heex:101
+#: lib/tuist_web/live/test_run_live.html.heex:275
+#: lib/tuist_web/live/test_run_live.html.heex:282
+#: lib/tuist_web/live/test_run_live.html.heex:1215
+#: lib/tuist_web/live/test_run_live.html.heex:1222
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failures"
+msgstr "失敗"
+
+#: lib/tuist_web/live/test_case_live.html.heex:207
+#: lib/tuist_web/live/test_cases_live.html.heex:435
+#: lib/tuist_web/live/test_run_live.html.heex:433
+#: lib/tuist_web/live/test_run_live.html.heex:620
+#: lib/tuist_web/live/test_run_live.html.heex:827
+#: lib/tuist_web/live/test_runs_live.html.heex:394
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "過濾器"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1058
+#: lib/tuist_web/live/test_run_live.html.heex:1186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hash"
+msgstr "散列"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1036
+#: lib/tuist_web/live/test_run_live.html.heex:1164
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit"
+msgstr "擊中"
+
+#: lib/tuist_web/live/test_run_live.ex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded"
+msgstr "問題記錄"
+
+#: lib/tuist_web/live/test_run_live.ex:865
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}"
+msgstr "問題記錄在 %{ 位置｝"
+
+#: lib/tuist_web/live/test_run_live.ex:868
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}: %{message}"
+msgstr "問題記錄於 %{位置}：%{訊息｝"
+
+#: lib/tuist_web/live/test_run_live.ex:837
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded: %{message}"
+msgstr "記錄的問題：%{message}。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:65
+#: lib/tuist_web/live/test_cases_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last Status"
+msgstr "最後狀態"
+
+#: lib/tuist_web/live/test_case_live.html.heex:98
+#: lib/tuist_web/live/test_cases_live.html.heex:403
+#: lib/tuist_web/live/test_cases_live.html.heex:410
+#: lib/tuist_web/live/test_cases_live.html.heex:523
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last ran at"
+msgstr "最後一次在"
+
+#: lib/tuist_web/live/test_case_live.html.heex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last run duration"
+msgstr "最後一次運行時間"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:505
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last status"
+msgstr "最後狀態"
+
+#: lib/tuist_web/live/test_cases_live.ex:294
+#: lib/tuist_web/live/test_run_live.html.heex:1046
+#: lib/tuist_web/live/test_run_live.html.heex:1174
+#: lib/tuist_web/live/test_runs_live.ex:327
+#: lib/tuist_web/live/tests_live.ex:285
+#: lib/tuist_web/live/tests_live.html.heex:19
+#: lib/tuist_web/live/tests_live.html.heex:462
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "當地"
+
+#: lib/tuist_web/live/test_run_live.html.heex:184
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mac device"
+msgstr "Mac 裝置"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1052
+#: lib/tuist_web/live/test_run_live.html.heex:1180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Missed"
+msgstr "遺漏"
+
+#: lib/tuist_web/live/test_case_live.html.heex:41
+#: lib/tuist_web/live/test_cases_live.ex:50
+#: lib/tuist_web/live/test_run_live.html.heex:764
+#: lib/tuist_web/live/test_run_live.html.heex:779
+#: lib/tuist_web/live/test_run_live.html.heex:786
+#: lib/tuist_web/live/test_run_live.html.heex:838
+#: lib/tuist_web/live/test_run_live.html.heex:1022
+#: lib/tuist_web/live/test_run_live.html.heex:1150
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module"
+msgstr "模組"
+
+#: lib/tuist_web/live/test_run_live.html.heex:379
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Modules"
+msgstr "模組"
+
+#: lib/tuist_web/live/test_case_live.html.heex:121
+#: lib/tuist_web/live/test_case_live.html.heex:154
+#: lib/tuist_web/live/test_cases_live.html.heex:184
+#: lib/tuist_web/live/test_runs_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data"
+msgstr "無資料"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:375
+#: lib/tuist_web/live/test_cases_live.html.heex:550
+#: lib/tuist_web/live/test_runs_live.html.heex:370
+#: lib/tuist_web/live/test_runs_live.html.heex:473
+#: lib/tuist_web/live/tests_live.html.heex:432
+#: lib/tuist_web/live/tests_live.html.heex:824
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "暫無資料"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1295
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No failures detected"
+msgstr "未偵測到故障"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1066
+#: lib/tuist_web/live/test_run_live.html.heex:1194
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No modules found"
+msgstr "未找到模組"
+
+#: lib/tuist_web/live/test_case_live.html.heex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test case runs found"
+msgstr "未找到測試案例執行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:525
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases found"
+msgstr "未找到測試案例"
+
+#: lib/tuist_web/live/tests_live.html.heex:881
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases yet"
+msgstr "尚未有測試案例"
+
+#: lib/tuist_web/live/test_run_live.html.heex:937
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test modules found"
+msgstr "未找到測試模組"
+
+#: lib/tuist_web/live/test_run_live.html.heex:721
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test suites found"
+msgstr "未找到測試套件"
+
+#: lib/tuist_web/live/test_run_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of test cases that failed."
+msgstr "失敗的測試案例數量。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of times this test case has failed."
+msgstr "此測試用例失敗的次數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:959
+#: lib/tuist_web/live/test_run_live.html.heex:1087
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Optimization Summary"
+msgstr "最佳化摘要"
+
+#: lib/tuist_web/live/test_run_live.html.heex:80
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "概述"
+
+#: lib/tuist_web/live/test_case_live.ex:59
+#: lib/tuist_web/live/test_case_live.html.heex:68
+#: lib/tuist_web/live/test_case_live.html.heex:234
+#: lib/tuist_web/live/test_cases_live.ex:40
+#: lib/tuist_web/live/test_cases_live.html.heex:509
+#: lib/tuist_web/live/test_run_live.ex:714
+#: lib/tuist_web/live/test_run_live.ex:757
+#: lib/tuist_web/live/test_run_live.ex:808
+#: lib/tuist_web/live/test_run_live.html.heex:122
+#: lib/tuist_web/live/test_run_live.html.heex:507
+#: lib/tuist_web/live/test_run_live.html.heex:682
+#: lib/tuist_web/live/test_run_live.html.heex:903
+#: lib/tuist_web/live/test_runs_live.ex:42
+#: lib/tuist_web/live/test_runs_live.html.heex:423
+#: lib/tuist_web/live/tests_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed"
+msgstr "通過"
+
+#: lib/tuist_web/live/tests_live.html.heex:704
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed runs"
+msgstr "通過運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Percentage of modules that were successfully retrieved from the cache."
+msgstr "從快取記憶體成功擷取的模組百分比。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:183
+#: lib/tuist_web/live/test_case_live.html.heex:190
+#: lib/tuist_web/live/test_case_live.html.heex:267
+#: lib/tuist_web/live/test_run_live.html.heex:159
+#: lib/tuist_web/live/test_run_live.html.heex:260
+#: lib/tuist_web/live/test_runs_live.html.heex:458
+#: lib/tuist_web/live/tests_live.html.heex:817
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "在"
+
+#: lib/tuist_web/live/test_case_live.ex:85
+#: lib/tuist_web/live/test_case_live.html.heex:241
+#: lib/tuist_web/live/test_run_live.html.heex:144
+#: lib/tuist_web/live/test_runs_live.ex:68
+#: lib/tuist_web/live/test_runs_live.html.heex:447
+#: lib/tuist_web/live/tests_live.html.heex:806
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "由"
+
+#: lib/tuist_web/live/tests_live.html.heex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent Test Runs"
+msgstr "最近的測試運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1040
+#: lib/tuist_web/live/test_run_live.html.heex:1168
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote"
+msgstr "遙控"
+
+#: lib/tuist_web/live/test_case_live.html.heex:226
+#: lib/tuist_web/live/test_runs_live.html.heex:415
+#: lib/tuist_web/live/tests_live.html.heex:774
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme"
+msgstr "計劃"
+
+#: lib/tuist_web/live/test_case_live.html.heex:172
+#: lib/tuist_web/live/test_cases_live.html.heex:391
+#: lib/tuist_web/live/test_run_live.html.heex:398
+#: lib/tuist_web/live/test_run_live.html.heex:557
+#: lib/tuist_web/live/test_run_live.html.heex:753
+#: lib/tuist_web/live/test_run_live.html.heex:1013
+#: lib/tuist_web/live/test_run_live.html.heex:1141
+#: lib/tuist_web/live/test_runs_live.html.heex:386
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "搜尋..."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1003
+#: lib/tuist_web/live/tests_live.html.heex:442
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective Testing"
+msgstr "選擇性測試"
+
+#: lib/tuist_web/live/tests_live.html.heex:535
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test effectiveness"
+msgstr "選擇性測試效能"
+
+#: lib/tuist_web/live/test_run_live.html.heex:976
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits"
+msgstr "選擇性測試命中"
+
+#: lib/tuist_web/live/test_run_live.html.heex:978
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr "選擇性測試命中率代表由於選擇性測試而跳過的測試模組數量。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:990
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses"
+msgstr "選擇性漏測"
+
+#: lib/tuist_web/live/test_run_live.html.heex:992
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr "Selective test misses 表示因之前未成功執行而執行的測試模組數量。"
+
+#: lib/tuist_web/live/tests_live.html.heex:676
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective testing: no data yet"
+msgstr "選擇性測試：尚無資料"
+
+#: lib/tuist_web/live/test_case_live.ex:61
+#: lib/tuist_web/live/test_case_live.html.heex:82
+#: lib/tuist_web/live/test_case_live.html.heex:238
+#: lib/tuist_web/live/test_cases_live.ex:42
+#: lib/tuist_web/live/test_cases_live.html.heex:516
+#: lib/tuist_web/live/test_run_live.ex:716
+#: lib/tuist_web/live/test_run_live.ex:759
+#: lib/tuist_web/live/test_run_live.html.heex:136
+#: lib/tuist_web/live/test_run_live.html.heex:517
+#: lib/tuist_web/live/test_run_live.html.heex:692
+#: lib/tuist_web/live/test_runs_live.ex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:433
+#: lib/tuist_web/live/tests_live.html.heex:792
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Skipped"
+msgstr "跳過"
+
+#: lib/tuist_web/live/tests_live.html.heex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Slowest test cases"
+msgstr "最慢的測試案例"
+
+#: lib/tuist_web/live/test_case_live.html.heex:186
+#: lib/tuist_web/live/test_cases_live.html.heex:406
+#: lib/tuist_web/live/test_run_live.html.heex:412
+#: lib/tuist_web/live/test_run_live.html.heex:583
+#: lib/tuist_web/live/test_run_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sort by:"
+msgstr "排序方式："
+
+#: lib/tuist_web/live/test_case_live.ex:55
+#: lib/tuist_web/live/test_case_live.html.heex:231
+#: lib/tuist_web/live/test_run_live.ex:710
+#: lib/tuist_web/live/test_run_live.ex:753
+#: lib/tuist_web/live/test_run_live.ex:804
+#: lib/tuist_web/live/test_run_live.html.heex:118
+#: lib/tuist_web/live/test_run_live.html.heex:678
+#: lib/tuist_web/live/test_run_live.html.heex:899
+#: lib/tuist_web/live/test_runs_live.ex:38
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "狀態"
+
+#: lib/tuist_web/live/test_case_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
+msgstr ""
+"成功率基於 %{branch} 分支的運行。如果 %{branch} 分支上不存在運行，則返回所有"
+"分支。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:48
+#: lib/tuist_web/live/test_cases_live.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Suite"
+msgstr "套房"
+
+#: lib/tuist_web/live/test_case_live.html.heex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Summary"
+msgstr "摘要"
+
+#: lib/tuist_web/live/test_cases_live.ex:66
+#: lib/tuist_web/live/test_cases_live.html.heex:401
+#: lib/tuist_web/live/test_cases_live.html.heex:418
+#: lib/tuist_web/live/test_cases_live.html.heex:458
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case"
+msgstr "測試案例"
+
+#: lib/tuist_web/live/test_case_live.html.heex:161
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case Runs"
+msgstr "測試案例執行"
+
+#: lib/tuist_web/live/test_case_live.html.heex:3
+#: lib/tuist_web/live/test_cases_live.ex:21
+#: lib/tuist_web/live/test_cases_live.html.heex:383
+#: lib/tuist_web/live/test_run_live.html.heex:369
+#: lib/tuist_web/live/test_run_live.html.heex:387
+#: lib/tuist_web/live/tests_live.html.heex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Cases"
+msgstr "測試案例"
+
+#: lib/tuist_web/live/test_run_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Details"
+msgstr "測試詳情"
+
+#: lib/tuist_web/live/test_run_live.html.heex:742
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Modules"
+msgstr "測試模組"
+
+#: lib/tuist_web/live/test_run_live.html.heex:87
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Optimizations"
+msgstr "測試優化"
+
+#: lib/tuist_web/live/test_run_live.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Run"
+msgstr "測試運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:3
+#: lib/tuist_web/live/test_runs_live.ex:23
+#: lib/tuist_web/live/test_runs_live.html.heex:378
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "測試運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:374
+#: lib/tuist_web/live/test_run_live.html.heex:546
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Suites"
+msgstr "測試套件"
+
+#: lib/tuist_web/live/test_run_live.html.heex:408
+#: lib/tuist_web/live/test_run_live.html.heex:416
+#: lib/tuist_web/live/test_run_live.html.heex:456
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case"
+msgstr "測試案例"
+
+#: lib/tuist_web/live/test_case_live.ex:26
+#: lib/tuist_web/live/test_case_live.ex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case not found."
+msgstr "未找到測試案例。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:124
+#: lib/tuist_web/live/test_cases_live.ex:236
+#: lib/tuist_web/live/test_cases_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs"
+msgstr "測試案例執行"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs represents the total number of individual test case executions during a given period."
+msgstr "測試案例執行次數是指在特定期間內執行個別測試案例的總次數。"
+
+#: lib/tuist_web/live/test_run_live.ex:729
+#: lib/tuist_web/live/test_run_live.ex:780
+#: lib/tuist_web/live/test_run_live.html.heex:203
+#: lib/tuist_web/live/test_run_live.html.heex:571
+#: lib/tuist_web/live/test_run_live.html.heex:595
+#: lib/tuist_web/live/test_run_live.html.heex:645
+#: lib/tuist_web/live/test_run_live.html.heex:770
+#: lib/tuist_web/live/test_run_live.html.heex:802
+#: lib/tuist_web/live/test_run_live.html.heex:866
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test cases"
+msgstr "測試案例"
+
+#: lib/tuist_web/live/test_case_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test reliability"
+msgstr "測試可靠性"
+
+#: lib/tuist_web/live/test_runs_live.ex:269
+#: lib/tuist_web/live/test_runs_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count"
+msgstr "測試次數"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"測試執行次數代表在指定時間內執行測試的次數。測試執行可透過執行「tuist test」"
+"或「tuist xcodebuild test」來執行。"
+
+#: lib/tuist_web/live/test_run_live.ex:25
+#: lib/tuist_web/live/test_run_live.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run not found."
+msgstr "未找到測試執行。"
+
+#: lib/tuist_web/live/tests_live.html.heex:88
+#: lib/tuist_web/live/tests_live.html.heex:357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test runs"
+msgstr "測試運行"
+
+#: lib/tuist_web/live/test_run_live.html.heex:568
+#: lib/tuist_web/live/test_run_live.html.heex:580
+#: lib/tuist_web/live/test_run_live.html.heex:587
+#: lib/tuist_web/live/test_run_live.html.heex:631
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suite"
+msgstr "測試套件"
+
+#: lib/tuist_web/live/test_run_live.ex:772
+#: lib/tuist_web/live/test_run_live.html.heex:767
+#: lib/tuist_web/live/test_run_live.html.heex:794
+#: lib/tuist_web/live/test_run_live.html.heex:852
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suites"
+msgstr "測試套件"
+
+#: lib/tuist_web/live/tests_live.ex:20
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tests"
+msgstr "測試"
+
+#: lib/tuist_web/live/tests_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The average test run duration with individual percentile intervals."
+msgstr "平均測試時間與個別百分位數間隔。"
+
+#: lib/tuist_web/live/tests_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The number of test runs that failed."
+msgstr "測試執行失敗的次數。"
+
+#: lib/tuist_web/live/tests_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The total number of test runs."
+msgstr "測試運行的總次數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:965
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules"
+msgstr "總模組"
+
+#: lib/tuist_web/live/test_run_live.html.heex:967
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules represents the total number of testable modules."
+msgstr "總模組數代表可測試模組的總數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1095
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules taken from either the local or the remote cache."
+msgstr "從本機或遠端快取記憶體取得的模組總數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules that could have been taken from the cache if it was fully populated."
+msgstr "如果快取記憶體已完全填滿，可從快取記憶體取出的模組總數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:204
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of test cases executed."
+msgstr "執行的測試案例總數。"
+
+#: lib/tuist_web/live/test_case_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of times this test case has been executed."
+msgstr "此測試用例已執行的總次數。"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1067
+#: lib/tuist_web/live/test_run_live.html.heex:1195
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "嘗試變更您的搜尋字詞"
+
+#: lib/tuist_web/live/test_case_live.html.heex:283
+#: lib/tuist_web/live/test_run_live.html.heex:526
+#: lib/tuist_web/live/test_run_live.html.heex:722
+#: lib/tuist_web/live/test_run_live.html.heex:938
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try updating your search"
+msgstr "嘗試更新您的搜尋"
+
+#: lib/tuist_web/live/test_run_live.html.heex:243
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist version"
+msgstr "Tuist 版本"
+
+#: lib/tuist_web/live/test_case_live.html.heex:228
+#: lib/tuist_web/live/test_run_live.html.heex:33
+#: lib/tuist_web/live/test_run_live.html.heex:44
+#: lib/tuist_web/live/test_run_live.html.heex:171
+#: lib/tuist_web/live/test_run_live.html.heex:179
+#: lib/tuist_web/live/test_run_live.html.heex:188
+#: lib/tuist_web/live/test_run_live.html.heex:1060
+#: lib/tuist_web/live/test_run_live.html.heex:1188
+#: lib/tuist_web/live/test_runs_live.html.heex:442
+#: lib/tuist_web/live/tests_live.html.heex:776
+#: lib/tuist_web/live/tests_live.html.heex:801
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "未知"
+
+#: lib/tuist_web/live/test_run_live.ex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown error"
+msgstr "未知錯誤"
+
+#: lib/tuist_web/live/test_run_live.html.heex:292
+#: lib/tuist_web/live/tests_live.html.heex:694
+#: lib/tuist_web/live/tests_live.html.heex:843
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "檢視更多"
+
+#: lib/tuist_web/live/test_run_live.html.heex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "macOS version"
+msgstr "macOS 版本"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:363
+#: lib/tuist_web/live/test_runs_live.html.heex:358
+#: lib/tuist_web/live/tests_live.html.heex:293
+#: lib/tuist_web/live/tests_live.html.heex:664
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/test_cases_live.ex:258
+#: lib/tuist_web/live/test_cases_live.html.heex:128
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test case run duration"
+msgstr "p50 測試案例執行時間"
+
+#: lib/tuist_web/live/test_runs_live.ex:291
+#: lib/tuist_web/live/test_runs_live.html.heex:126
+#: lib/tuist_web/live/tests_live.html.heex:121
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test run duration"
+msgstr "P50 測試運行持續時間"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:350
+#: lib/tuist_web/live/test_runs_live.html.heex:345
+#: lib/tuist_web/live/tests_live.html.heex:280
+#: lib/tuist_web/live/tests_live.html.heex:648
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/test_cases_live.ex:255
+#: lib/tuist_web/live/test_cases_live.html.heex:127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test case run duration"
+msgstr "p90 測試案例執行時間"
+
+#: lib/tuist_web/live/test_runs_live.ex:288
+#: lib/tuist_web/live/test_runs_live.html.heex:125
+#: lib/tuist_web/live/tests_live.html.heex:120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test run duration"
+msgstr "p90 測試運行持續時間"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:337
+#: lib/tuist_web/live/test_runs_live.html.heex:332
+#: lib/tuist_web/live/tests_live.html.heex:267
+#: lib/tuist_web/live/tests_live.html.heex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/test_cases_live.ex:252
+#: lib/tuist_web/live/test_cases_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test case run duration"
+msgstr "p99 測試案例執行時間"
+
+#: lib/tuist_web/live/test_runs_live.ex:285
+#: lib/tuist_web/live/test_runs_live.html.heex:124
+#: lib/tuist_web/live/tests_live.html.heex:119
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test run duration"
+msgstr "p99 測試運行時間"
+
+#: lib/tuist_web/live/test_cases_live.ex:291
+#: lib/tuist_web/live/test_runs_live.ex:324
+#: lib/tuist_web/live/tests_live.ex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "上個月以來"
+
+#: lib/tuist_web/live/test_cases_live.ex:288
+#: lib/tuist_web/live/test_runs_live.ex:321
+#: lib/tuist_web/live/tests_live.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "自上周以來"
+
+#: lib/tuist_web/live/test_cases_live.ex:289
+#: lib/tuist_web/live/test_runs_live.ex:322
+#: lib/tuist_web/live/tests_live.ex:280
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "自去年以來"
+
+#: lib/tuist_web/live/test_run_live.html.heex:285
+#: lib/tuist_web/live/test_run_live.html.heex:1225
+#, elixir-autogen, elixir-format, fuzzy
+msgid "•"
+msgstr "-"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:74
+#: lib/tuist_web/live/test_runs_live.html.heex:74
+#: lib/tuist_web/live/tests_live.html.heex:76
+#: lib/tuist_web/live/tests_live.html.heex:519
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "申請"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:67
+#: lib/tuist_web/live/test_runs_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:510
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "取消"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:58
+#: lib/tuist_web/live/test_runs_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:501
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "客製化"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:55
+#: lib/tuist_web/live/test_runs_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:498
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "過去 12 個月"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:40
+#: lib/tuist_web/live/test_runs_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:483
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "過去 24 小時"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:50
+#: lib/tuist_web/live/test_runs_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:493
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:45
+#: lib/tuist_web/live/test_runs_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:488
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+#: lib/tuist_web/live/test_cases_live.ex:290
+#: lib/tuist_web/live/test_runs_live.ex:323
+#: lib/tuist_web/live/tests_live.ex:281
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "自上期"
+
+#: lib/tuist_web/live/test_cases_live.ex:287
+#: lib/tuist_web/live/test_runs_live.ex:320
+#: lib/tuist_web/live/tests_live.ex:278
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "自昨"

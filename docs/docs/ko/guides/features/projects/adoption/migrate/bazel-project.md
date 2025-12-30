@@ -51,8 +51,7 @@ let project = Project(
 <!-- -->
 :::
 
-Here's another example but comparing how to define unit tests in Bazel and
-Tuist:
+여기 다른 예제가 있지만 단위 테스트를 Bazel과 Tuist에서 어떻게 정의하는 지에 대한 비교 입니다.
 
 ::: code-group
 ```txt [BUILD (Bazel)]

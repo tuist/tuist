@@ -36,8 +36,8 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 Ensure that your default keychain is created and unlocked _before_ `tuist
 registry login` is run.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable
-is set. You can create one by following the documentation
+Additionally, you need to ensure the `TUIST_TOKEN` environment variable is set.
+You can create one by following the documentation
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
 
 An example workflow for GitHub Actions could then look like this:
@@ -59,7 +59,7 @@ jobs:
         security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Log in to the Tuist Registry
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: tuist registry login
       - # Your build steps
 ```

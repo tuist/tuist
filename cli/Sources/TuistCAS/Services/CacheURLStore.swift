@@ -6,7 +6,7 @@
 
     @Mockable
     public protocol CacheURLStoring: Sendable {
-        func getCacheURL(for serverURL: URL) async throws -> URL
+        func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL
     }
 
     public struct CacheURLStore: CacheURLStoring {
@@ -42,15 +42,15 @@
             localCache = NSCache<NSString, NSString>()
         }
 
-        public func getCacheURL(for serverURL: URL) async throws -> URL {
-            let key = "cache_url_\(serverURL.absoluteString)"
+        public func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL {
+            let key = "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")"
             let nsKey = key as NSString
 
             if let cachedURLString = localCache.object(forKey: nsKey) as? String {
                 Logger.current.debug("Returning cached endpoint from local cache: \(cachedURLString)")
 
                 Task {
-                    await refreshCacheInBackground(for: serverURL, key: key)
+                    await refreshCacheInBackground(for: serverURL, accountHandle: accountHandle, key: key)
                 }
 
                 guard let url = URL(string: cachedURLString) else {
@@ -60,7 +60,7 @@
             }
 
             guard let urlString = try await cachedValueStore.getValue(key: key, computeIfNeeded: {
-                try await self.selectBestEndpoint(for: serverURL)
+                try await self.selectBestEndpoint(for: serverURL, accountHandle: accountHandle)
             }) else {
                 throw CacheURLStoreError.noEndpointsAvailable
             }
@@ -74,12 +74,12 @@
             return url
         }
 
-        private func refreshCacheInBackground(for serverURL: URL, key: String) async {
+        private func refreshCacheInBackground(for serverURL: URL, accountHandle: String?, key: String) async {
             Logger.current.debug("Refreshing best cache endpoint in background for \(serverURL.absoluteString)")
 
             do {
                 if let urlString = try await cachedValueStore.getValue(key: key, computeIfNeeded: {
-                    try await self.selectBestEndpoint(for: serverURL)
+                    try await self.selectBestEndpoint(for: serverURL, accountHandle: accountHandle)
                 }) {
                     localCache.setObject(urlString as NSString, forKey: key as NSString)
                 }
@@ -88,10 +88,15 @@
             }
         }
 
-        private func selectBestEndpoint(for serverURL: URL) async throws -> (value: String, expiresAt: Date?)? {
+        private func selectBestEndpoint(for serverURL: URL, accountHandle: String?) async throws
+            -> (value: String, expiresAt: Date?)?
+        {
             Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
-            let endpoints = try await getCacheEndpointsService.getCacheEndpoints(serverURL: serverURL)
+            let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
+                serverURL: serverURL,
+                accountHandle: accountHandle
+            )
 
             guard !endpoints.isEmpty else {
                 throw CacheURLStoreError.noEndpointsAvailable

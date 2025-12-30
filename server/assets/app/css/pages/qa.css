@@ -36,10 +36,6 @@
     margin-top: var(--noora-spacing-6);
   }
 
-  & .noora-card {
-    overflow-x: hidden;
-  }
-
   & .noora-chart {
     width: 105%;
     height: 148px;
