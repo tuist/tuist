@@ -436,7 +436,22 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
-        run: op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+        run: |
+          SPARKLE_GENERATE_APPCAST=".build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
+            SPARKLE_GENERATE_APPCAST=".build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast"
+          fi
+          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
+            SPARKLE_GENERATE_APPCAST="app/build/app/derived/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
+          fi
+          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
+            SPARKLE_GENERATE_APPCAST="app/build/app/derived/SourcePackages/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast"
+          fi
+          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
+            echo "generate_appcast not found in .build or DerivedData artifacts" >&2
+            exit 1
+          fi
+          op read "op://tuist/Tuist App Private Sparkle Key/credential" | "$SPARKLE_GENERATE_APPCAST" --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
 
       - name: Upload App artifacts
         id: upload
