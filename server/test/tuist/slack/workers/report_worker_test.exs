@@ -3,6 +3,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
   use Mimic
 
   alias Tuist.Projects
+  alias Tuist.Runs.Analytics
   alias Tuist.Slack.Client
   alias Tuist.Slack.Workers.ReportWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -33,11 +34,11 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       stub(DateTime, :utc_now, fn -> now end)
 
-      stub(Tuist.Runs.Analytics, :build_duration_analytics, fn _project_id, _opts ->
+      stub(Analytics, :build_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 1000, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
+      stub(Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 500, trend: nil}
       end)
 
@@ -45,7 +46,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
         %{cache_hit_rate: 0.8, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :selective_testing_analytics, fn _opts ->
+      stub(Analytics, :selective_testing_analytics, fn _opts ->
         %{hit_rate: 0, trend: nil}
       end)
 
