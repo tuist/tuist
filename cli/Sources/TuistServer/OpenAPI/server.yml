@@ -6861,9 +6861,17 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: This endpoint returns a list of available cache endpoints.
+      description: Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
       operationId: getCacheEndpoints
-      parameters: []
+      parameters:
+        - description: The name of the account to get custom cache endpoints for.
+          in: query
+          name: account_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:

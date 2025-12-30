@@ -12,7 +12,8 @@
   & > [data-part="rename-card-section"],
   & > [data-part="delete-organization-card-section"],
   & > [data-part="delete-user-card-section"],
-  & > [data-part="region-card-section"] {
+  & > [data-part="region-card-section"],
+  & > [data-part="cache-endpoints-card-section"] {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -74,6 +75,31 @@
       & > [data-part="select-label"] {
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="cache-endpoints-card-section"] {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    overflow: hidden;
+
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-0);
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      padding: var(--noora-spacing-8);
+      min-width: 0;
+
+      & .noora-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
       }
     }
   }

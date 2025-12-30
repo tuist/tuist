@@ -45,7 +45,8 @@ struct CacheStartCommandService {
                 .url()
 
             Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
-            _ = try await cacheURLStore.getCacheURL(for: serverURL)
+            let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
+            _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
 
             let server = GRPCServer(
                 transport: .http2NIOPosix(

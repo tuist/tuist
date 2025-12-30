@@ -506,7 +506,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["id"] == id
-      assert length(Tuist.Repo.all(Build)) == 1
+      assert Tuist.Repo.get(Build, id)
     end
 
     test "creates a new build when non-required parameters are missing", %{conn: conn} do

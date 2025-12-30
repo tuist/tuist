@@ -3696,4 +3696,183 @@ defmodule Tuist.AccountsTest do
       assert Map.has_key?(errors, :name)
     end
   end
+
+  describe "list_account_cache_endpoints/1" do
+    test "returns empty list when account has no cache endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert endpoints == []
+    end
+
+    test "returns cache endpoints for account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint1} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, endpoint2} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert length(endpoints) == 2
+      endpoint_ids = Enum.map(endpoints, & &1.id)
+      assert endpoint1.id in endpoint_ids
+      assert endpoint2.id in endpoint_ids
+    end
+  end
+
+  describe "create_account_cache_endpoint/2" do
+    test "creates cache endpoint with valid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert endpoint.url == "https://cache.example.com"
+      assert endpoint.account_id == account.id
+    end
+
+    test "returns error for invalid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "not-a-url"})
+
+      # Then
+      assert %{url: ["must be a valid HTTP or HTTPS URL"]} = errors_on(changeset)
+    end
+
+    test "returns error when adding duplicate URL for same account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert %{account_id: ["has already been added"]} = errors_on(changeset)
+    end
+
+    test "allows same URL for different accounts" do
+      # Given
+      user1 = AccountsFixtures.user_fixture()
+      user2 = AccountsFixtures.user_fixture()
+      account1 = Accounts.get_account_from_user(user1)
+      account2 = Accounts.get_account_from_user(user2)
+      {:ok, _endpoint1} = Accounts.create_account_cache_endpoint(account1, %{url: "https://cache.example.com"})
+
+      # When
+      result = Accounts.create_account_cache_endpoint(account2, %{url: "https://cache.example.com"})
+
+      # Then
+      assert {:ok, endpoint} = result
+      assert endpoint.url == "https://cache.example.com"
+    end
+  end
+
+  describe "delete_account_cache_endpoint/1" do
+    test "deletes the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+
+      # Then
+      assert Accounts.list_account_cache_endpoints(account) == []
+    end
+  end
+
+  describe "get_account_cache_endpoint!/1" do
+    test "returns the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      fetched_endpoint = Accounts.get_account_cache_endpoint!(endpoint.id)
+
+      # Then
+      assert fetched_endpoint.id == endpoint.id
+      assert fetched_endpoint.url == endpoint.url
+    end
+
+    test "raises when endpoint does not exist" do
+      # Given / When / Then
+      assert_raise Ecto.NoResultsError, fn ->
+        Accounts.get_account_cache_endpoint!(Ecto.UUID.generate())
+      end
+    end
+  end
+
+  describe "get_cache_endpoints_for_handle/1" do
+    test "returns custom endpoints when account has them configured" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
+    end
+
+    test "returns default endpoints when account has no custom endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account handle does not exist" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when handle is nil" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+  end
 end

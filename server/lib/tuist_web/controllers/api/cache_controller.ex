@@ -3,6 +3,7 @@ defmodule TuistWeb.API.CacheController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.Storage
@@ -37,8 +38,16 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "This endpoint returns a list of available cache endpoints.",
+    description: "Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.",
     operation_id: "getCacheEndpoints",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "The name of the account to get custom cache endpoints for."
+      ]
+    ],
     responses: %{
       ok:
         {"List of cache endpoints", "application/json",
@@ -57,8 +66,8 @@ defmodule TuistWeb.API.CacheController do
     }
   )
 
-  def endpoints(conn, _params) do
-    endpoints = Tuist.Environment.cache_endpoints()
+  def endpoints(conn, params) do
+    endpoints = Accounts.get_cache_endpoints_for_handle(params[:account_handle])
     json(conn, %{endpoints: endpoints})
   end
 
