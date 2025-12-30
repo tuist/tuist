@@ -96,8 +96,8 @@ final class EmptyCacheService: CacheServicing {
             cacheGraphContentHasher: CacheGraphContentHashing,
             activityLogController: XCActivityLogControlling
         ) {
-            configLoader = ConfigLoader(manifestLoader: ManifestLoader())
-            manifestLoader = ManifestLoader()
+            configLoader = ConfigLoader()
+            manifestLoader = ManifestLoader.current
             pluginService = PluginService()
             self.generatorFactory = generatorFactory
             self.cacheWarmGraphLinter = cacheWarmGraphLinter

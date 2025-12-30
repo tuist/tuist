@@ -49,7 +49,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = ManifestLoader.current,
         fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),

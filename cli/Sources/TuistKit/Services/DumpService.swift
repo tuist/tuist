@@ -11,11 +11,9 @@ final class DumpService {
     private let configLoader: ConfigLoading
 
     convenience init() {
-        let manifestLoader = CachedManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
-            manifestLoader: manifestLoader,
-            configLoader: configLoader
+            manifestLoader: ManifestLoader.current,
+            configLoader: ConfigLoader()
         )
     }
 

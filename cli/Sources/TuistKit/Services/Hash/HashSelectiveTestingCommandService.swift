@@ -26,7 +26,7 @@ final class HashSelectiveTestingCommandService {
         )
         self.init(
             generatorFactory: generatorFactory,
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             xcodeGraphMapper: XcodeGraphMapper(),
