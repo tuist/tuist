@@ -488,6 +488,9 @@ jobs:
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
