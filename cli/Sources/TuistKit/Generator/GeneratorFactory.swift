@@ -117,11 +117,10 @@ public class GeneratorFactory: GeneratorFactorying {
         let workspaceMappers = workspaceMapperFactory.automation(
             tuist: config
         )
-        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            manifestLoader: manifestLoader,
+            manifestLoader: ManifestLoader.current,
             manifestGraphLoader: ManifestGraphLoader(
-                manifestLoader: manifestLoader,
+                manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                 graphMapper: SequentialGraphMapper(graphMappers)
             )
@@ -169,11 +168,10 @@ public class GeneratorFactory: GeneratorFactorying {
         let workspaceMappers = workspaceMapperFactory.default(
             tuist: config
         )
-        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            manifestLoader: manifestLoader,
+            manifestLoader: ManifestLoader.current,
             manifestGraphLoader: ManifestGraphLoader(
-                manifestLoader: manifestLoader,
+                manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                 graphMapper: SequentialGraphMapper(graphMappers)
             )
@@ -314,7 +312,7 @@ public class GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage
             )
             let workspaceMappers = workspaceMapperFactory.default(tuist: config)
-            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            let manifestLoader = ManifestLoader.current
             return Generator(
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
@@ -362,7 +360,7 @@ public class GeneratorFactory: GeneratorFactorying {
                 destination: destination
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
-            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            let manifestLoader = ManifestLoader.current
             return Generator(
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
@@ -396,7 +394,7 @@ public class GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
-            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            let manifestLoader = ManifestLoader.current
             return Generator(
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
@@ -426,7 +424,7 @@ public class GeneratorFactory: GeneratorFactorying {
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
             let workspaceMappers = workspaceMapperFactory.binaryCacheWarmingPreload(tuist: config)
-            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            let manifestLoader = ManifestLoader.current
             return Generator(
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
@@ -461,8 +459,10 @@ public class GeneratorFactory: GeneratorFactorying {
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 
-            let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(tuist: config)
-            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(
+                tuist: config, targets: targetsToBinaryCache
+            )
+            let manifestLoader = ManifestLoader.current
             return Generator(
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(

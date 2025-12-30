@@ -4,6 +4,8 @@ import Path
 import TSCBasic
 import TuistServer
 import TuistSupport
+import TuistLoader
+
 #if canImport(TuistCacheEE)
     import TuistCacheEE
 #endif
@@ -29,15 +31,17 @@ public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void)
     let (logger, logFilePath) = try await initLogger()
 
     try await withAdditionalMiddlewares {
-        try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
-            try await Noora.$current.withValue(initNoora()) {
-                try await Logger.$current.withValue(logger) {
-                    try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                            try await RecentPathsStore.$current
-                                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                    try await action(logFilePath)
-                                }
+        try await withInitializedManifestLoader {
+            try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+                try await Noora.$current.withValue(initNoora()) {
+                    try await Logger.$current.withValue(logger) {
+                        try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                            try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                try await RecentPathsStore.$current
+                                    .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                                        try await action(logFilePath)
+                                    }
+                            }
                         }
                     }
                 }
@@ -54,6 +58,18 @@ public func withAdditionalMiddlewares(_ action: () async throws -> Void) async t
     #else
         try await action()
     #endif
+}
+
+private func withInitializedManifestLoader(_ action: () async throws -> Void) async throws {
+    let useCache = if Environment.current.variables[Constants.EnvironmentVariables.cacheManifests] != nil {
+        Environment.current.isVariableTruthy(Constants.EnvironmentVariables.cacheManifests)
+    } else {
+        true
+    }
+    return try await ManifestLoader.$current.withValue(useCache ? CachedManifestLoader() : ManifestLoader()) {
+        return try await action()
+    }
+    
 }
 
 private func initEnv() async throws {

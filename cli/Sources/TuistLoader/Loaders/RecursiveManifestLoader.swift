@@ -169,7 +169,8 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                     path: $0,
                     packageType: .local,
                     packageSettings: packageSettings,
-                    packageModuleAliases: [:]
+                    packageModuleAliases: [:],
+                    enabledTraits: []
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

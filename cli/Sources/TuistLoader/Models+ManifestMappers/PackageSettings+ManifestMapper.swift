@@ -22,25 +22,13 @@ extension TuistCore.PackageSettings {
         let projectOptions: [String: XcodeGraph.Project.Options] = manifest
             .projectOptions
             .mapValues { .from(manifest: $0) }
-        let productTraits = Dictionary(uniqueKeysWithValues: manifest.productTraits.map { productName, traits in
-            let mappedTraits = traits.map { trait -> TuistCore.PackageSettingsTrait in
-                switch trait {
-                case .default: return .default
-                case let .named(name): return .named(name)
-                @unknown default:
-                    fatalError("Invalid trait type")
-                }
-            }
-            return (productName, mappedTraits)
-        })
 
         return .init(
             productTypes: productTypes,
             productDestinations: productDestinations,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectOptions: projectOptions,
-            productTraits: productTraits
+            projectOptions: projectOptions
         )
     }
 }

@@ -18,8 +18,6 @@ public struct PackageSettings: Equatable, Codable {
     /// The custom project options for each project generated from a swift package.
     public let projectOptions: [String: XcodeGraph.Project.Options]
 
-    public var productTraits: [String: [PackageSettingsTrait]]
-
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -31,15 +29,13 @@ public struct PackageSettings: Equatable, Codable {
         productDestinations: [String: Destinations],
         baseSettings: Settings,
         targetSettings: [String: Settings],
-        projectOptions: [String: XcodeGraph.Project.Options] = [:],
-        productTraits: [String: [PackageSettingsTrait]] = [:]
+        projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-        self.productTraits = productTraits
     }
 }
 
@@ -50,16 +46,14 @@ public struct PackageSettings: Equatable, Codable {
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
             targetSettings: [String: Settings] = [:],
-            projectOptions: [String: XcodeGraph.Project.Options] = [:],
-            productTraits: [String: [PackageSettingsTrait]] = [:]
+            projectOptions: [String: XcodeGraph.Project.Options] = [:]
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
                 productDestinations: productDestinations,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
-                projectOptions: projectOptions,
-                productTraits: productTraits
+                projectOptions: projectOptions
             )
         }
     }

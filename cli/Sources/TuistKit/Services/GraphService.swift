@@ -22,8 +22,7 @@ final class GraphService {
     private let configLoader: ConfigLoading
 
     convenience init() {
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
+        let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),
