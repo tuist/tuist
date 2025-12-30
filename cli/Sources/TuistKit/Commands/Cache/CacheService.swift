@@ -687,7 +687,7 @@ final class EmptyCacheService: CacheServicing {
                 derivedDataPath: derivedDataPath,
                 clean: false,
                 arguments: [
-                    .destination("platform=macOS,variant=Mac Catalyst"),
+                    .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
