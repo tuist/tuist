@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Clean the Docker images"
 
+set -euo pipefail
+
 # Remove all Docker images
 docker_images=$(docker images -aq)
 if [ -n "$docker_images" ]; then

@@ -13,6 +13,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
 
   setup do
     conn = Plug.Test.init_test_session(build_conn(), %{})
+    stub(Environment, :oauth_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
 
     {:ok, conn: conn}
   end

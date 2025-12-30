@@ -51,7 +51,7 @@ func appName() -> String {
 Accessing variables returns an instance of type `Environment.Value?` which can
 take any of the following values:
 
-| Case              | Description                                 |
+| Case              | Descrição                                   |
 | ----------------- | ------------------------------------------- |
 | `.string(String)` | Used when the variable represents a string. |
 

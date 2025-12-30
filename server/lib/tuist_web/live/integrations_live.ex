@@ -12,7 +12,7 @@ defmodule TuistWeb.IntegrationsLive do
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
     selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :projects])
@@ -27,7 +27,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
-      |> assign(:head_title, "#{gettext("Integrations")} · #{selected_account.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
           assign_async(socket, :github_repositories, fn ->
@@ -144,9 +144,9 @@ defmodule TuistWeb.IntegrationsLive do
     time_ago = DateFormatter.from_now(vcs_connection.inserted_at)
 
     if is_nil(vcs_connection.created_by) do
-      gettext("Connected %{time_ago}", time_ago: time_ago)
+      dgettext("dashboard_integrations", "Connected %{time_ago}", time_ago: time_ago)
     else
-      gettext("Connected %{time_ago} by %{name}",
+      dgettext("dashboard_integrations", "Connected %{time_ago} by %{name}",
         time_ago: time_ago,
         name: vcs_connection.created_by.account.name
       )

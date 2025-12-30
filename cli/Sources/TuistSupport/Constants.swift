@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.110.1"
+    @TaskLocal public static var version: String! = "4.119.1"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -61,7 +61,8 @@ public enum Constants {
         public static let osLog = "TUIST_CONFIG_OS_LOG"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
-        public static let token = "TUIST_CONFIG_TOKEN"
+        public static let token = "TUIST_TOKEN"
+        public static let deprecatedToken = "TUIST_CONFIG_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
     }
 

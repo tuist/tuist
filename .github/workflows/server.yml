@@ -14,6 +14,7 @@ on:
       - server/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
+      - pnpm-lock.yaml
   merge_group: {}
 
 permissions:
@@ -27,7 +28,6 @@ env:
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
 
 defaults:
   run:
@@ -46,10 +46,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -97,6 +98,89 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
+  gettext_dashboard:
+    name: Gettext (Dashboard)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check dashboard gettext templates are up-to-date
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          # Extract only (without --merge) to check if any .pot changes
+          # DO NOT use --merge here as it would modify .po translation files
+          mix gettext.extract > /dev/null 2>&1 || true
+
+          # Check each domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit 1
+          else
+            echo "✅ All dashboard gettext templates are up-to-date"
+          fi
+      - name: Check dashboard translations templates exist
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          MISSING_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ ! -f "priv/gettext/${domain}.pot" ]; then
+              MISSING_DOMAINS="$MISSING_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$MISSING_DOMAINS" ]; then
+            echo "::error title=Missing dashboard translations::The following .pot files are missing:$MISSING_DOMAINS. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          echo "✅ All dashboard translation templates present"
   translation_protection:
     name: Translation Protection
     runs-on: namespace-profile-default
@@ -120,18 +204,32 @@ jobs:
             exit 0
           fi
 
-          # Allow adding new language directories (one-time setup), but block modifications
+          # Allow adding new language directories (one-time setup), but block modifications to non-English translations
           if [ "$PR_AUTHOR" != "tuistit" ]; then
-            if [ -n "$MODIFIED_PO_FILES" ]; then
-              echo "::error title=Translation files modified::Translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
+            # Filter out English .po files from modified files (developers can modify English source translations)
+            NON_ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep -v '/en/LC_MESSAGES/' || true)
+
+            if [ -n "$NON_ENGLISH_MODIFIED" ]; then
+              echo "::error title=Translation files modified::Non-English translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
               echo ""
               echo "Modified translation files:"
-              echo "$MODIFIED_PO_FILES"
+              echo "$NON_ENGLISH_MODIFIED"
               echo ""
               echo "If you need to update translations, please use Weblate instead of editing .po files directly."
               echo "You should only commit .pot (template) files, not .po (translation) files."
+              echo "Note: English .po files (en/LC_MESSAGES/*.po) can be modified by developers."
               exit 1
-            elif [ -n "$ADDED_PO_FILES" ]; then
+            fi
+
+            # Report on English modifications (allowed)
+            ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep '/en/LC_MESSAGES/' || true)
+            if [ -n "$ENGLISH_MODIFIED" ]; then
+              echo "✅ English translation files modified by $PR_AUTHOR (allowed):"
+              echo "$ENGLISH_MODIFIED"
+              echo ""
+            fi
+
+            if [ -n "$ADDED_PO_FILES" ]; then
               echo "⚠️  New translation files added by $PR_AUTHOR:"
               echo "$ADDED_PO_FILES"
               echo ""
@@ -165,10 +263,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -197,12 +296,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -226,12 +326,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -256,10 +357,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
@@ -302,12 +404,13 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -330,16 +433,17 @@ jobs:
         with:
           submodules: false
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -446,10 +550,11 @@ jobs:
         id: mix-cache
         with:
           path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache

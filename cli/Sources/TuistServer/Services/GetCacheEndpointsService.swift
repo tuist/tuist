@@ -5,7 +5,8 @@ import OpenAPIURLSession
 @Mockable
 public protocol GetCacheEndpointsServicing: Sendable {
     func getCacheEndpoints(
-        serverURL: URL
+        serverURL: URL,
+        accountHandle: String?
     ) async throws -> [String]
 }
 
@@ -24,11 +25,14 @@ public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
     public init() {}
 
     public func getCacheEndpoints(
-        serverURL: URL
+        serverURL: URL,
+        accountHandle: String?
     ) async throws -> [String] {
         let client = Client.authenticated(serverURL: serverURL)
 
-        let response = try await client.getCacheEndpoints(.init())
+        let response = try await client.getCacheEndpoints(
+            .init(query: .init(account_handle: accountHandle))
+        )
 
         switch response {
         case let .ok(okResponse):

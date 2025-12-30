@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistHTTP
 
 #if canImport(TuistXCResultService)
     import TuistCI
@@ -93,7 +94,7 @@ import OpenAPIURLSession
                 case .failed:
                     .failure
                 case .skipped:
-                    .success
+                    .skipped
                 }
 
             let testModules = testSummary.testModules.map { module in

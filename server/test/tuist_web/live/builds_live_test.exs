@@ -47,20 +47,24 @@ defmodule TuistWeb.BuildsLiveTest do
     conn: conn,
     project: project
   } do
-    # Given
+    yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success
+      status: :success,
+      inserted_at: yesterday
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success
+      status: :success,
+      inserted_at: yesterday
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure
+      status: :failure,
+      inserted_at: yesterday
     )
 
     # When

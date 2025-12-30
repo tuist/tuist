@@ -76,7 +76,7 @@ struct HashSelectiveTestingCommandServiceTests {
                     XcodeBuildTestCommandService
                         .additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
                 )
-            ).willReturn([target: "hash"])
+            ).willReturn([target: .test(hash: "hash")])
 
             // When
             try await subject.run(
@@ -139,7 +139,7 @@ struct HashSelectiveTestingCommandServiceTests {
                     XcodeBuildTestCommandService
                         .additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
                 )
-            ).willReturn([target: "hash"])
+            ).willReturn([target: .test(hash: "hash")])
 
             // When
             try await subject.run(

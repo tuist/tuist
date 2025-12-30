@@ -19,7 +19,7 @@ defmodule TuistWeb.BuildRunLive do
     run =
       case Runs.get_build(params["build_run_id"]) do
         nil ->
-          raise NotFoundError, gettext("Build not found.")
+          raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
 
         run ->
           run
@@ -39,7 +39,7 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     if run.project.id != project.id do
-      raise NotFoundError, gettext("Build not found.")
+      raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
     end
 
     cas_metrics = Runs.cas_output_metrics(run.id)
@@ -58,7 +58,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:test_run, test_run)
       |> assign(:cas_metrics, cas_metrics)
       |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
-      |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,
         run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
@@ -565,7 +565,7 @@ defmodule TuistWeb.BuildRunLive do
          not is_nil(run.project.vcs_connection) and
          run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
       raw(
-        gettext("%{message} in %{link}",
+        dgettext("dashboard_builds", "%{message} in %{link}",
           message: issue.message,
           link:
             ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}#L#{issue.starting_line}" target="_blank">#{issue.path}#L#{issue.starting_line}</a>)
@@ -581,119 +581,119 @@ defmodule TuistWeb.BuildRunLive do
     title =
       case {type, issue.step_type} do
         {"error", "c_compilation"} ->
-          gettext("Failed compiling C file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling C file %{path}", path: issue.path)
 
         {"error", "swift_compilation"} ->
-          gettext("Failed compiling Swift file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling Swift file %{path}", path: issue.path)
 
         {"error", "script_execution"} ->
-          gettext("Failed executing script %{script_name}", script_name: issue.path)
+          dgettext("dashboard_builds", "Failed executing script %{script_name}", script_name: issue.path)
 
         {"error", "create_static_library"} ->
-          gettext("Failed creating static library %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed creating static library %{path}", path: issue.path)
 
         {"error", "linker"} ->
-          gettext("Failed linking %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed linking %{path}", path: issue.path)
 
         {"error", "copy_swift_libs"} ->
-          gettext("Failed copying Swift libraries %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed copying Swift libraries %{path}", path: issue.path)
 
         {"error", "compile_assets_catalog"} ->
-          gettext("Failed compiling assets catalog %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling assets catalog %{path}", path: issue.path)
 
         {"error", "compile_storyboard"} ->
-          gettext("Failed compiling storyboard %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling storyboard %{path}", path: issue.path)
 
         {"error", "write_auxiliary_file"} ->
-          gettext("Failed writing auxiliary file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed writing auxiliary file %{path}", path: issue.path)
 
         {"error", "link_storyboards"} ->
-          gettext("Failed linking storyboards %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed linking storyboards %{path}", path: issue.path)
 
         {"error", "copy_resource_file"} ->
-          gettext("Failed copying resource file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed copying resource file %{path}", path: issue.path)
 
         {"error", "merge_swift_module"} ->
-          gettext("Failed merging Swift module %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed merging Swift module %{path}", path: issue.path)
 
         {"error", "xib_compilation"} ->
-          gettext("Failed compiling XIB file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling XIB file %{path}", path: issue.path)
 
         {"error", "swift_aggregated_compilation"} ->
-          gettext("Failed compiling Swift file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed compiling Swift file %{path}", path: issue.path)
 
         {"error", "precompile_bridging_header"} ->
-          gettext("Failed precompiling bridging header %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed precompiling bridging header %{path}", path: issue.path)
 
         {"error", "validate_embedded_binary"} ->
-          gettext("Failed validating embedded binary %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed validating embedded binary %{path}", path: issue.path)
 
         {"error", "validate"} ->
-          gettext("Failed validating %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Failed validating %{path}", path: issue.path)
 
         {"error", "other"} ->
           if is_nil(issue.path) or issue.path == "" do
             issue.title
           else
-            gettext("Failed processing %{path}", path: issue.path)
+            dgettext("dashboard_builds", "Failed processing %{path}", path: issue.path)
           end
 
         {"warning", "c_compilation"} ->
-          gettext("Warning when compiling C file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling C file %{path}", path: issue.path)
 
         {"warning", "swift_compilation"} ->
-          gettext("Warning when compiling Swift file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling Swift file %{path}", path: issue.path)
 
         {"warning", "script_execution"} ->
-          gettext("Warning when executing script %{script_name}", script_name: issue.path)
+          dgettext("dashboard_builds", "Warning when executing script %{script_name}", script_name: issue.path)
 
         {"warning", "create_static_library"} ->
-          gettext("Warning when creating static library %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when creating static library %{path}", path: issue.path)
 
         {"warning", "linker"} ->
-          gettext("Warning when linking %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when linking %{path}", path: issue.path)
 
         {"warning", "copy_swift_libs"} ->
-          gettext("Warning when copying Swift libraries %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when copying Swift libraries %{path}", path: issue.path)
 
         {"warning", "compile_assets_catalog"} ->
-          gettext("Warning when compiling assets catalog %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling assets catalog %{path}", path: issue.path)
 
         {"warning", "compile_storyboard"} ->
-          gettext("Warning when compiling storyboard %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling storyboard %{path}", path: issue.path)
 
         {"warning", "write_auxiliary_file"} ->
-          gettext("Warning when writing auxiliary file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when writing auxiliary file %{path}", path: issue.path)
 
         {"warning", "link_storyboards"} ->
-          gettext("Warning when linking storyboards %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when linking storyboards %{path}", path: issue.path)
 
         {"warning", "copy_resource_file"} ->
-          gettext("Warning when copying resource file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when copying resource file %{path}", path: issue.path)
 
         {"warning", "merge_swift_module"} ->
-          gettext("Warning when merging Swift module %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when merging Swift module %{path}", path: issue.path)
 
         {"warning", "xib_compilation"} ->
-          gettext("Warning when compiling XIB file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling XIB file %{path}", path: issue.path)
 
         {"warning", "swift_aggregated_compilation"} ->
-          gettext("Warning when compiling Swift file %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when compiling Swift file %{path}", path: issue.path)
 
         {"warning", "precompile_bridging_header"} ->
-          gettext("Warning when precompiling bridging header %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when precompiling bridging header %{path}", path: issue.path)
 
         {"warning", "validate_embedded_binary"} ->
-          gettext("Warning when validating embedded binary %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when validating embedded binary %{path}", path: issue.path)
 
         {"warning", "validate"} ->
-          gettext("Warning when validating %{path}", path: issue.path)
+          dgettext("dashboard_builds", "Warning when validating %{path}", path: issue.path)
 
         {"warning", "other"} ->
           if is_nil(issue.path) or issue.path == "" do
             issue.title
           else
-            gettext("Warning when processing %{path}", path: issue.path)
+            dgettext("dashboard_builds", "Warning when processing %{path}", path: issue.path)
           end
       end
 
@@ -784,7 +784,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "file_breakdown_compilation_duration",
         field: :compilation_duration,
-        display_name: gettext("Compilation duration"),
+        display_name: dgettext("dashboard_builds", "Compilation duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -792,7 +792,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "file_breakdown_target",
         field: :target,
-        display_name: gettext("Target"),
+        display_name: dgettext("dashboard_builds", "Target"),
         type: :text,
         operator: :=~,
         value: ""
@@ -800,7 +800,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "file_breakdown_project",
         field: :project,
-        display_name: gettext("Project"),
+        display_name: dgettext("dashboard_builds", "Project"),
         type: :text,
         operator: :=~,
         value: ""
@@ -813,7 +813,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "module_breakdown_build_duration",
         field: :build_duration,
-        display_name: gettext("Build duration"),
+        display_name: dgettext("dashboard_builds", "Build duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -821,7 +821,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "module_breakdown_compilation_duration",
         field: :compilation_duration,
-        display_name: gettext("Compilation duration"),
+        display_name: dgettext("dashboard_builds", "Compilation duration"),
         type: :number,
         operator: :>,
         value: ""
@@ -829,7 +829,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "module_breakdown_name",
         field: :name,
-        display_name: gettext("Name"),
+        display_name: dgettext("dashboard_builds", "Name"),
         type: :text,
         operator: :=~,
         value: ""
@@ -837,7 +837,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "module_breakdown_project",
         field: :project,
-        display_name: gettext("Project"),
+        display_name: dgettext("dashboard_builds", "Project"),
         type: :text,
         operator: :=~,
         value: ""
@@ -845,12 +845,12 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
         options: [:success, :failure],
         options_display_names: %{
-          :success => gettext("Passed"),
-          :failure => gettext("Failed")
+          :success => dgettext("dashboard_builds", "Passed"),
+          :failure => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
@@ -1052,7 +1052,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "cacheable_task_type",
         field: :type,
-        display_name: gettext("Type"),
+        display_name: dgettext("dashboard_builds", "Type"),
         type: :option,
         options: cacheable_task_type_options,
         options_display_names: %{
@@ -1065,13 +1065,13 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Hit"),
+        display_name: dgettext("dashboard_builds", "Hit"),
         type: :option,
         options: ["hit_local", "hit_remote", "miss"],
         options_display_names: %{
-          "hit_local" => gettext("Local"),
-          "hit_remote" => gettext("Remote"),
-          "miss" => gettext("Missed")
+          "hit_local" => dgettext("dashboard_builds", "Local"),
+          "hit_remote" => dgettext("dashboard_builds", "Remote"),
+          "miss" => dgettext("dashboard_builds", "Missed")
         },
         operator: :==,
         value: nil
@@ -1086,12 +1086,12 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "operation",
         field: :operation,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
         options: ["download", "upload"],
         options_display_names: %{
-          "download" => gettext("Download"),
-          "upload" => gettext("Upload")
+          "download" => dgettext("dashboard_builds", "Download"),
+          "upload" => dgettext("dashboard_builds", "Upload")
         },
         operator: :==,
         value: nil
@@ -1099,7 +1099,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "cas_output_type",
         field: :type,
-        display_name: gettext("Type"),
+        display_name: dgettext("dashboard_builds", "Type"),
         type: :option,
         options: cas_output_type_options,
         options_display_names: Map.new(cas_output_type_options, &{&1, &1}),
@@ -1109,7 +1109,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "cas_output_size",
         field: :size,
-        display_name: gettext("Size (MB)"),
+        display_name: dgettext("dashboard_builds", "Size (MB)"),
         type: :number,
         operator: :>,
         value: ""
@@ -1117,7 +1117,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "cas_output_compressed_size",
         field: :compressed_size,
-        display_name: gettext("Compressed Size (MB)"),
+        display_name: dgettext("dashboard_builds", "Compressed Size (MB)"),
         type: :number,
         operator: :>,
         value: ""

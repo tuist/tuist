@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+curl -s -X POST "$SLACK_WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"attachments\": [{
+      \"color\": \"good\",
+      \"text\": \"Deployed *${KAMAL_SERVICE_VERSION}* to *${KAMAL_DESTINATION}* in ${KAMAL_RUNTIME}s\",
+      \"footer\": \"Cache Service | ${KAMAL_PERFORMER}\"
+    }]
+  }" > /dev/null

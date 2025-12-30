@@ -52,6 +52,8 @@ defmodule TuistWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug TuistWeb.Plugs.RequestContextPlug
+  plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",

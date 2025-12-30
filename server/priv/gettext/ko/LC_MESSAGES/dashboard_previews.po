@@ -1,0 +1,208 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:30+0000\n"
+"PO-Revision-Date: 2025-12-24 20:50+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
+"dashboard_previews/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/preview_live.html.heex:66
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{app_name} icon"
+msgstr "%{app_name} icon"
+
+#: lib/tuist_web/live/preview_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{display_name} · Tuist"
+msgstr "%{디스플레이_이름} - Tuist"
+
+#: lib/tuist_web/live/preview_live.html.heex:141
+#: lib/tuist_web/live/previews_live.ex:171
+#: lib/tuist_web/live/previews_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "Branch"
+
+#: lib/tuist_web/live/previews_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built at"
+msgstr "구축 장소"
+
+#: lib/tuist_web/live/preview_live.html.heex:124
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle identifier"
+msgstr "번들 식별자"
+
+#: lib/tuist_web/live/preview_live.html.heex:148
+#: lib/tuist_web/live/previews_live.html.heex:87
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit SHA"
+msgstr "SHA 커밋"
+
+#: lib/tuist_web/live/preview_live.html.heex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Created by"
+msgstr "만든 사람"
+
+#: lib/tuist_web/live/preview_live.html.heex:40
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete preview"
+msgstr "미리 보기 삭제"
+
+#: lib/tuist_web/live/preview_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Details"
+msgstr "세부 정보"
+
+#: lib/tuist_web/live/preview_live.html.heex:10
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Don't have the Tuist app installed?"
+msgstr "Tuist 앱이 설치되어 있지 않으신가요?"
+
+#: lib/tuist_web/live/preview_live.html.heex:23
+#: lib/tuist_web/live/preview_live.html.heex:82
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download"
+msgstr "다운로드"
+
+#: lib/tuist_web/live/preview_live.html.heex:168
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Install App"
+msgstr "앱 설치"
+
+#: lib/tuist_web/live/previews_live.html.heex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Latest app previews"
+msgstr "최신 앱 미리보기"
+
+#: lib/tuist_web/live/previews_live.html.heex:71
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist_web/live/preview_live.html.heex:144
+#: lib/tuist_web/live/previews_live.ex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "None"
+msgstr "없음"
+
+#: lib/tuist_web/live/preview_live.html.heex:213
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Or run using CLI"
+msgstr "또는 CLI를 사용하여 실행"
+
+#: lib/tuist_web/live/previews_live.html.heex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Platforms"
+msgstr "플랫폼"
+
+#: lib/tuist_web/live/preview_live.html.heex:29
+#: lib/tuist_web/live/previews_live.ex:24
+#: lib/tuist_web/live/previews_live.html.heex:19
+#: lib/tuist_web/live/previews_live.html.heex:33
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previews"
+msgstr "미리보기"
+
+#: lib/tuist_web/live/preview_live.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QR code"
+msgstr "QR 코드"
+
+#: lib/tuist_web/live/preview_live.html.heex:130
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "실행 위치"
+
+#: lib/tuist_web/live/previews_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "운영자"
+
+#: lib/tuist_web/live/preview_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run"
+msgstr "실행"
+
+#: lib/tuist_web/live/previews_live.html.heex:6
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run the following command to share app preview."
+msgstr "다음 명령을 실행하여 앱 미리 보기를 공유합니다."
+
+#: lib/tuist_web/live/preview_live.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scan QR code"
+msgstr "QR코드 스캔"
+
+#: lib/tuist_web/live/preview_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scan this QR code on your iOS device to install this version of the app"
+msgstr "iOS 기기에서 이 QR 코드를 스캔하여 이 버전의 앱을 설치하세요."
+
+#: lib/tuist_web/live/previews_live.html.heex:5
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Share app previews in one click"
+msgstr "한 번의 클릭으로 앱 미리보기 공유"
+
+#: lib/tuist_web/live/preview_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Supported platforms"
+msgstr "지원 플랫폼"
+
+#: lib/tuist_web/live/preview_live.html.heex:206
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This preview is only supported on simulators and can't be installed on a physical device"
+msgstr "이 미리 보기는 시뮬레이터에서만 지원되며 실제 장치에는 설치할 수 없습니다."
+
+#: lib/tuist_web/live/preview_live.html.heex:200
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This preview isn't available for device installation"
+msgstr "이 미리 보기는 장치 설치에 사용할 수 없습니다."
+
+#: lib/tuist_web/live/preview_live.html.heex:12
+#, elixir-autogen, elixir-format, fuzzy
+msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
+msgstr ""
+"브라우저에서 바로 미리보기를 실행하려면, Tuist macOS 앱을 다운로드하여 "
+"설치하세요."
+
+#: lib/tuist_web/live/preview_live.html.heex:76
+#, elixir-autogen, elixir-format, fuzzy
+msgid "V %{version}"
+msgstr "V %{버전}"
+
+#: lib/tuist_web/live/previews_live.html.heex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "필터"
+
+#: lib/tuist_web/live/previews_live.html.heex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "검색..."
+
+#: lib/tuist_web/live/preview_live.html.heex:156
+#: lib/tuist_web/live/previews_live.ex:163
+#: lib/tuist_web/live/previews_live.html.heex:81
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Track"
+msgstr "트랙"

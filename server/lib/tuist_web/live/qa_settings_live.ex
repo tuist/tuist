@@ -14,7 +14,7 @@ defmodule TuistWeb.QASettingsLive do
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_qa", "You are not authorized to perform this action.")
     end
 
     selected_project = Repo.preload(selected_project, :qa_launch_argument_groups)
@@ -59,7 +59,7 @@ defmodule TuistWeb.QASettingsLive do
       |> assign(:qa_app_description_unchanged, true)
       |> assign(:qa_credentials_form, qa_credentials_form)
       |> assign(:qa_credentials_unchanged, true)
-      |> assign(:head_title, "#{gettext("QA Settings")} · #{selected_project.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Settings")} · #{selected_project.name} · Tuist")
 
     {:ok, socket}
   end

@@ -33,7 +33,7 @@ defmodule TuistWeb.PreviewLive do
       socket
       |> assign(
         :head_title,
-        gettext("%{display_name} · Tuist", display_name: preview.display_name)
+        dgettext("dashboard_previews", "%{display_name} · Tuist", display_name: preview.display_name)
       )
       |> assign(
         :preview,

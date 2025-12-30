@@ -23,13 +23,13 @@ defmodule TuistWeb.GitHubAppSetupController do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :missing_installation_id} ->
-        raise BadRequestError, gettext("Invalid GitHub app installation. Please try again.")
+        raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
 
       {:error, :missing_account_id} ->
-        raise BadRequestError, gettext("Invalid GitHub app installation. Please try again.")
+        raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
 
       {:error, :invalid_state_token} ->
-        raise BadRequestError, gettext("Invalid installation request. Please try again.")
+        raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
     end
   end
 

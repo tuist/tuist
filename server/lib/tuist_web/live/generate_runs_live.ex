@@ -4,6 +4,7 @@ defmodule TuistWeb.GenerateRunsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -16,7 +17,7 @@ defmodule TuistWeb.GenerateRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Generate Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_builds", "Generate Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -31,6 +32,13 @@ defmodule TuistWeb.GenerateRunsLive do
 
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
+
+    params =
+      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+        Query.clear_cursors(params)
+      else
+        params
+      end
 
     {
       :noreply,
@@ -53,7 +61,10 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -66,7 +77,10 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -150,7 +164,7 @@ defmodule TuistWeb.GenerateRunsLive do
         %{field: :name, op: :in, value: ["generate"]}
         | build_flop_filters(Keyword.get(attrs, :filters, []))
       ],
-      order_by: [Keyword.get(attrs, :order_by, :created_at)],
+      order_by: [Keyword.get(attrs, :order_by, :ran_at)],
       order_directions: [Keyword.get(attrs, :order_direction, :desc)]
     }
 
@@ -217,8 +231,7 @@ defmodule TuistWeb.GenerateRunsLive do
       |> URI.decode_query()
       |> Map.put("generate_runs_sort_by", column_value)
       |> Map.put("generate_runs_sort_order", sort_order)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
 
     "?#{URI.encode_query(query_params)}"
   end
@@ -228,8 +241,7 @@ defmodule TuistWeb.GenerateRunsLive do
       uri.query
       |> URI.decode_query()
       |> Map.put("generate_runs_sort_by", generate_runs_sort_by)
-      |> Map.delete("after")
-      |> Map.delete("before")
+      |> Query.clear_cursors()
       |> Map.delete("generate_runs_sort_order")
 
     "?#{URI.encode_query(query_params)}"
@@ -240,7 +252,7 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "name",
         field: :name,
-        display_name: gettext("Command"),
+        display_name: dgettext("dashboard_builds", "Command"),
         type: :text,
         operator: :=~,
         value: ""
@@ -248,12 +260,12 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
         options: [0, 1],
         options_display_names: %{
-          0 => gettext("Passed"),
-          1 => gettext("Failed")
+          0 => dgettext("dashboard_builds", "Passed"),
+          1 => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
@@ -261,7 +273,7 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_builds", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -269,10 +281,20 @@ defmodule TuistWeb.GenerateRunsLive do
       %Filter.Filter{
         id: "hit_rate",
         field: :hit_rate,
-        display_name: gettext("Hit rate"),
+        display_name: dgettext("dashboard_builds", "Hit rate"),
         type: :percentage,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "cache_endpoint",
+        field: :cache_endpoint,
+        display_name: dgettext("dashboard_builds", "Cache Endpoint"),
+        type: :option,
+        options: cache_endpoint_options(),
+        options_display_names: cache_endpoint_display_names("tuist.dev"),
+        operator: :==,
+        value: nil
       }
     ]
 
@@ -285,7 +307,7 @@ defmodule TuistWeb.GenerateRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_builds", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:

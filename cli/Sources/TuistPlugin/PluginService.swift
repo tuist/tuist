@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistGit
+import TuistHTTP
 import TuistLoader
 import TuistScaffold
 import TuistSupport

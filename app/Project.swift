@@ -8,6 +8,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistSupport", path: "../"),
         .project(target: "TuistCore", path: "../"),
         .project(target: "TuistServer", path: "../"),
+        .project(target: "TuistHTTP", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
         .project(target: "TuistSimulator", path: "../"),
         .external(name: "XcodeGraph"),
@@ -21,14 +22,37 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
     ]
 }
 
-let inspectBuildPostAction: ExecutionAction = .executionAction(
-    title: "Inspect build",
-    scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect build",
+        scriptText: """
+        if [ -f "$HOME/.local/bin/mise" ]; then
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        elif [ -f "$HOME/.local/share/mise/bin/mise" ]; then
+            eval "$($HOME/.local/share/mise/bin/mise activate -C $SRCROOT bash --shims)"
+        fi
 
-    tuist inspect build
-    """
-)
+        tuist inspect build
+        """,
+        target: target
+    )
+}
+
+func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect test",
+        scriptText: """
+        if [ -f "$HOME/.local/bin/mise" ]; then
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        elif [ -f "$HOME/.local/share/mise/bin/mise" ]; then
+            eval "$($HOME/.local/share/mise/bin/mise activate -C $SRCROOT bash --shims)"
+        fi
+
+        tuist inspect test
+        """,
+        target: target
+    )
+}
 
 let oauthClientIdEnvironmentVariable: EnvironmentVariable =
     switch Environment.env {
@@ -80,11 +104,11 @@ let project = Project(
                     ],
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
-                    "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
+                    "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.23.0",
-                    "CFBundleVersion": "9127",
+                    "CFBundleShortVersionString": "0.24.0",
+                    "CFBundleVersion": "3223",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -107,6 +131,7 @@ let project = Project(
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
                 .external(name: "ArgumentParser", condition: .when([.ios])),
+                .external(name: "TuistSDK"),
             ],
             settings: .settings(
                 base: [
@@ -121,7 +146,7 @@ let project = Project(
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
-                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad Hoc",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )
@@ -193,6 +218,7 @@ let project = Project(
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistHTTP", path: "../"),
                 .external(name: "OpenAPIRuntime"),
             ]
         ),
@@ -253,13 +279,16 @@ let project = Project(
                     .target("TuistApp"),
                 ],
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistApp"),
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 [
                     .testableTarget(target: "TuistMenuBarTests"),
+                ],
+                postActions: [
+                    inspectTestPostAction(target: "TuistMenuBarTests"),
                 ],
                 options: .options(
                     language: "en"

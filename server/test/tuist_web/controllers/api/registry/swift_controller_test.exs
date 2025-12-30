@@ -19,9 +19,19 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     account = user.account
 
-    conn = assign(conn, :current_subject, %AuthenticatedAccount{account: account, scopes: [:registry_read]})
+    conn = assign(conn, :current_subject, %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]})
 
     %{conn: conn, account: account}
+  end
+
+  describe "GET /api/registry/swift" do
+    test "returns :ok response", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/registry/swift")
+
+      # Then
+      assert conn.status == 200
+    end
   end
 
   describe "GET /api/registry/swift/availability" do
@@ -89,6 +99,22 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["identifiers"] == ["Alamofire.Alamofire_swift"]
+    end
+
+    test "returns bad request when the URL has an invalid path format", %{conn: conn} do
+      # When: URL with too many path segments (not owner/repo format)
+      invalid_url = "https://github.com/google/utilities/extra/segments"
+
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/identifiers?url=#{invalid_url}"
+        )
+
+      # Then
+      assert json_response(conn, :bad_request) == %{
+               "message" => "Invalid repository URL: #{invalid_url}"
+             }
     end
   end
 

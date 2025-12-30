@@ -25,7 +25,7 @@ defmodule TuistWeb.UserSessionController do
 
       {:deny, _limit} ->
         conn
-        |> put_flash(:error, gettext("You've exceeded the rate limit. Try again later."))
+        |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
         |> redirect(to: ~p"/users/log_in")
         |> halt()
     end
@@ -43,6 +43,8 @@ defmodule TuistWeb.UserSessionController do
           "remember_me" => params["user[remember_me]"]
         }
       end
+
+    email = String.trim(email)
 
     case Accounts.get_user_by_email_and_password(email, password) do
       {:ok, user} ->

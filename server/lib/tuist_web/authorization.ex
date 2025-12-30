@@ -18,13 +18,13 @@ defmodule TuistWeb.Authorization do
 
     cond do
       is_nil(user) ->
-        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
 
       Authorization.authorize(:ops_read, user, :ops) == :ok ->
         conn
 
       true ->
-        raise UnauthorizedError, gettext("Only operations roles can access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "Only operations roles can access this page.")
     end
   end
 
@@ -37,13 +37,13 @@ defmodule TuistWeb.Authorization do
 
     cond do
       is_nil(user) ->
-        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
 
       Authorization.authorize(:ops_read, user, :ops) == :ok ->
         {:cont, socket}
 
       true ->
-        raise UnauthorizedError, gettext("Only operations roles can access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "Only operations roles can access this page.")
     end
   end
 
@@ -53,14 +53,14 @@ defmodule TuistWeb.Authorization do
 
     cond do
       is_nil(user) ->
-        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
 
       Authorization.authorize(:preview_read, user, preview.project) == :ok ->
         conn
 
       true ->
         raise NotFoundError,
-              gettext("The page you are looking for doesn't exist or has been moved.")
+              dgettext("dashboard", "The page you are looking for doesn't exist or has been moved.")
     end
   end
 
@@ -69,14 +69,14 @@ defmodule TuistWeb.Authorization do
 
     cond do
       is_nil(user) ->
-        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+        raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
 
       Authorization.authorize(:command_event_read, user, entity) == :ok ->
         conn
 
       true ->
         raise NotFoundError,
-              gettext("The page you are looking for doesn't exist or has been moved.")
+              dgettext("dashboard", "The page you are looking for doesn't exist or has been moved.")
     end
   end
 

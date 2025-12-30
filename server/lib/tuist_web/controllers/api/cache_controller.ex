@@ -3,6 +3,7 @@ defmodule TuistWeb.API.CacheController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.Storage
@@ -37,8 +38,16 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "This endpoint returns a list of available cache endpoints.",
+    description: "Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.",
     operation_id: "getCacheEndpoints",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "The name of the account to get custom cache endpoints for."
+      ]
+    ],
     responses: %{
       ok:
         {"List of cache endpoints", "application/json",
@@ -57,8 +66,8 @@ defmodule TuistWeb.API.CacheController do
     }
   )
 
-  def endpoints(conn, _params) do
-    endpoints = Tuist.Environment.cache_endpoints()
+  def endpoints(conn, params) do
+    endpoints = Accounts.get_cache_endpoints_for_handle(params[:account_handle])
     json(conn, %{endpoints: endpoints})
   end
 
@@ -191,21 +200,6 @@ defmodule TuistWeb.API.CacheController do
         selected_project.account,
         expires_in: expires_in
       )
-
-    object_key = get_object_key(item)
-
-    if Storage.object_exists?(object_key, selected_project.account) do
-      case Storage.get_object_size(object_key, selected_project.account) do
-        {:ok, size} ->
-          Tuist.Analytics.cache_artifact_download(
-            %{size: size, category: cache_category},
-            TuistWeb.Authentication.authenticated_subject(conn)
-          )
-
-        {:error, _reason} ->
-          :ok
-      end
-    end
 
     expires_at = System.system_time(:second) + expires_in
     json(conn, %{status: "success", data: %{url: url, expires_at: expires_at}})
@@ -678,23 +672,6 @@ defmodule TuistWeb.API.CacheController do
         selected_project.account
       )
 
-    # Tigris may have a race condition where the object isn't immediately queryable
-    # after multipart upload completion. Retry up to 3 times with exponential backoff.
-    object_key = get_object_key(item)
-    skip_sleep = Map.get(conn.assigns, :skip_retry_sleep, false)
-
-    case retry_get_object_size(object_key, selected_project.account, 3, 1, skip_sleep) do
-      {:ok, size} ->
-        Tuist.Analytics.cache_artifact_upload(
-          %{size: size, category: cache_category},
-          TuistWeb.Authentication.authenticated_subject(conn)
-        )
-
-      {:error, _reason} ->
-        # After retries, still couldn't get size - skip analytics tracking
-        :ok
-    end
-
     json(conn, %{status: "success", data: %{}})
   end
 
@@ -735,28 +712,6 @@ defmodule TuistWeb.API.CacheController do
     |> Oban.insert!()
 
     send_resp(conn, :no_content, "")
-  end
-
-  defp retry_get_object_size(object_key, actor, retries_left, attempt, skip_sleep) when retries_left > 0 do
-    case Storage.get_object_size(object_key, actor) do
-      {:ok, size} ->
-        {:ok, size}
-
-      {:error, :not_found} ->
-        # Wait with exponential backoff: 100ms, 200ms, 400ms
-        if !skip_sleep do
-          (100 * :math.pow(2, attempt - 1)) |> round() |> Process.sleep()
-        end
-
-        retry_get_object_size(object_key, actor, retries_left - 1, attempt + 1, skip_sleep)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp retry_get_object_size(_object_key, _actor, 0, _attempt, _skip_sleep) do
-    {:error, :max_retries_exceeded}
   end
 
   defp get_object_key(%{hash: hash, cache_category: cache_category, name: name, project_slug: project_slug}) do

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistHTTP
 
 @Mockable
 public protocol ListBundlesServicing: Sendable {
@@ -64,7 +65,7 @@ public final class ListBundlesService: ListBundlesServicing {
                 query: .init(
                     page: page,
                     page_size: pageSize,
-                    git_branch: gitBranch,
+                    git_branch: gitBranch
                 )
             )
         )

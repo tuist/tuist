@@ -2,7 +2,7 @@ defmodule TuistWeb.Headers do
   @moduledoc ~S"""
   Utilities to read headers from requests.
   """
-  @cli_version_header "x-tuist-cloud-cli-version"
+  @cli_version_header "x-tuist-cli-version"
 
   def cli_version_header, do: @cli_version_header
 
@@ -24,6 +24,6 @@ defmodule TuistWeb.Headers do
   end
 
   def put_cli_version(conn, version) do
-    Plug.Conn.put_req_header(conn, "x-tuist-cloud-cli-version", version)
+    Plug.Conn.put_req_header(conn, "x-tuist-cli-version", version)
   end
 end

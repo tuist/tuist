@@ -345,6 +345,67 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
+  describe "get_projects_by_handles_for_account/2" do
+    test "returns projects when all handles are found" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-one")
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-two")
+
+      # When
+      {:ok, projects} =
+        Projects.get_projects_by_handles_for_account(account, ["project-one", "project-two"])
+
+      # Then
+      project_ids = projects |> Enum.map(& &1.id) |> Enum.sort()
+      assert project_ids == Enum.sort([project1.id, project2.id])
+    end
+
+    test "returns error when a handle is not found" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      ProjectsFixtures.project_fixture(account_id: account.id, name: "existing-project")
+
+      # When
+      result =
+        Projects.get_projects_by_handles_for_account(account, ["existing-project", "missing-project"])
+
+      # Then
+      assert {:error, :not_found, "missing-project"} = result
+    end
+
+    test "returns ok with empty list when no handles provided" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, projects} = Projects.get_projects_by_handles_for_account(account, [])
+
+      # Then
+      assert projects == []
+    end
+
+    test "does not return projects from other accounts" do
+      # Given
+      organization1 = AccountsFixtures.organization_fixture()
+      organization2 = AccountsFixtures.organization_fixture()
+      account1 = Accounts.get_account_from_organization(organization1)
+      account2 = Accounts.get_account_from_organization(organization2)
+      ProjectsFixtures.project_fixture(account_id: account1.id, name: "shared-name")
+      ProjectsFixtures.project_fixture(account_id: account2.id, name: "shared-name")
+
+      # When
+      result =
+        Projects.get_projects_by_handles_for_account(account1, ["shared-name", "other-project"])
+
+      # Then
+      assert {:error, :not_found, "other-project"} = result
+    end
+  end
+
   describe "projects_by_full_handles/1" do
     test "returns a map of full_handle to project for multiple projects" do
       # Given

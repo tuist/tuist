@@ -7,27 +7,27 @@
 ---
 # Shared responsibility model
 
-At Tuist, we rely on trusted infrastructure providers, such as [Fly.io](https://fly.io), [Tigris](https://tigrisdata.com) and [Supabase](https://supabase.com), to manage key aspects of our infrastructure security. These partnerships enable us to deliver reliable and secure services while focusing on application and data-level security.
+At Tuist, we rely on trusted infrastructure providers, such as [Render](https://render.com), [Tigris](https://tigrisdata.com) and [Supabase](https://supabase.com), to manage key aspects of our infrastructure security. These partnerships enable us to deliver reliable and secure services while focusing on application and data-level security.
 
 This document outlines the shared responsibility model between Tuist and its infrastructure providers, detailing the security areas managed by each party.
 
-## Fly.io: Security Responsibilities
+## Render: Security Responsibilities
 
-[Fly.io](https://fly.io) ensures the security of its platform through the following mechanisms:
+[Render](https://render.com) ensures the security of its platform through the following mechanisms:
 
-### **Fly.io's Responsibilities:**
+### **Render's Responsibilities:**
 1. **Data Center Security**
    - Physical access control, environmental safeguards, and compliance with industry standards (e.g., SOC 2, ISO 27001).
 2. **Network Security**
    - Firewall protection, DDoS mitigation, and secure routing of traffic across their global network.
 3. **Platform Updates and Patch Management**
-   - Continuous monitoring and patching of vulnerabilities in the Fly.io platform and underlying infrastructure.
+   - Continuous monitoring and patching of vulnerabilities in the Render platform and underlying infrastructure.
 4. **Application Security (AppSec)**
    - Secure isolation of customer workloads to prevent unauthorized access between applications running on their platform.
 
-For more details, refer to Fly.io's [Shared Responsibility Model](https://fly.io/docs/security/shared-responsibility/) and [Application Security](https://fly.io/docs/security/security-at-fly-io/#application-security-appsec).
+For more details, refer to Render's [Shared Responsibility Model](https://render.com/docs/shared-responsibility-model) and [Security and Trust](https://render.com/trust) documentation.
 
-### **Tuist's Responsibilities on Fly.io:**
+### **Tuist's Responsibilities on Render:**
 - Securing the Tuist application code and dependencies.
 - Managing access controls and encryption for data at rest and in transit.
 - Implementing monitoring and incident response measures for application-layer threats.

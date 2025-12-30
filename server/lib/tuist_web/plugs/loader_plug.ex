@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
 
   def init([]), do: [:project, :account, :run]
   def init(opts), do: opts
@@ -48,12 +49,14 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     case account do
       nil ->
         raise NotFoundError,
-              gettext("The account %{account_handle} was not found.", %{
+              dgettext("dashboard", "The account %{account_handle} was not found.", %{
                 account_handle: account_handle
               })
 
       account ->
-        assign(conn, :selected_account, account)
+        conn
+        |> assign(:selected_account, account)
+        |> AppsignalAttributionPlug.set_selection_tags()
     end
   end
 
@@ -83,10 +86,11 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         |> assign(:selected_account, project.account)
         |> assign(:selected_project, project)
         |> assign(:selected_run, run)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         raise NotFoundError,
-              gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
+              dgettext("dashboard", "The run with ID %{run_id} was not found.", %{run_id: run_id})
     end
   end
 
@@ -101,14 +105,16 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         conn
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         raise NotFoundError,
-              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
+              dgettext("dashboard", "The project %{project_slug} was not found.", %{project_slug: project_slug})
 
       {:error, :invalid} ->
         raise BadRequestError,
-              gettext(
+              dgettext(
+                "dashboard",
                 "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
                 %{
                   project_slug: project_slug

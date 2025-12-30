@@ -54,6 +54,12 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     )
     var json: Bool = false
 
+    @Option(
+        help: "The track of the preview (e.g., 'beta', 'nightly').",
+        envKey: .shareTrack
+    )
+    var track: String?
+
     public func run() async throws {
         try await ShareCommandService().run(
             path: path,
@@ -61,7 +67,8 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
             configuration: configuration,
             platforms: platforms,
             derivedDataPath: derivedDataPath,
-            json: json
+            json: json,
+            track: track
         )
     }
 }

@@ -115,4 +115,50 @@ defmodule TuistWeb.Utilities.Query do
   defp has_limit_offset_pagination?(query) do
     Map.has_key?(query, "limit") or Map.has_key?(query, "offset")
   end
+
+  @doc """
+  Clears cursor pagination parameters (before/after) from query parameters.
+
+  This is useful when sort order changes or filters are updated, as cursors
+  become invalid when the underlying sort fields change.
+
+  ## Parameters
+
+    * `params` - A map of query parameters
+
+  ## Examples
+
+      iex> TuistWeb.Utilities.Query.clear_cursors(%{"foo" => "bar", "after" => "cursor123"})
+      %{"foo" => "bar"}
+
+      iex> TuistWeb.Utilities.Query.clear_cursors(%{"before" => "cursor", "after" => "cursor"})
+      %{}
+  """
+  def clear_cursors(params) when is_map(params) do
+    params
+    |> Map.delete("after")
+    |> Map.delete("before")
+  end
+
+  @doc """
+  Checks if query parameters contain cursor pagination parameters (before/after).
+
+  ## Parameters
+
+    * `params` - A map of query parameters
+
+  ## Examples
+
+      iex> TuistWeb.Utilities.Query.has_cursor?(%{"foo" => "bar"})
+      false
+
+      iex> TuistWeb.Utilities.Query.has_cursor?(%{"after" => "cursor123"})
+      true
+
+      iex> TuistWeb.Utilities.Query.has_cursor?(%{"before" => "cursor123"})
+      true
+  """
+  def has_cursor?(params) when is_map(params) do
+    Map.has_key?(params, "after") or Map.has_key?(params, "before")
+  end
 end

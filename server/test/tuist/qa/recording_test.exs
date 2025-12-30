@@ -73,7 +73,7 @@ defmodule Tuist.QA.RecordingTest do
 
     test "is invalid with non-existent qa_run_id" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
       started_at = DateTime.utc_now()
 
       # When

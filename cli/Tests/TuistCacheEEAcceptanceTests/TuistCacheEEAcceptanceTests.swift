@@ -18,7 +18,7 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixture("framework_with_native_swift_macro")
+        .withFixture("generated_framework_with_native_swift_macro")
     ) func framework_with_native_swift_macro() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -325,5 +325,46 @@ struct TuistCacheEEAcceptanceTests {
 
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
         TuistTest.expectLogs("cacheable tasks (100%)")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_catalyst")
+    ) func ios_app_with_catalyst_caches_mac_catalyst_slice() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // Then: Generate the project with a focus on the App
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "App"])
+
+        // Then: The Framework XCFramework should be linked in the App
+        let xcworkspacePath = fixtureDirectory.appending(component: "App.xcworkspace")
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Framework", by: "App", xcodeprojPath: xcodeprojPath)
+
+        // Then: Build the app for Mac Catalyst to verify it links correctly
+        let arguments = [
+            "-workspace", xcworkspacePath.pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=macOS,variant=Mac Catalyst",
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
     }
 }

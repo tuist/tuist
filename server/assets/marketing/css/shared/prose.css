@@ -41,7 +41,7 @@
     margin: var(--noora-spacing-8) 0;
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-xlarge);
-    width: 100%;
+    max-width: 100%;
     height: auto;
     object-fit: contain;
   }

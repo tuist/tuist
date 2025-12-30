@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import TuistCache
 import TuistCore
+import TuistHasher
 import TuistServer
 import XcodeGraph
 import XCTest
@@ -79,9 +80,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: cHash,
-            bGraphTarget: bHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: cHash),
+            bGraphTarget: .test(hash: bHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -189,10 +190,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: cHash,
-            bGraphTarget: bHash,
-            appGraphTarget: appHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: cHash),
+            bGraphTarget: .test(hash: bHash),
+            appGraphTarget: .test(hash: appHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -293,10 +294,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             dependencies: inputGraph.dependencies
         )
 
-        let contentHashes = [
-            cGraphTarget: packageHash,
-            bGraphTarget: packageHash,
-            appGraphTarget: appHash,
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            cGraphTarget: .test(hash: packageHash),
+            bGraphTarget: .test(hash: packageHash),
+            appGraphTarget: .test(hash: appHash),
         ]
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -486,5 +487,84 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
         // When / Then
         _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+    }
+
+    func test_map_stores_subhashes_in_run_metadata_storage() async throws {
+        let path = try temporaryPath()
+        let project = Project.test(path: path)
+        let runMetadataStorage = RunMetadataStorage()
+
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            // Given
+            let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+            let cGraphTarget = GraphTarget.test(path: path, target: cFramework, project: project)
+            let cHash = "C-hash"
+            let cSubhashes = TargetContentHashSubhashes.test(
+                sources: "c-sources",
+                dependencies: "c-deps"
+            )
+
+            let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+            let bGraphTarget = GraphTarget.test(path: path, target: bFramework, project: project)
+            let bHash = "B-hash"
+            let bSubhashes = TargetContentHashSubhashes.test(
+                sources: "b-sources",
+                resources: "b-resources"
+            )
+
+            let app = Target.test(name: "App", platform: .iOS, product: .app)
+            let appGraphTarget = GraphTarget.test(path: path, target: app, project: project)
+
+            let inputGraph = Graph.test(
+                name: "input",
+                projects: [path: project],
+                dependencies: [
+                    .target(name: bFramework.name, path: bGraphTarget.path): [
+                        .target(name: cFramework.name, path: cGraphTarget.path),
+                    ],
+                    .target(name: app.name, path: appGraphTarget.path): [
+                        .target(name: bFramework.name, path: bGraphTarget.path),
+                    ],
+                ]
+            )
+            let outputGraph = Graph.test(
+                name: "output",
+                projects: inputGraph.projects,
+                dependencies: inputGraph.dependencies
+            )
+
+            let contentHashes: [GraphTarget: TargetContentHash] = [
+                cGraphTarget: .test(hash: cHash, subhashes: cSubhashes),
+                bGraphTarget: .test(hash: bHash, subhashes: bSubhashes),
+            ]
+            given(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any,
+                    configuration: .any,
+                    defaultConfiguration: .any,
+                    excludedTargets: .any,
+                    destination: .any
+                )
+                .willReturn(contentHashes)
+            given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheGraphMutator)
+                .map(
+                    graph: .any,
+                    precompiledArtifacts: .any,
+                    sources: .any,
+                    keepSourceTargets: .value(
+                        config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                    )
+                )
+                .willReturn(outputGraph)
+
+            // When
+            _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+            // Then
+            let storedSubhashes = await runMetadataStorage.targetContentHashSubhashes
+            XCTAssertEqual(storedSubhashes[cHash], cSubhashes)
+            XCTAssertEqual(storedSubhashes[bHash], bSubhashes)
+        }
     }
 }

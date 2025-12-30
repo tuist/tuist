@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Releases the macOS image"
 
+set -euo pipefail
+
 echo "Make sure you are authenticated against the GitHub registry: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry"
 
 version=$(mise/tasks/generate-version.sh)

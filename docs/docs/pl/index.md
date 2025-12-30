@@ -8,11 +8,9 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# Wirtualny zespół platformowy dla deweloperów, którzy dowożą
+# A virtual platform team for developers who ship
 
-**Tuist rozszerza narzędzia Apple, aby ułatwić zespołom skalowanie i skupienie
-się na tworzeniu aplikacji** - przekształcając budowanie na platformy Apple z
-frustrującego na produktywne doświadczenie, które skaluje się wraz z zespołem.
+**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -65,19 +63,14 @@ frustrującego na produktywne doświadczenie, które skaluje się wraz z zespoł
         link="/guides/features/registry"/>
 </HomeCards>
 
-## Dołącz do tysięcy deweloperów, którzy dokonali zmiany
+## Join thousands of developers who've made the switch
 
-**Zespoły w [Trendyol](https://www.trendyol.com/),
-[Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/),
-[Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/) i
-ponad 100 innych firmach** przekształciły już sposób rozwoju aplikacji na
-platformy Apple za pomocą Tuist. Oto co zyskują:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
-- **65% szybsze kompilacje** z inteligentnym cache-owaniem
-- **Zero konfliktów** w projektach Xcode
-- Rozwiązywanie zależności paczek z **minut do sekund**
-- **Szczęśliwi deweloperzy**, którzy mogą skupić się na tworzeniu
-  funkcjonalności
+- **65% faster builds** with intelligent caching
+- **Zero merge conflicts** in Xcode projects
+- **Minutes to seconds** package resolution
+- **Happy developers** who can focus on building features
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -100,18 +93,15 @@ platformy Apple za pomocą Tuist. Oto co zyskują:
 </HomeCards>
 
 
-## Zobacz Tuist w akcji
+## See Tuist in action
 
-**Ucz się z prawdziwych wdrożeń** i zainspiruj się tym, co jest możliwe, gdy
-twoje narzędzia po prostu działają.
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
 
 <HomeVideos/>
 
-## Dołącz do prężnie rozwijającej się społeczności
+## Join a thriving community
 
-**Nawiąż kontakt z tysiącami programistów platformy Apple**, którzy dostarczają
-lepsze aplikacje za pomocą Tuist. Uzyskaj pomoc, dziel się zwycięstwami i
-kształtuj przyszłość rozwoju platform Apple.
+**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">

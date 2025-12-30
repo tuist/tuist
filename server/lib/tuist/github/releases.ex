@@ -26,24 +26,32 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_cli_release(opts \\ []) do
-    case opts
-         |> fetch_releases()
-         |> Enum.find(fn release ->
-           not String.contains?(release["name"], "@")
-         end) do
-      nil -> nil
-      release -> map_release(release)
+    if Tuist.Environment.dev?() do
+      nil
+    else
+      case opts
+           |> fetch_releases()
+           |> Enum.find(fn release ->
+             not String.contains?(release["name"], "@")
+           end) do
+        nil -> nil
+        release -> map_release(release)
+      end
     end
   end
 
   def get_latest_app_release(opts \\ []) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "github_latest_app_release"],
-      [ttl: Keyword.get(opts, :ttl, @ttl)],
-      fn ->
-        fetch_latest_app_release()
-      end
-    )
+    if Tuist.Environment.dev?() do
+      nil
+    else
+      KeyValueStore.get_or_update(
+        [__MODULE__, "github_latest_app_release"],
+        [ttl: Keyword.get(opts, :ttl, @ttl)],
+        fn ->
+          fetch_latest_app_release()
+        end
+      )
+    end
   end
 
   defp fetch_releases(opts) do

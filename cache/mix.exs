@@ -43,14 +43,20 @@ defmodule Cache.MixProject do
       {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.17"},
+      {:oban_web, "~> 2.10"},
+      {:open_api_spex, "~> 3.18"},
       {:phoenix, "~> 1.7.12"},
+      {:phoenix_html, "~> 4.0"},
+      {:phoenix_live_view, "~> 1.0"},
       {:phoenix_pubsub, "~> 2.1"},
       {:plug, "~> 1.18"},
       {:plug_cowboy, "~> 2.7"},
       {:prom_ex, "~> 1.10"},
       {:req, "~> 0.1"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:sweet_xml, "~> 0.7"}
+      {:sweet_xml, "~> 0.7"},
+      {:uuid_v7, "~> 0.6"},
+      {:ymlr, "~> 5.0"}
     ]
   end
 

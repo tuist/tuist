@@ -51,7 +51,7 @@
         </div>
       </nav>
     </header>
-    <section data-part="timeline" id="changelog-timeline">
+    <section data-part="timeline" id="changelog-timeline" phx-hook="ShikiHighlight">
       <%= for entry <- @entries do %>
         <time data-part="date">
           {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}

@@ -12,7 +12,7 @@ defmodule TuistWeb.Runs.RanByBadge do
     ~H"""
     <.badge_cell
       :if={@run.is_ci}
-      label={gettext("CI")}
+      label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
@@ -26,7 +26,7 @@ defmodule TuistWeb.Runs.RanByBadge do
     />
     <.badge_cell
       :if={!@run.is_ci and !@ran_by_name}
-      label={gettext("Unknown")}
+      label={dgettext("dashboard", "Unknown")}
       color="neutral"
       style="light-fill"
     />
@@ -39,7 +39,7 @@ defmodule TuistWeb.Runs.RanByBadge do
     ~H"""
     <.badge_cell
       :if={@build.is_ci}
-      label={gettext("CI")}
+      label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
@@ -60,7 +60,7 @@ defmodule TuistWeb.Runs.RanByBadge do
     ~H"""
     <.badge_cell
       :if={@test.is_ci}
-      label={gettext("CI")}
+      label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
@@ -74,7 +74,7 @@ defmodule TuistWeb.Runs.RanByBadge do
     />
     <.badge_cell
       :if={!@test.is_ci and is_nil(@test.ran_by_account)}
-      label={gettext("Unknown")}
+      label={dgettext("dashboard", "Unknown")}
       color="neutral"
       style="light-fill"
     />

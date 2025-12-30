@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistHTTP
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -18,7 +19,7 @@ enum RegistryLoginCommandServiceError: Equatable, LocalizedError {
                 "Login to the registry failed because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
         case .missingProjectToken:
             return
-                "The project token is needed to interact with the registry on the CI. Make sure the 'TUIST_CONFIG_TOKEN' environment variable is present and valid."
+                "The project token is needed to interact with the registry on the CI. Make sure the 'TUIST_TOKEN' environment variable is present and valid."
         case let .missingHost(url):
             return "Failed getting host from the Tuist server URL \(url.absoluteString)."
         }
@@ -146,7 +147,7 @@ struct RegistryLoginCommandService {
                     registryURL: registryURL
                 )
             }
-        case .user, .none:
+        case .user, .account, .none:
             throw RegistryLoginCommandServiceError.missingProjectToken
         }
     }
@@ -156,13 +157,16 @@ struct RegistryLoginCommandService {
         registryURL: URL,
         serverURL: URL
     ) async throws {
-        let token = try await createAccountTokenService.createAccountToken(
+        let result = try await createAccountTokenService.createAccountToken(
             accountHandle: accountHandle,
-            scopes: [.accountRegistryRead],
+            scopes: [.account_colon_registry_colon_read],
+            name: "registry-login",
+            expiresAt: nil,
+            projectHandles: nil,
             serverURL: serverURL
         )
         try await swiftPackageManagerController.packageRegistryLogin(
-            token: token,
+            token: result.token,
             registryURL: registryURL
         )
     }

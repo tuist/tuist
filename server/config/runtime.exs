@@ -210,6 +210,9 @@ if Tuist.Environment.error_tracking_enabled?() do
     env: env,
     active: true,
     ignore_errors: [
+      # Bandit.TransportError is raised when the client disconnects mid-request.
+      # These are expected and not actionable errors.
+      "Bandit.TransportError",
       "TuistWeb.Errors.BadRequestError",
       "TuistWeb.Errors.NotFoundError",
       "TuistWeb.Errors.TooManyRequestsError",
@@ -373,8 +376,6 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  # Fly.io polls every 15 seconds, so I'm setting the interval to 20 seconds to avoid
-  # missing data.
   ets_flush_interval: 20_000,
   metrics_server: [
     port: 9091,

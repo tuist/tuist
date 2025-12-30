@@ -15,7 +15,8 @@ defmodule Tuist.AppBuilds.Preview do
       :display_name,
       :git_branch,
       :git_commit_sha,
-      :bundle_identifier
+      :bundle_identifier,
+      :track
     ],
     sortable: [:inserted_at, :bundle_identifier]
   }
@@ -31,6 +32,7 @@ defmodule Tuist.AppBuilds.Preview do
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
+    field :track, :string, default: ""
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [
@@ -67,11 +69,11 @@ defmodule Tuist.AppBuilds.Preview do
       :git_ref,
       :created_by_account_id,
       :supported_platforms,
-      :visibility
+      :visibility,
+      :track
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:project_id])
-    |> unique_constraint([:project_id, :bundle_identifier, :version, :git_commit_sha, :created_by_account_id])
   end
 
   def map_simulators_to_devices(platforms) do

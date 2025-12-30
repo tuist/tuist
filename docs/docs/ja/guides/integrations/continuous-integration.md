@@ -5,33 +5,141 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# 継続的インテグレーション（CI）{#continuous-integration-ci}
 
-You can use Tuist in [continuous
-integration](https://en.wikipedia.org/wiki/Continuous_integration) environments.
-The following sections provide examples of how to do this on different CI
-platforms.
+継続的インテグレーション](https://en.wikipedia.org/wiki/Continuous_integration)ワークフローでTuistコマンドを実行するには、CI環境にインストールする必要がある。
 
-## Examples {#examples}
+認証はオプションだが、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>のようなサーバーサイドの機能を使いたい場合は必須である。
 
-To run Tuist commands in your CI workflows, you’ll need to install it in your CI
-environment.
+以下のセクションでは、異なるCIプラットフォームでこれを行う方法の例を示す。
 
-### Xcode Cloud {#xcode-cloud}
+## 例{#examples}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
-projects as the source of truth, you'll need to add a
-[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-script to install Tuist and run the commands you need, for example `tuist
-generate`:
+### GitHub アクション{#github-actions}
 
-::: code-group
+GitHub
+Actions](https://docs.github.com/en/actions)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使うことで、秘密のない安全な認証ができます：
+
+コードグループ
+```yaml [OIDC (Mise)]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
+```
+```yaml [OIDC (Homebrew)]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install --formula tuist@x.y.z
+      - run: tuist auth login
+      - run: tuist setup cache
+```
+```yaml [Project token (Mise)]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist setup cache
+```
+```yaml [Project token (Homebrew)]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install --formula tuist@x.y.z
+      - run: tuist setup cache
+```
+<!-- -->
+:::
+
+::: info OIDC SETUP
+<!-- -->
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
+を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
+<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
+<!-- -->
+:::
+
+::: チップ
+<!-- -->
+環境間でTuistのバージョンを固定するために、Tuistプロジェクトで`mise use --pin`
+を使用することを推奨する。このコマンドはTuistのバージョンを含む`.tool-versions` ファイルを作成する。
+<!-- -->
+:::
+
+### Xcodeクラウド{#xcode-cloud}
+
+Xcodeプロジェクトを真実のソースとして使用する[Xcode
+Cloud](https://developer.apple.com/xcode-cloud/)では、Tuistをインストールし、必要なコマンドを実行するために[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加する必要があります、例えば`tuist
+generate` ：
+
+コードグループ
 
 ```bash [Mise]
 #!/bin/sh
 
 # Mise installation taken from https://mise.jdx.dev/continuous-integration.html#xcode-cloud
-curl https://mise.run | sh # Install Mise
+curl https://mise.run | sh # Install Mise
 export PATH="$HOME/.local/bin:$PATH"
 
 mise install # Installs the version from .mise.toml
@@ -48,140 +156,182 @@ tuist generate
 ```
 <!-- -->
 :::
-### Codemagic {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your
-workflow to install Tuist:
+::: info AUTHENTICATION
+<!-- -->
+Xcode Cloud のワークフロー設定で`TUIST_TOKEN`
+環境変数を設定し、<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>
+を使用します。
+<!-- -->
+:::
 
-::: code-group
+### サークルCI{#circleci}
+
+CircleCI](https://circleci.com)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使用して、セキュアでシークレットレスな認証を行うことができます：
+
+コードグループ
+```yaml [OIDC (Mise)]
+version: 2.1
+jobs:
+  build:
+    macos:
+      xcode: "15.0.1"
+    steps:
+      - checkout
+      - run:
+          name: Install Mise
+          command: |
+            curl https://mise.jdx.dev/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install Tuist
+          command: mise install
+      - run:
+          name: Authenticate
+          command: mise exec -- tuist auth login
+      - run:
+          name: Build
+          command: mise exec -- tuist setup cache
+```
+```yaml [Project token (Mise)]
+version: 2.1
+jobs:
+  build:
+    macos:
+      xcode: "15.0.1"
+    environment:
+      TUIST_TOKEN: $TUIST_TOKEN
+    steps:
+      - checkout
+      - run:
+          name: Install Mise
+          command: |
+            curl https://mise.jdx.dev/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install Tuist
+          command: mise install
+      - run:
+          name: Build
+          command: mise exec -- tuist setup cache
+```
+<!-- -->
+:::
+
+::: info AUTHENTICATION
+<!-- -->
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
+OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+<!-- -->
+:::
+
+### ビットライズ{#bitrise}
+
+Bitrise](https://bitrise.io)では、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>を使用して、セキュアでシークレットレスな認証を行うことができます：
+
+コードグループ
+```yaml [OIDC (Mise)]
+workflows:
+  build:
+    steps:
+      - git-clone@8: {}
+      - script@1:
+          title: Install Mise
+          inputs:
+            - content: |
+                curl https://mise.jdx.dev/install.sh | sh
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+      - script@1:
+          title: Install Tuist
+          inputs:
+            - content: mise install
+      - get-identity-token@0:
+          inputs:
+          - audience: tuist
+      - script@1:
+          title: Authenticate
+          inputs:
+            - content: mise exec -- tuist auth login
+      - script@1:
+          title: Build
+          inputs:
+            - content: mise exec -- tuist setup cache
+```
+```yaml [Project token (Mise)]
+workflows:
+  build:
+    steps:
+      - git-clone@8: {}
+      - script@1:
+          title: Install Mise
+          inputs:
+            - content: |
+                curl https://mise.jdx.dev/install.sh | sh
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+      - script@1:
+          title: Install Tuist
+          inputs:
+            - content: mise install
+      - script@1:
+          title: Build
+          inputs:
+            - content: mise exec -- tuist setup cache
+```
+<!-- -->
+:::
+
+::: info AUTHENTICATION
+<!-- -->
+OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
+OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+<!-- -->
+:::
+
+### コードマジック{#codemagic}
+
+Codemagic](https://codemagic.io)では、Tuistをインストールするワークフローに追加のステップを加えることができる：
+
+コードグループ
 ```yaml [Mise]
 workflows:
-  lint:
+  build:
     name: Build
     max_build_duration: 30
     environment:
       xcode: 15.0.1
+      vars:
+        TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
     scripts:
       - name: Install Mise
         script: |
           curl https://mise.jdx.dev/install.sh | sh
           mise install # Installs the version from .mise.toml
       - name: Build
-        script: mise exec -- tuist build
+        script: mise exec -- tuist setup cache
 ```
 ```yaml [Homebrew]
 workflows:
-  lint:
+  build:
     name: Build
     max_build_duration: 30
     environment:
       xcode: 15.0.1
+      vars:
+        TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
     scripts:
       - name: Install Tuist
         script: |
           brew install --formula tuist@x.y.z
       - name: Build
-        script: tuist build
+        script: tuist setup cache
 ```
 <!-- -->
 :::
 
-### GitHub Actions {#github-actions}
-
-On [GitHub Actions](https://docs.github.com/en/actions) you can add an
-additional step to install Tuist. You have several options:
-
-::: code-group
-```yaml [Mise]
-name: Build Application
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: jdx/mise-action@v2
-      - run: tuist build
-```
-```yaml [Official Action]
-name: Build Application
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: tuist/action@v1
-        with:
-          version: 4.63.0
-      - run: tuist build
-```
-```yaml [Homebrew]
-name: test
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-jobs:
-  lint:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: brew install --formula tuist@x.y.z
-      - run: tuist build
-```
+::: info AUTHENTICATION
 <!-- -->
-:::
-
-If you are already using Homebrew or Mise to install tools from your CI
-pipelines, we recommend staying consistent with your existing approach.
-Otherwise, you can use the [official Tuist GitHub
-Action](https://github.com/tuist/action), which provides a simple way to install
-a specific version of Tuist.
-
-::: tip
-<!-- -->
-We recommend using `mise use --pin` in your Tuist projects to pin the version of
-Tuist across environments. The command will create a `.tool-versions` file
-containing the version of Tuist.
-<!-- -->
-:::
-
-## Authentication {#authentication}
-
-When using server-side features such as
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, you'll need
-a way to authenticate requests going from your CI workflows to the server. For
-that, you can generate a project-scoped token by running the following command:
-
-```bash
-tuist project tokens create my-handle/MyApp
-```
-
-The command will generate a token for the project with full handle
-`my-account/my-project`. Set the value to the environment variable
-`TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret
-so it's not exposed.
-
-::: warning CI ENVIRONMENT DETECTION
-<!-- -->
-Tuist only uses the token when it detects it's running on a CI environment. If
-your CI environment is not detected, you can force the token usage by setting
-the environment variable `CI` to `1`.
+<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
 <!-- -->
 :::

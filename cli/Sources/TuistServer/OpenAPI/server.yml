@@ -2,6 +2,33 @@
 components:
   responses: {}
   schemas:
+    AccountTokenCreated:
+      description: A newly created account token.
+      properties:
+        expires_at:
+          description: When the token expires, if set.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: The token unique identifier.
+          type: string
+          x-struct:
+          x-validate:
+        token:
+          description: The generated account token. Store this securely - it cannot be retrieved again.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - id
+      title: AccountTokenCreated
+      type: object
+      x-struct:
+      x-validate:
     CacheActionItem:
       description: Represents an action item stored in the cache.
       properties:
@@ -582,6 +609,106 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
       x-validate:
+    AccountTokens:
+      properties:
+        meta:
+          $ref: '#/components/schemas/PaginationMetadata'
+        tokens:
+          items:
+            properties:
+              all_projects:
+                description: Whether token has access to all projects.
+                type: boolean
+                x-struct:
+                x-validate:
+              expires_at:
+                description: When the token expires.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                description: Token unique identifier.
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                description: When the token was created.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: Friendly name for the token.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              project_handles:
+                description: List of project handles the token can access (when all_projects is false).
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              scopes:
+                description: Token scopes.
+                items:
+                  enum:
+                    - ci
+                    - account:members:read
+                    - account:members:write
+                    - account:registry:read
+                    - account:registry:write
+                    - project:previews:read
+                    - project:previews:write
+                    - project:admin:read
+                    - project:admin:write
+                    - project:cache:read
+                    - project:cache:write
+                    - project:bundles:read
+                    - project:bundles:write
+                    - project:tests:read
+                    - project:tests:write
+                    - project:builds:read
+                    - project:builds:write
+                    - project:runs:read
+                    - project:runs:write
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - scopes
+              - all_projects
+              - inserted_at
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - tokens
+        - meta
+      title: AccountTokens
+      type: object
+      x-struct:
+      x-validate:
+    LatestPreviewResponse:
+      properties:
+        preview:
+          $ref: '#/components/schemas/Preview'
+      title: LatestPreviewResponse
+      type: object
+      x-struct:
+      x-validate:
     PreviewSupportedPlatform:
       enum:
         - ios
@@ -689,6 +816,11 @@ components:
           items:
             $ref: '#/components/schemas/PreviewSupportedPlatform'
           type: array
+          x-struct:
+          x-validate:
+        track:
+          description: "The track for the preview (e.g., 'beta', 'nightly')"
+          type: string
           x-struct:
           x-validate:
         url:
@@ -1308,6 +1440,7 @@ components:
               enum:
                 - success
                 - failure
+                - skipped
               type: string
               x-struct:
               x-validate:
@@ -1768,6 +1901,7 @@ components:
           enum:
             - success
             - failure
+            - skipped
           type: string
           x-struct:
           x-validate:
@@ -1932,14 +2066,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    AccountTokenScope:
-      description: The scope of the token.
-      enum:
-        - registry_read
-      title: AccountTokenScope
-      type: string
-      x-struct:
-      x-validate:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
@@ -2052,26 +2178,31 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
       x-validate:
-    AccountToken:
-      description: A new account token.
-      properties:
-        token:
-          description: The generated account token.
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - token
-      title: AccountToken
-      type: object
-      x-struct:
-      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
       minimum: 1
       title: RunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    OIDCTokenExchangeResponse:
+      properties:
+        access_token:
+          description: The Tuist access token to use for API requests.
+          type: string
+          x-struct:
+          x-validate:
+        expires_in:
+          description: Token lifetime in seconds.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - access_token
+        - expires_in
+      title: OIDCTokenExchangeResponse
+      type: object
       x-struct:
       x-validate:
     CacheEndpoints:
@@ -2327,6 +2458,11 @@ components:
       x-validate:
     AppBuild:
       properties:
+        binary_id:
+          description: The Mach-O UUID of the build's main binary.
+          type: string
+          x-struct:
+          x-validate:
         id:
           description: Unique identifier of the build.
           type: string
@@ -2860,6 +2996,19 @@ components:
       type: object
       x-struct:
       x-validate:
+    OIDCTokenExchangeRequest:
+      properties:
+        token:
+          description: The OIDC JWT token from the CI provider.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+      title: OIDCTokenExchangeRequest
+      type: object
+      x-struct:
+      x-validate:
     RunsTest:
       description: Represents a single test run.
       properties:
@@ -2965,13 +3114,53 @@ components:
     CreateAccountToken:
       description: The request to create a new account token.
       properties:
+        expires_at:
+          description: Optional expiration datetime (ISO8601). If not set, the token never expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+          type: string
+          x-struct:
+          x-validate:
+        project_handles:
+          description: List of project handles to restrict access to. If not provided, the token has access to all projects.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scopes:
           description: The scopes for the new account token.
+          example:
+            - project:cache:read
+            - project:builds:write
           items:
-            description: The scope of the token.
+            description: A scope string in format entity:object:access_level.
             enum:
-              - registry_read
-            title: AccountTokenScope
+              - ci
+              - account:members:read
+              - account:members:write
+              - account:registry:read
+              - account:registry:write
+              - project:previews:read
+              - project:previews:write
+              - project:admin:read
+              - project:admin:write
+              - project:cache:read
+              - project:cache:write
+              - project:bundles:read
+              - project:bundles:write
+              - project:tests:read
+              - project:tests:write
+              - project:builds:read
+              - project:builds:write
+              - project:runs:read
+              - project:runs:write
             type: string
             x-struct:
             x-validate:
@@ -3191,6 +3380,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                cache_endpoint:
+                  description: The cache endpoint URL used for this command (regional module cache).
+                  type: string
+                  x-struct:
+                  x-validate:
                 client_id:
                   description: The client id of the command.
                   type: string
@@ -3403,14 +3597,159 @@ paths:
                                       type: string
                                       x-struct:
                                       x-validate:
+                                    subhashes:
+                                      description: Individual component hashes that make up the final hash
+                                      properties:
+                                        additional_strings:
+                                          description: Additional strings used in the hash
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        buildable_folders:
+                                          description: Buildable folders hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        copy_files:
+                                          description: Copy files hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        core_data_models:
+                                          description: Core data models hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        dependencies:
+                                          description: Dependencies hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        deployment_target:
+                                          description: Deployment target hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        entitlements:
+                                          description: Entitlements hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        environment:
+                                          description: Environment hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        external:
+                                          description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        headers:
+                                          description: Headers hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        info_plist:
+                                          description: Info.plist hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        project_settings:
+                                          description: Project settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        resources:
+                                          description: Resources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        sources:
+                                          description: Sources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_scripts:
+                                          description: Target scripts hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_settings:
+                                          description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      type: object
+                                      x-struct:
+                                      x-validate:
                                   required:
                                     - hash
                                     - hit
                                   type: object
                                   x-struct:
                                   x-validate:
+                                bundle_id:
+                                  description: Bundle ID of the target
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                destinations:
+                                  description: Destinations for the target
+                                  items:
+                                    enum:
+                                      - iphone
+                                      - ipad
+                                      - mac
+                                      - mac_with_ipad_design
+                                      - mac_catalyst
+                                      - apple_watch
+                                      - apple_tv
+                                      - apple_vision
+                                      - apple_vision_with_ipad_design
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
                                 name:
                                   description: Name of the target
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                product:
+                                  description: Product type of the target
+                                  enum:
+                                    - app
+                                    - static_library
+                                    - dynamic_library
+                                    - framework
+                                    - static_framework
+                                    - unit_tests
+                                    - ui_tests
+                                    - bundle
+                                    - command_line_tool
+                                    - app_extension
+                                    - watch_2_app
+                                    - watch_2_extension
+                                    - tv_top_shelf_extension
+                                    - messages_extension
+                                    - sticker_pack_extension
+                                    - app_clip
+                                    - xpc
+                                    - system_extension
+                                    - extension_kit_extension
+                                    - macro
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                product_name:
+                                  description: Product name of the target
                                   type: string
                                   x-struct:
                                   x-validate:
@@ -3522,6 +3861,16 @@ paths:
           application/json:
             schema:
               properties:
+                binary_id:
+                  description: The Mach-O UUID of the binary
+                  type: string
+                  x-struct:
+                  x-validate:
+                build_version:
+                  description: The CFBundleVersion of the app.
+                  type: string
+                  x-struct:
+                  x-validate:
                 bundle_identifier:
                   description: The bundle identifier of the preview.
                   type: string
@@ -3552,6 +3901,11 @@ paths:
                   items:
                     $ref: '#/components/schemas/PreviewSupportedPlatform'
                   type: array
+                  x-struct:
+                  x-validate:
+                track:
+                  description: "The track for the preview (e.g., 'beta', 'nightly')."
+                  type: string
                   x-struct:
                   x-validate:
                 type:
@@ -3638,6 +3992,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An app build with the same binary ID and build version already exists
       summary: It initiates a multipart upload for a preview artifact.
       tags:
         - Previews
@@ -4777,6 +5137,72 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/previews/latest:
+    get:
+      callbacks: {}
+      description: Given a binary ID (Mach-O UUID) and build version (CFBundleVersion), returns the latest preview on the same track (bundle identifier and git branch). Returns nil if no matching build is found.
+      operationId: getLatestPreview
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The Mach-O UUID of the running binary.
+          in: query
+          name: binary_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The CFBundleVersion of the running app.
+          in: query
+          name: build_version
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  preview:
+                    $ref: '#/components/schemas/Preview'
+                title: LatestPreviewResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The latest preview on the same track, or null if not found.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Get the latest preview for a binary.
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url:
     post:
       callbacks: {}
@@ -4968,6 +5394,71 @@ paths:
       summary: Authenticate with Apple identity token.
       tags:
         - Authentication
+  /api/auth/oidc/token:
+    post:
+      callbacks: {}
+      description: |
+        Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+        for a short-lived Tuist access token.
+      operationId: exchangeOIDCToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                token:
+                  description: The OIDC JWT token from the CI provider.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - token
+              title: OIDCTokenExchangeRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: OIDC token exchange request
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  access_token:
+                    description: The Tuist access token to use for API requests.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Token lifetime in seconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - access_token
+                  - expires_in
+                title: OIDCTokenExchangeResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: Token exchange successful
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid or expired OIDC token
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No projects linked to the repository
+      summary: Exchange a CI provider OIDC token for a Tuist access token.
+      tags:
+        - OIDC Authentication
   /api/projects/{account_handle}/{project_handle}/cache/ac:
     post:
       callbacks: {}
@@ -5417,9 +5908,156 @@ paths:
       tags:
         - Bundles
   /api/accounts/{account_handle}/tokens:
+    get:
+      callbacks: {}
+      description: This endpoint returns all tokens for a given account with pagination support.
+      operationId: listAccountTokens
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  meta:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tokens:
+                    items:
+                      properties:
+                        all_projects:
+                          description: Whether token has access to all projects.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        expires_at:
+                          description: When the token expires.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: Token unique identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: When the token was created.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: Friendly name for the token.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project_handles:
+                          description: List of project handles the token can access (when all_projects is false).
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        scopes:
+                          description: Token scopes.
+                          items:
+                            enum:
+                              - ci
+                              - account:members:read
+                              - account:members:write
+                              - account:registry:read
+                              - account:registry:write
+                              - project:previews:read
+                              - project:previews:write
+                              - project:admin:read
+                              - project:admin:write
+                              - project:cache:read
+                              - project:cache:write
+                              - project:bundles:read
+                              - project:bundles:write
+                              - project:tests:read
+                              - project:tests:write
+                              - project:builds:read
+                              - project:builds:write
+                              - project:runs:read
+                              - project:runs:write
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - scopes
+                        - all_projects
+                        - inserted_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tokens
+                  - meta
+                title: AccountTokens
+                type: object
+                x-struct:
+                x-validate:
+          description: A list of account tokens.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to list tokens
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account was not found
+      summary: List all account tokens.
+      tags:
+        - Account tokens
     post:
       callbacks: {}
-      description: This endpoint returns a new account token.
+      description: This endpoint returns a new fine-grained account token with specified scopes and optional project restrictions.
       operationId: createAccountToken
       parameters:
         - description: The account handle.
@@ -5436,13 +6074,53 @@ paths:
             schema:
               description: The request to create a new account token.
               properties:
+                expires_at:
+                  description: Optional expiration datetime (ISO8601). If not set, the token never expires.
+                  format: date-time
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  description: Unique name for the token. Must contain only alphanumeric characters, hyphens, and underscores (1-32 characters).
+                  type: string
+                  x-struct:
+                  x-validate:
+                project_handles:
+                  description: List of project handles to restrict access to. If not provided, the token has access to all projects.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scopes:
                   description: The scopes for the new account token.
+                  example:
+                    - project:cache:read
+                    - project:builds:write
                   items:
-                    description: The scope of the token.
+                    description: A scope string in format entity:object:access_level.
                     enum:
-                      - registry_read
-                    title: AccountTokenScope
+                      - ci
+                      - account:members:read
+                      - account:members:write
+                      - account:registry:read
+                      - account:registry:write
+                      - project:previews:read
+                      - project:previews:write
+                      - project:admin:read
+                      - project:admin:write
+                      - project:cache:read
+                      - project:cache:write
+                      - project:bundles:read
+                      - project:bundles:write
+                      - project:tests:read
+                      - project:tests:write
+                      - project:builds:read
+                      - project:builds:write
+                      - project:runs:read
+                      - project:runs:write
                     type: string
                     x-struct:
                     x-validate:
@@ -5462,16 +6140,29 @@ paths:
           content:
             application/json:
               schema:
-                description: A new account token.
+                description: A newly created account token.
                 properties:
+                  expires_at:
+                    description: When the token expires, if set.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The token unique identifier.
+                    type: string
+                    x-struct:
+                    x-validate:
                   token:
-                    description: The generated account token.
+                    description: The generated account token. Store this securely - it cannot be retrieved again.
                     type: string
                     x-struct:
                     x-validate:
                 required:
                   - token
-                title: AccountToken
+                  - id
+                title: AccountTokenCreated
                 type: object
                 x-struct:
                 x-validate:
@@ -5499,7 +6190,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The account was not found
+          description: The account or project was not found
       summary: Create a new account token.
       tags:
         - Account tokens
@@ -5608,6 +6299,52 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/accounts/{account_handle}/tokens/{token_name}:
+    delete:
+      callbacks: {}
+      description: This endpoint revokes (deletes) an account token by name.
+      operationId: revokeAccountToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The token name to revoke.
+          in: path
+          name: token_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The account token was revoked
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to revoke tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to revoke tokens
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token was not found
+      summary: Revoke an account token.
+      tags:
+        - Account tokens
   /api/organizations/{organization_name}/invitations:
     delete:
       callbacks: {}
@@ -6124,9 +6861,17 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: This endpoint returns a list of available cache endpoints.
+      description: Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
       operationId: getCacheEndpoints
-      parameters: []
+      parameters:
+        - description: The name of the account to get custom cache endpoints for.
+          in: query
+          name: account_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
@@ -7406,6 +8151,7 @@ paths:
                       enum:
                         - success
                         - failure
+                        - skipped
                       type: string
                       x-struct:
                       x-validate:

@@ -83,7 +83,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         }
         return DependenciesContentHash(
             hashedPaths: hashedPaths,
-            hash: hashes.sorted().compactMap { $0 }.joined()
+            hash: try contentHasher.hash(hashes.sorted().compactMap { $0 }.joined())
         )
     }
 

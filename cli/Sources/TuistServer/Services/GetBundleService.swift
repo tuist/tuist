@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import TuistHTTP
 
 @Mockable
 public protocol GetBundleServicing {

@@ -13,9 +13,11 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -27,17 +29,19 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
 
 permissions:
+  id-token: write
   contents: read
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
 
 concurrency:
   group: cli-${{ github.head_ref }}
@@ -58,8 +62,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -87,8 +96,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -104,7 +118,7 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -116,8 +130,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -145,13 +164,18 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Run tests
-        run: mise x -- tuist test TuistUnitTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
+        run: mise x -- tuist test TuistUnitTests
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -174,8 +198,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -186,7 +215,7 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistAutomationAcceptanceTests
-        run: mise x -- tuist test TuistAutomationAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
+        run: mise x -- tuist test TuistAutomationAcceptanceTests
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -209,8 +238,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -228,7 +262,7 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run TuistDependenciesAcceptanceTests
-        run: mise x -- tuist test TuistDependenciesAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
+        run: mise x -- tuist test TuistDependenciesAcceptanceTests
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -251,8 +285,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -263,7 +302,7 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistGeneratorAcceptanceTests
-        run: mise x -- tuist test TuistGeneratorAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
+        run: mise x -- tuist test TuistGeneratorAcceptanceTests
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -286,8 +325,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -296,7 +340,7 @@ jobs:
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistKitAcceptanceTests
-        run: mise x -- tuist test TuistKitAcceptanceTests ${{ github.event.pull_request.head.repo.fork == true && '-- COMPILATION_CACHE_ENABLE_PLUGIN=NO' || '' }}
+        run: mise x -- tuist test TuistKitAcceptanceTests
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

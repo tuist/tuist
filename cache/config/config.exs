@@ -1,15 +1,20 @@
 import Config
 
+# Bandit.TransportError is raised when the client disconnects mid-request (e.g. cancelled upload).
+# These are expected and not actionable errors.
 config :appsignal, :config,
   otp_app: :cache,
   name: "Cache",
-  active: true
+  active: true,
+  ignore_errors: ["Bandit.TransportError"]
 
 config :cache, Cache.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled
+
+config :cache, Cache.Repo, busy_timeout: 10_000
 
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
@@ -24,16 +29,17 @@ config :cache, CacheWeb.Endpoint,
 config :cache, Oban,
   repo: Cache.Repo,
   engine: Oban.Engines.Lite,
+  notifier: Oban.Notifiers.PG,
   queues: [
-    s3_uploads: 10,
-    s3_downloads: 10,
-    maintenance: 1
+    maintenance: 1,
+    s3_transfers: 1
   ],
   plugins: [
-    Oban.Plugins.Pruner,
+    {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
     {Oban.Plugins.Cron,
      crontab: [
-       {"*/10 * * * *", Cache.DiskEvictionWorker}
+       {"*/10 * * * *", Cache.DiskEvictionWorker},
+       {"* * * * *", Cache.S3TransferWorker}
      ]}
   ]
 

@@ -30,7 +30,7 @@ defmodule Tuist.Runs.Test do
     field :is_ci, :boolean
     field :model_identifier, :string
     field :scheme, :string
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
+    field :status, Ch, type: "LowCardinality(String)"
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
@@ -45,6 +45,7 @@ defmodule Tuist.Runs.Test do
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Runs.Build, foreign_key: :build_run_id, define_field: false
+    has_many :test_case_runs, Tuist.Runs.TestCaseRun, foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
@@ -84,7 +85,7 @@ defmodule Tuist.Runs.Test do
       :status,
       :ran_at
     ])
-    |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
     |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
   end
 end

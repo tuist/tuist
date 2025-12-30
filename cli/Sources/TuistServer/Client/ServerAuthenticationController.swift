@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+import TuistHTTP
 
 #if canImport(TuistProcess)
     import TuistProcess
@@ -57,6 +58,10 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// in CI environments where limited scopes are desired for security reasons.
     case project(String)
 
+    /// The token represents an account session, typically obtained via OIDC from a CI provider.
+    /// These tokens cannot be refreshed and are valid until expiry.
+    case account(JWT)
+
     /// It returns the value of the token
     public var value: String {
         switch self {
@@ -64,6 +69,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             return accessToken.token
         case let .project(token):
             return token
+        case let .account(accessToken):
+            return accessToken.token
         }
     }
 
@@ -73,6 +80,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             return "User token: \(value)"
         case let .project(token):
             return "Project token: \(token)"
+        case .account:
+            return "Account token: \(value)"
         }
     }
 }
@@ -330,6 +339,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         switch token {
                         case .project:
                             return (token, nil as Date?)
+                        case let .account(accessToken):
+                            return (token, accessToken.expiryDate)
                         case let .user(accessToken: _, refreshToken: refreshToken):
                             return (token, refreshToken.expiryDate)
                         }
@@ -356,6 +367,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     switch token {
                     case .project:
                         return (token, nil as Date?)
+                    case let .account(accessToken):
+                        return (token, accessToken.expiryDate)
                     case let .user(accessToken: _, refreshToken: refreshToken):
                         return (token, refreshToken.expiryDate)
                     }
@@ -459,6 +472,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         switch token {
         case .project:
             return .valid(token)
+        case let .account(accessToken):
+            let now = Date.now()
+            let expiresIn = accessToken.expiryDate.timeIntervalSince(now)
+            if expiresIn < 30 { return .expired }
+            return .valid(token)
         case let .user(
             accessToken, refreshToken
         ):
@@ -491,6 +509,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             switch token {
             case .project:
                 upToDateToken = token
+            case let .account(accessToken):
+                upToDateToken = token
+                expiresAt = accessToken.expiryDate
             case let .user(
                 accessToken, refreshToken
             ):
@@ -562,10 +583,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             serverURL: serverURL
         )
         return try credentials.map {
-            return .user(
-                accessToken: try JWT.parse($0.accessToken),
-                refreshToken: try JWT.parse($0.refreshToken)
-            )
+            let accessToken = try JWT.parse($0.accessToken)
+            if accessToken.type == "account" {
+                return .account(accessToken)
+            } else {
+                return .user(
+                    accessToken: accessToken,
+                    refreshToken: try JWT.parse($0.refreshToken!)
+                )
+            }
         }
     }
 
@@ -576,15 +602,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             ] {
                 return .project(configToken)
             } else if let deprecatedToken = Environment.current.tuistVariables[
+                Constants.EnvironmentVariables.deprecatedToken
+            ] {
+                AlertController.current
+                    .warning(
+                        .alert(
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI"
+                        )
+                    )
+                return .project(deprecatedToken)
+            } else if let deprecatedCloudToken = Environment.current.tuistVariables[
                 "TUIST_CONFIG_CLOUD_TOKEN"
             ] {
                 AlertController.current
                     .warning(
                         .alert(
-                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                         )
                     )
-                return .project(deprecatedToken)
+                return .project(deprecatedCloudToken)
             } else {
                 return nil
             }
@@ -625,12 +661,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .notConnectedToInternet:
                 throw error
             default:
-                throw ServerClientAuthenticationError.notAuthenticated
+                throw ClientAuthenticationError.notAuthenticated
             }
         } catch let error as RefreshAuthTokenServiceError {
             throw error
         } catch {
-            throw ServerClientAuthenticationError.notAuthenticated
+            throw ClientAuthenticationError.notAuthenticated
         }
     }
 }

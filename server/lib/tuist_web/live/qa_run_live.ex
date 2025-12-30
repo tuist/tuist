@@ -28,12 +28,12 @@ defmodule TuistWeb.QARunLive do
            ]
          ) do
       {:error, :not_found} ->
-        raise NotFoundError, gettext("QA run not found")
+        raise NotFoundError, dgettext("dashboard_qa", "QA run not found")
 
       {:ok, qa_run} ->
         if qa_run.app_build.preview.project.account.name != account_handle or
              qa_run.app_build.preview.project.name != project_handle do
-          raise NotFoundError, gettext("QA run not found")
+          raise NotFoundError, dgettext("dashboard_qa", "QA run not found")
         end
 
         {video_url, video_duration} =
@@ -61,7 +61,7 @@ defmodule TuistWeb.QARunLive do
          |> assign(:issues, extract_issues(qa_run.run_steps))
          |> assign(
            :head_title,
-           "#{gettext("QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist"
+           "#{dgettext("dashboard_qa", "QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist"
          )
          |> assign(:current_time, 0)
          |> assign(:duration, video_duration)

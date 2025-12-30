@@ -75,7 +75,7 @@ developers_items = [
     icon: :api,
     title: dgettext("marketing", "API Documentation"),
     subtitle: dgettext("marketing", "Check out our REST API documentation"),
-    href: TuistWeb.Marketing.MarketingHTML.localized_href("/api/docs")
+    href: "/api/docs"
   },
   %{
     icon: :brand_github,
@@ -87,7 +87,7 @@ developers_items = [
     icon: :download,
     title: dgettext("marketing", "Download"),
     subtitle: dgettext("marketing", "Download our iOS and macOS apps"),
-    href: TuistWeb.Marketing.MarketingHTML.localized_href("/download")
+    href: "/download"
   }
 ]
 
@@ -97,6 +97,12 @@ resources_items = [
     title: dgettext("marketing", "About"),
     subtitle: dgettext("marketing", "Learn about Tuist and meet the team"),
     href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")
+  },
+  %{
+    icon: :news,
+    title: dgettext("marketing", "Newsletter"),
+    subtitle: dgettext("marketing", "Stay updated—subscribe to our newsletter"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
   },
   %{
     icon: :brand_slack,
@@ -117,10 +123,16 @@ resources_items = [
     href: "https://github.com/tuist"
   },
   %{
-    icon: :news,
-    title: dgettext("marketing", "Newsletter"),
-    subtitle: dgettext("marketing", "Stay updated—subscribe to our newsletter"),
-    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
+    icon: :dashboard,
+    title: dgettext("marketing", "Public dashboard"),
+    subtitle: dgettext("marketing", "Explore Tuist's features on the public dashboard"),
+    href: "/tuist/tuist"
+  },
+  %{
+    icon: :building,
+    title: dgettext("marketing", "Case studies"),
+    subtitle: dgettext("marketing", "See how leading teams scale with Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/case-studies")
   }
 ] %>
 <header id="marketing-navbar">
@@ -285,6 +297,12 @@ resources_items = [
       </div>
     </nav>
     <nav data-part="actions" aria-label="Call to action">
+      <.link href="https://slack.tuist.dev" target="_blank" data-part="icon">
+        <.brand_slack />
+      </.link>
+      <.link href="https://github.com/tuist" target="_blank" data-part="icon">
+        <.brand_github />
+      </.link>
       <div
         data-part="menu"
         phx-hook="NavbarDropdown"
@@ -298,37 +316,17 @@ resources_items = [
           <span data-part="chevron"><.chevron_down /></span>
         </div>
         <div data-part="dropdown" data-dropdown="languages" data-open="false">
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "en"
-            )
-          }>
-            English
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ko"
-            )
-          }>
-            한국어 <span>(Korean)</span>
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "ru"
-            )
-          }>
-            Русский <span>(Russian)</span>
-          </.link>
-          <.link href={
-            TuistWeb.Marketing.Localization.localized_href(
-              TuistWeb.Marketing.Localization.current_path(assigns),
-              "zh_Hans"
-            )
-          }>
-            中文 <span>(Chinese)</span>
+          <.link
+            :for={lang <- TuistWeb.Marketing.Localization.languages()}
+            href={
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                lang.code
+              )
+            }
+          >
+            {lang.native}
+            <span :if={lang.code != "en"}>({lang.label})</span>
           </.link>
         </div>
       </div>
@@ -504,6 +502,42 @@ resources_items = [
       <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")} data-part="link">
         <h3 data-part="title">{dgettext("marketing", "Blog")}</h3>
       </.link>
+    </div>
+    <div data-part="menu-simple">
+      <.link href="https://slack.tuist.dev" data-part="link">
+        <.brand_slack />
+        <h3 data-part="title">Slack</h3>
+      </.link>
+    </div>
+    <div data-part="menu-simple">
+      <.link href="https://github.com/tuist" data-part="link">
+        <.brand_github />
+        <h3 data-part="title">GitHub</h3>
+      </.link>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-languages">
+      <div data-part="action">
+        <div data-part="title-with-icon">
+          <.language />
+          <h3 data-part="title">{dgettext("marketing", "Language")}</h3>
+        </div>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown" data-dropdown="languages">
+        <.link
+          :for={lang <- TuistWeb.Marketing.Localization.languages()}
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              lang.code
+            )
+          }
+          data-part="language-item"
+        >
+          {lang.native}
+          <span :if={lang.code != "en"}>({lang.label})</span>
+        </.link>
+      </div>
     </div>
   </nav>
 </header>

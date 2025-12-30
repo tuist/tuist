@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
   use TuistWeb, :controller
 
   alias Tuist.Projects
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
 
   def init(opts), do: opts
 
@@ -24,21 +25,23 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
         conn
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
+        |> AppsignalAttributionPlug.set_selection_tags()
 
       {:error, :not_found} ->
         conn
-        |> put_resp_header("connection", "close")
         |> put_status(:not_found)
-        |> json(%{message: gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})})
+        |> json(%{
+          message: dgettext("dashboard", "The project %{project_slug} was not found.", %{project_slug: project_slug})
+        })
         |> halt()
 
       {:error, :invalid} ->
         conn
-        |> put_resp_header("connection", "close")
         |> put_status(:bad_request)
         |> json(%{
           message:
-            gettext(
+            dgettext(
+              "dashboard",
               "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
               %{project_slug: project_slug}
             )
@@ -49,7 +52,6 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
 
   def call(conn, _opts) do
     conn
-    |> put_resp_header("connection", "close")
     |> put_status(:bad_request)
     |> json(%{message: "account_handle and project_handle query parameters are required"})
     |> halt()

@@ -17,7 +17,8 @@ defmodule Tuist.CommandEvents.Event do
       :is_ci,
       :user_id,
       :hit_rate,
-      :cacheable_targets_count
+      :cacheable_targets_count,
+      :cache_endpoint
     ],
     sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }
@@ -50,6 +51,7 @@ defmodule Tuist.CommandEvents.Event do
     field :preview_id, Ch, type: "Nullable(UUID)"
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :test_run_id, Ch, type: "Nullable(UUID)"
+    field :cache_endpoint, Ch, type: "String", default: ""
 
     # When the command was run - provided by the CLI, defaulting to current server time when missing.
     field :ran_at, Ch, type: "DateTime64(6)"
@@ -67,6 +69,10 @@ defmodule Tuist.CommandEvents.Event do
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
     belongs_to :user, Tuist.Accounts.User, define_field: false
+
+    has_many :xcode_targets, Tuist.Xcode.XcodeTarget,
+      foreign_key: :command_event_id,
+      references: :id
 
     field :user_account_name, :string, virtual: true
   end

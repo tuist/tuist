@@ -9,8 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 <!-- -->
 :::
 
@@ -41,8 +40,7 @@ For example, assuming the following dependency graph:
 | `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
 
 To use `tuist xcodebuild test` on your CI, follow the instructions in the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
-integration guide</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink>.
 
 Check out the following video to see selective testing in action:
 

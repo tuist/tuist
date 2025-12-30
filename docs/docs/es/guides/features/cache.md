@@ -5,61 +5,60 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# Caché {#cache}
 
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency on a single machine. However, build artifacts are not shared across
-different environments, forcing you to rebuild the same code over and over –
-either in your [Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration) or local
-development environments (your Mac).
+El sistema de compilación de Xcode proporciona [compilaciones
+incrementales](https://en.wikipedia.org/wiki/Incremental_build_model), mejorando
+la eficiencia en una sola máquina. Sin embargo, los artefactos de compilación no
+se comparten entre distintos entornos, lo que te obliga a reconstruir el mismo
+código una y otra vez, ya sea en tus entornos de [integración continua
+(CI)](https://en.wikipedia.org/wiki/Continuous_integration) o de desarrollo
+local (tu Mac).
 
-Tuist addresses these challenges with its caching feature, significantly
-reducing build times both in local development and CI environments. This
-approach not only accelerates feedback loops but also minimizes the need for
-context switching, ultimately boosting productivity.
+Tuist aborda estos retos con su función de almacenamiento en caché, reduciendo
+significativamente los tiempos de compilación tanto en entornos de desarrollo
+local como de CI. Este enfoque no solo acelera los bucles de retroalimentación,
+sino que también minimiza la necesidad de cambiar de contexto, lo que en última
+instancia aumenta la productividad.
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module
-  cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
-  cache</LocalizedLink>
+Ofrecemos dos tipos de caché:
+- <LocalizedLink href="/guides/features/cache/module-cache">Módulo caché</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Caché de Xcode</LocalizedLink>
 
-## Module cache {#module-cache}
+## Caché de módulos {#module-cache}
 
-For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities, we provide a powerful caching system,
-which caches individual modules as binaries and shares them across your team and
-CI environments.
+Para los proyectos que utilizan las capacidades de generación de
+<LocalizedLink href="/guides/features/projects">proyectos</LocalizedLink> de
+Tuist, proporcionamos un potente sistema de almacenamiento en caché, que
+almacena en caché módulos individuales como binarios y los comparte a través de
+su equipo y entornos CI.
 
-While you can also use the new Xcode cache, this feature is currently optimized
-for local builds and you will likely have a lower cache hit rate compared to the
-generated project caching. However, the decision for which caching solution to
-use depends on your specific needs and preferences. You may also combine both
-caching solutions to achieve the best results.
+Aunque también puede utilizar la nueva caché de Xcode, esta función está
+actualmente optimizada para compilaciones locales y es probable que la tasa de
+aciertos de la caché sea inferior a la de la caché de proyectos generados. Sin
+embargo, la decisión de qué solución de almacenamiento en caché utilizar depende
+de sus necesidades y preferencias específicas. También puede combinar ambas
+soluciones de almacenamiento en caché para obtener los mejores resultados.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
-Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Más información sobre la caché del módulo →</LocalizedLink>
 
-## Xcode cache {#xcode-cache}
+## Caché de Xcode {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE
+::: aviso ESTADO DE CACHE EN XCODE
 <!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole
-spectrum of build tasks is not yet path-independent. Still you can experience
-benefits by plugging Tuist's remote cache, and we expect build times to improve
-over time as the build system's capability keeps improving.
+La caché de Xcode está actualmente optimizada para compilaciones incrementales
+locales y todo el espectro de tareas de compilación aún no es independiente de
+la ruta. Aún así puedes experimentar beneficios conectando la caché remota de
+Tuist, y esperamos que los tiempos de compilación mejoren con el tiempo a medida
+que la capacidad del sistema de compilación siga mejorando.
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to
-other build systems like Bazel and Buck. The new caching capability is available
-since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
-whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project
-generation</LocalizedLink> capabilities or not.
+Apple ha estado trabajando en una nueva solución de almacenamiento en caché a
+nivel de compilación, similar a otros sistemas de compilación como Bazel y Buck.
+La nueva capacidad de almacenamiento en caché está disponible desde Xcode 26 y
+Tuist ahora se integra perfectamente con él - independientemente de si usted
+está utilizando Tuist's
+<LocalizedLink href="/guides/features/projects">generación de proyectos</LocalizedLink> capacidades o no.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
-cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Más información sobre la caché de Xcode →</LocalizedLink>

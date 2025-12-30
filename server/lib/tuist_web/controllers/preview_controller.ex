@@ -129,7 +129,7 @@ defmodule TuistWeb.PreviewController do
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
-      raise NotFoundError, gettext("The preview ipa doesn't exist or has expired.")
+      raise NotFoundError, dgettext("dashboard", "The preview ipa doesn't exist or has expired.")
     end
 
     send_resp(conn, :ok, Storage.get_object_as_string(storage_key, account))

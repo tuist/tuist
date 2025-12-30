@@ -468,6 +468,47 @@ defmodule TuistWeb.API.RunsControllerTest do
       response
     end
 
+    test "handles race condition when concurrent request creates build first", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+      id = UUIDv7.generate()
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      existing_build =
+        Tuist.Repo.insert!(%Build{
+          id: id,
+          duration: 1000,
+          project_id: project.id,
+          account_id: user.account.id,
+          is_ci: false,
+          status: :success
+        })
+
+      call_count = :counters.new(1, [:atomics])
+
+      stub(Tuist.Runs, :get_build, fn ^id ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+        if count == 0, do: nil, else: existing_build
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: id,
+          type: "build",
+          duration: 1000,
+          is_ci: false
+        )
+
+      response = json_response(conn, :ok)
+      assert response["id"] == id
+      assert Tuist.Repo.get(Build, id)
+    end
+
     test "creates a new build when non-required parameters are missing", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
@@ -1177,6 +1218,46 @@ defmodule TuistWeb.API.RunsControllerTest do
                "type" => "test",
                "id" => test_run.id,
                "duration" => 10_000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+             }
+    end
+
+    test "creates a new test run with skipped status", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 0,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          scheme: "MyAppTests",
+          status: "skipped",
+          test_modules: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 0
+      assert test_run.status == "skipped"
+      assert test_run.scheme == "MyAppTests"
+      assert test_run.project_id == project.id
+      assert test_run.account_id == user.account.id
+
+      assert response == %{
+               "type" => "test",
+               "id" => test_run.id,
+               "duration" => 0,
                "project_id" => project.id,
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }

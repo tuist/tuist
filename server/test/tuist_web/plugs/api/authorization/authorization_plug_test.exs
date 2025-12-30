@@ -30,7 +30,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       |> assign(:selected_account, account)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
-        scopes: [:registry_read]
+        scopes: ["account:registry:read"]
       })
 
     # When
@@ -38,6 +38,131 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     # Then
     assert conn == got
+  end
+
+  test "returns the connection when the authenticated account with project:bundles:read scope can read bundles" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    account = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedAccount{
+        account: account,
+        scopes: ["project:bundles:read"],
+        all_projects: true
+      })
+
+    # When
+    got = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert conn == got
+  end
+
+  test "returns the connection when the authenticated account with project:bundles:write scope can read bundles (write implies read)" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    account = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedAccount{
+        account: account,
+        scopes: ["project:bundles:write"],
+        all_projects: true
+      })
+
+    # When
+    got = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert conn == got
+  end
+
+  test "returns 403 when the authenticated account lacks the required scope" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    account = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedAccount{
+        account: account,
+        scopes: ["project:cache:read"],
+        all_projects: true
+      })
+
+    # When
+    conn = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert conn.halted == true
+    assert json_response(conn, :forbidden)["message"] =~ "not authorized to read bundle"
+  end
+
+  test "returns the connection when all_projects is false and token has access to the specific project" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    account = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedAccount{
+        account: account,
+        scopes: ["project:bundles:read"],
+        all_projects: false,
+        project_ids: [project.id]
+      })
+
+    # When
+    got = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert got == conn
+  end
+
+  test "returns 403 when all_projects is false and token does not have access to the project" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    other_project = ProjectsFixtures.project_fixture()
+    account = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedAccount{
+        account: account,
+        scopes: ["project:bundles:read"],
+        all_projects: false,
+        project_ids: [other_project.id]
+      })
+
+    # When
+    conn = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert conn.halted == true
+    assert json_response(conn, :forbidden)["message"] =~ "not authorized to read bundle"
   end
 
   test "returns a 403 and halts the connection if the authenticated subject is not authorized" do

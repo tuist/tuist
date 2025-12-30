@@ -5,7 +5,6 @@ import Foundation
 import Mockable
 import Path
 import Testing
-import TuistAnalytics
 import TuistCore
 import TuistGit
 import TuistSupport
@@ -109,11 +108,22 @@ struct CommandEventFactoryTests {
                     ),
                 ],
             ],
+            targetContentHashSubhashes: [
+                "hash-a": .test(
+                    sources: "sources-hash-a",
+                    dependencies: "deps-hash-a"
+                ),
+                "hash-b": .test(
+                    sources: "sources-hash-b",
+                    resources: "resources-hash-b"
+                ),
+            ],
             previewId: nil,
             resultBundlePath: nil,
             ranAt: ranAt,
             buildRunId: nil,
-            testRunId: nil
+            testRunId: nil,
+            cacheEndpoint: "https://cache.tuist.dev"
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -139,50 +149,82 @@ struct CommandEventFactoryTests {
                         name: "Project",
                         path: try RelativePath(validating: "Project"),
                         targets: [
-                            RunTarget(
+                            .test(
                                 name: "A",
+                                product: .app,
+                                bundleId: "io.tuist.A",
+                                productName: "A",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-a",
-                                    hit: .local
+                                    hit: .local,
+                                    subhashes: .test(
+                                        sources: "sources-hash-a",
+                                        dependencies: "deps-hash-a"
+                                    )
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "ATests",
+                                product: .app,
+                                bundleId: "io.tuist.ATests",
+                                productName: "ATests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-a-tests",
                                     hit: .local
                                 )
                             ),
-                            RunTarget(
+                            .test(
                                 name: "B",
+                                product: .app,
+                                bundleId: "io.tuist.B",
+                                productName: "B",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-b",
-                                    hit: .remote
+                                    hit: .remote,
+                                    subhashes: .test(
+                                        sources: "sources-hash-b",
+                                        resources: "resources-hash-b"
+                                    )
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "BTests",
+                                product: .app,
+                                bundleId: "io.tuist.BTests",
+                                productName: "BTests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-b-tests",
                                     hit: .remote
                                 )
                             ),
-                            RunTarget(
+                            .test(
                                 name: "C",
+                                product: .app,
+                                bundleId: "io.tuist.C",
+                                productName: "C",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-c",
                                     hit: .miss
                                 ),
-                                selectiveTestingMetadata: nil
+                                selectiveTestingMetdata: nil
                             ),
-                            RunTarget(
+                            .test(
                                 name: "CTests",
+                                product: .app,
+                                bundleId: "io.tuist.CTests",
+                                productName: "CTests",
+                                destinations: [.iPhone, .iPad],
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-c-tests",
                                     hit: .miss
                                 )
@@ -196,7 +238,8 @@ struct CommandEventFactoryTests {
             resultBundlePath: nil,
             ranAt: ranAt,
             buildRunId: nil,
-            testRunId: nil
+            testRunId: nil,
+            cacheEndpoint: "https://cache.tuist.dev"
         )
 
         given(gitController)
@@ -245,6 +288,7 @@ struct CommandEventFactoryTests {
         #expect(event.gitCommitSHA == expectedEvent.gitCommitSHA)
         #expect(event.gitRemoteURLOrigin == expectedEvent.gitRemoteURLOrigin)
         #expect(event.gitRef == expectedEvent.gitRef)
+        #expect(event.cacheEndpoint == expectedEvent.cacheEndpoint)
 
         #expect(
             event.graph ==
@@ -266,11 +310,13 @@ struct CommandEventFactoryTests {
             graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
             previewId: nil,
             resultBundlePath: nil,
             ranAt: Date(),
             buildRunId: nil,
-            testRunId: nil
+            testRunId: nil,
+            cacheEndpoint: ""
         )
 
         given(gitController)
@@ -310,11 +356,13 @@ struct CommandEventFactoryTests {
             graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
             previewId: nil,
             resultBundlePath: nil,
             ranAt: Date(),
             buildRunId: nil,
-            testRunId: nil
+            testRunId: nil,
+            cacheEndpoint: ""
         )
 
         given(gitController)
@@ -366,11 +414,13 @@ struct CommandEventFactoryTests {
             graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
             previewId: nil,
             resultBundlePath: nil,
             ranAt: Date(),
             buildRunId: nil,
-            testRunId: nil
+            testRunId: nil,
+            cacheEndpoint: ""
         )
 
         given(gitController)
@@ -399,6 +449,95 @@ struct CommandEventFactoryTests {
         #expect(event.gitCommitSHA == nil)
         #expect(event.gitRemoteURLOrigin == nil)
         #expect(event.gitRef == nil)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory
+    ) func make_includes_cache_endpoint_from_trackable_command_info() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let cacheEndpoint = "https://eu.cache.tuist.dev"
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "generate",
+            subcommand: nil,
+            commandArguments: ["generate"],
+            durationInMs: 1000,
+            status: .success,
+            graph: nil,
+            graphBinaryBuildDuration: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date(),
+            buildRunId: nil,
+            testRunId: nil,
+            cacheEndpoint: cacheEndpoint
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn(.test())
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        #expect(event.cacheEndpoint == cacheEndpoint)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory
+    ) func make_includes_empty_cache_endpoint_when_not_set() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "generate",
+            subcommand: nil,
+            commandArguments: ["generate"],
+            durationInMs: 1000,
+            status: .success,
+            graph: nil,
+            graphBinaryBuildDuration: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date(),
+            buildRunId: nil,
+            testRunId: nil,
+            cacheEndpoint: ""
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn(.test())
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        #expect(event.cacheEndpoint == "")
     }
 }
 

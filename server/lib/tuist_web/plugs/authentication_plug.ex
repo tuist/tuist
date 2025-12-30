@@ -35,7 +35,6 @@ defmodule TuistWeb.AuthenticationPlug do
       :open_api = response_type
 
       conn
-      |> put_resp_header("connection", "close")
       |> put_status(:unauthorized)
       |> json(%{message: "You need to be authenticated to access this resource."})
       |> halt()

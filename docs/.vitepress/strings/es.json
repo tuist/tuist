@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Auto-completado en shells"
+                        },
+                        "directories": {
+                            "text": "Directorios"
                         }
                     }
                 },
@@ -298,6 +301,9 @@
                                 },
                                 "best-practices": {
                                     "text": "Buenas prácticas"
+                                },
+                                "metadata-tags": {
+                                    "text": "Etiquetas de metadatos"
                                 }
                             }
                         },
@@ -308,7 +314,10 @@
                                     "text": ""
                                 },
                                 "xcode-cache": {
-                                    "text": ""
+                                    "text": "Caché de Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "Módulo caché"
                                 }
                             }
                         },
@@ -350,10 +359,10 @@
                             }
                         },
                         "insights": {
-                            "text": "Insights"
+                            "text": "Análisis de builds"
                         },
                         "bundle-size": {
-                            "text": "Tamaño de bundle"
+                            "text": "Análisis de bundles"
                         },
                         "qa": {
                             "text": "QA"
@@ -373,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Integración continua"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Forjas Git"
                         }
                     }
                 },
@@ -383,6 +403,28 @@
                             "text": "Previews"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetría"
+                                },
+                                "installation": {
+                                    "text": "Instalación"
+                                }
+                            },
+                            "text": "Autoalojamiento"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Cuentas y proyectos"
+                        },
+                        "authentication": {
+                            "text": "Autentificación"
+                        }
+                    },
+                    "text": "Servidor"
                 }
             }
         }

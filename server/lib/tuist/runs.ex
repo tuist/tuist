@@ -602,7 +602,7 @@ defmodule Tuist.Runs do
 
   defp create_test_modules(test, test_modules) do
     Enum.each(test_modules, fn module_attrs ->
-      module_id = Ecto.UUID.generate()
+      module_id = UUIDv7.generate()
 
       test_suites = Map.get(module_attrs, :test_suites, [])
       test_cases = Map.get(module_attrs, :test_cases, [])
@@ -649,7 +649,7 @@ defmodule Tuist.Runs do
 
     {test_suite_runs, suite_name_to_id} =
       Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
-        suite_id = Ecto.UUID.generate()
+        suite_id = UUIDv7.generate()
         suite_name = Map.get(suite_attrs, :name)
 
         suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
@@ -702,7 +702,7 @@ defmodule Tuist.Runs do
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
 
-        test_case_run_id = Ecto.UUID.generate()
+        test_case_run_id = UUIDv7.generate()
 
         # Lookup the test_case_id from our map
         case_name = Map.get(case_attrs, :name)
@@ -734,7 +734,7 @@ defmodule Tuist.Runs do
         test_case_failures =
           Enum.map(failures, fn failure_attrs ->
             %{
-              id: Ecto.UUID.generate(),
+              id: UUIDv7.generate(),
               test_case_run_id: test_case_run_id,
               message: Map.get(failure_attrs, :message),
               path: Map.get(failure_attrs, :path),

@@ -10,12 +10,28 @@ defmodule TuistWeb.Marketing.Localization do
 
   import Plug.Conn
 
-  @additional_locales ["ko", "ru", "zh_Hans"]
+  @languages [
+    %{code: "en", label: "English", native: "English"},
+    %{code: "ar", label: "Arabic", native: "العربية"},
+    %{code: "es", label: "Spanish", native: "Castellano"},
+    %{code: "ja", label: "Japanese", native: "日本語"},
+    %{code: "ko", label: "Korean", native: "한국어"},
+    %{code: "pl", label: "Polish", native: "Polski"},
+    %{code: "pt", label: "Portuguese", native: "Português"},
+    %{code: "ru", label: "Russian", native: "Русский"},
+    %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
+    %{code: "zh_Hans", label: "Chinese", native: "中文"}
+  ]
+
+  @additional_locales @languages
+                      |> Enum.map(& &1.code)
+                      |> Enum.reject(&(&1 == "en"))
 
   def init(:put_locale), do: :put_locale
   def init(:redirect_to_localized_route), do: :redirect_to_localized_route
 
-  def all_locales, do: @additional_locales ++ ["en"]
+  def languages, do: @languages
+  def all_locales, do: Enum.map(@languages, & &1.code)
   def additional_locales, do: @additional_locales
 
   def call(conn, :put_locale) do

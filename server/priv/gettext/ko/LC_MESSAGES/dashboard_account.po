@@ -1,0 +1,945 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:30+0000\n"
+"PO-Revision-Date: 2025-12-24 20:46+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
+"dashboard_account/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist/billing.ex:59
+#: lib/tuist_web/live/billing_live.ex:217
+#, elixir-autogen, elixir-format, fuzzy
+msgid "$0"
+msgstr "$0"
+
+#: lib/tuist_web/live/billing_live.html.heex:220
+#, elixir-autogen, elixir-format, fuzzy
+msgid "$0.50"
+msgstr "$0.50"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{inviter} has invited you to join the %{organization} organization"
+msgstr "%{inviter}님이 %{organization} 조직에 초대했습니다"
+
+#: lib/tuist_web/live/billing_live.html.heex:294
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{month}/%{year}"
+msgstr "%{month}/%{year}"
+
+#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist_web/live/accept_invitation_live.ex:75
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Accept invitation"
+msgstr "초대 수락"
+
+#: lib/tuist_web/live/billing_live.html.heex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Add payment method"
+msgstr "결제 방법 추가"
+
+#: lib/tuist_web/live/members_live.ex:124
+#: lib/tuist_web/live/members_live.ex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Admin"
+msgstr "관리자"
+
+#: lib/tuist/billing.ex:37
+#: lib/tuist_web/live/billing_live.ex:187
+#: lib/tuist_web/live/billing_live.html.heex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Air"
+msgstr "Air"
+
+#: lib/tuist_web/live/billing_live.html.heex:317
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All billing correspondence will go to this email"
+msgstr "모든 청구 관련 사항은 이 이메일로 발송됩니다"
+
+#: lib/tuist/billing.ex:46
+#: lib/tuist_web/live/billing_live.ex:192
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All features, no credit card required"
+msgstr "모든 기능 사용 가능, 신용카드는 필요하지 않음"
+
+#: lib/tuist_web/live/members_live.ex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All members"
+msgstr "모든 회원"
+
+#: lib/tuist_web/live/account_settings_live.ex:156
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All regions"
+msgstr "모든 지역"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:99
+#: lib/tuist_web/live/account_settings_live.html.heex:247
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Are you sure you want to delete this?"
+msgstr "정말 삭제하시겠습니까?"
+
+#: lib/tuist_web/live/members_live.ex:196
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Are you sure you want to remove %{name} from this organization?"
+msgstr "조직에서 %{name}를(을) 정말 삭제하시겠습니까?"
+
+#: lib/tuist_web/live/billing_live.ex:71
+#: lib/tuist_web/live/billing_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Billing"
+msgstr "청구"
+
+#: lib/tuist_web/live/billing_live.html.heex:314
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Billing email"
+msgstr "청구 이메일"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:63
+#: lib/tuist_web/live/account_settings_live.html.heex:137
+#: lib/tuist_web/live/account_settings_live.html.heex:211
+#: lib/tuist_web/live/account_settings_live.html.heex:283
+#: lib/tuist_web/live/create_organization_live.ex:62
+#: lib/tuist_web/live/members_live.ex:157
+#: lib/tuist_web/live/members_live.ex:206
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist_web/live/billing_live.html.heex:156
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Change subscription plan"
+msgstr "구독 요금제 변경"
+
+#: lib/tuist_web/live/billing_live.html.heex:154
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Change your subscription to fit your needs."
+msgstr "필요에 따라 구독을 변경하세요."
+
+#: lib/tuist_web/live/account_settings_live.ex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
+msgstr "법률 준수를 위해 모듈 캐시 Binary 같은 Artifact를 저장할 위치를 선택하세요."
+
+#: lib/tuist/billing.ex:47
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Community support"
+msgstr "커뮤니티 지원"
+
+#: lib/tuist_web/live/billing_live.ex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Community support via forum"
+msgstr "온라인으로 커뮤니티 지원"
+
+#: lib/tuist_web/live/billing_live.html.heex:111
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Community support: Support via community forum"
+msgstr "커뮤니티 지원: 커뮤니티 포럼을 통한 지원"
+
+#: lib/tuist_web/live/billing_live.html.heex:147
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Completely free for open source projects"
+msgstr "오픈 소스 프로젝트는 완전 무료"
+
+#: lib/tuist/accounts/user_notifier.ex:113
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Confirm your email"
+msgstr "이메일 확인"
+
+#: lib/tuist/accounts/user_notifier.ex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Confirmation instructions"
+msgstr "확인 지침"
+
+#: lib/tuist/billing.ex:79
+#: lib/tuist_web/live/billing_live.ex:254
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Contact sales"
+msgstr "영업팀에 문의"
+
+#: lib/tuist_web/live/create_organization_live.ex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create a new organization"
+msgstr "새 조직 만들기"
+
+#: lib/tuist_web/live/create_organization_live.ex:35
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create an organization account to continue"
+msgstr "계속하려면 조직 계정을 만드세요"
+
+#: lib/tuist_web/live/create_organization_live.ex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create organization"
+msgstr "조직 생성"
+
+#: lib/tuist_web/live/billing_live.ex:244
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create your plan or self-host your instance"
+msgstr "계획을 만들거나 자체 구축하세요"
+
+#: lib/tuist/billing.ex:77
+#: lib/tuist_web/live/billing_live.html.heex:88
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create your plan or self-host your instance."
+msgstr "계획을 만들거나 자체 구축하세요."
+
+#: lib/tuist_web/live/billing_live.ex:199
+#: lib/tuist_web/live/billing_live.ex:228
+#: lib/tuist_web/live/billing_live.html.heex:11
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Current plan"
+msgstr "현재 요금제"
+
+#: lib/tuist/billing.ex:78
+#: lib/tuist_web/live/billing_live.ex:245
+#: lib/tuist_web/live/billing_live.html.heex:70
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "맞춤형"
+
+#: lib/tuist/billing.ex:81
+#: lib/tuist_web/live/billing_live.ex:247
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom terms"
+msgstr "사용자 지정 약관"
+
+#: lib/tuist_web/live/billing_live.html.heex:133
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom terms: Tailored agreements to meet your specific needs"
+msgstr "사용자 지정 약관: 특정 요구 사항을 충족하는 맞춤형 계약"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dashboard"
+msgstr "서비스 현황"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:81
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Decline"
+msgstr "거절"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:145
+#: lib/tuist_web/live/account_settings_live.html.heex:291
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete"
+msgstr "삭제"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:232
+#: lib/tuist_web/live/account_settings_live.html.heex:253
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete account"
+msgstr "계정 삭제"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:84
+#: lib/tuist_web/live/account_settings_live.html.heex:105
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete organization"
+msgstr "조직 삭제"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Deleting the organization will delete all of its projects"
+msgstr "조직을 삭제하면 조직의 모든 프로젝트가 삭제됩니다"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:265
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Deleting your account will also delete all the projects that belong to it"
+msgstr "계정을 삭제하면 해당 계정에 속한 모든 프로젝트도 삭제됩니다"
+
+#: lib/tuist/accounts/user_notifier.ex:137
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Did you request to reset your password?"
+msgstr "비밀번호 재설정을 요청하셨나요?"
+
+#: lib/tuist_web/live/billing_live.ex:205
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Downgrade"
+msgstr "다운그레이드"
+
+#: lib/tuist_web/live/members_live.ex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "E-mail"
+msgstr "이메일"
+
+#: lib/tuist_web/live/billing_live.html.heex:334
+#: lib/tuist_web/live/members_live.ex:274
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email"
+msgstr "이메일"
+
+#: lib/tuist_web/live/members_live.ex:335
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Email address"
+msgstr "이메일 주소"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Enter this organization's name to confirm"
+msgstr "최종 확인하기 위해 이 조직의 이름을 입력하세요"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:272
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Enter your username to confirm"
+msgstr "최종 결정하려면 사용자 이름을 입력하세요"
+
+#: lib/tuist/billing.ex:75
+#: lib/tuist_web/live/billing_live.ex:243
+#: lib/tuist_web/live/billing_live.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Enterprise"
+msgstr "기업용"
+
+#: lib/tuist_web/live/account_settings_live.ex:157
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Europe"
+msgstr "유럽"
+
+#: lib/tuist/billing.ex:40
+#: lib/tuist_web/live/billing_live.ex:189
+#: lib/tuist_web/live/billing_live.html.heex:67
+#: lib/tuist_web/live/billing_live.html.heex:68
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Free"
+msgstr "무료"
+
+#: lib/tuist_web/live/billing_live.html.heex:25
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Free tier exceeded"
+msgstr "무료 요금제 할당량 초과"
+
+#: lib/tuist_web/live/billing_live.ex:191
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Free under tier limits"
+msgstr "제한 있는 무료"
+
+#: lib/tuist/billing.ex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generous base price"
+msgstr "넉넉한 기본 가격"
+
+#: lib/tuist_web/live/billing_live.html.heex:116
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generous base price: Pay nothing if below free tier limits"
+msgstr "넉넉한 기본 가격: 무료 요금제 한도 미만인 경우 비용 지불 없음"
+
+#: lib/tuist/billing.ex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generous free monthly tier"
+msgstr "넉넉한 월간 무료 할당량"
+
+#: lib/tuist_web/live/billing_live.html.heex:99
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generous free monthly tier: Usage capped at free tier limits"
+msgstr "넉넉한 월간 무료 티어: 무료 할당량 한도에 따라 사용량 제한"
+
+#: lib/tuist/billing.ex:41
+#: lib/tuist/billing.ex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Get started"
+msgstr "시작하기"
+
+#: lib/tuist_web/live/billing_live.ex:188
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Get started with no credit card required"
+msgstr "신용카드 없이 시작해 보세요"
+
+#: lib/tuist/billing.ex:39
+#: lib/tuist_web/live/billing_live.html.heex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Get started with no credit card required—try with no commitment."
+msgstr "신용 카드 없이 시작하기 - 약정 없이 무료로 사용해 보세요."
+
+#: lib/tuist/accounts/user_notifier.ex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
+msgstr "안녕하세요 %{invitee_email} 님, 아래 버튼을 눌러 조직에 가입할 수 있습니다:"
+
+#: lib/tuist/accounts/user_notifier.ex:139
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hola %{name}, you can reset your password by clicking the button below:"
+msgstr "안녕하세요 %{이름} 님, 아래 버튼을 클릭하여 비밀번호를 재설정 할 수 있습니다:"
+
+#: lib/tuist/accounts/user_notifier.ex:118
+#: lib/tuist/accounts/user_notifier.ex:147
+#, elixir-autogen, elixir-format, fuzzy
+msgid "If you didn't make this request, feel free to ignore this email."
+msgstr "이 요청을 하지 않으셨다면, 이 이메일을 무시해도 됩니다."
+
+#: lib/tuist_web/live/accept_invitation_live.ex:105
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invitation accepted!"
+msgstr "초대 수락!"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:88
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invitation not found"
+msgstr "초대를 찾을 수 없습니다"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invitation rejected"
+msgstr "초대 거부됨"
+
+#: lib/tuist/accounts/user_notifier.ex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invitation to %{organization_name}"
+msgstr "{organization_name}에 대한 초대"
+
+#: lib/tuist_web/live/members_live.ex:66
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invitations"
+msgstr "초대 목록"
+
+#: lib/tuist_web/live/members_live.ex:324
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invite member"
+msgstr "회원 초대"
+
+#: lib/tuist_web/live/members_live.ex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invite members"
+msgstr "회원 초대하기"
+
+#: lib/tuist_web/live/members_live.ex:306
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Invite members to your organization"
+msgstr "조직에 구성원 초대하기"
+
+#: lib/tuist_web/live/billing_live.html.heex:40
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Learn more"
+msgstr "자세히 알아보기"
+
+#: lib/tuist/billing.ex:45
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Like, totally free"
+msgstr "완전 무료"
+
+#: lib/tuist_web/live/billing_live.html.heex:105
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Like, totally free: All features, no credit card required"
+msgstr "완전 무료: 모든 기능, 신용카드 필요 없음"
+
+#: lib/tuist_web/live/members_live.ex:99
+#: lib/tuist_web/live/members_live.ex:236
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage role"
+msgstr "역할 관리"
+
+#: lib/tuist_web/live/billing_live.html.heex:5
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Manage your billing and payment details"
+msgstr "청구 및 결제 세부 정보 관리"
+
+#: lib/tuist_web/live/members_live.ex:78
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Member"
+msgstr "회원"
+
+#: lib/tuist_web/live/members_live.ex:17
+#: lib/tuist_web/live/members_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Members"
+msgstr "회원"
+
+#: lib/tuist_web/live/billing_live.ex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Most Popular"
+msgstr "가장 유명"
+
+#: lib/tuist_web/live/create_organization_live.ex:49
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist/billing.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No credit card required"
+msgstr "신용 카드 필요 없음"
+
+#: lib/tuist_web/live/members_live.ex:303
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No invitations created"
+msgstr "생성된 초대 없음"
+
+#: lib/tuist_web/live/members_live.ex:260
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No members found"
+msgstr "회원을 찾을 수 없습니다"
+
+#: lib/tuist/billing.ex:83
+#: lib/tuist_web/live/billing_live.ex:248
+#, elixir-autogen, elixir-format, fuzzy
+msgid "On-premise"
+msgstr "자체 구축"
+
+#: lib/tuist_web/live/billing_live.html.heex:139
+#, elixir-autogen, elixir-format, fuzzy
+msgid "On-premise: Self-host your instance of Tuist"
+msgstr "자체 구축: Tuist 인스턴스 자체 구축"
+
+#: lib/tuist_web/live/billing_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Open source"
+msgstr "오픈 소스"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:54
+#: lib/tuist_web/live/account_settings_live.html.heex:128
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Organization name"
+msgstr "조직 이름"
+
+#: lib/tuist/accounts/user.ex:88
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passwords don't match"
+msgstr "비밀번호가 일치하지 않습니다"
+
+#: lib/tuist/billing.ex:64
+#: lib/tuist_web/live/billing_live.ex:220
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pay nothing if below free tier limits"
+msgstr "무료 사용량 이하에서는, 아무것도 지불하지 마세요"
+
+#: lib/tuist/billing.ex:66
+#: lib/tuist_web/live/billing_live.ex:221
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pay only for what you use per feature"
+msgstr "기능마다 사용한 만큼만 지불하세요"
+
+#: lib/tuist_web/live/billing_live.html.heex:243
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Payment method"
+msgstr "결제 방법"
+
+#: lib/tuist_web/live/billing_live.html.heex:246
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Payments for your subscription are made using the default card."
+msgstr "구독 요금은 기본 카드를 사용하여 결제합니다."
+
+#: lib/tuist_web/live/members_live.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pending"
+msgstr "보류 중"
+
+#: lib/tuist_web/live/billing_live.html.heex:231
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Price"
+msgstr "가격"
+
+#: lib/tuist_web/live/billing_live.html.heex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pricing details"
+msgstr "가격 세부 정보"
+
+#: lib/tuist/billing.ex:85
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Priority support"
+msgstr "우선 지원"
+
+#: lib/tuist_web/live/billing_live.ex:249
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Priority support via shared Slack channel"
+msgstr "공유된 Slack 채널을 통한 우선 지원"
+
+#: lib/tuist_web/live/billing_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Priority support: Via shared Slack channel"
+msgstr "우선 지원: 공유된 Slack 채널을 통해"
+
+#: lib/tuist/billing.ex:56
+#: lib/tuist_web/live/billing_live.ex:215
+#: lib/tuist_web/live/billing_live.html.heex:60
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Pro"
+msgstr "Pro"
+
+#: lib/tuist_web/live/account_settings_live.ex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Region"
+msgstr "지역"
+
+#: lib/tuist_web/live/billing_live.html.heex:225
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote cache hits"
+msgstr "원격 캐시 적중"
+
+#: lib/tuist_web/live/billing_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote cache hits:"
+msgstr "원격 캐시 일치:"
+
+#: lib/tuist_web/live/members_live.ex:214
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remove"
+msgstr "제거"
+
+#: lib/tuist_web/live/members_live.ex:178
+#: lib/tuist_web/live/members_live.ex:246
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remove member"
+msgstr "회원 제거"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:71
+#: lib/tuist_web/live/account_settings_live.html.heex:219
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename"
+msgstr "이름 바꾸기"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:13
+#: lib/tuist_web/live/account_settings_live.html.heex:37
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename organization"
+msgstr "조직 이름 바꾸기"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename your organization?"
+msgstr "조직 이름을 변경하시나요?"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:49
+#: lib/tuist_web/live/account_settings_live.html.heex:198
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Renaming can have unexpected consequences"
+msgstr "이름 변경은 예상치 못한 결과를 초래할 수 있습니다"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:16
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Renaming your organization can have unintended side effects."
+msgstr "조직 이름을 변경하면 의도하지 않은 부작용이 발생할 수 있습니다."
+
+#: lib/tuist/accounts/user_notifier.ex:133
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Reset password instructions"
+msgstr "비밀번호 재설정 지침"
+
+#: lib/tuist/accounts/user_notifier.ex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Reset your password"
+msgstr "비밀번호 재설정"
+
+#: lib/tuist_web/live/members_live.ex:287
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Revoke invite"
+msgstr "초대 취소"
+
+#: lib/tuist_web/live/members_live.ex:93
+#: lib/tuist_web/live/members_live.ex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Role"
+msgstr "역할"
+
+#: lib/tuist_web/live/members_live.ex:165
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Save"
+msgstr "저장"
+
+#: lib/tuist_web/live/members_live.ex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search members..."
+msgstr "회원 검색..."
+
+#: lib/tuist_web/live/account_settings_live.ex:148
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Select region"
+msgstr "지역 선택"
+
+#: lib/tuist/billing.ex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Self-host your instance of Tuist"
+msgstr "Tuist 자체 구축하기"
+
+#: lib/tuist_web/live/account_settings_live.ex:32
+#: lib/tuist_web/live/account_settings_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Settings"
+msgstr "설정"
+
+#: lib/tuist/billing.ex:67
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Standard support"
+msgstr "기본 지원"
+
+#: lib/tuist_web/live/billing_live.ex:222
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Standard support via Slack and email"
+msgstr "Slack과 이메일을 통한 기본 지원"
+
+#: lib/tuist_web/live/billing_live.html.heex:128
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Standard support: Via Slack and email"
+msgstr "기본 지원: Slack과 이메일을 통한"
+
+#: lib/tuist_web/live/members_live.ex:277
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist_web/live/account_settings_live.ex:137
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Storage region"
+msgstr "저장소 지역"
+
+#: lib/tuist/billing.ex:48
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Support via community forum"
+msgstr "온라인 커뮤니티를 통한 지원"
+
+#: lib/tuist/billing.ex:82
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tailored agreements to meet your specific needs"
+msgstr "특정 요구 사항을 충족하는 맞춤형 계약"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:87
+#: lib/tuist_web/live/account_settings_live.html.heex:235
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This action cannot be undone."
+msgstr "이 작업은 되돌릴 수 없습니다."
+
+#: lib/tuist/accounts/user_notifier.ex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "To start using Tuist, verify your email and you are good to go:"
+msgstr "이메일 인증을 하시면 Tuist를 바로 사용할 수 있습니다:"
+
+#: lib/tuist_web/live/billing_live.html.heex:234
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total"
+msgstr "합계"
+
+#: lib/tuist_web/live/members_live.ex:261
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "검색어를 변경해 보세요"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:52
+#: lib/tuist_web/live/create_organization_live.ex:26
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist Logo"
+msgstr "Tuist 로고"
+
+#: lib/tuist_web/live/account_settings_live.ex:158
+#, elixir-autogen, elixir-format, fuzzy
+msgid "United States"
+msgstr "미국"
+
+#: lib/tuist/vcs.ex:464
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist/billing.ex:70
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unlimited projects"
+msgstr "무제한 프로젝트"
+
+#: lib/tuist_web/live/billing_live.html.heex:325
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Update billing email"
+msgstr "청구 이메일 변경"
+
+#: lib/tuist_web/live/billing_live.html.heex:257
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Update payment method"
+msgstr "결제 방법 변경"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:163
+#: lib/tuist_web/live/account_settings_live.html.heex:187
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Update username"
+msgstr "사용자 이름 변경"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:181
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Update your username?"
+msgstr "사용자 아이디를 변경하시겠습니까?"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Updating your username can have unintended consequences."
+msgstr "사용자 아이디를 변경하면 의도하지 않은 결과가 발생할 수 있습니다."
+
+#: lib/tuist_web/live/billing_live.ex:234
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upgrade"
+msgstr "업그레이드"
+
+#: lib/tuist_web/live/billing_live.html.heex:162
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upgrade plan"
+msgstr "요금제 업그레이드"
+
+#: lib/tuist_web/live/billing_live.html.heex:206
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage"
+msgstr "사용법"
+
+#: lib/tuist/billing.ex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage capped at free tier limits"
+msgstr "무료 요금제 한도에 따른 사용량 제한"
+
+#: lib/tuist_web/live/billing_live.html.heex:22
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage details"
+msgstr "세부 사용 정보"
+
+#: lib/tuist_web/live/billing_live.html.heex:69
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage-based"
+msgstr "사용량 기반"
+
+#: lib/tuist/billing.ex:65
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage-based pricing"
+msgstr "사용량 기반 요금제"
+
+#: lib/tuist_web/live/billing_live.ex:216
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage-based pricing after free tier"
+msgstr "무료 요금제 제한 이상에서 사용량 기반 과금"
+
+#: lib/tuist/billing.ex:58
+#: lib/tuist_web/live/billing_live.html.heex:85
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage-based pricing after free tier."
+msgstr "무료 요금제 제한 이상에서 사용량 기반 과금."
+
+#: lib/tuist_web/live/billing_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Usage-based pricing: Pay only for what you use per feature"
+msgstr "사용량 기반 요금제: 기능별로 사용한 만큼만 지불"
+
+#: lib/tuist_web/live/billing_live.html.heex:91
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Use all Tuist features as long as you stay open source."
+msgstr "오픈 소스를 유지하는 한 모든 Tuist 기능을 사용할 수 있습니다."
+
+#: lib/tuist_web/live/members_live.ex:123
+#: lib/tuist_web/live/members_live.ex:130
+#, elixir-autogen, elixir-format, fuzzy
+msgid "User"
+msgstr "사용자"
+
+#: lib/tuist_web/live/account_settings_live.html.heex:203
+#: lib/tuist_web/live/account_settings_live.html.heex:275
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Username"
+msgstr "사용자 이름"
+
+#: lib/tuist/billing.ex:67
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Via Slack and email"
+msgstr "Slack 및 이메일을 통해"
+
+#: lib/tuist/billing.ex:85
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Via shared Slack channel"
+msgstr "공유된 Slack 채널을 통해"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:96
+#, elixir-autogen, elixir-format, fuzzy
+msgid "We could not find the invitation you are trying to accept. Please try again."
+msgstr "수락하려는 초대를 찾을 수 없습니다. 다시 시도해 주세요."
+
+#: lib/tuist_web/live/account_settings_live.ex:17
+#: lib/tuist_web/live/billing_live.ex:13
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are not authorized to perform this action."
+msgstr "이 작업을 수행할 권한이 없습니다."
+
+#: lib/tuist_web/live/accept_invitation_live.ex:119
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are now a part of %{organization} organization"
+msgstr "이제 %{organization} 조직의 일원이 되었습니다"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:107
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You have accepted the invite to join the organization"
+msgstr "조직 가입 초대를 수락했습니다"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You have been invited"
+msgstr "초대되었습니다"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:129
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You have rejected the invite to join the organization"
+msgstr "조직 가입 초대를 거부했습니다"
+
+#: lib/tuist/accounts/user_notifier.ex:116
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You received this email because you recently signed up for a Tuist account."
+msgstr "최근에 Tuist 계정에 가입했기 때문에 이 이메일을 받았습니다."
+
+#: lib/tuist/accounts/user_notifier.ex:145
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You received this email because you requested a password reset for your Tuist account."
+msgstr "Tuist 계정의 비밀번호 재설정을 요청했기 때문에 이 이메일을 받았습니다."
+
+#: lib/tuist/accounts/user_notifier.ex:170
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
+msgstr "%{inviter_email}에 의해 %{organization_name} Tuist 조직에 초대되었습니다"
+
+#: lib/tuist_web/live/accept_invitation_live.ex:141
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You won’t be able to access this organization unless invited again."
+msgstr "다시 초대를 받지 않으면 이 조직에 액세스할 수 없습니다."
+
+#: lib/tuist/accounts/user_notifier.ex:108
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You're Almost Set!"
+msgstr "거의 다 준비되었습니다!"
+
+#: lib/tuist_web/live/billing_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
+msgstr "무료 요금제 할당량이 초과되어 추가 사용량에 대한 요금이 부과됩니다."
+
+#: lib/tuist_web/live/billing_live.html.heex:47
+#, elixir-autogen, elixir-format, fuzzy
+msgid "about remote cache hits"
+msgstr "원격 캐시 일치 정보"
+
+#: lib/tuist_web/live/billing_live.html.heex:228
+#, elixir-autogen, elixir-format, fuzzy
+msgid "above free tier"
+msgstr "무료 요금제 이상"
+
+#: lib/tuist/billing.ex:60
+#: lib/tuist_web/live/billing_live.ex:218
+#, elixir-autogen, elixir-format, fuzzy
+msgid "and up"
+msgstr "그리고 업그레이드"
+
+#: lib/tuist_web/live/billing_live.ex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "charged /per month"
+msgstr "청구 / 월"
+
+#: lib/tuist_web/live/billing_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "charged on %{next_charge_date}"
+msgstr "%{next_charge_date}에 충전됨"
+
+#: lib/tuist_web/live/billing_live.html.heex:301
+#, elixir-autogen, elixir-format, fuzzy
+msgid "xxxx xxxx xxxx %{card_number}"
+msgstr "xxxx xxxx xxxx %{card_number}"

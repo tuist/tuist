@@ -1008,13 +1008,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_user_by_email/1" do
-    test "does not return the user if the email does not exist" do
-      refute Accounts.get_user_by_email("unknown@example.com")
+    test "returns {:error, :not_found} if the email does not exist" do
+      assert {:error, :not_found} = Accounts.get_user_by_email("unknown@example.com")
     end
 
-    test "returns the user if the email exists doing a case-insensitive search" do
+    test "returns {:ok, user} if the email exists doing a case-insensitive search" do
       %{id: id} = user = user_fixture()
-      assert %User{id: ^id} = Accounts.get_user_by_email(String.upcase(user.email))
+      assert {:ok, %User{id: ^id}} = Accounts.get_user_by_email(String.upcase(user.email))
     end
   end
 
@@ -1509,6 +1509,7 @@ defmodule Tuist.AccountsTest do
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1523,6 +1524,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1536,6 +1538,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates the user infering the handle from the email when no handle is provided" do
       # Given
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1549,6 +1552,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when new pricing model is enabled" do
       # Given
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1575,6 +1579,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password when email has a dot in the username" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = "username.with.dot@tuist.io"
 
       # When
@@ -2268,7 +2273,7 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_account_from_customer_id/1" do
-    test "returns the account with the given customer_id" do
+    test "returns {:ok, account} with the given customer_id" do
       # Given
       stub(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
       user = AccountsFixtures.user_fixture()
@@ -2279,10 +2284,10 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id(customer_id)
 
       # Then
-      assert got == account
+      assert got == {:ok, account}
     end
 
-    test "returns nil if the account with the given customer_id does not exist" do
+    test "returns {:error, :not_found} if the account with the given customer_id does not exist" do
       # Given
       AccountsFixtures.user_fixture()
 
@@ -2290,7 +2295,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id("unknown")
 
       # Then
-      assert got == nil
+      assert got == {:error, :not_found}
     end
   end
 
@@ -2710,7 +2715,7 @@ defmodule Tuist.AccountsTest do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2753,11 +2758,265 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["account:registry:read"],
+          name: "my-token"
+        })
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+    end
+
+    test "creates account token with all_projects: false by default" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "default-token"
+        })
+
+      # Then
+      assert token.all_projects == false
+    end
+
+    test "creates account token with all_projects: true when explicitly set" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "all-projects-token",
+          all_projects: true
+        })
+
+      # Then
+      assert token.all_projects == true
+    end
+
+    test "creates account token with project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 1
+      assert hd(token_with_projects.projects).id == project.id
+    end
+
+    test "creates account token with multiple project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id)
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "multi-project-token",
+          all_projects: false,
+          project_ids: [project1.id, project2.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 2
+      project_ids = Enum.map(token_with_projects.projects, & &1.id)
+      assert project1.id in project_ids
+      assert project2.id in project_ids
+    end
+  end
+
+  describe "list_account_tokens/2" do
+    test "returns tokens for the account with pagination" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account, name: "token-2")
+
+      # When
+      {tokens, meta} = Accounts.list_account_tokens(account, %{page: 1, page_size: 10})
+
+      # Then
+      assert length(tokens) == 2
+      assert meta.total_count == 2
+    end
+
+    test "does not return tokens from other accounts" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account2, name: "token-2")
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account1)
+
+      # Then
+      assert length(tokens) == 1
+      assert hd(tokens).name == "token-1"
+    end
+
+    test "preloads projects association" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {_token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account)
+
+      # Then
+      assert length(tokens) == 1
+      token = hd(tokens)
+      assert Ecto.assoc_loaded?(token.projects)
+      assert length(token.projects) == 1
+      assert hd(token.projects).id == project.id
+    end
+  end
+
+  describe "get_account_token_by_name/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token_by_name(account, "my-token")
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token not found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token_by_name(account, "non-existent")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "shared-name")
+
+      # When
+      result = Accounts.get_account_token_by_name(account2, "shared-name")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} =
+        Accounts.get_account_token_by_name(account, "my-token", preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
+  describe "delete_account_token/1" do
+    test "deletes an account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "token-to-delete")
+
+      # When
+      {:ok, deleted_token} = Accounts.delete_account_token(token)
+
+      # Then
+      assert deleted_token.id == token.id
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "token-to-delete")
+    end
+
+    test "deletes an account token with project associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {:ok, _} = Accounts.delete_account_token(token)
+
+      # Then
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "restricted-token")
+    end
+  end
+
+  describe "account_token_expired?/1" do
+    test "returns false when expires_at is nil" do
+      # Given
+      token = %AccountToken{expires_at: nil}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns false when expires_at is in the future" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), 1, :hour)}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns true when expires_at is in the past" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), -1, :hour)}
+
+      # When/Then
+      assert Accounts.account_token_expired?(token)
     end
   end
 
@@ -3154,6 +3413,91 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "link_oauth_identity_to_user/2" do
+    test "links OAuth identity to an existing user" do
+      # Given
+      user = user_fixture(email: "existing-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert oauth_identity.user_id == user.id
+      assert oauth_identity.provider == :google
+      assert oauth_identity.id_in_provider == to_string(attrs.id_in_provider)
+    end
+
+    test "the linked OAuth identity can be retrieved" do
+      # Given
+      user = user_fixture(email: "link-test@example.com")
+      uid = "google-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      {:ok, retrieved} = Accounts.get_oauth2_identity(:google, uid)
+      assert retrieved.user.id == user.id
+    end
+
+    test "assigns user to SSO organization when provider_organization_id matches" do
+      # Given
+      organization =
+        organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "link-sso-test.io"
+        )
+
+      user = user_fixture(email: "link-sso-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "link-sso-test.io"
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "returns error when OAuth identity already exists for that provider and uid" do
+      # Given
+      user1 = user_fixture(email: "user1@example.com")
+      user2 = user_fixture(email: "user2@example.com")
+      uid = "shared-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :github,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # First link succeeds
+      {:ok, _} = Accounts.link_oauth_identity_to_user(user1, attrs)
+
+      # When - second link to same OAuth identity fails
+      {:error, changeset} = Accounts.link_oauth_identity_to_user(user2, attrs)
+
+      # Then
+      assert changeset.errors != []
+    end
+  end
+
   describe "extract_provider_organization_id/1" do
     test "extracts hosted domain for Google provider" do
       # Given
@@ -3350,6 +3694,185 @@ defmodule Tuist.AccountsTest do
       # Then
       assert {:error, errors} = result
       assert Map.has_key?(errors, :name)
+    end
+  end
+
+  describe "list_account_cache_endpoints/1" do
+    test "returns empty list when account has no cache endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert endpoints == []
+    end
+
+    test "returns cache endpoints for account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint1} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, endpoint2} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert length(endpoints) == 2
+      endpoint_ids = Enum.map(endpoints, & &1.id)
+      assert endpoint1.id in endpoint_ids
+      assert endpoint2.id in endpoint_ids
+    end
+  end
+
+  describe "create_account_cache_endpoint/2" do
+    test "creates cache endpoint with valid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert endpoint.url == "https://cache.example.com"
+      assert endpoint.account_id == account.id
+    end
+
+    test "returns error for invalid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "not-a-url"})
+
+      # Then
+      assert %{url: ["must be a valid HTTP or HTTPS URL"]} = errors_on(changeset)
+    end
+
+    test "returns error when adding duplicate URL for same account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert %{account_id: ["has already been added"]} = errors_on(changeset)
+    end
+
+    test "allows same URL for different accounts" do
+      # Given
+      user1 = AccountsFixtures.user_fixture()
+      user2 = AccountsFixtures.user_fixture()
+      account1 = Accounts.get_account_from_user(user1)
+      account2 = Accounts.get_account_from_user(user2)
+      {:ok, _endpoint1} = Accounts.create_account_cache_endpoint(account1, %{url: "https://cache.example.com"})
+
+      # When
+      result = Accounts.create_account_cache_endpoint(account2, %{url: "https://cache.example.com"})
+
+      # Then
+      assert {:ok, endpoint} = result
+      assert endpoint.url == "https://cache.example.com"
+    end
+  end
+
+  describe "delete_account_cache_endpoint/1" do
+    test "deletes the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+
+      # Then
+      assert Accounts.list_account_cache_endpoints(account) == []
+    end
+  end
+
+  describe "get_account_cache_endpoint!/1" do
+    test "returns the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      fetched_endpoint = Accounts.get_account_cache_endpoint!(endpoint.id)
+
+      # Then
+      assert fetched_endpoint.id == endpoint.id
+      assert fetched_endpoint.url == endpoint.url
+    end
+
+    test "raises when endpoint does not exist" do
+      # Given / When / Then
+      assert_raise Ecto.NoResultsError, fn ->
+        Accounts.get_account_cache_endpoint!(Ecto.UUID.generate())
+      end
+    end
+  end
+
+  describe "get_cache_endpoints_for_handle/1" do
+    test "returns custom endpoints when account has them configured" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
+    end
+
+    test "returns default endpoints when account has no custom endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account handle does not exist" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when handle is nil" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+
+      # Then
+      assert endpoints == default_endpoints
     end
   end
 end

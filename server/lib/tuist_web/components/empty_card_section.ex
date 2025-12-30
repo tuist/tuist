@@ -26,7 +26,7 @@ defmodule TuistWeb.Components.EmptyCardSection do
         :if={@get_started_href}
         target="_blank"
         href={@get_started_href}
-        label={gettext("Get started")}
+        label={dgettext("dashboard", "Get started")}
         size="medium"
         underline
       >

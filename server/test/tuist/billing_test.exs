@@ -480,7 +480,7 @@ defmodule Tuist.BillingTest do
 
       account = %Account{customer_id: customer_id, namespace_tenant_id: "tenant-abc"}
 
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
+      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> {:ok, account} end)
 
       stub(Tuist.Namespace, :get_tenant_usage, fn ^account, _start_date, _end_date ->
         {:ok, %{"total" => %{"instanceMinutes" => %{"unit" => 137}}}}
@@ -516,11 +516,12 @@ defmodule Tuist.BillingTest do
 
       account = %Account{customer_id: customer_id, namespace_tenant_id: nil}
 
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
+      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> {:ok, account} end)
 
       reject(&Stripe.Request.make_request/1)
 
-      assert %Account{customer_id: ^customer_id} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
+      assert {:ok, %Account{customer_id: ^customer_id}} =
+               Billing.update_namespace_usage_meter(customer_id, idempotency_key)
     end
   end
 

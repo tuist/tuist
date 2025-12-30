@@ -13,7 +13,7 @@ Tuist CLI는 실행 파일, 동적 프레임워크, 리소스 집합(예: 템플
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info
+::: info Mise란?
 <!-- -->
 Mise는 서로 다른 환경에서 도구의 버전을 동일하게 유지해야 하는 팀이나 조직에서 사용할 수 있는
 [Homebrew](https://brew.sh)의 대안입니다.
@@ -49,7 +49,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+::: tip 바이너리의 출처 검증
 <!-- -->
 다음 명령어를 통해 설치된 바이너리가 Tuist에서 빌드된 것인지 확인할 수 있으며, 이것은 인증서의 팀이 `U6LC622NKF`인지
 확인합니다:

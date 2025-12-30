@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIURLSession
 import Path
+import TuistHTTP
 
 @Mockable
 public protocol UploadPreviewIconServicing {

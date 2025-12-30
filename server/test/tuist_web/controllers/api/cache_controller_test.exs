@@ -40,6 +40,82 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["endpoints"] == expected_endpoints
     end
+
+    test "returns default endpoints when account_handle is provided but account has no custom endpoints",
+         %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      expected_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> expected_endpoints end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == expected_endpoints
+    end
+
+    test "returns custom endpoints when account has custom endpoints configured",
+         %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _endpoint1} =
+        Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache-1.example.com"})
+
+      {:ok, _endpoint2} =
+        Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache-2.example.com"})
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+
+      assert Enum.sort(response["endpoints"]) ==
+               Enum.sort(["https://custom-cache-1.example.com", "https://custom-cache-2.example.com"])
+    end
+
+    test "returns default endpoints when account_handle does not exist",
+         %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      expected_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> expected_endpoints end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=nonexistent-account")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == expected_endpoints
+    end
   end
 
   describe "GET /api/cache" do
@@ -49,7 +125,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
-      size = 1024
       project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
@@ -64,9 +139,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
-
-      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -146,7 +218,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
       object_key = "myaccount/myproject/#{cache_category}/#{hash}/#{name}"
-      size = 1024
       date = ~N[2024-04-30 10:20:30Z]
 
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
@@ -154,9 +225,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
-
-      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
-      expect(Storage, :get_object_size, fn ^object_key, _actor -> {:ok, size} end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -589,7 +657,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       upload_id = "1234"
       object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
-      size = 1024
       date = ~N[2024-04-30 10:20:30Z]
 
       parts = [
@@ -605,10 +672,6 @@ defmodule TuistWeb.API.CacheControllerTest do
                                                      [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
                                                      _actor ->
         :ok
-      end)
-
-      expect(Storage, :get_object_size, fn ^object_key, _ ->
-        {:ok, size}
       end)
 
       conn = Authentication.put_current_project(conn, project)

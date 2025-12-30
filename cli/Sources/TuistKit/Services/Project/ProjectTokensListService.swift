@@ -30,6 +30,11 @@ final class ProjectTokensListService: ProjectTokensListServicing {
         fullHandle: String,
         directory: String?
     ) async throws {
+        AlertController.current.warning(.alert(
+            "Project tokens are deprecated in favor of account tokens",
+            takeaway: "Learn more: https://docs.tuist.dev/en/guides/server/authentication#account-tokens"
+        ))
+
         let directoryPath: AbsolutePath
         if let directory {
             directoryPath = try AbsolutePath(

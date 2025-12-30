@@ -22,29 +22,28 @@ defmodule TuistWeb.API.Registry.SwiftController do
   end
 
   def identifiers(conn, %{"url" => repository_url}) do
-    provider =
-      VCS.get_provider_from_repository_url(repository_url)
-
-    case provider do
-      {:ok, :github} ->
-        %{scope: scope, name: name} =
-          repository_url
-          |> VCS.get_repository_full_handle_from_url()
-          |> elem(1)
-          |> Packages.get_package_scope_and_name_from_repository_full_handle()
-
-        if is_nil(Packages.get_package_by_scope_and_name(%{scope: scope, name: name})) do
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(:not_found)
-          |> json(%{message: "The package #{repository_url} was not found in the registry."})
-        else
-          conn
-          |> put_resp_header("content-version", "1")
-          |> json(%{identifiers: ["#{scope}.#{name}"]})
-        end
+    with {:ok, :github} <- VCS.get_provider_from_repository_url(repository_url),
+         {:ok, full_handle} <- VCS.get_repository_full_handle_from_url(repository_url),
+         %{scope: scope, name: name} =
+           Packages.get_package_scope_and_name_from_repository_full_handle(full_handle),
+         {:ok, _package} <- Packages.get_package_by_scope_and_name(%{scope: scope, name: name}) do
+      conn
+      |> put_resp_header("content-version", "1")
+      |> json(%{identifiers: ["#{scope}.#{name}"]})
+    else
+      {:error, :invalid_repository_url} ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:bad_request)
+        |> json(%{message: "Invalid repository URL: #{repository_url}"})
 
       {:error, :unsupported_vcs} ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:not_found)
+        |> json(%{message: "The package #{repository_url} was not found in the registry."})
+
+      {:error, :not_found} ->
         conn
         |> put_resp_header("content-version", "1")
         |> put_status(:not_found)
@@ -228,15 +227,14 @@ defmodule TuistWeb.API.Registry.SwiftController do
         _ -> nil
       end
 
-    package = Packages.get_package_by_scope_and_name(%{scope: scope, name: name})
-
     object_key =
       Packages.package_object_key(%{scope: scope, name: name},
         version: version,
         path: "source_archive.zip"
       )
 
-    if Storage.object_exists?(object_key, :registry) do
+    with {:ok, package} <- Packages.get_package_by_scope_and_name(%{scope: scope, name: name}),
+         true <- Storage.object_exists?(object_key, :registry) do
       :telemetry.execute(
         [:analytics, :registry, :swift, :source_archive_download],
         %{},
@@ -263,10 +261,11 @@ defmodule TuistWeb.API.Registry.SwiftController do
       |> send_chunked(:ok)
       |> stream_object(object_key)
     else
-      conn
-      |> put_resp_header("content-version", "1")
-      |> put_status(:not_found)
-      |> json(%{})
+      _ ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:not_found)
+        |> json(%{})
     end
   end
 
@@ -285,13 +284,13 @@ defmodule TuistWeb.API.Registry.SwiftController do
     case Packages.get_package_by_scope_and_name(%{scope: scope, name: name},
            preload: [:package_releases]
          ) do
-      nil ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
         |> halt()
 
-      package ->
+      {:ok, package} ->
         assign(conn, :package, package)
     end
   end

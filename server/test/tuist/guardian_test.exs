@@ -29,7 +29,7 @@ defmodule Tuist.GuardianTest do
                Guardian.resource_from_claims(claims)
 
       assert account_id == account.id
-      assert scopes == [:qa_run_update, :qa_step_create]
+      assert scopes == ["qa_run_update", "qa_step_create"]
     end
 
     test "returns error when account not found" do

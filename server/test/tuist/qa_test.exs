@@ -208,6 +208,8 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      stub(Tuist.Environment, :anthropic_api_key, fn -> "test-anthropic-api-key" end)
+      stub(Tuist.Environment, :openai_api_key, fn -> "test-openai-api-key" end)
 
       expect(Agent, :test, fn attrs, opts ->
         assert attrs.preview_url == "https://example.com/preview.zip"
@@ -661,7 +663,7 @@ defmodule Tuist.QATest do
 
     test "returns not found error when QA step does not exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       result = QA.step(non_existent_id)
@@ -704,7 +706,7 @@ defmodule Tuist.QATest do
 
     test "returns not found error when QA run does not exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       result = QA.qa_run(non_existent_id)
@@ -745,7 +747,7 @@ defmodule Tuist.QATest do
 
     test "returns nil when QA run does not exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       result = QA.qa_run_for_ops(non_existent_id)
@@ -941,7 +943,7 @@ defmodule Tuist.QATest do
   describe "recording_storage_key/1" do
     test "generates correct storage key for recording" do
       # Given
-      qa_run_id = Ecto.UUID.generate()
+      qa_run_id = UUIDv7.generate()
 
       # When
       storage_key =
@@ -957,7 +959,7 @@ defmodule Tuist.QATest do
 
     test "downcases account and project handles" do
       # Given
-      qa_run_id = Ecto.UUID.generate()
+      qa_run_id = UUIDv7.generate()
 
       # When
       storage_key =
@@ -1060,8 +1062,8 @@ defmodule Tuist.QATest do
   describe "screenshot_storage_key/1" do
     test "generates correct storage key for screenshot" do
       # Given
-      qa_run_id = Ecto.UUID.generate()
-      screenshot_id = Ecto.UUID.generate()
+      qa_run_id = UUIDv7.generate()
+      screenshot_id = UUIDv7.generate()
 
       # When
       storage_key =
@@ -1289,7 +1291,7 @@ defmodule Tuist.QATest do
 
     test "returns error when screenshot doesn't exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
       qa_run = QAFixtures.qa_run_fixture()
 
       # When
@@ -1565,7 +1567,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: log_data,
@@ -1595,7 +1597,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :message,
           data: log_data,
@@ -1634,7 +1636,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: log_data,
@@ -1658,7 +1660,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :message,
           data: Jason.encode!(%{"message" => "Test message"}),
@@ -1666,7 +1668,7 @@ defmodule Tuist.QATest do
           screenshot_metadata: nil
         },
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :usage,
           data: Jason.encode!(%{"input" => 100, "output" => 50}),
@@ -1691,7 +1693,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :message,
           data: Jason.encode!(%{"message" => "Test message"}),
@@ -1699,7 +1701,7 @@ defmodule Tuist.QATest do
           screenshot_metadata: nil
         },
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :usage,
           data: Jason.encode!(%{"input" => 100, "output" => 50}),
@@ -1731,7 +1733,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: log_data,
@@ -1757,7 +1759,7 @@ defmodule Tuist.QATest do
 
       logs = [
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: Jason.encode!(%{"name" => "screenshot"}),
@@ -1788,7 +1790,7 @@ defmodule Tuist.QATest do
       logs = [
         # Message log
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :message,
           data: Jason.encode!(%{"message" => "Simple message"}),
@@ -1797,7 +1799,7 @@ defmodule Tuist.QATest do
         },
         # Tool call with type and name
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: Jason.encode!(%{"type" => "call", "name" => "tap_element"}),
@@ -1806,7 +1808,7 @@ defmodule Tuist.QATest do
         },
         # Tool result
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call_result,
           data: Jason.encode!(%{"type" => "result", "name" => "tap_result"}),
@@ -1815,7 +1817,7 @@ defmodule Tuist.QATest do
         },
         # Tool with arguments
         %{
-          id: Ecto.UUID.generate(),
+          id: UUIDv7.generate(),
           qa_run_id: qa_run.id,
           type: :tool_call,
           data: Jason.encode!(%{"arguments" => %{"x" => 100}, "name" => "click"}),
@@ -1860,7 +1862,7 @@ defmodule Tuist.QATest do
         })
 
       log = %{
-        id: Ecto.UUID.generate(),
+        id: UUIDv7.generate(),
         qa_run_id: qa_run.id,
         type: :tool_call,
         data: log_data,
@@ -1884,7 +1886,7 @@ defmodule Tuist.QATest do
       qa_run = QAFixtures.qa_run_fixture()
 
       log = %{
-        id: Ecto.UUID.generate(),
+        id: UUIDv7.generate(),
         qa_run_id: qa_run.id,
         type: :message,
         data: Jason.encode!(%{"message" => "Simple message"}),
@@ -1994,7 +1996,7 @@ defmodule Tuist.QATest do
 
     test "returns not found error when launch argument group does not exist" do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
 
       # When
       result = QA.get_launch_argument_group(non_existent_id)

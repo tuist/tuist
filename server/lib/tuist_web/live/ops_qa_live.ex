@@ -15,7 +15,7 @@ defmodule TuistWeb.OpsQALive do
      |> assign(:projects_usage_chart_data, QA.projects_usage_chart_data())
      |> assign(:recent_qa_runs, QA.recent_qa_runs())
      |> assign(:token_usage_by_account, Billing.feature_token_usage_by_account("qa"))
-     |> assign(:head_title, "#{gettext("QA Operations")} · Tuist")}
+     |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Operations")} · Tuist")}
   end
 
   defp format_number(number) when is_integer(number) do

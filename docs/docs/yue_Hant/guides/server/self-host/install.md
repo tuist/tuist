@@ -273,8 +273,7 @@ You might need to create a consent screen. When you do so, make sure to add the
 You can enable authentication with Okta through the [OAuth
 2.0](https://oauth.net/2/) protocol. You'll have to [create an
 app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these
-instructions</LocalizedLink>.
+on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these instructions</LocalizedLink>.
 
 You will need to set the following environment variables once you obtain the
 client id and secret during the set up of the Okta application:
@@ -370,8 +369,7 @@ email confirmation when email is configured, set
 
 ### Git platform configuration {#git-platform-configuration}
 
-Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git
-platforms</LocalizedLink> to provide extra features such as automatically
+Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically
 posting comments in your pull requests.
 
 #### GitHub {#platform-github}

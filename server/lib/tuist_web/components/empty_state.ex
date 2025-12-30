@@ -39,7 +39,7 @@ defmodule TuistWeb.EmptyState do
             </span>
             <.link_button
               :if={@learn_more_href}
-              label={gettext("Learn more")}
+              label={dgettext("dashboard", "Learn more")}
               underline
               size="medium"
               href={@learn_more_href}

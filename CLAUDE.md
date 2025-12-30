@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
@@ -14,6 +15,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
+- `feat(cache): add new S3 transfer worker`
 - `docs(handbook): update project setup guide`
 
 # Tuist CLI (Swift)
@@ -201,14 +203,10 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to Fly.io with different environments:
+The application deploys to Render with different environments:
 - `mise run deploy:staging` - Deploy to staging
 - `mise run deploy:canary` - Deploy to canary
 - `mise run deploy:production` - Deploy to production
-
-**Remote Console Access:**
-- `mise run fly:console:staging`
-- `mise run fly:console:production`
 
 ## Important Notes
 
@@ -282,7 +280,7 @@ When creating or modifying security policies:
 3. **Key considerations**:
    - Keep policies practical for a 4-person company
    - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Fly.io, Supabase, Tigris, Cloudflare) handle their own layer security
+   - Infrastructure providers (Render, Supabase, Tigris, Cloudflare) handle their own layer security
    - Focus on application-layer responsibilities
 
 ## Navigation Configuration
@@ -332,7 +330,7 @@ description: Brief description of the page content
    - Practical implementation requirements
 
 3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Fly.io for application hosting
+   - Render for application hosting
    - Supabase for database services
    - Tigris for data storage
    - Cloudflare for CDN and edge services

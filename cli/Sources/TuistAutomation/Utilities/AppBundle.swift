@@ -92,8 +92,11 @@ public struct AppBundle: Equatable {
             }
         }
 
-        /// App version number (e.g. 10.3)
+        /// App version number (e.g. 10.3) - CFBundleShortVersionString
         public let version: String
+
+        /// Build version number (e.g. 123) - CFBundleVersion
+        public let buildVersion: String
 
         /// Name of the app
         public let name: String
@@ -112,6 +115,7 @@ public struct AppBundle: Equatable {
 
         init(
             version: String,
+            buildVersion: String,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
@@ -119,6 +123,7 @@ public struct AppBundle: Equatable {
             bundleIcons: BundleIcons?
         ) {
             self.version = version
+            self.buildVersion = buildVersion
             self.name = name
             self.bundleId = bundleId
             self.minimumOSVersion = minimumOSVersion
@@ -128,6 +133,7 @@ public struct AppBundle: Equatable {
 
         enum CodingKeys: String, CodingKey {
             case version = "CFBundleShortVersionString"
+            case buildVersion = "CFBundleVersion"
             case name = "CFBundleName"
             case bundleId = "CFBundleIdentifier"
             case minimumOSVersion = "MinimumOSVersion"
@@ -139,6 +145,7 @@ public struct AppBundle: Equatable {
             let container: KeyedDecodingContainer<AppBundle.InfoPlist.CodingKeys> = try decoder
                 .container(keyedBy: AppBundle.InfoPlist.CodingKeys.self)
             version = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.version)
+            buildVersion = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.buildVersion)
             let name = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.name)
             self.name = name
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
@@ -183,6 +190,7 @@ public struct AppBundle: Equatable {
     extension AppBundle.InfoPlist {
         public static func test(
             version: String = "1.0",
+            buildVersion: String = "1",
             name: String = "App",
             bundleId: String = "dev.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
@@ -191,6 +199,7 @@ public struct AppBundle: Equatable {
         ) -> Self {
             .init(
                 version: version,
+                buildVersion: buildVersion,
                 name: name,
                 bundleId: bundleId,
                 minimumOSVersion: minimumOSVersion,

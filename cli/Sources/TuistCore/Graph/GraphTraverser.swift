@@ -187,6 +187,20 @@ public class GraphTraverser: GraphTraversing {
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
+    public func directNonExternalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
+        directTargetDependencies(path: path, name: name)
+            .filter { reference in
+                switch reference.graphTarget.project.type {
+                case .local:
+                    return true
+                case .external:
+                    return false
+                }
+            }
+    }
+
     /// Returns all direct target dependencies where the target is in another project.
     private func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let dependencies = directTargetDependencies(path: path, name: name)

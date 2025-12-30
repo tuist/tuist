@@ -31,6 +31,11 @@ extension Tuist {
             return .none
         }
 
+        if case .some(.none) = cacheProfile {
+            Logger.current.debug("Using cache profile none")
+            return .none
+        }
+
         if !includedTargets.isEmpty {
             Logger.current.debug("Using cache profile all-possible")
             return .allPossible

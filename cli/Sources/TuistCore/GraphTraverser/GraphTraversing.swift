@@ -79,20 +79,32 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
     func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
-    /// Given a project directory and target name, it returns **all** its direct target dependencies present in the same project.
+    /// Given a project directory and target name, it returns **all** its direct target dependencies (including external
+    /// dependencies).
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
-    /// instead
+    /// instead.
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Target name.
     func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
-    /// Given a project directory and target name, it returns all its direct target dependencies present in the same project.
-    /// To get **all** direct target dependencies use the method `directTargetDependencies` instead
+    /// Given a project directory and target name, it returns direct target dependencies from the **same project only** (same
+    /// path).
+    /// Excludes dependencies from other projects in the workspace AND external dependencies.
+    /// To get all local (non-external) dependencies, use `directNonExternalTargetDependencies`.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
+
+    /// Given a project directory and target name, it returns all its direct target dependencies from local projects (excluding
+    /// external dependencies).
+    /// This includes dependencies from the same project AND other local projects in the workspace.
+    /// To get only dependencies from the same project, use `directLocalTargetDependencies`.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func directNonExternalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:

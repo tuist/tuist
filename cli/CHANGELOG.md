@@ -1,6 +1,125 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.119.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use generic destination for Mac Catalyst cache builds by [@pepicrft](https://github.com/pepicrft) in [#9038](https://github.com/tuist/tuist/pull/9038)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.0...4.119.1
+
+## What's Changed in 4.119.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* custom cache endpoints by [@cschmatzler](https://github.com/cschmatzler) in [#8980](https://github.com/tuist/tuist/pull/8980)
+### 🐛 Bug Fixes
+
+* Generate TuistBundle if buildableFolders contains synthesized file by [@denisgaskov](https://github.com/denisgaskov) in [#8998](https://github.com/tuist/tuist/pull/8998)
+* Include Mac Catalyst slice when building XCFrameworks for cache by [@pepicrft](https://github.com/pepicrft) in [#9028](https://github.com/tuist/tuist/pull/9028)
+### 🚜 Refactor
+
+* rename fixtures to examples and simplify fixture handling by [@pepicrft](https://github.com/pepicrft) in [#8962](https://github.com/tuist/tuist/pull/8962)
+
+## New Contributors
+* [@denisgaskov](https://github.com/denisgaskov) made their first contribution in [#8998](https://github.com/tuist/tuist/pull/8998)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.118.1...4.119.0
+
+## What's Changed in 4.118.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* module cache by [@cschmatzler](https://github.com/cschmatzler) in [#8931](https://github.com/tuist/tuist/pull/8931)
+### 🐛 Bug Fixes
+
+* fix selective testing when experimental cache enabled by [@cschmatzler](https://github.com/cschmatzler) in [#8981](https://github.com/tuist/tuist/pull/8981)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.117.0...4.118.1
+
+## What's Changed in 4.117.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* preview tracks by [@fortmarek](https://github.com/fortmarek) in [#8939](https://github.com/tuist/tuist/pull/8939)
+### 🐛 Bug Fixes
+
+* handle cross-project dependencies in redundant import inspection by [@hiltonc](https://github.com/hiltonc) in [#8862](https://github.com/tuist/tuist/pull/8862)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.116.2...4.117.0
+
+## What's Changed in 4.116.2<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
+### 🐛 Bug Fixes
+
+* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
+* add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.2
+
+## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* migrate Fixtures - Tuist initializer with .project by [@2sem](https://github.com/2sem) in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+## New Contributors
+* [@2sem](https://github.com/2sem) made their first contribution in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.0...4.115.1
+
+## What's Changed in 4.115.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* upload command run analytics in the background by [@fortmarek](https://github.com/fortmarek) in [#8883](https://github.com/tuist/tuist/pull/8883)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.114.0...4.115.0
+
+## What's Changed in 4.114.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* OIDC support Bitrise and CircleCI by [@fortmarek](https://github.com/fortmarek) in [#8878](https://github.com/tuist/tuist/pull/8878)
+* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+### 🐛 Bug Fixes
+
+* parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.114.0
+
+## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* account tokens by [@fortmarek](https://github.com/fortmarek) in [#8834](https://github.com/tuist/tuist/pull/8834)
+* report module cache subhashes by [@fortmarek](https://github.com/fortmarek) in [#8822](https://github.com/tuist/tuist/pull/8822)
+### 🐛 Bug Fixes
+
+* respect explicit cache profile none with target focus by [@hiltonc](https://github.com/hiltonc) in [#8830](https://github.com/tuist/tuist/pull/8830)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.112.0
+
+## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle skipped tests due to a failed build by [@fortmarek](https://github.com/fortmarek) in [#8808](https://github.com/tuist/tuist/pull/8808)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.2...4.110.3
+
+## What's Changed in 4.110.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* false positive for a .uiTests implicit import of .app by [@fortmarek](https://github.com/fortmarek) in [#8811](https://github.com/tuist/tuist/pull/8811)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.1...4.110.2
+
 ## What's Changed in 4.110.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -511,6 +630,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Make implicit import detection work with buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8358](https://github.com/tuist/tuist/pull/8358)
+* add CI run reference to build runs by [@fortmarek](https://github.com/fortmarek) in [#8356](https://github.com/tuist/tuist/pull/8356)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.80.0...4.81.0
 
@@ -519,6 +639,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Report server-side payment-required responses as warnings by [@pepicrft](https://github.com/pepicrft) in [#8338](https://github.com/tuist/tuist/pull/8338)
+* add configuration to build insights by [@fortmarek](https://github.com/fortmarek) in [#8330](https://github.com/tuist/tuist/pull/8330)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.79.7...4.80.0
 
@@ -905,6 +1026,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
+* fetching devices when running previews by [@fortmarek](https://github.com/fortmarek) in [#8010](https://github.com/tuist/tuist/pull/8010)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.61.0...4.61.1
 

@@ -1,0 +1,429 @@
+{
+    "aside": {
+        "translate": {
+            "title": {
+                "text": ""
+            },
+            "description": {
+                "text": ""
+            },
+            "cta": {
+                "text": ""
+            }
+        }
+    },
+    "search": {
+        "placeholder": "",
+        "translations": {
+            "button": {
+                "button-text": "",
+                "button-aria-label": ""
+            },
+            "modal": {
+                "search-box": {
+                    "reset-button-title": "",
+                    "reset-button-aria-label": "",
+                    "cancel-button-text": "",
+                    "cancel-button-aria-label": ""
+                },
+                "start-screen": {
+                    "recent-searches-title": "",
+                    "no-recent-searches-text": "",
+                    "save-recent-search-button-title": "",
+                    "remove-recent-search-button-title": "",
+                    "favorite-searches-title": "",
+                    "remove-favorite-search-button-title": ""
+                },
+                "error-screen": {
+                    "title-text": "",
+                    "help-text": ""
+                },
+                "footer": {
+                    "select-text": "",
+                    "navigate-text": "",
+                    "close-text": "",
+                    "search-by-text": ""
+                },
+                "no-results-screen": {
+                    "no-results-text": "",
+                    "suggested-query-text": "",
+                    "report-missing-results-text": "",
+                    "report-missing-results-link-text": ""
+                }
+            }
+        }
+    },
+    "navbar": {
+        "guides": {
+            "text": ""
+        },
+        "cli": {
+            "text": ""
+        },
+        "server": {
+            "text": ""
+        },
+        "resources": {
+            "text": "",
+            "items": {
+                "references": {
+                    "text": ""
+                },
+                "contributors": {
+                    "text": ""
+                },
+                "changelog": {
+                    "text": ""
+                }
+            }
+        }
+    },
+    "sidebars": {
+        "cli": {
+            "text": "",
+            "items": {
+                "cli": {
+                    "items": {
+                        "logging": {
+                            "text": ""
+                        },
+                        "directories": {
+                            "text": ""
+                        },
+                        "shell-completions": {
+                            "text": ""
+                        }
+                    }
+                },
+                "commands": {
+                    "text": ""
+                }
+            }
+        },
+        "references": {
+            "text": "",
+            "items": {
+                "examples": {
+                    "text": ""
+                },
+                "migrations": {
+                    "text": "",
+                    "items": {
+                        "from-v3-to-v4": {
+                            "text": ""
+                        }
+                    }
+                }
+            }
+        },
+        "contributors": {
+            "text": "",
+            "items": {
+                "get-started": {
+                    "text": ""
+                },
+                "issue-reporting": {
+                    "text": ""
+                },
+                "code-reviews": {
+                    "text": ""
+                },
+                "principles": {
+                    "text": ""
+                },
+                "translate": {
+                    "text": ""
+                },
+                "releases": {
+                    "text": ""
+                },
+                "cli": {
+                    "text": "",
+                    "items": {
+                        "logging": {
+                            "text": ""
+                        }
+                    }
+                }
+            }
+        },
+        "server": {
+            "items": {
+                "introduction": {
+                    "text": "",
+                    "items": {
+                        "why-server": {
+                            "text": ""
+                        },
+                        "accounts-and-projects": {
+                            "text": ""
+                        },
+                        "authentication": {
+                            "text": ""
+                        },
+                        "integrations": {
+                            "text": ""
+                        }
+                    }
+                },
+                "on-premise": {
+                    "text": "",
+                    "items": {
+                        "install": {
+                            "text": ""
+                        },
+                        "metrics": {
+                            "text": ""
+                        }
+                    }
+                },
+                "api-documentation": {
+                    "text": ""
+                },
+                "status": {
+                    "text": ""
+                },
+                "metrics-dashboard": {
+                    "text": ""
+                }
+            }
+        },
+        "guides": {
+            "text": "",
+            "items": {
+                "tuist": {
+                    "text": "",
+                    "items": {
+                        "about": {
+                            "text": ""
+                        }
+                    }
+                },
+                "quick-start": {
+                    "text": "",
+                    "items": {
+                        "install-tuist": {
+                            "text": ""
+                        },
+                        "get-started": {
+                            "text": ""
+                        }
+                    }
+                },
+                "features": {
+                    "text": ""
+                },
+                "examples": {
+                    "text": "",
+                    "items": {
+                        "generated-projects": {
+                            "text": ""
+                        }
+                    }
+                },
+                "develop": {
+                    "text": "",
+                    "items": {
+                        "generated-projects": {
+                            "text": "",
+                            "items": {
+                                "adoption": {
+                                    "text": "",
+                                    "items": {
+                                        "new-project": {
+                                            "text": ""
+                                        },
+                                        "swift-package": {
+                                            "text": ""
+                                        },
+                                        "migrate": {
+                                            "text": "",
+                                            "items": {
+                                                "xcode-project": {
+                                                    "text": ""
+                                                },
+                                                "swift-package": {
+                                                    "text": ""
+                                                },
+                                                "xcodegen-project": {
+                                                    "text": ""
+                                                },
+                                                "bazel-project": {
+                                                    "text": ""
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "manifests": {
+                                    "text": ""
+                                },
+                                "directory-structure": {
+                                    "text": ""
+                                },
+                                "editing": {
+                                    "text": ""
+                                },
+                                "dependencies": {
+                                    "text": ""
+                                },
+                                "code-sharing": {
+                                    "text": ""
+                                },
+                                "synthesized-files": {
+                                    "text": ""
+                                },
+                                "dynamic-configuration": {
+                                    "text": ""
+                                },
+                                "templates": {
+                                    "text": ""
+                                },
+                                "plugins": {
+                                    "text": ""
+                                },
+                                "hashing": {
+                                    "text": ""
+                                },
+                                "inspect": {
+                                    "text": "",
+                                    "items": {
+                                        "implicit-imports": {
+                                            "text": ""
+                                        }
+                                    }
+                                },
+                                "the-cost-of-convenience": {
+                                    "text": ""
+                                },
+                                "tma-architecture": {
+                                    "text": ""
+                                },
+                                "metadata-tags": {
+                                    "text": ""
+                                },
+                                "best-practices": {
+                                    "text": ""
+                                }
+                            }
+                        },
+                        "cache": {
+                            "text": "",
+                            "items": {
+                                "xcode-cache": {
+                                    "text": ""
+                                },
+                                "module-cache": {
+                                    "text": ""
+                                }
+                            }
+                        },
+                        "registry": {
+                            "text": "",
+                            "items": {
+                                "registry": {
+                                    "text": ""
+                                },
+                                "xcode-project": {
+                                    "text": ""
+                                },
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcodeproj-integration": {
+                                    "text": ""
+                                },
+                                "swift-package": {
+                                    "text": ""
+                                },
+                                "continuous-integration": {
+                                    "text": ""
+                                }
+                            }
+                        },
+                        "selective-testing": {
+                            "text": "",
+                            "items": {
+                                "selective-testing": {
+                                    "text": ""
+                                },
+                                "xcode-project": {
+                                    "text": ""
+                                },
+                                "generated-project": {
+                                    "text": ""
+                                }
+                            }
+                        },
+                        "insights": {
+                            "text": ""
+                        },
+                        "bundle-size": {
+                            "text": ""
+                        },
+                        "qa": {
+                            "text": ""
+                        }
+                    }
+                },
+                "agentic-coding": {
+                    "text": "",
+                    "items": {
+                        "mcp": {
+                            "text": ""
+                        }
+                    }
+                },
+                "integrations": {
+                    "text": "",
+                    "items": {
+                        "continuous-integration": {
+                            "text": ""
+                        },
+                        "sso": {
+                            "text": ""
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
+                        }
+                    }
+                },
+                "share": {
+                    "text": "",
+                    "items": {
+                        "previews": {
+                            "text": ""
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": ""
+                                },
+                                "installation": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
+                        },
+                        "accounts-and-projects": {
+                            "text": ""
+                        },
+                        "authentication": {
+                            "text": ""
+                        }
+                    },
+                    "text": ""
+                }
+            }
+        }
+    }
+}

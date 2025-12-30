@@ -58,7 +58,7 @@ struct SetupCacheCommandService {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let tuistBinaryPath = try determineTuistBinaryPath()
+        let tuistBinaryPath = try await determineTuistBinaryPath()
         let launchDaemonPlistPath = try await createLaunchDaemonPlist(
             fullHandle: fullHandle,
             url: serverURL.absoluteString,
@@ -73,13 +73,13 @@ struct SetupCacheCommandService {
             if let generationOptions = config.project.generatedProject?.generationOptions,
                generationOptions.enableCaching == true
             {
-                Logger.current.info("Tuist Cache has been enabled 🎉", metadata: .success)
+                Logger.current.info("Xcode Cache has been enabled 🎉", metadata: .success)
             } else {
                 Logger.current.info(
                     """
-                    Tuist Cache setup is almost complete!
+                    Xcode Cache setup is almost complete!
 
-                    To enable caching for this project, set the enableCaching property in your Tuist.swift file to true:
+                    To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:
 
                     let tuist = Tuist(
                         fullHandle: "\(fullHandle)",
@@ -95,7 +95,7 @@ struct SetupCacheCommandService {
         } else {
             Logger.current.info(
                 """
-                Tuist Cache setup is almost complete!
+                Xcode Cache setup is almost complete!
 
                 To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
                 COMPILATION_CACHE_ENABLE_CACHING=YES
@@ -151,7 +151,11 @@ struct SetupCacheCommandService {
 
         var environmentVariables: [String: String] = [:]
         if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
-            environmentVariables["TUIST_CONFIG_TOKEN"] = token
+            environmentVariables["TUIST_TOKEN"] = token
+        } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            AlertController.current
+                .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
+            environmentVariables["TUIST_TOKEN"] = token
         }
 
         let plistContent = launchAgentPlist(
@@ -229,18 +233,29 @@ struct SetupCacheCommandService {
         }
     }
 
-    private func determineTuistBinaryPath() throws -> AbsolutePath {
+    private func determineTuistBinaryPath() async throws -> AbsolutePath {
         guard let currentPath = Environment.current.currentExecutablePath() else {
             throw SetupCacheCommandServiceError.missingExecutablePath
         }
 
         // Check if the current executable is mise-managed
         if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            // Use the latest symlink for mise-managed installations
             let homeDir = Environment.current.homeDirectory
-            return homeDir.appending(
+
+            let misePath = homeDir.appending(
+                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
+            )
+            if try await fileSystem.exists(misePath) {
+                return misePath
+            }
+
+            // Check old mise path (with bin directory)
+            let oldMisePath = homeDir.appending(
                 components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
             )
+            if try await fileSystem.exists(oldMisePath) {
+                return oldMisePath
+            }
         }
 
         return currentPath

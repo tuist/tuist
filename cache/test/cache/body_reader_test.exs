@@ -37,36 +37,4 @@ defmodule Cache.BodyReaderTest do
       assert {:error, :cancelled, ^conn} = BodyReader.read(conn)
     end
   end
-
-  describe "drain/1" do
-    test "handles Bandit.TransportError during drain" do
-      conn = %Plug.Conn{adapter: {Conn, nil}}
-
-      expect(Plug.Conn, :read_body, fn _conn, _opts ->
-        raise Bandit.TransportError, message: "Unrecoverable error: closed", error: :closed
-      end)
-
-      assert {:error, ^conn} = BodyReader.drain(conn)
-    end
-
-    test "handles Bandit.TransportError during chunked drain" do
-      conn = %Plug.Conn{adapter: {Conn, nil}}
-      chunk = String.duplicate("x", 200_000)
-
-      call_count = :counters.new(1, [])
-
-      expect(Plug.Conn, :read_body, 2, fn conn, _opts ->
-        count = :counters.get(call_count, 1)
-        :counters.add(call_count, 1, 1)
-
-        if count == 0 do
-          {:more, chunk, conn}
-        else
-          raise Bandit.TransportError, message: "Unrecoverable error: closed", error: :closed
-        end
-      end)
-
-      assert {:error, ^conn} = BodyReader.drain(conn)
-    end
-  end
 end

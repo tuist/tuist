@@ -15,7 +15,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
@@ -31,7 +31,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   workflow_dispatch:
@@ -41,13 +41,13 @@ on:
         required: false
 
 permissions:
+  id-token: write
   contents: read
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: "true"
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}
@@ -121,8 +121,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -168,8 +171,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -215,8 +221,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
